@@ -1,0 +1,89 @@
+# Ruff configuration
+# For more info, see: https://docs.astral.sh/ruff/configuration/
+
+# Set the target Python version
+target-version = "py313"
+
+# Exclude a variety of commonly ignored directories.
+exclude = []
+
+# Same as Black.
+line-length = 80
+
+[lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+select = [
+    # Rule classes
+    "W",  # Warning (W)
+    # Flake8 rules
+    "ARG",  # flake8-unused-arguments (ARG)
+    "B",  # flake8-bugbear (B)
+    "SIM",  # flake8-simplify (SIM)
+    "FA",  # flake8-future-annotations (FA)
+    "G",  # flake8-logging-format (G)
+    "LOG",  # flake8-logging (LOG)
+    # "S",  # flake8-bandit (S)
+    # pycodestyle rules
+    "E",  # pycodestyle (E)
+    "W",  # pycodestyle (W)
+    # Pylint rules
+    "PLE",  # Error (PLE)
+    "PLW",  # Warning (PLW)
+    # Others
+    "DOC",  # pydoclint (DOC)
+    "D",  # pydocstyle (D)
+    "F",  # Pyflakes (F)
+    "RUF",  # Ruff-specific rules (RUF)
+    # Specific rules
+    "ANN001",  # Missing type annotation for function argument
+    "ANN201",  # Missing return type annotation for public function
+    "ANN204",  # Missing return type annotation for special method
+    "ANN205",  # Missing return type annotation for staticmethod
+    "ANN206",  # Missing return type annotation for classmethod
+    "D212",  # Multi-line docstring summary should start at the first line
+    "A003",  # builtin-attribute-shadowing
+    "PTH110",  # `os.path.exists()` should be replaced by `pathlib.Path.exists()`
+    "Q000",  # Single quotes found but double quotes preferred
+    "CPY001",  # Missing copyright notice at top of file
+    "N801",  # Class name {name} should use CapWords convention
+    "N802",  # Function name {name} should be lowercase
+    "N803",  # Argument name {name} should be lowercase
+    "N804",  # First argument of a class method should be named cls
+    "N805",  # First argument of a method should be named self
+    "N806",  # Variable {name} in function should be lowercase
+    "N807",  # Function name should not start and end with __
+]
+ignore = [
+    "D301",  # Use r""" if any backslashes in a docstring
+    "D401",  # First line of docstring should be in imperative mood: "{first_line}"
+    "D413",  # Missing blank line after last section ("{name}")
+    "S101",  # Use of assert detected. This clashes with the usage in tests
+    "E501",  # Line too long ({width} > {limit})
+    "B904",  # Ignore exception chaining
+    "D104",  # Ignore missing docstring in public package
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+# Full list of rules: https://docs.astral.sh/ruff/rules/
+fixable = [
+    "D208",  # Docstring is over-indented
+    "PTH110",  # os.path.exists() should be replaced by Path.exists()
+    "W"  # Warning (W)
+]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"

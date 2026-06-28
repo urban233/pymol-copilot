@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pymol-copilot"
+version = "0.1.0"
+description = "PyMOL Copilot - open-source AI assistant for the PyMOL computer program"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE"}
+authors = [
+  { name = "Hannah Kullik", email = "hannah.kullik@studmail.w-hs.de" },
+  { name = "Martin Urban", email = "martin.urban@studmail.w-hs.de" },
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.2.2",
+  "pytest",
+  "ruff",
+  "pyrefly",
+  "pdoc"
+]
+
+[project.urls]
+Homepage = "https://github.com/urban233/pymol-copilot"
+Documentation = "https://github.com/urban233/pymol-copilot"
+Repository = "https://github.com/urban233/pymol-copilot"
+
+# CRITICAL: Tell Hatch to use your active Conda environment, not create its own venv
+[tool.hatch.envs.default]
+type = "system"

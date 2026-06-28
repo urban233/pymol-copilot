@@ -1,0 +1,11 @@
+project-includes = [
+    "pymol_copilot",
+    "test",
+]
+python-version = "3.13.0"
+preset = "strict"
+check-unannotated-defs = true
+
+[errors]
+missing-import = true
+untyped-import = true
