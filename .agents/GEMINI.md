@@ -87,7 +87,7 @@ A task is **not complete** until every item below is true:
 - [ ] No redundant parentheses in `return`, `if`, `while`, `for`. No semicolons. No trailing whitespace.
 
 **`__init__.py` files**
-- [ ] No imports, no `__all__`, no code of any kind in any `__init__.py`.
+- [ ] The __init__.py re-exports only the public API — everything a consuming application needs, nothing internal. If it is not in __init__.py, applications cannot import it. This is the boundary.
 
 **Post-implementation quality gate**
 - [ ] `format` task executed and exits 0.

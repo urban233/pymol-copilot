@@ -1,9 +1,12 @@
 """Main window module for the PyMOL Copilot application."""
+
 from __future__ import annotations
 
 from PyQt6 import QtCore
 from PyQt6 import QtGui
 from PyQt6 import QtWidgets
+
+from pymol_copilot.gui.widgets import input_bar
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -39,6 +42,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_description.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         tmp_layout.addWidget(tmp_description)
+
+        tmp_input_bar = input_bar.InputBar()
+        tmp_layout.addWidget(tmp_input_bar)
 
         tmp_status_bar = self.statusBar()
         if tmp_status_bar is not None:

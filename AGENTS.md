@@ -51,7 +51,7 @@
 
 ## Repository Conventions
 
-* **Module Initialization (`__init__.py`):** `__init__.py` files must remain strictly empty. No imports, no `__all__`, and no operational code of any kind are permitted.
+* **Module Initialization (`__init__.py`):** The `__init__.py` re-exports only the public API — everything a consuming application needs, nothing internal. If it is not in __init__.py, applications cannot import it. This is the boundary.
 * **Context Management:** Wrap all context-managed resources in explicit `with` blocks; avoid manual `.close()` calls to guarantee clean environment boundaries.
 
 ---

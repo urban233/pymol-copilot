@@ -1,4 +1,5 @@
 """Main entry point for the PyMOL Copilot application."""
+
 from __future__ import annotations
 
 import sys

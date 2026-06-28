@@ -1,4 +1,5 @@
 """Tests for the main window of the PyMOL Copilot application."""
+
 from __future__ import annotations
 
 from PyQt6 import QtWidgets
