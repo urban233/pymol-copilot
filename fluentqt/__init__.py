@@ -7,6 +7,7 @@ import fluentqt.core.factory as factory_module
 import fluentqt.core.tokens as tokens_module
 import fluentqt.enums.roles as roles
 import fluentqt.primitives.frame as frame_module
+import fluentqt.primitives.label as label_module
 
 ScreenChangeNotifier = dp_module.ScreenChangeNotifier
 dp = dp_module.dp
@@ -30,6 +31,7 @@ TextRole = roles.TextRole
 TypeStyle = roles.TypeStyle
 
 TokenFrame = frame_module.TokenFrame
+TokenLabel = label_module.TokenLabel
 
 __all__ = [
     "ButtonRole",
@@ -41,6 +43,7 @@ __all__ = [
     "TextRole",
     "TokenConsumer",
     "TokenFrame",
+    "TokenLabel",
     "TypeStyle",
     "current_mode",
     "dp",
