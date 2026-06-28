@@ -103,3 +103,15 @@ Example: Run tests with verbose output:
 ```bash
 .\pymake.bat test verbose=true
 ```
+
+## Contributing
+We welcome contributions! PyMOL Copilot is fully open source (BSD-3 Clause), 
+and we encourage the community to:
+
+- Report bugs and suggest features.
+- Improve documentation.
+- Submit code improvements.
+- Write a plugin that solves a specific problem or integrates a specific tool.
+
+See our [Contributing Guide](./CONTRIBUTING.md) for development setup, coding
+standards, and how to submit pull requests.
