@@ -8,25 +8,22 @@ from PyQt6 import QtCore
 from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 
+from pymol_copilot.gui import fluent
+
 
 def dp(value: int | float) -> int:
-    """Convert a density-independent pixel value to physical pixels.
+    """Thin re-export of :func:`fluent.dp` for use within this package.
 
-    Sizes are defined at 96 DPI (100% / 1× scaling) and scaled up at
-    runtime to match the user's OS display-scaling setting.  Always call
-    this *after* ``QApplication`` has been created.
+    Widgets that import ``elevated_container`` can call ``elevated_container.dp``
+    without a separate ``fluent`` import.
 
     Args:
-        value: The size in density-independent pixels (96 DPI baseline).
+        value: Size in density-independent pixels (96 DPI baseline).
 
     Returns:
-        The equivalent size in physical pixels for the primary screen.
+        Physical pixel equivalent for the primary screen.
     """
-    screen = QtWidgets.QApplication.primaryScreen()
-    if screen is None:
-        return round(value)
-    scale = screen.logicalDotsPerInch() / 96.0
-    return round(value * scale)
+    return fluent.dp(value)
 
 
 def _natural_control_height() -> int:
@@ -38,10 +35,9 @@ def _natural_control_height() -> int:
 
     Returns:
         An integer pixel height equal to the font's line height plus
-        comfortable vertical padding.
+        comfortable vertical padding (8 dp top + 8 dp bottom).
     """
     fm = QtGui.QFontMetrics(QtWidgets.QApplication.font())
-    # line height  +  16dp top/bottom padding  (matches content_layout V margins × 2)
     return fm.height() + dp(16)
 
 
@@ -49,55 +45,48 @@ class ElevatedContainer(QtWidgets.QWidget):
     """Base widget for rounded, shadowed composite UI components.
 
     All size parameters are expressed in **density-independent pixels**
-    (96 DPI baseline).  The widget scales them automatically to physical
-    pixels at construction time using the primary screen's logical DPI,
-    so callers never need to think about the display's scale factor.
+    (96 DPI baseline).  The widget scales them to physical pixels at
+    construction time via :func:`fluent.dp`.
 
-    Default values follow the Windows 11 Fluent Design / WinUI 2 system
-    rather than web conventions:
+    Default shadow values are sourced from :data:`fluent.ElevationLevel.CARD`
+    so they stay in sync with the token system rather than being duplicated.
 
-    * Margins sit on an 8 dp grid.
-    * ``border_radius=8`` matches the Fluent card radius (not the rounder
-      12 dp typical of mobile / web cards).
-    * The shadow uses a tight blur + small offset consistent with WinUI
-      *Elevation 2* — visible enough to convey depth without looking like
-      a floating CSS card.
+    Default geometry values are sourced from the active ``Win11Tokens``
+    instance (``radius_overlay = 8 dp``, ``spacing_l = 16 dp``,
+    ``spacing_s = 8 dp``).
     """
 
     def __init__(
-            self,
-            parent: QtWidgets.QWidget | None = None,
-            *,
-            height: int | None = None,
-            bg_color: str = "#FFFFFF",
-            border_radius: int = 8,
-            shadow_blur: int = 12,
-            shadow_offset: tuple[int, int] = (0, 2),
-            shadow_alpha: int = 40,
-            orientation: typing.Literal["horizontal", "vertical"] = "horizontal",
+        self,
+        parent: QtWidgets.QWidget | None = None,
+        *,
+        height: int | None = None,
+        bg_color: str | None = None,
+        border_radius: int | None = None,
+        elevation: fluent.ElevationLevel = fluent.ElevationLevel.CARD,
+        orientation: typing.Literal["horizontal", "vertical"] = "horizontal",
     ) -> None:
         """Initialise the shared elevated container structure.
 
-        All pixel arguments (``height``, ``border_radius``, ``shadow_blur``,
-        ``shadow_offset``) are in density-independent pixels and are converted
-        to physical pixels internally — do **not** pre-scale them at the call
-        site.
+        All pixel arguments (``height``, ``border_radius``) are in dp and
+        are converted to physical pixels internally.  Do **not** pre-scale
+        them at the call site.
+
+        Shadow parameters are derived from ``elevation`` via the token system,
+        so they are always consistent with every other elevated surface in the
+        application.
 
         Args:
             parent: The parent widget for this component.
-            height: Optional fixed height for the visual container frame.
-                When omitted the height is derived from the system font
-                metrics so it adapts to the user's font-size setting.
-            bg_color: The frame background color as a QSS-compatible value.
-            border_radius: Card corner radius in dp.  Default ``8`` matches
-                the Windows 11 Fluent card radius.
-            shadow_blur: Drop-shadow blur radius in dp.  Default ``12``
-                produces a tight, desktop-appropriate shadow (WinUI Elevation 2).
-            shadow_offset: Horizontal and vertical shadow offset in dp.
-                Default ``(0, 2)`` keeps the ratio ≈ blur / 6, matching
-                Fluent's downward-only cast.
-            shadow_alpha: Alpha (0–255) of the shadow colour.  Default ``40``
-                is visible at blur 12 / offset 2 without looking heavy.
+            height: Optional fixed height for the visual container frame in dp.
+                When omitted the height is derived from the system font metrics.
+            bg_color: The frame background color as a QSS-compatible string.
+                Defaults to ``tokens().layer_card`` (white / #333333).
+            border_radius: Card corner radius in dp.  Defaults to
+                ``tokens().radius_overlay`` (8 dp), matching the Fluent card
+                radius for overlay surfaces.
+            elevation: The WinUI3 elevation level that controls shadow blur,
+                offset, and colour.  Defaults to ``ElevationLevel.CARD``.
             orientation: Direction of the inner content layout.
 
         Raises:
@@ -106,37 +95,49 @@ class ElevatedContainer(QtWidgets.QWidget):
         """
         super().__init__(parent)
 
-        # ------------------------------------------------------------------
-        # Scale all caller-supplied dp values to physical pixels once.
-        # Callers always work in dp; this class owns the conversion.
-        # ------------------------------------------------------------------
-        scaled_radius = dp(border_radius)
-        scaled_blur = dp(shadow_blur)
-        scaled_offset = (dp(shadow_offset[0]), dp(shadow_offset[1]))
+        tok = fluent.tokens()
 
-        # Outer layout — 8 dp margin keeps the shadow visible and aligns to
-        # the 8 dp grid used by Fluent Design and macOS HIG.
+        # Resolve defaults from tokens so every elevated surface in the app
+        # shares a single source of truth.
+        resolved_bg = bg_color or tok.layer_card.name(
+            QtGui.QColor.NameFormat.HexRgb
+        )
+        resolved_radius = (
+            border_radius if border_radius is not None else tok.radius_overlay
+        )
+
+        # Scale all dp values to physical pixels once at construction time.
+        scaled_radius = dp(resolved_radius)
+
+        # Outer layout — spacing_s (8 dp) keeps the shadow visible and aligns
+        # to the 8 dp base grid used by Fluent Design.
         self.outer_layout = QtWidgets.QHBoxLayout(self)
-        self.outer_layout.setContentsMargins(dp(8), dp(8), dp(8), dp(8))
+        _m = dp(tok.spacing_s)
+        self.outer_layout.setContentsMargins(_m, _m, _m, _m)
 
         self.container_frame = QtWidgets.QFrame()
         self.container_frame.setObjectName("ElevatedContainerFrame")
 
-        # Prefer font-metric height so the row scales with the system font;
-        # fall back to the caller-supplied value (still scaled to physical px).
+        # Prefer font-metric height; fall back to the caller-supplied dp value.
         if height is not None:
             self.container_frame.setFixedHeight(dp(height))
         else:
             self.container_frame.setFixedHeight(_natural_control_height())
 
         self.container_frame.setStyleSheet(
-            self._build_frame_style(bg_color, scaled_radius)
+            self._build_frame_style(resolved_bg, scaled_radius)
         )
 
+        # Shadow sourced entirely from the token-system elevation level.
         self.shadow = QtWidgets.QGraphicsDropShadowEffect(self)
-        self.shadow.setBlurRadius(scaled_blur)
-        self.shadow.setOffset(scaled_offset[0], scaled_offset[1])
-        self.shadow.setColor(QtGui.QColor(0, 0, 0, shadow_alpha))
+        self.shadow.setBlurRadius(elevation.scaled_radius())
+        self.shadow.setOffset(0.0, float(elevation.scaled_offset_y()))
+        shadow_hex = (
+            elevation.shadow_color_light
+            if fluent.current_mode() == fluent.ThemeMode.Light
+            else elevation.shadow_color_dark
+        )
+        self.shadow.setColor(fluent._hex_to_qcolor(shadow_hex))
         self.container_frame.setGraphicsEffect(self.shadow)
 
         self.content_layout: QtWidgets.QBoxLayout
@@ -148,11 +149,16 @@ class ElevatedContainer(QtWidgets.QWidget):
             tmp_message = f"Unsupported orientation: {orientation}"
             raise ValueError(tmp_message)
 
-        # 16 dp horizontal inset is the standard Fluent content margin.
-        # 8 dp vertical keeps single-line rows compact, matching Office toolbars.
-        # 8 dp spacing sits on the base grid unit; 12 dp is a web convention.
-        self.content_layout.setContentsMargins(dp(16), dp(8), dp(16), dp(8))
-        self.content_layout.setSpacing(dp(8))
+        # spacing_l (16 dp) horizontal inset — standard Fluent content margin.
+        # spacing_xs (4 dp) vertical — compact padding inside a toolbar row.
+        # spacing_s (8 dp) inter-control gap — base grid unit.
+        self.content_layout.setContentsMargins(
+            dp(tok.spacing_l),
+            dp(tok.spacing_xs),
+            dp(tok.spacing_l),
+            dp(tok.spacing_xs),
+        )
+        self.content_layout.setSpacing(dp(tok.spacing_s))
         self.content_layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter)
 
         self.outer_layout.addWidget(self.container_frame)
@@ -168,16 +174,16 @@ class ElevatedContainer(QtWidgets.QWidget):
         raise NotImplementedError(tmp_message)
 
     def _build_frame_style(
-            self,
-            bg_color: str,
-            border_radius: int,
+        self,
+        bg_color: str,
+        border_radius: int,
     ) -> str:
         """Build the base QSS for the elevated container frame.
 
         Args:
             bg_color: The frame background color as a QSS-compatible value.
             border_radius: The frame border radius in **physical pixels**
-                (already scaled by the caller).
+                (already dp-scaled by the caller).
 
         Returns:
             A QSS string for the elevated container frame.

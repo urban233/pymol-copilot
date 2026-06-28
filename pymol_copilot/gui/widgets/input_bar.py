@@ -6,25 +6,23 @@ import typing
 
 from PyQt6 import QtWidgets
 
+from pymol_copilot.gui import fluent
 from pymol_copilot.gui.widgets import elevated_container
 from pymol_copilot.gui.widgets import ui_styles
 
 # ---------------------------------------------------------------------------
-# InputBar sizing constants (all in density-independent pixels, 96 DPI base)
+# InputBar sizing constants (all in dp — 96 DPI baseline)
 # ---------------------------------------------------------------------------
 # 36 dp matches the standard desktop single-line toolbar height used by
 # VS Code (35 px), Office ribbon inputs (32–36 px), and WinUI SearchBox.
-# Mobile-first toolbars use 48 dp — avoid that on desktop.
 _BAR_HEIGHT: int = 36
 
-# Exact pill shape requires border_radius == height / 2.
-# Because ElevatedContainer scales both values with dp() independently,
-# we define them from the same constant so they stay in sync.
+# Pill shape: border_radius must equal exactly height / 2.
+# Both values derive from the same constant so they can never get out of sync.
 _BAR_RADIUS: int = _BAR_HEIGHT // 2  # 18 dp
 
-# Icon buttons: 28 dp gives a comfortable click target on desktop
-# (Fitts's Law minimum ≈ 24 dp; 28 dp matches Office / VS Code icon buttons).
-# 24 dp is a mobile icon size and produces an undersized hit area on desktop.
+# Icon buttons: 28 dp — comfortable click target on desktop.
+# 24 dp is a mobile icon size; 28 dp matches Office / VS Code.
 _ICON_BTN_SIZE: int = 28
 
 
@@ -33,18 +31,15 @@ class InputBar(elevated_container.ElevatedContainer):
 
     Sizing rationale
     ----------------
-    * Height **36 dp** — the standard desktop single-line control height
-      (VS Code toolbar, Office search bar, WinUI SearchBox).  48 dp is
-      the mobile convention and looks oversized on a productivity desktop app.
-    * Border-radius **18 dp** (= height / 2) — produces a true pill / capsule
-      shape without the radius exceeding the half-height, which would cause
-      Qt to clip corners incorrectly.
-    * Icon buttons **28 × 28 dp** — minimum comfortable click target on
-      desktop; larger than the 24 dp mobile icon size.
-    * Vertical content margins **4 dp** — small enough to keep the row
-      compact inside the 36 dp frame while preventing text clipping on
-      larger system fonts.
-    * Horizontal content margins defer to the parent's 16 dp standard inset.
+    * Height **36 dp** — standard desktop single-line toolbar height.
+    * Border-radius **18 dp** (= height / 2) — true pill / capsule shape.
+    * Icon buttons **28 × 28 dp** — desktop click-target minimum.
+    * Vertical content margins read from ``tokens().spacing_xs`` (4 dp) —
+      compact padding that keeps the row tight inside the 36 dp frame while
+      preventing text clipping on larger system fonts.
+    * Horizontal content margin reads from ``tokens().spacing_l`` (16 dp) —
+      the standard Fluent content inset, inherited from ElevatedContainer.
+    * Shadow sourced from ``ElevationLevel.CARD`` via the token system.
     """
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
@@ -57,22 +52,28 @@ class InputBar(elevated_container.ElevatedContainer):
             parent,
             height=_BAR_HEIGHT,
             border_radius=_BAR_RADIUS,
+            # CARD elevation: 4 dp blur, 2 dp offset — appropriate for a
+            # search bar resting on the content layer.
+            elevation=fluent.ElevationLevel.CARD,
         )
 
     @typing.override
     def setup_ui(self) -> None:
         """Builds the input bar controls."""
         self.capsule_frame = self.container_frame
-
-        # Override vertical margin only: reduce from parent's 8 dp to 4 dp so
-        # the row stays compact inside the shorter 36 dp frame.  Horizontal
-        # margin stays at the parent's 16 dp standard inset.
-        # All values go through dp() so they scale correctly on HiDPI screens.
+        tok = fluent.tokens()
         dp = elevated_container.dp
-        self.content_layout.setContentsMargins(dp(16), dp(4), dp(16), dp(4))
 
-        # Icon buttons: 28 × 28 dp — desktop click-target minimum.
-        # Do NOT use raw integers here; dp() is required for HiDPI correctness.
+        # Override vertical margin to spacing_xs (4 dp) — the parent sets
+        # spacing_xs by default; this call makes the intent explicit and
+        # keeps the row compact inside the 36 dp frame.
+        self.content_layout.setContentsMargins(
+            dp(tok.spacing_l),
+            dp(tok.spacing_xs),
+            dp(tok.spacing_l),
+            dp(tok.spacing_xs),
+        )
+
         btn_size = dp(_ICON_BTN_SIZE)
 
         self.plus_button = QtWidgets.QPushButton("+")
