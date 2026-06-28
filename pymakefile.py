@@ -41,17 +41,13 @@ Design principles:
       <https://google.github.io/styleguide/pyguide.html>`_ throughout.
 """
 
-import glob
-import gzip
 import inspect
 import os
 import shlex
-import shutil
 import subprocess
 
 import pathlib
 import sys
-import tarfile
 import textwrap
 from typing import Callable, Dict, List, Optional, Tuple
 
