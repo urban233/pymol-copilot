@@ -72,9 +72,7 @@ class _NotifierQObject(QtCore.QObject):
         return self._outer._handle_event(a0, a1)
 
     @override
-    def connectNotify(
-        self, signal: QtCore.QMetaMethod
-    ) -> None:
+    def connectNotify(self, signal: QtCore.QMetaMethod) -> None:
         """Ensure the event filter is installed when a connection is made.
 
         Args:
