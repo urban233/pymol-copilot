@@ -14,7 +14,7 @@ from pymol_copilot.gui.widgets import ui_styles
 # InputBar sizing constants (all in dp — 96 DPI baseline)
 # ---------------------------------------------------------------------------
 # 36 dp matches the standard desktop single-line toolbar height used by
-# VS Code (35 px), Office ribbon inputs (32–36 px), and WinUI SearchBox.
+# VS Code (35 px), Office ribbon inputs (32-36 px), and WinUI SearchBox.
 _BAR_HEIGHT: int = 36
 
 # Pill shape: border_radius must equal exactly height / 2.
@@ -33,7 +33,7 @@ class InputBar(elevated_container.ElevatedContainer):
     ----------------
     * Height **36 dp** — standard desktop single-line toolbar height.
     * Border-radius **18 dp** (= height / 2) — true pill / capsule shape.
-    * Icon buttons **28 × 28 dp** — desktop click-target minimum.
+    * Icon buttons **28 x 28 dp** — desktop click-target minimum.
     * Vertical content margins read from ``tokens().spacing_xs`` (4 dp) —
       compact padding that keeps the row tight inside the 36 dp frame while
       preventing text clipping on larger system fonts.

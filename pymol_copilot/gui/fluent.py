@@ -41,6 +41,7 @@ import enum
 import sys
 from typing import Callable
 from typing import Final
+from typing import override
 
 from PyQt6 import QtCore
 from PyQt6 import QtGui
@@ -64,7 +65,7 @@ def dp(value: int | float) -> int:
     Always call *after* ``QApplication`` has been created.
 
     Args:
-        value: Size in density-independent pixels (96 DPI = 1× baseline).
+        value: Size in density-independent pixels (96 DPI = 1x baseline).
 
     Returns:
         The equivalent size in physical pixels for the primary screen,
@@ -585,7 +586,7 @@ def _detect_mode() -> ThemeMode:
         ``ThemeMode.Light``.
     """
     app = QtWidgets.QApplication.instance()
-    if app is None:
+    if not isinstance(app, QtWidgets.QApplication):
         return ThemeMode.Light
     window_color = app.palette().color(QtGui.QPalette.ColorRole.Window)
     if window_color.lightness() < 128:
@@ -625,10 +626,11 @@ def _resolve_platform_font() -> str:
 class _AppModeFilter(QtCore.QObject):
     """Internal event filter watching for OS theme changes."""
 
-    def eventFilter(  # noqa: N802
+    @override
+    def eventFilter(
         self,
-        watched: QtCore.QObject,  # noqa: ARG002
-        event: QtCore.QEvent,
+        a0: QtCore.QObject | None,
+        a1: QtCore.QEvent | None,
     ) -> bool:
         """Intercept ``ApplicationPaletteChange`` and fire callbacks.
 
@@ -636,7 +638,10 @@ class _AppModeFilter(QtCore.QObject):
             Always ``False`` so the event continues normal processing.
         """
         global _current_mode  # noqa: PLW0603
-        if event.type() == QtCore.QEvent.Type.ApplicationPaletteChange:
+        if (
+            a1 is not None
+            and a1.type() == QtCore.QEvent.Type.ApplicationPaletteChange
+        ):
             _current_mode = _detect_mode()
             for cb in list(_callbacks):
                 cb()
@@ -810,7 +815,8 @@ def paint_win11_surface(
     offset_y = level.scaled_offset_y()
     margin = blur * 2 + offset_y + 2
 
-    dpr = painter.device().devicePixelRatio()
+    device = painter.device()
+    dpr = device.devicePixelRatio() if device is not None else 1.0
 
     surf = QtGui.QPixmap(int(rect.width() * dpr), int(rect.height() * dpr))
     surf.setDevicePixelRatio(dpr)
@@ -827,7 +833,8 @@ def paint_win11_surface(
 
     scene = QtWidgets.QGraphicsScene()
     item = scene.addPixmap(surf)
-    item.setPos(float(margin), float(margin))
+    if item is not None:
+        item.setPos(float(margin), float(margin))
 
     effect = QtWidgets.QGraphicsDropShadowEffect()
     effect.setBlurRadius(float(blur))
@@ -839,7 +846,8 @@ def paint_win11_surface(
         else level.shadow_color_dark
     )
     effect.setColor(_hex_to_qcolor(shadow_hex))
-    item.setGraphicsEffect(effect)
+    if item is not None:
+        item.setGraphicsEffect(effect)
 
     total_w = rect.width() + margin * 2
     total_h = rect.height() + margin * 2
