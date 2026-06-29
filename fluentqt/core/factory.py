@@ -9,6 +9,11 @@ from PyQt6 import QtWidgets
 
 from fluentqt.enums import roles
 import fluentqt.primitives.button as button_module
+import fluentqt.primitives.divider as divider_module
+import fluentqt.primitives.frame as frame_module
+import fluentqt.primitives.icon as icon_module
+import fluentqt.primitives.input as input_module
+import fluentqt.primitives.label as label_module
 
 
 class _IconState:
@@ -45,7 +50,7 @@ def make_frame(
     elevation: roles.ElevationPreset = roles.ElevationPreset.Flat,
     fill_role: roles.FillRole = roles.FillRole.Transparent,
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QWidget | None:
+) -> frame_module.TokenFrame:
     """Create a TokenFrame widget with the specified style.
 
     Args:
@@ -55,10 +60,11 @@ def make_frame(
         parent: The optional parent widget.
 
     Returns:
-        The constructed TokenFrame widget, or None as a placeholder.
+        The constructed TokenFrame widget.
     """
-    _ = (elevation, fill_role, parent)
-    return None
+    return frame_module.TokenFrame(
+        elevation=elevation, fill_role=fill_role, parent=parent
+    )
 
 
 def make_label(
@@ -66,7 +72,7 @@ def make_label(
     role: roles.TextRole = roles.TextRole.Primary,
     style: roles.TypeStyle = roles.TypeStyle.Body,
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QWidget | None:
+) -> label_module.TokenLabel:
     """Create a TokenLabel widget with the specified text and style.
 
     Args:
@@ -76,10 +82,11 @@ def make_label(
         parent: The optional parent widget.
 
     Returns:
-        The constructed TokenLabel widget, or None as a placeholder.
+        The constructed TokenLabel widget.
     """
-    _ = (text, role, style, parent)
-    return None
+    return label_module.TokenLabel(
+        text=text, role=role, style=style, parent=parent
+    )
 
 
 def make_button(
@@ -103,7 +110,7 @@ def make_button(
 def make_input(
     placeholder: str = "",
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QWidget | None:
+) -> input_module.TokenInput:
     """Create a TokenInput widget with the specified placeholder.
 
     Args:
@@ -111,17 +118,16 @@ def make_input(
         parent: The optional parent widget.
 
     Returns:
-        The constructed TokenInput widget, or None as a placeholder.
+        The constructed TokenInput widget.
     """
-    _ = (placeholder, parent)
-    return None
+    return input_module.TokenInput(placeholder=placeholder, parent=parent)
 
 
 def make_icon(
     icon_name: str,
     size: roles.IconSize = roles.IconSize.Medium,
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QWidget | None:
+) -> icon_module.TokenIcon:
     """Create a TokenIcon widget with the specified name and size.
 
     Args:
@@ -130,31 +136,29 @@ def make_icon(
         parent: The optional parent widget.
 
     Returns:
-        The constructed TokenIcon widget, or None as a placeholder.
+        The constructed TokenIcon widget.
     """
-    _ = (icon_name, size, parent)
-    return None
+    return icon_module.TokenIcon(icon=icon_name, size=size, parent=parent)
 
 
 def make_divider(
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QWidget | None:
+) -> divider_module.TokenDivider:
     """Create a TokenDivider widget.
 
     Args:
         parent: The optional parent widget.
 
     Returns:
-        The constructed TokenDivider widget, or None as a placeholder.
+        The constructed TokenDivider widget.
     """
-    _ = parent
-    return None
+    return divider_module.TokenDivider(parent=parent)
 
 
 def make_dropdown(
     items: list[str],
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QComboBox | None:
+) -> QtWidgets.QComboBox:
     """Create a QComboBox dropdown widget populated with items.
 
     Args:
@@ -162,7 +166,8 @@ def make_dropdown(
         parent: The optional parent widget.
 
     Returns:
-        The constructed QComboBox widget, or None as a placeholder.
+        The constructed QComboBox widget.
     """
-    _ = (items, parent)
-    return None
+    tmp_combo = QtWidgets.QComboBox(parent=parent)
+    tmp_combo.addItems(items)
+    return tmp_combo
