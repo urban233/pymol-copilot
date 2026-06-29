@@ -27,6 +27,7 @@ class CompositeWidget(state_module.StatefulWidget):
             roles_module.ElevationPreset.Flat
         ),
         orientation: Literal["horizontal", "vertical"] = "horizontal",
+        border_radius: int | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the CompositeWidget.
@@ -35,10 +36,12 @@ class CompositeWidget(state_module.StatefulWidget):
             elevation: The semantic elevation preset determining shadow and
                 border radius.
             orientation: The layout orientation of the composite's content.
+            border_radius: Optional custom corner radius in dp.
             parent: Optional parent widget.
         """
         self._elevation = elevation
         self._orientation = orientation
+        self._border_radius = border_radius
 
         self.frame: frame_module.TokenFrame | None = None
         """The internal frame. Subclasses must not replace/re-parent this."""
@@ -57,6 +60,7 @@ class CompositeWidget(state_module.StatefulWidget):
         tmp_frame = frame_module.TokenFrame(
             elevation=self._elevation,
             fill_role=roles_module.FillRole.Transparent,
+            border_radius=self._border_radius,
             parent=self,
         )
         self.frame = tmp_frame
@@ -95,6 +99,27 @@ class CompositeWidget(state_module.StatefulWidget):
         self._elevation = elevation
         if self.frame is not None:
             self.frame.set_elevation(elevation)
+        self._apply_tokens()
+
+    def border_radius(self) -> int | None:
+        """Get the custom border radius of the composite in dp.
+
+        Returns:
+            The custom border radius in dp, or None if using default.
+        """
+        return self._border_radius
+
+    def set_border_radius(self, border_radius: int | None) -> None:
+        """Set the custom border radius and refresh style.
+
+        Args:
+            border_radius: The new border radius in dp.
+        """
+        if self._border_radius == border_radius:
+            return
+        self._border_radius = border_radius
+        if self.frame is not None:
+            self.frame.set_border_radius(border_radius)
         self._apply_tokens()
 
     def orientation(self) -> Literal["horizontal", "vertical"]:

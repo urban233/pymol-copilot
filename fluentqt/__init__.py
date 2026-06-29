@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fluentqt.composites.base as base_module
+import fluentqt.composites.input_bar as input_bar_module
 import fluentqt.core.dp as dp_module
 import fluentqt.core.factory as factory_module
 import fluentqt.core.state as state_module
@@ -30,6 +31,7 @@ StatefulWidget = state_module.StatefulWidget
 
 # Composite Core
 CompositeWidget = base_module.CompositeWidget
+InputBar = input_bar_module.InputBar
 
 # Enums
 ButtonRole = roles.ButtonRole
@@ -66,6 +68,7 @@ __all__ = [
     "ElevationPreset",
     "FillRole",
     "IconSize",
+    "InputBar",
     "StatefulWidget",
     "TextRole",
     "TokenButton",

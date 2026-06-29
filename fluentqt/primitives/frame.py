@@ -53,6 +53,7 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
             roles_module.ElevationPreset.Flat
         ),
         fill_role: roles_module.FillRole = roles_module.FillRole.Transparent,
+        border_radius: int | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the TokenFrame.
@@ -61,10 +62,12 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
             elevation: The semantic elevation preset determining shadow and
                 radius.
             fill_role: The semantic fill role for the background color.
+            border_radius: Optional custom corner radius in dp.
             parent: Optional parent widget.
         """
         self._elevation = elevation
         self._fill_role = fill_role
+        self._border_radius = border_radius
         self._shadow_effect = None
 
         # Cooperative multiple inheritance initialization
@@ -137,6 +140,25 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         self._fill_role = fill_role
         self._apply_tokens()
 
+    def border_radius(self) -> int | None:
+        """Get the custom border radius in dp.
+
+        Returns:
+            The custom border radius in dp, or None if using default.
+        """
+        return self._border_radius
+
+    def set_border_radius(self, border_radius: int | None) -> None:
+        """Set the custom border radius and refresh the styling.
+
+        Args:
+            border_radius: The custom border radius in dp.
+        """
+        if self._border_radius == border_radius:
+            return
+        self._border_radius = border_radius
+        self._apply_tokens()
+
     def _compute_geometry(self) -> _FrameGeometry:
         """Compute the DPI-scaled geometry values in physical pixels.
 
@@ -145,16 +167,19 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         """
         tmp_tokens = tokens_module.tokens()
 
-        # Map ElevationPreset to corresponding radius token
-        if self._elevation == roles_module.ElevationPreset.Flat:
-            tmp_radius_dp = tmp_tokens.radius_none
-        elif self._elevation in (
-            roles_module.ElevationPreset.Layer,
-            roles_module.ElevationPreset.Control,
-        ):
-            tmp_radius_dp = tmp_tokens.radius_control
+        if self._border_radius is not None:
+            tmp_radius_dp = self._border_radius
         else:
-            tmp_radius_dp = tmp_tokens.radius_overlay
+            # Map ElevationPreset to corresponding radius token
+            if self._elevation == roles_module.ElevationPreset.Flat:
+                tmp_radius_dp = tmp_tokens.radius_none
+            elif self._elevation in (
+                roles_module.ElevationPreset.Layer,
+                roles_module.ElevationPreset.Control,
+            ):
+                tmp_radius_dp = tmp_tokens.radius_control
+            else:
+                tmp_radius_dp = tmp_tokens.radius_overlay
 
         tmp_radius_px = dp_module.dp(tmp_radius_dp)
 
