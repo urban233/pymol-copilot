@@ -24,6 +24,7 @@ tokens = tokens_module.tokens
 on_mode_changed = tokens_module.on_mode_changed
 make_font = tokens_module.make_font
 register_accent = tokens_module.register_accent
+set_mode = tokens_module.set_mode
 TokenConsumer = tokens_module.TokenConsumer
 
 # State Core
@@ -92,5 +93,6 @@ __all__ = [
     "on_mode_changed",
     "register_accent",
     "register_icon_provider",
+    "set_mode",
     "tokens",
 ]

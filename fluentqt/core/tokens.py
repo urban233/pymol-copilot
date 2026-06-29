@@ -834,3 +834,18 @@ def register_accent(color: QtGui.QColor) -> None:
 
     for tmp_cb in list(_callbacks):
         tmp_cb()
+
+
+def set_mode(mode: ThemeMode) -> None:
+    """Set the active theme mode and notify all registered callbacks.
+
+    Args:
+        mode: The new ThemeMode to set.
+    """
+    global _current_mode  # noqa: PLW0603
+    _ensure_initialized()
+    if _current_mode == mode:
+        return
+    _current_mode = mode
+    for tmp_cb in list(_callbacks):
+        tmp_cb()
