@@ -16,14 +16,14 @@ def _color_to_qss(color: QtGui.QColor) -> str:
     Returns:
         A QSS-compatible color representation.
     """
-    tmp_a = color.alpha()
-    if tmp_a == 255:
+    tmp_alpha = color.alpha()
+    if tmp_alpha == 255:
         return color.name(QtGui.QColor.NameFormat.HexRgb)
-    return f"rgba({color.red()}, {color.green()}, {color.blue()}, {tmp_a})"
+    return f"rgba({color.red()}, {color.green()}, {color.blue()}, {tmp_alpha})"
 
 
 def build_frame_style(
-    bg: QtGui.QColor,
+    background: QtGui.QColor,
     radius_px: int,
     border: QtGui.QColor | None,
     border_width_px: int,
@@ -31,7 +31,7 @@ def build_frame_style(
     """Build the QSS for any surface background.
 
     Args:
-        bg: The background color.
+        background: The background color.
         radius_px: The border radius in physical pixels.
         border: The border color, or None if no border.
         border_width_px: The border width in physical pixels.
@@ -39,7 +39,7 @@ def build_frame_style(
     Returns:
         A QSS string.
     """
-    tmp_bg_str = _color_to_qss(bg)
+    tmp_bg_str = _color_to_qss(background)
     if border is None or border_width_px <= 0:
         tmp_border_str = "none"
     else:

@@ -43,7 +43,7 @@ __docformat__ = "google"
 
 
 class ThemeMode(enum.Enum):
-    """OS colour-scheme preference.
+    """OS color-scheme preference.
 
     Attributes:
         Light: Light mode (default fallback when detection fails).
@@ -333,7 +333,7 @@ _platform_font_family: str | None = None
 # ---------------------------------------------------------------------------
 
 
-def _hex_to_qcolor(hex_str: str) -> QtGui.QColor:
+def hex_color_to_qcolor(hex_str: str) -> QtGui.QColor:
     """Parse a RRGGBB or RRGGBBAA hex string into a ``QColor``.
 
     Qt's built-in ``QColor("#RRGGBBAA")`` constructor interprets eight-digit
@@ -371,7 +371,9 @@ def _c(
     Returns:
         A ``QColor`` resolved for ``mode``.
     """
-    return _hex_to_qcolor(light_hex if mode == ThemeMode.Light else dark_hex)
+    return hex_color_to_qcolor(
+        light_hex if mode == ThemeMode.Light else dark_hex
+    )
 
 
 def _bezier(
@@ -691,6 +693,13 @@ class TokenConsumer:
     implementation, ``TokenConsumer`` must be placed before ``QWidget`` in the
     inheritance list, and ``super().__init__`` must be used to ensure both are
     initialized.
+
+    Note:
+        This mixin only handles theme/mode changes (light/dark transitions).
+        It does not automatically subscribe to DPI scale changes. Subclasses
+        whose dimensions or coordinates depend on DPI scaling must manually
+        connect to the scale change notifier (e.g. connecting to
+        ``dp_module.notifier.scale_changed``).
 
     Example:
         class CustomWidget(TokenConsumer, QtWidgets.QWidget):

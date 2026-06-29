@@ -156,14 +156,14 @@ use the RRGGBBAA strings from `ElevationLevel.shadow_color_light/dark`.
 
 ```python
 level = fluent.ElevationLevel.CARD
-effect.setBlurRadius(level.scaled_radius())     # dp() applied internally
+effect.setBlurRadius(level.scaled_radius())  # dp() applied internally
 effect.setOffset(0.0, float(level.scaled_offset_y()))
 shadow_hex = (
-    level.shadow_color_light
-    if fluent.current_mode() == fluent.ThemeMode.Light
-    else level.shadow_color_dark
+  level.shadow_color_light
+  if fluent.current_mode() == fluent.ThemeMode.Light
+  else level.shadow_color_dark
 )
-effect.setColor(fluent._hex_to_qcolor(shadow_hex))
+effect.setColor(fluent.hex_color_to_qcolor(shadow_hex))
 ```
 
 ---

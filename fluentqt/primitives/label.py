@@ -166,9 +166,6 @@ class TokenLabel(tokens_module.TokenConsumer, QtWidgets.QLabel):
 
     def _refresh_stylesheet(self) -> None:
         """Generate and apply the QSS stylesheet based on cached styles."""
-        if not hasattr(self, "_colors") or not hasattr(self, "_geometry"):
-            return
-
         tmp_qss = stylesheet_module.build_label_style(
             color=self._colors.color,
             font_size_px=self._geometry.font_size_px,

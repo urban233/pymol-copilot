@@ -32,11 +32,11 @@ class _FrameColors:
     """Frame color settings.
 
     Attributes:
-        bg: Background fill color.
+        background: Background fill color.
         border: Border line color, or None if border_width is 0.
     """
 
-    bg: QtGui.QColor
+    background: QtGui.QColor
     border: QtGui.QColor | None
 
 
@@ -65,6 +65,7 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         """
         self._elevation = elevation
         self._fill_role = fill_role
+        self._shadow_effect = None
 
         # Cooperative multiple inheritance initialization
         super().__init__(parent=parent)
@@ -73,8 +74,27 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         self._shadow_effect = QtWidgets.QGraphicsDropShadowEffect(self)
         self.setGraphicsEffect(self._shadow_effect)
 
-        # Trigger apply_tokens to configure the shadow effect now that it exists
-        self._apply_tokens()
+        # Configure shadow parameters using the already computed and cached values
+        tmp_level = self._elevation.elevation_level
+        if tmp_level is None:
+            self._shadow_effect.setEnabled(False)
+        else:
+            self._shadow_effect.setEnabled(True)
+            self._shadow_effect.setBlurRadius(
+                float(dp_module.dp(tmp_level.shadow_radius))
+            )
+            self._shadow_effect.setOffset(
+                0.0, float(dp_module.dp(tmp_level.shadow_offset_y))
+            )
+            tmp_mode = tokens_module.current_mode()
+            tmp_hex = (
+                tmp_level.shadow_color_light
+                if tmp_mode == tokens_module.ThemeMode.Light
+                else tmp_level.shadow_color_dark
+            )
+            self._shadow_effect.setColor(
+                tokens_module.hex_color_to_qcolor(tmp_hex)
+            )
 
         # Connect to DPI scaling changes
         dp_module.notifier.scale_changed.connect(self._handle_scale_changed)
@@ -123,18 +143,18 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         Returns:
             A new _FrameGeometry instance containing scaled dimensions.
         """
-        tmp_tok = tokens_module.tokens()
+        tmp_tokens = tokens_module.tokens()
 
         # Map ElevationPreset to corresponding radius token
         if self._elevation == roles_module.ElevationPreset.Flat:
-            tmp_radius_dp = tmp_tok.radius_none
+            tmp_radius_dp = tmp_tokens.radius_none
         elif self._elevation in (
             roles_module.ElevationPreset.Layer,
             roles_module.ElevationPreset.Control,
         ):
-            tmp_radius_dp = tmp_tok.radius_control
+            tmp_radius_dp = tmp_tokens.radius_control
         else:
-            tmp_radius_dp = tmp_tok.radius_overlay
+            tmp_radius_dp = tmp_tokens.radius_overlay
 
         tmp_radius_px = dp_module.dp(tmp_radius_dp)
 
@@ -155,18 +175,18 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         Returns:
             A new _FrameColors instance containing resolved colors.
         """
-        tmp_tok = tokens_module.tokens()
+        tmp_tokens = tokens_module.tokens()
 
         # Resolve background color
         if self._fill_role == roles_module.FillRole.Transparent:
-            tmp_bg = QtGui.QColor(0, 0, 0, 0)
+            tmp_background = QtGui.QColor(0, 0, 0, 0)
         else:
-            tmp_bg = getattr(tmp_tok, self._fill_role.value)
+            tmp_background = getattr(tmp_tokens, self._fill_role.value)
 
         # Border color
-        tmp_border = tmp_tok.stroke_default
+        tmp_border = tmp_tokens.stroke_default
 
-        return _FrameColors(bg=tmp_bg, border=tmp_border)
+        return _FrameColors(background=tmp_background, border=tmp_border)
 
     @override
     def _apply_tokens(self) -> None:
@@ -178,7 +198,7 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
         self._geometry = self._compute_geometry()
 
         # Apply shadow effect parameters
-        if hasattr(self, "_shadow_effect"):
+        if self._shadow_effect is not None:
             tmp_level = self._elevation.elevation_level
             if tmp_level is None:
                 self._shadow_effect.setEnabled(False)
@@ -198,19 +218,15 @@ class TokenFrame(tokens_module.TokenConsumer, QtWidgets.QFrame):
                     else tmp_level.shadow_color_dark
                 )
                 self._shadow_effect.setColor(
-                    tokens_module._hex_to_qcolor(tmp_hex)
+                    tokens_module.hex_color_to_qcolor(tmp_hex)
                 )
 
         self._refresh_stylesheet()
 
     def _refresh_stylesheet(self) -> None:
         """Generate and apply the QSS stylesheet based on cached styles."""
-        # Avoid building style if caches are not initialized yet
-        if not hasattr(self, "_colors") or not hasattr(self, "_geometry"):
-            return
-
         tmp_qss = stylesheet_module.build_frame_style(
-            bg=self._colors.bg,
+            background=self._colors.background,
             radius_px=self._geometry.radius_px,
             border=self._colors.border,
             border_width_px=self._geometry.border_width_px,

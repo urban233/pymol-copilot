@@ -30,7 +30,7 @@ def dp(value: int | float, screen: QtGui.QScreen | None = None) -> int:
     """
     tmp_app = QtWidgets.QApplication.instance()
     if isinstance(tmp_app, QtWidgets.QApplication):
-        notifier._install(tmp_app)
+        notifier.install_event_filter(tmp_app)
 
     if screen is None and isinstance(tmp_app, QtWidgets.QApplication):
         screen = tmp_app.primaryScreen()
@@ -81,7 +81,7 @@ class _NotifierQObject(QtCore.QObject):
         super().connectNotify(signal)
         tmp_app = QtWidgets.QApplication.instance()
         if isinstance(tmp_app, QtWidgets.QApplication):
-            self._outer._install(tmp_app)
+            self._outer.install_event_filter(tmp_app)
 
 
 class ScreenChangeNotifier:
@@ -101,7 +101,7 @@ class ScreenChangeNotifier:
 
         tmp_app = QtWidgets.QApplication.instance()
         if isinstance(tmp_app, QtWidgets.QApplication):
-            self._install(tmp_app)
+            self.install_event_filter(tmp_app)
 
     def _get_qobject(self) -> _NotifierQObject:
         """Get the active QObject instance, recreating it if deleted.
@@ -116,7 +116,7 @@ class ScreenChangeNotifier:
             self._installed = False
             tmp_app = QtWidgets.QApplication.instance()
             if isinstance(tmp_app, QtWidgets.QApplication):
-                self._install(tmp_app)
+                self.install_event_filter(tmp_app)
         return self._qobject
 
     @property
@@ -128,7 +128,7 @@ class ScreenChangeNotifier:
         """
         return self._get_qobject().scale_changed
 
-    def _install(self, app: QtWidgets.QApplication) -> None:
+    def install_event_filter(self, app: QtWidgets.QApplication) -> None:
         """Install the event filter and connect signals.
 
         Args:

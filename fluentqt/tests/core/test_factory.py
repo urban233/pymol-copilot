@@ -8,6 +8,7 @@ from PyQt6 import QtGui
 import pytest
 
 from fluentqt.core import factory
+import fluentqt.primitives.button as button_module
 
 
 @pytest.fixture(autouse=True)
@@ -39,7 +40,7 @@ def test_register_icon_provider() -> None:
 
 
 def test_factory_placeholders() -> None:
-    """Verify all factory functions return None as a placeholder at this stage."""
+    """Verify factory functions return expected widgets or placeholders."""
     # Act
     tmp_frame = factory.make_frame()
     tmp_label = factory.make_label()
@@ -52,7 +53,8 @@ def test_factory_placeholders() -> None:
     # Assert
     assert tmp_frame is None
     assert tmp_label is None
-    assert tmp_button is None
+    assert isinstance(tmp_button, button_module.TokenButton)
+    assert tmp_button.text() == "test"
     assert tmp_input is None
     assert tmp_icon is None
     assert tmp_divider is None

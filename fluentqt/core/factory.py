@@ -8,6 +8,7 @@ from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 
 from fluentqt.enums import roles
+import fluentqt.primitives.button as button_module
 
 
 class _IconState:
@@ -76,7 +77,7 @@ def make_button(
     text: str,
     role: roles.ButtonRole = roles.ButtonRole.Standard,
     parent: QtWidgets.QWidget | None = None,
-) -> QtWidgets.QWidget | None:
+) -> button_module.TokenButton:
     """Create a TokenButton widget with the specified text and style.
 
     Args:
@@ -85,10 +86,9 @@ def make_button(
         parent: The optional parent widget.
 
     Returns:
-        The constructed TokenButton widget, or None as a placeholder.
+        The constructed TokenButton widget.
     """
-    _ = (text, role, parent)
-    return None
+    return button_module.TokenButton(text=text, role=role, parent=parent)
 
 
 def make_input(
