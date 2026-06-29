@@ -42,6 +42,7 @@ class InputBar(base_module.CompositeWidget):
             elevation=roles_module.ElevationPreset.Card,
             orientation="horizontal",
             border_radius=_BAR_RADIUS_DP,
+            fill_role=roles_module.FillRole.CardBackground,
             parent=parent,
         )
 
@@ -49,14 +50,16 @@ class InputBar(base_module.CompositeWidget):
     def _build_content(self) -> None:
         """Build and populate the layout with the input bar child controls."""
         self.plus_button = factory_module.make_button(
-            "+", roles_module.ButtonRole.Subtle, parent=self
+            "+", roles_module.ButtonRole.Subtle, parent=self.frame
         )
-        self.input_field = factory_module.make_input("Ask Gemini", parent=self)
+        self.input_field = factory_module.make_input(
+            "Ask Gemini", parent=self.frame
+        )
         self.model_dropdown = factory_module.make_dropdown(
-            ["Flash Extended", "Pro", "Ultra"], parent=self
+            ["Flash Extended", "Pro", "Ultra"], parent=self.frame
         )
         self.mic_button = factory_module.make_button(
-            "Mic", roles_module.ButtonRole.Subtle, parent=self
+            "Mic", roles_module.ButtonRole.Subtle, parent=self.frame
         )
 
         if self.content_layout is not None:

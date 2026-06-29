@@ -22,6 +22,7 @@ class CustomDemoComposite(base_module.CompositeWidget):
         super().__init__(
             elevation=roles_module.ElevationPreset.Card,
             orientation="vertical",
+            fill_role=roles_module.FillRole.CardBackground,
             parent=parent,
         )
 
@@ -31,13 +32,13 @@ class CustomDemoComposite(base_module.CompositeWidget):
             "Custom Vertical Composite (Card Surface)",
             roles_module.TextRole.Primary,
             roles_module.TypeStyle.BodyStrong,
-            parent=self,
+            parent=self.frame,
         )
         tmp_btn1 = factory_module.make_button(
-            "Option A", roles_module.ButtonRole.Standard, parent=self
+            "Option A", roles_module.ButtonRole.Standard, parent=self.frame
         )
         tmp_btn2 = factory_module.make_button(
-            "Option B", roles_module.ButtonRole.Standard, parent=self
+            "Option B", roles_module.ButtonRole.Standard, parent=self.frame
         )
 
         if self.content_layout is not None:

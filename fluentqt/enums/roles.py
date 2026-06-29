@@ -36,12 +36,14 @@ class FillRole(enum.Enum):
         Control: Maps to ``Win11Tokens.fill_control_default``.
         Subtle: Maps to ``Win11Tokens.fill_subtle_hover``.
         Accent: Maps to ``Win11Tokens.accent_default``.
+        CardBackground: Maps to ``Win11Tokens.layer_card``.
         Transparent: Maps to no token (fully transparent).
     """
 
     Control = "fill_control_default"
     Subtle = "fill_subtle_hover"
     Accent = "accent_default"
+    CardBackground = "layer_card"
     Transparent = "transparent"
 
 

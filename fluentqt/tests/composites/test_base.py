@@ -95,3 +95,24 @@ def test_composite_widget_dpi_scaling(
     ) as tmp_mock_apply:
         dp_module.notifier.scale_changed.emit(2.0)
         tmp_mock_apply.assert_called_once()
+
+
+def test_composite_widget_fill_role_change(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Verify fill role property and setter propagate to inner frame.
+
+    Args:
+        q_app: Session-scoped QApplication fixture.
+    """
+    _ = q_app
+    tmp_composite = _MockComposite(fill_role=roles_module.FillRole.Transparent)
+    assert tmp_composite.fill_role() == roles_module.FillRole.Transparent
+    assert tmp_composite.frame is not None
+    assert tmp_composite.frame.fill_role() == roles_module.FillRole.Transparent
+
+    tmp_composite.set_fill_role(roles_module.FillRole.CardBackground)
+    assert tmp_composite.fill_role() == roles_module.FillRole.CardBackground
+    assert (
+        tmp_composite.frame.fill_role() == roles_module.FillRole.CardBackground
+    )

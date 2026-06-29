@@ -28,6 +28,7 @@ class CompositeWidget(state_module.StatefulWidget):
         ),
         orientation: Literal["horizontal", "vertical"] = "horizontal",
         border_radius: int | None = None,
+        fill_role: roles_module.FillRole = roles_module.FillRole.Transparent,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the CompositeWidget.
@@ -37,11 +38,13 @@ class CompositeWidget(state_module.StatefulWidget):
                 border radius.
             orientation: The layout orientation of the composite's content.
             border_radius: Optional custom corner radius in dp.
+            fill_role: The semantic fill role for the background color.
             parent: Optional parent widget.
         """
         self._elevation = elevation
         self._orientation = orientation
         self._border_radius = border_radius
+        self._fill_role = fill_role
 
         self.frame: frame_module.TokenFrame | None = None
         """The internal frame. Subclasses must not replace/re-parent this."""
@@ -59,7 +62,7 @@ class CompositeWidget(state_module.StatefulWidget):
 
         tmp_frame = frame_module.TokenFrame(
             elevation=self._elevation,
-            fill_role=roles_module.FillRole.Transparent,
+            fill_role=self._fill_role,
             border_radius=self._border_radius,
             parent=self,
         )
@@ -122,6 +125,27 @@ class CompositeWidget(state_module.StatefulWidget):
             self.frame.set_border_radius(border_radius)
         self._apply_tokens()
 
+    def fill_role(self) -> roles_module.FillRole:
+        """Get the current fill role.
+
+        Returns:
+            The active FillRole.
+        """
+        return self._fill_role
+
+    def set_fill_role(self, fill_role: roles_module.FillRole) -> None:
+        """Set the fill role and refresh the widget style.
+
+        Args:
+            fill_role: The new FillRole.
+        """
+        if self._fill_role == fill_role:
+            return
+        self._fill_role = fill_role
+        if self.frame is not None:
+            self.frame.set_fill_role(fill_role)
+        self._apply_tokens()
+
     def orientation(self) -> Literal["horizontal", "vertical"]:
         """Get the layout orientation of the composite content.
 
@@ -145,12 +169,21 @@ class CompositeWidget(state_module.StatefulWidget):
             tmp_tok = tokens_module.tokens()
 
             if self._outer_layout is not None:
-                tmp_outer_margin = dp_module.dp(tmp_tok.spacing_s)
+                tmp_level = self._elevation.elevation_level
+                if tmp_level is not None:
+                    tmp_margin = dp_module.dp(
+                        tmp_level.shadow_radius + tmp_level.shadow_offset_y
+                    )
+                    tmp_margin = max(
+                        tmp_margin, dp_module.dp(tmp_tok.spacing_s)
+                    )
+                else:
+                    tmp_margin = dp_module.dp(tmp_tok.spacing_s)
                 self._outer_layout.setContentsMargins(
-                    tmp_outer_margin,
-                    tmp_outer_margin,
-                    tmp_outer_margin,
-                    tmp_outer_margin,
+                    tmp_margin,
+                    tmp_margin,
+                    tmp_margin,
+                    tmp_margin,
                 )
 
             if self.content_layout is not None:
