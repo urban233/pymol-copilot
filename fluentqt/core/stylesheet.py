@@ -187,3 +187,16 @@ def build_input_style(
         "}"
     )
     return tmp_qss
+
+
+def build_divider_style(color: QtGui.QColor) -> str:
+    """Build the QSS for a divider line.
+
+    Args:
+        color: The color of the divider line.
+
+    Returns:
+        A QSS string representing the divider stylesheet.
+    """
+    tmp_color_str = _color_to_qss(color)
+    return f"QFrame {{\n    color: {tmp_color_str};\n}}"

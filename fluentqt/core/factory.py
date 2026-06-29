@@ -32,6 +32,15 @@ def register_icon_provider(
     _state.provider = provider
 
 
+def get_icon_provider() -> Callable[[str], QtGui.QIcon] | None:
+    """Get the currently registered global icon provider.
+
+    Returns:
+        The registered icon provider callable, or None if not set.
+    """
+    return _state.provider
+
+
 def make_frame(
     elevation: roles.ElevationPreset = roles.ElevationPreset.Flat,
     fill_role: roles.FillRole = roles.FillRole.Transparent,
