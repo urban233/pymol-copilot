@@ -220,13 +220,18 @@ QToolButton#{StyleId.SPLIT_BUTTON_ARROW}::menu-indicator {{
 QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER} {{
     font-size: ${{font_size_base}};
     background-color: ${{surface}};
-    border: none;
+    border: 1px solid transparent;
     border-radius: ${{corner_radius}};
-    padding: 4px 6px;
-    padding-bottom: 14px;
+    padding: 3px 5px;
+    padding-bottom: 13px;
 }}
 QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:hover {{
     background-color: ${{hover}};
+}}
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:pressed,
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:open {{
+    background-color: ${{pressed_shared}};
+    border-color: ${{border_active}};
 }}
 QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}::menu-indicator {{
     subcontrol-origin: padding;
@@ -239,13 +244,18 @@ QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}::menu-indicator {{
 QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE} {{
     font-size: ${{font_size_base}};
     background-color: ${{surface}};
-    border: none;
+    border: 1px solid transparent;
     border-radius: ${{corner_radius}};
-    padding: 4px 6px;
-    padding-right: 14px;
+    padding: 3px 5px;
+    padding-right: 13px;
 }}
 QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:hover {{
     background-color: ${{hover}};
+}}
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:pressed,
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:open {{
+    background-color: ${{pressed_shared}};
+    border-color: ${{border_active}};
 }}
 QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}::menu-indicator {{
     subcontrol-origin: padding;
