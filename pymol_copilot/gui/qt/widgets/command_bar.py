@@ -61,7 +61,6 @@ QToolButton {
 }
 QToolButton:hover {
     background: #f5f5f5;
-    border-left: 1px solid #dcdcdc;
 }
 QToolButton::menu-indicator {
     image: none;
@@ -177,6 +176,7 @@ class CommandBarSplitButton(CommandBarButton):
             size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
             parent: QtWidgets.QWidget | None = None
     ) -> None:
+        self._hovered: bool = False
         self._main_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         self._arrow_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
@@ -203,6 +203,14 @@ class CommandBarSplitButton(CommandBarButton):
             QtWidgets.QSizePolicy.Policy.Expanding,
         )
 
+        # Reserve 1 px on every edge permanently so children never paint over
+        # the hover border drawn in paintEvent. Using a fixed margin avoids any
+        # layout shift when the hover state changes.
+        self.setContentsMargins(1, 1, 1, 1)
+
+        self._main_button.installEventFilter(self)
+        self._arrow_button.installEventFilter(self)
+
         tmp_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout(self)
         tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
@@ -215,6 +223,39 @@ class CommandBarSplitButton(CommandBarButton):
 
     def _connect_signals(self) -> None:
         self._main_button.clicked.connect(self.clicked)
+
+    def eventFilter(
+            self,
+            obj: QtCore.QObject | None,
+            event: QtCore.QEvent | None,
+    ) -> bool:
+        if event is not None and obj in (self._main_button, self._arrow_button):
+            t = event.type()
+            if t == QtCore.QEvent.Type.Enter:
+                self._hovered = True
+                self.update()
+            elif t == QtCore.QEvent.Type.Leave:
+                if not self.rect().contains(
+                    self.mapFromGlobal(QtGui.QCursor.pos())
+                ):
+                    self._hovered = False
+                    self.update()
+        return super().eventFilter(obj, event)
+
+    def paintEvent(self, event: QtGui.QPaintEvent | None) -> None:
+        super().paintEvent(event)
+        if not self._hovered:
+            return
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        pen = QtGui.QPen(QtGui.QColor("#c7c7c7"))
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+        # Centre the 1 px pen inside the reserved 1 px margin ring.
+        r = QtCore.QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        radius = styles.dp(5)  # ≈ 0.375em at 12 px font / 96 DPI
+        painter.drawRoundedRect(r, radius, radius)
 
     def set_menu(self, menu: QtWidgets.QMenu) -> None:
         """Attach a dropdown menu to the arrow section.
