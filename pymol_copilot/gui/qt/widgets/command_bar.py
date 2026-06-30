@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, TypeAlias
 from pymol_copilot.gui.qt import QtCore, styles
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
 if TYPE_CHECKING:
@@ -12,34 +13,34 @@ if TYPE_CHECKING:
 
 CommandBarButtonType: TypeAlias = QtCore.Qt.ToolButtonStyle
 
-_OUTER_FRAME_STYLE = """
+_OUTER_FRAME_TEMPLATE = """
 QFrame {
-    border: 0.075em solid white;
-    background: white;
-    border-radius: 0.6em;
-    padding: 0.2em;
+    border: ${border_width} solid ${surface};
+    background: ${surface};
+    border-radius: ${corner_radius};
+    padding: ${padding_frame};
 }
 """
 
-_COMMAND_BAR_STYLESHEET = """
+_COMMAND_BAR_TEMPLATE = """
 QToolButton {
-    font-size: 12px;
-    background-color: white;
+    font-size: ${font_size_base};
+    background-color: ${surface};
     border: none;
-    border-radius: 0.375em;
-    padding: 4px 6px;
+    border-radius: ${corner_radius_button};
+    padding: ${padding_small} ${padding_button_h};
 }
 QToolButton:hover {
-    background: #f5f5f5;
+    background: ${hover};
 }
 """
 
-_SPLIT_BUTTON_MAIN_STYLESHEET = """
+_SPLIT_BUTTON_MAIN_TEMPLATE = """
 QToolButton {
-    font-size: 12px;
+    font-size: ${font_size_base};
     background: transparent;
     border: none;
-    padding: 4px 6px;
+    padding: ${padding_small} ${padding_button_h};
 }
 QToolButton:hover, QToolButton:pressed, QToolButton:focus {
     background: transparent;
@@ -47,14 +48,14 @@ QToolButton:hover, QToolButton:pressed, QToolButton:focus {
 }
 """
 
-_SPLIT_BUTTON_ARROW_STYLESHEET = """
+_SPLIT_BUTTON_ARROW_TEMPLATE = """
 QToolButton {
-    font-size: 12px;
+    font-size: ${font_size_base};
     background: transparent;
     border: none;
-    min-width: 14px;
-    max-width: 14px;
-    padding: 4px 3px;
+    min-width: ${arrow_button_width};
+    max-width: ${arrow_button_width};
+    padding: ${padding_small} ${padding_xsmall};
 }
 QToolButton:hover, QToolButton:pressed, QToolButton:focus {
     background: transparent;
@@ -65,8 +66,10 @@ QToolButton::menu-indicator {
 }
 """
 
+
 class CommandBarButtonStyle:
     """Namespace class for Qt ToolButton styles."""
+
     TEXT_BESIDE = QtCore.Qt.ToolButtonStyle.ToolButtonTextBesideIcon
     TEXT_UNDER = QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
     TEXT_ONLY = QtCore.Qt.ToolButtonStyle.ToolButtonTextOnly
@@ -88,12 +91,12 @@ class CommandBarButton(QtWidgets.QWidget):
     clicked: QtCore.pyqtSignal = QtCore.pyqtSignal()
 
     def __init__(
-            self,
-            icon: QtGui.QIcon | None,
-            text: str = "",
-            style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
-            size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
-            parent: QtWidgets.QWidget | None = None
+        self,
+        icon: QtGui.QIcon | None,
+        text: str = "",
+        style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
+        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._icon: QtGui.QIcon | None = icon
@@ -124,12 +127,12 @@ class CommandBarActionButton(CommandBarButton):
     """
 
     def __init__(
-            self,
-            icon: QtGui.QIcon | None,
-            text: str = "",
-            style: CommandBarButtonType = CommandBarButtonStyle.ICON_ONLY,
-            size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
-            parent: QtWidgets.QWidget | None = None
+        self,
+        icon: QtGui.QIcon | None,
+        text: str = "",
+        style: CommandBarButtonType = CommandBarButtonStyle.ICON_ONLY,
+        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
@@ -167,12 +170,12 @@ class CommandBarSplitButton(CommandBarButton):
     """
 
     def __init__(
-            self,
-            icon: QtGui.QIcon | None,
-            text: str = "",
-            style: CommandBarButtonType = CommandBarButtonStyle.TEXT_ONLY,
-            size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
-            parent: QtWidgets.QWidget | None = None
+        self,
+        icon: QtGui.QIcon | None,
+        text: str = "",
+        style: CommandBarButtonType = CommandBarButtonStyle.TEXT_ONLY,
+        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         self._main_hovered: bool = False
         self._arrow_hovered: bool = False
@@ -227,8 +230,12 @@ class CommandBarSplitButton(CommandBarButton):
         tmp_layout.addWidget(self._arrow_button)
 
     def _set_styles(self) -> None:
-        self._main_button.setStyleSheet(_SPLIT_BUTTON_MAIN_STYLESHEET)
-        self._arrow_button.setStyleSheet(_SPLIT_BUTTON_ARROW_STYLESHEET)
+        self._main_button.setStyleSheet(
+            theme.compile_stylesheet(_SPLIT_BUTTON_MAIN_TEMPLATE)
+        )
+        self._arrow_button.setStyleSheet(
+            theme.compile_stylesheet(_SPLIT_BUTTON_ARROW_TEMPLATE)
+        )
 
     def _connect_signals(self) -> None:
         self._main_button.clicked.connect(self.clicked)
@@ -260,9 +267,9 @@ class CommandBarSplitButton(CommandBarButton):
         super().leaveEvent(event)
 
     def eventFilter(
-            self,
-            obj: QtCore.QObject | None,
-            event: QtCore.QEvent | None,
+        self,
+        obj: QtCore.QObject | None,
+        event: QtCore.QEvent | None,
     ) -> bool:
         if event is not None and obj in (self._main_button, self._arrow_button):
             t = event.type()
@@ -287,9 +294,11 @@ class CommandBarSplitButton(CommandBarButton):
 
     def _sync_pressed_state(self) -> None:
         """Clear pressed flags if the cursor left the widget during a mouse-grab."""
-        if not (self._main_button.underMouse() or
-                self._arrow_button.underMouse() or
-                self.underMouse()):
+        if not (
+            self._main_button.underMouse()
+            or self._arrow_button.underMouse()
+            or self.underMouse()
+        ):
             if self._main_pressed or self._arrow_pressed:
                 self._main_pressed = False
                 self._arrow_pressed = False
@@ -311,48 +320,56 @@ class CommandBarSplitButton(CommandBarButton):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
-        radius = styles.dp(5)
+        radius = theme.ThemeMetrics.CORNER_RADIUS_BUTTON.px
         full = QtCore.QRectF(self.rect())
         divider_x = float(self._arrow_button.geometry().left())
 
-        # 1. White base — establishes the rounded shape for the whole widget.
+        # 1. Surface base — establishes the rounded shape for the whole widget.
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
-        painter.setBrush(QtGui.QBrush(QtGui.QColor("white")))
+        painter.setBrush(
+            QtGui.QBrush(theme.ThemeColors.SURFACE.to_qcolor())
+        )
         painter.drawRoundedRect(full, radius, radius)
 
         # 2. Section highlights — clip to each half, then draw the same full
         #    rounded rect so corners are geometrically identical to the border.
-        def _fill_section(clip: QtCore.QRectF, color: str) -> None:
+        def _fill_section(clip: QtCore.QRectF, color: QtGui.QColor) -> None:
             painter.setClipRect(clip)
-            painter.setBrush(QtGui.QBrush(QtGui.QColor(color)))
+            painter.setBrush(QtGui.QBrush(color))
             painter.setPen(QtCore.Qt.PenStyle.NoPen)
             painter.drawRoundedRect(full, radius, radius)
             painter.setClipping(False)
 
         main_clip = QtCore.QRectF(0, 0, divider_x, full.height())
-        arrow_clip = QtCore.QRectF(divider_x, 0, full.width() - divider_x, full.height())
+        arrow_clip = QtCore.QRectF(
+            divider_x, 0, full.width() - divider_x, full.height()
+        )
 
         if self._arrow_pressed or self._menu_open:
-            _fill_section(main_clip, "#ebebeb")
-            _fill_section(arrow_clip, "#ebebeb")
+            _fill_section(main_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor())
+            _fill_section(arrow_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor())
         else:
             if self._main_pressed:
-                _fill_section(main_clip, "#e0e0e0")
+                _fill_section(main_clip, theme.ThemeColors.PRESSED.to_qcolor())
             elif self._main_hovered:
-                _fill_section(main_clip, "#f5f5f5")
+                _fill_section(main_clip, theme.ThemeColors.HOVER.to_qcolor())
 
             if self._arrow_hovered:
-                _fill_section(arrow_clip, "#f5f5f5")
+                _fill_section(arrow_clip, theme.ThemeColors.HOVER.to_qcolor())
 
         any_active = (
-            self._main_hovered or self._arrow_hovered
-            or self._main_pressed or self._arrow_pressed
+            self._main_hovered
+            or self._arrow_hovered
+            or self._main_pressed
+            or self._arrow_pressed
             or self._menu_open
         )
 
         # 3. Divider — only when hovering, not while arrow is pressed or menu is open.
-        if (self._main_hovered or self._arrow_hovered) and not (self._arrow_pressed or self._menu_open):
-            pen = QtGui.QPen(QtGui.QColor("#dcdcdc"))
+        if (self._main_hovered or self._arrow_hovered) and not (
+            self._arrow_pressed or self._menu_open
+        ):
+            pen = QtGui.QPen(theme.ThemeColors.DIVIDER.to_qcolor())
             pen.setWidth(1)
             painter.setPen(pen)
             painter.drawLine(
@@ -362,12 +379,18 @@ class CommandBarSplitButton(CommandBarButton):
 
         # 4. Outer border — same radius as base so pixels align exactly.
         if any_active:
-            color = "#616161" if (self._arrow_pressed or self._menu_open) else "#c7c7c7"
-            pen = QtGui.QPen(QtGui.QColor(color))
+            border_color = (
+                theme.ThemeColors.BORDER_ACTIVE.to_qcolor()
+                if (self._arrow_pressed or self._menu_open)
+                else theme.ThemeColors.BORDER_HOVER.to_qcolor()
+            )
+            pen = QtGui.QPen(border_color)
             pen.setWidth(1)
             painter.setPen(pen)
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(full.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
+            painter.drawRoundedRect(
+                full.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius
+            )
 
     def _show_menu(self) -> None:
         """Open the menu aligned to the widget's bottom-left corner."""
@@ -438,12 +461,12 @@ class CommandBarDropdownButton(CommandBarButton):
     """
 
     def __init__(
-            self,
-            icon: QtGui.QIcon | None,
-            text: str = "",
-            style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
-            size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
-            parent: QtWidgets.QWidget | None = None,
+        self,
+        icon: QtGui.QIcon | None,
+        text: str = "",
+        style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
+        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialise the dropdown button.
 
@@ -493,8 +516,7 @@ class CommandBarDropdownButton(CommandBarButton):
             :meth:`~PyQt6.QtWidgets.QWidget.setStyleSheet`.
         """
         tmp_text_under = (
-            self._style
-            == QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+            self._style == QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
         )
         if tmp_text_under:
             tmp_extra_padding = "padding-bottom: 14px;"
@@ -504,26 +526,29 @@ class CommandBarDropdownButton(CommandBarButton):
             tmp_extra_padding = "padding-right: 14px;"
             tmp_indicator_pos = "right center"
             tmp_indicator_offset = "right: 2px;"
-        tmp_base = (
-            "QToolButton {"
-            "    font-size: 12px;"
-            "    background-color: white;"
-            "    border: none;"
-            "    border-radius: 0.375em;"
-            f"    padding: 4px 6px; {tmp_extra_padding}"
-            "}"
-            "QToolButton:hover { background: #f5f5f5; }"
+        font_sz = theme.ThemeMetrics.FONT_SIZE_BASE.to_qss()
+        surface = theme.ThemeColors.SURFACE.to_hex()
+        radius = theme.ThemeMetrics.CORNER_RADIUS_BUTTON.to_qss()
+        pad_v = theme.ThemeMetrics.PADDING_SMALL.to_qss()
+        pad_h = theme.ThemeMetrics.PADDING_BUTTON_H.to_qss()
+        hover = theme.ThemeColors.HOVER.to_hex()
+        return (
+            f"QToolButton {{"
+            f" font-size: {font_sz};"
+            f" background-color: {surface};"
+            f" border: none;"
+            f" border-radius: {radius};"
+            f" padding: {pad_v} {pad_h}; {tmp_extra_padding}"
+            f"}}"
+            f"QToolButton:hover {{ background: {hover}; }}"
+            f"QToolButton::menu-indicator {{"
+            f" subcontrol-origin: padding;"
+            f" subcontrol-position: {tmp_indicator_pos};"
+            f" width: 8px;"
+            f" height: 8px;"
+            f" {tmp_indicator_offset}"
+            f"}}"
         )
-        tmp_indicator = (
-            "QToolButton::menu-indicator {"
-            "    subcontrol-origin: padding;"
-            f"    subcontrol-position: {tmp_indicator_pos};"
-            "    width: 8px;"
-            "    height: 8px;"
-            f"    {tmp_indicator_offset}"
-            "}"
-        )
-        return tmp_base + tmp_indicator
 
     def _connect_signals(self) -> None:
         pass  # InstantPopup handles menu/flyout; clicked is not emitted.
@@ -561,28 +586,36 @@ class CommandBarDropdownButton(CommandBarButton):
     def _show_flyout(self) -> None:
         """Open the attached flyout anchored below the button."""
         from pymol_copilot.gui.qt.widgets.flyout import FlyoutPlacement
+
         if self._flyout is not None:
             self._flyout.show_for(self._button, FlyoutPlacement.BELOW)
 
 
 class CommandBar(QtWidgets.QWidget):
-
-    def __init__(self, command_buttons: list[CommandBarButton], parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self,
+        command_buttons: list[CommandBarButton],
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
         self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame()
-        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout()
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = (
+            QtWidgets.QVBoxLayout()
+        )
         self._layout: QtWidgets.QBoxLayout = QtWidgets.QHBoxLayout()
         self._init_widget(command_buttons)
         self._set_styles()
 
     def _set_styles(self):
-        self._outer_frame.setStyleSheet(_OUTER_FRAME_STYLE)
+        self._outer_frame.setStyleSheet(
+            theme.compile_stylesheet(_OUTER_FRAME_TEMPLATE)
+        )
         tmp_shadow_effect = QtWidgets.QGraphicsDropShadowEffect()
         tmp_shadow_effect.setBlurRadius(20)
         tmp_shadow_effect.setOffset(3, 3)
         tmp_shadow_effect.setColor(QtGui.QColor(0, 0, 0, 30))
         self._outer_frame.setGraphicsEffect(tmp_shadow_effect)
-        self.setStyleSheet(_COMMAND_BAR_STYLESHEET)
+        self.setStyleSheet(theme.compile_stylesheet(_COMMAND_BAR_TEMPLATE))
 
     def _init_widget(self, command_buttons: list[CommandBarButton]) -> None:
         self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)

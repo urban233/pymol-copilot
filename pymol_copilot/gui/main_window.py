@@ -35,8 +35,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_central_widget.setLayout(tmp_layout)
 
         tmp_split_btn = command_bar.CommandBarSplitButton(
-            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-            "Home"
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"), "Home"
         )
         menu = QtWidgets.QMenu(tmp_split_btn)
         menu.addAction("First action")
@@ -47,8 +46,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Flyout example ---
         tmp_flyout_btn = command_bar.CommandBarSplitButton(
-            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-            "Options"
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"), "Options"
         )
         tmp_flyout = FlyoutFrame(shadow=False)
         tmp_flyout_content = QtWidgets.QWidget()
@@ -87,9 +85,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_dropdown_flyout_layout.setSpacing(4)
         tmp_dropdown_flyout_layout.setContentsMargins(0, 0, 0, 0)
-        tmp_dropdown_flyout_layout.addWidget(
-            QtWidgets.QLabel("View options")
-        )
+        tmp_dropdown_flyout_layout.addWidget(QtWidgets.QLabel("View options"))
         tmp_dropdown_flyout_layout.addWidget(
             QtWidgets.QCheckBox("Cartoon representation")
         )
@@ -103,17 +99,18 @@ class MainWindow(QtWidgets.QMainWindow):
             [
                 command_bar.CommandBarActionButton(
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-                    "Home"
+                    "Home",
                 ),
                 command_bar.CommandBarActionButton(
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-                    "Home"
+                    "Home",
                 ),
                 tmp_split_btn,
                 tmp_flyout_btn,
                 tmp_dropdown_menu_btn,
                 tmp_dropdown_flyout_btn,
-            ], tmp_central_widget
+            ],
+            tmp_central_widget,
         )
         tmp_layout.addWidget(tmp_command_bar)
         tmp_layout.addStretch(1)

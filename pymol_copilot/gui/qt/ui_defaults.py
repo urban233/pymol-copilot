@@ -25,7 +25,12 @@ from pymol_copilot.gui.qt import styles
 
 EMPTY_CONTENTS_MARGINS = [0, 0, 0, 0]
 """Contents margins without extra padding."""
-DEFAULT_CONTENTS_MARGINS = [styles.dp(4), styles.dp(4), styles.dp(4), styles.dp(4)]
+DEFAULT_CONTENTS_MARGINS = [
+    styles.dp(4),
+    styles.dp(4),
+    styles.dp(4),
+    styles.dp(4),
+]
 """Contents margins with default extra padding."""
 SMALL_CONTENTS_MARGINS = [styles.dp(2), styles.dp(2), styles.dp(2), 2]
 """Contents margins with small extra padding."""

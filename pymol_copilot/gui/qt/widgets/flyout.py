@@ -20,18 +20,19 @@ from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import styles
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
 __docformat__ = "google"
 
-# Matches _OUTER_FRAME_STYLE in command_bar.py — duplicated intentionally so
-# flyout.py stays decoupled from command_bar internals.
-_FLYOUT_FRAME_STYLE = """
+# Uses the same template tokens as _OUTER_FRAME_TEMPLATE in command_bar.py —
+# kept as a local template so flyout.py stays decoupled from command_bar internals.
+_FLYOUT_FRAME_TEMPLATE = """
 QFrame {
-    border: 0.075em solid white;
-    background: white;
-    border-radius: 0.6em;
-    padding: 0.2em;
+    border: ${border_width} solid ${surface};
+    background: ${surface};
+    border-radius: ${corner_radius};
+    padding: ${padding_frame};
 }
 """
 
@@ -101,14 +102,19 @@ class FlyoutFrame(QtWidgets.QWidget):
         """
         super().__init__(
             parent,
-            QtCore.Qt.WindowType.Popup | QtCore.Qt.WindowType.FramelessWindowHint,
+            QtCore.Qt.WindowType.Popup
+            | QtCore.Qt.WindowType.FramelessWindowHint,
         )
 
         if shadow:
-            self.setAttribute(QtCore.Qt.WidgetAttribute.WA_TranslucentBackground)
+            self.setAttribute(
+                QtCore.Qt.WidgetAttribute.WA_TranslucentBackground
+            )
 
         self._inner_frame: QtWidgets.QFrame = QtWidgets.QFrame()
-        self._inner_frame.setStyleSheet(_FLYOUT_FRAME_STYLE)
+        self._inner_frame.setStyleSheet(
+            theme.compile_stylesheet(_FLYOUT_FRAME_TEMPLATE)
+        )
 
         if shadow:
             tmp_shadow = QtWidgets.QGraphicsDropShadowEffect()
