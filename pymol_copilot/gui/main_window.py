@@ -8,6 +8,7 @@ from PyQt6 import QtWidgets
 
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.widgets import command_bar
+from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame, FlyoutPlacement
 from pymol_copilot.gui.widgets import input_bar
 
 
@@ -43,6 +44,25 @@ class MainWindow(QtWidgets.QMainWindow):
         menu.addSeparator()
         menu.addAction("Third action")
         tmp_split_btn.set_menu(menu)
+
+        # --- Flyout example ---
+        tmp_flyout_btn = command_bar.CommandBarSplitButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Options"
+        )
+        tmp_flyout = FlyoutFrame(shadow=False)
+        tmp_flyout_content = QtWidgets.QWidget()
+        tmp_flyout_layout = QtWidgets.QVBoxLayout(tmp_flyout_content)
+        tmp_flyout_layout.setSpacing(4)
+        tmp_flyout_layout.setContentsMargins(0, 0, 0, 0)
+        tmp_flyout_layout.addWidget(QtWidgets.QLabel("Display options"))
+        tmp_flyout_layout.addWidget(QtWidgets.QCheckBox("Show hydrogen atoms"))
+        tmp_flyout_layout.addWidget(QtWidgets.QCheckBox("Show surface"))
+        tmp_flyout_layout.addWidget(QtWidgets.QCheckBox("Show labels"))
+        tmp_flyout.set_content(tmp_flyout_content)
+        tmp_flyout_btn.set_flyout(tmp_flyout)
+        # ----------------------
+
         tmp_command_bar = command_bar.CommandBar(
             [
                 command_bar.CommandBarActionButton(
@@ -53,7 +73,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
                     "Home"
                 ),
-                tmp_split_btn
+                tmp_split_btn,
+                tmp_flyout_btn,
             ], tmp_central_widget
         )
         tmp_layout.addWidget(tmp_command_bar)

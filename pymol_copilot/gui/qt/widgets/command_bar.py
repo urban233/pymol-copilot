@@ -1,9 +1,14 @@
-from typing import TypeAlias
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, TypeAlias
 
 from pymol_copilot.gui.qt import QtCore, styles
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
+
+if TYPE_CHECKING:
+    from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame, FlyoutPlacement
 
 CommandBarButtonType: TypeAlias = QtCore.Qt.ToolButtonStyle
 
@@ -175,6 +180,7 @@ class CommandBarSplitButton(CommandBarButton):
         self._arrow_pressed: bool = False
         self._menu_open: bool = False
         self._menu: QtWidgets.QMenu | None = None
+        self._flyout: FlyoutFrame | None = None
         self._main_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         self._arrow_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
@@ -368,6 +374,31 @@ class CommandBarSplitButton(CommandBarButton):
         if self._menu is not None:
             pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
             self._menu.popup(pos)
+
+    def set_flyout(self, flyout: FlyoutFrame) -> None:
+        """Attach a :class:`~pymol_copilot.gui.qt.widgets.flyout.FlyoutFrame`
+        to the arrow section.
+
+        Works as an alternative to :meth:`set_menu`: clicking the arrow opens
+        the flyout below the button and drives the same ``_menu_open`` paint
+        state so the button renders correctly while the flyout is visible.
+
+        Args:
+            flyout: The flyout panel to open when the arrow is clicked.
+        """
+        from pymol_copilot.gui.qt.widgets.flyout import FlyoutPlacement
+
+        self._flyout = flyout
+        flyout.about_to_show.connect(self._on_menu_show)
+        flyout.about_to_hide.connect(self._on_menu_hide)
+        self._arrow_button.clicked.connect(self._show_flyout)
+
+    def _show_flyout(self) -> None:
+        """Open the flyout anchored below the button."""
+        from pymol_copilot.gui.qt.widgets.flyout import FlyoutPlacement
+
+        if self._flyout is not None:
+            self._flyout.show_for(self, FlyoutPlacement.BELOW)
 
     def set_menu(self, menu: QtWidgets.QMenu) -> None:
         """Attach a dropdown menu to the arrow section.
