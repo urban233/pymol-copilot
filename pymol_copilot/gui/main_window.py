@@ -33,6 +33,16 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_layout = QtWidgets.QVBoxLayout()
         tmp_central_widget.setLayout(tmp_layout)
 
+        tmp_split_btn = command_bar.CommandBarSplitButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Home"
+        )
+        menu = QtWidgets.QMenu(tmp_split_btn)
+        menu.addAction("First action")
+        menu.addAction("Second action")
+        menu.addSeparator()
+        menu.addAction("Third action")
+        tmp_split_btn.set_menu(menu)
         tmp_command_bar = command_bar.CommandBar(
             [
                 command_bar.CommandBarActionButton(
@@ -43,10 +53,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
                     "Home"
                 ),
-                command_bar.CommandBarSplitButton(
-                    icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-                    "Home"
-                )
+                tmp_split_btn
             ], tmp_central_widget
         )
         tmp_layout.addWidget(tmp_command_bar)
