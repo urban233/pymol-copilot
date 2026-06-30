@@ -1,3 +1,20 @@
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# -------------------------------------------------------------------
+# This file contains source code for the cBioMOL computer program
+# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Source code is available at <https://github.com/urban233/cBioMOL>
+# -------------------------------------------------------------------
+# It is unlawful to modify or remove this copyright notice.
+# -------------------------------------------------------------------
+# Please see the accompanying LICENSE file for further information.
+# -------------------------------------------------------------------
+# Primary author of this source file:
+# Martin Urban
+# -------------------------------------------------------------------
+# Additional authors of this source file include:
+#
+# ==============================================================================
+#
 """Resolve icons for the cBioMOL SDK and third-party plugins.
 
 Provides a centralized, zip-safe mechanism for loading file-based icons that
@@ -11,12 +28,12 @@ intentionally minimal:
 
 Usage (plugin startup):
 
-    from cbiomol.qt import icons
+    from pymol_copilot.gui.qt import icons
     icons.register_package("my_plugin")
 
 Usage (building a toolbar action):
 
-    from cbiomol.qt import icons
+    from pymol_copilot.gui.qt import icons
     action = QtGui.QAction(icons.icon("my_plugin", "open"), "Open")
 
 Asset layout convention
@@ -44,7 +61,7 @@ from typing import Final
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from PyQt6 import QtGui
+    from pymol_copilot.gui.qt import QtGui
 
 __docformat__ = "google"
 
@@ -170,7 +187,7 @@ def _load_icon(import_name: str, name: str, theme: str) -> QtGui.QIcon:
     Raises:
         FileNotFoundError: If no candidate path yields a readable file.
     """
-    from PyQt6 import QtGui
+    from pymol_copilot.gui.qt import QtGui
 
     tmp_candidates = (
         f"assets/icons/{theme}/{name}.svg",
@@ -214,4 +231,4 @@ def _try_read_bytes(import_name: str, rel_path: str) -> bytes | None:
 
 
 # Auto-register the core SDK package so callers never need to do it manually.
-register_package("pymol_copilot")
+register_package("pymol_copilot.gui.qt")

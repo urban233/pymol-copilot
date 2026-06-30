@@ -6,6 +6,8 @@ from PyQt6 import QtCore
 from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 
+from pymol_copilot.gui.qt import icons
+from pymol_copilot.gui.qt.widgets import command_bar
 from pymol_copilot.gui.widgets import input_bar
 
 
@@ -31,24 +33,42 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_layout = QtWidgets.QVBoxLayout()
         tmp_central_widget.setLayout(tmp_layout)
 
-        tmp_label = QtWidgets.QLabel("PyMOL Copilot")
-        tmp_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        tmp_font = QtGui.QFont("Segoe UI", 24, QtGui.QFont.Weight.Bold)
-        tmp_label.setFont(tmp_font)
-        tmp_layout.addWidget(tmp_label)
-
-        tmp_description = QtWidgets.QLabel(
-            "A professional AI assistant for PyMOL."
+        tmp_command_bar = command_bar.CommandBar(
+            [
+                command_bar.CommandBarButton(
+                    icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+                    "Home"
+                ),
+                command_bar.CommandBarButton(
+                    icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+                    "Home"
+                ),
+                command_bar.CommandBarButton(
+                    icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+                    "Home"
+                )
+            ], tmp_central_widget
         )
-        tmp_description.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        tmp_layout.addWidget(tmp_description)
-
-        tmp_input_bar = input_bar.InputBar()
-        tmp_layout.addWidget(tmp_input_bar)
-
-        tmp_status_bar = self.statusBar()
-        if tmp_status_bar is not None:
-            tmp_status_bar.showMessage("Application Loaded")
+        tmp_layout.addWidget(tmp_command_bar)
+        tmp_layout.addStretch(1)
+        # tmp_label = QtWidgets.QLabel("PyMOL Copilot")
+        # tmp_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        # tmp_font = QtGui.QFont("Segoe UI", 24, QtGui.QFont.Weight.Bold)
+        # tmp_label.setFont(tmp_font)
+        # tmp_layout.addWidget(tmp_label)
+        #
+        # tmp_description = QtWidgets.QLabel(
+        #     "A professional AI assistant for PyMOL."
+        # )
+        # tmp_description.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        # tmp_layout.addWidget(tmp_description)
+        #
+        # tmp_input_bar = input_bar.InputBar()
+        # tmp_layout.addWidget(tmp_input_bar)
+        #
+        # tmp_status_bar = self.statusBar()
+        # if tmp_status_bar is not None:
+        #     tmp_status_bar.showMessage("Application Loaded")
 
     def _setup_menus(self) -> None:
         """Sets up the application menu bar."""

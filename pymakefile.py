@@ -434,7 +434,7 @@ def docs(output: str = "docs/api") -> None:
     env["PYTHONPATH"] = os.pathsep.join([*src_paths, env.get("PYTHONPATH", "")])
 
     packages = [
-        "src/python/cbiomol",
+        "src/python/pymol_copilot.gui",
         # "src/python/chempy",
         # "src/python/pmg_qt",
         # "src/python/pmg_tk",
