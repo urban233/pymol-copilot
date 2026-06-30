@@ -19,9 +19,11 @@
 
 from __future__ import annotations
 
+import enum
 import re
 
 from PyQt6 import QtGui
+from PyQt6 import QtWidgets
 
 from pymol_copilot.gui.qt import styles
 
@@ -89,28 +91,225 @@ class ThemeColors:
     SURFACE = ColorToken("#ffffff")
     HOVER = ColorToken("#f5f5f5")
     PRESSED = ColorToken("#e0e0e0")
-    PRESSED_SHARED = ColorToken("#ebebeb")  # both-sections pressed (e.g. SplitButton arrow/menu-open)
-    DIVIDER = ColorToken("#dcdcdc")         # intra-widget divider line
-    BORDER_DEFAULT = ColorToken("#ebecf0")
-    BORDER_HOVER = ColorToken("#c7c7c7")    # border shown on hover
+    BORDER_COLOR = ColorToken("#ebecf0")
     BORDER_ACTIVE = ColorToken("#616161")
+    BORDER_HOVER = ColorToken("#c7c7c7")
+    DIVIDER = ColorToken("#dcdcdc")
     ACCENT = ColorToken("#367af6")
     TEXT_PRIMARY = ColorToken("#242424")
+    PRESSED_SHARED = ColorToken("#ebebeb")
 
 
 class ThemeMetrics:
     """Static namespace for layout sizes."""
 
     CORNER_RADIUS = SizeToken(6)
-    CORNER_RADIUS_BUTTON = SizeToken(5)    # per-button border-radius
     BORDER_WIDTH = SizeToken(1)
-    PADDING_FRAME = SizeToken(2)           # outer/flyout frame inner padding
-    PADDING_XSMALL = SizeToken(3)          # arrow button horizontal padding
-    PADDING_SMALL = SizeToken(4)           # button vertical padding
+    PADDING_SMALL = SizeToken(4)
     PADDING_MEDIUM = SizeToken(8)
-    PADDING_BUTTON_H = SizeToken(6)        # button horizontal padding
-    ARROW_BUTTON_WIDTH = SizeToken(14)     # fixed width of the split-button arrow section
     FONT_SIZE_BASE = SizeToken(12)
+    CLOSE_BUTTON_SIZE = SizeToken(36)
+    CLOSE_BUTTON_HOVER_SIZE = SizeToken(40)
+    FONT_SIZE_HEADER = SizeToken(20)
+    MARGIN_LEFT = SizeToken(8)
+    FONT_SIZE_MENU_ITEM = SizeToken(13)
+
+
+class StyleId(enum.StrEnum):
+    """Typesafe identifier names for QSS object names."""
+
+    PANEL_CLOSE_BUTTON = "PanelCloseButton"
+    PANEL_HEADER_LABEL = "PanelHeaderLabel"
+    PANEL_SURFACE = "PanelSurface"
+    SPLITTER_HANDLE = "SplitterHandle"
+    COMMAND_BAR = "CommandBar"
+    COMMAND_BAR_OUTER = "CommandBarOuter"
+    SPLIT_BUTTON_MAIN = "SplitButtonMain"
+    SPLIT_BUTTON_ARROW = "SplitButtonArrow"
+    DROPDOWN_BUTTON_UNDER = "DropdownButtonTextUnder"
+    DROPDOWN_BUTTON_BESIDE = "DropdownButtonTextBeside"
+    FLYOUT_FRAME = "FlyoutFrame"
+    MENU_BLOCK = "MenuBlock"
+    TOOLBAR_BLOCK = "ToolbarBlock"
+
+
+GLOBAL_STYLESHEET_TEMPLATE = f"""
+QPushButton#{StyleId.PANEL_CLOSE_BUTTON} {{
+    background-color: rgba(220, 219, 227, 0.01);
+    border: none;
+    border-radius: ${{padding_small}};
+    min-width: ${{close_button_size}};
+    max-width: ${{close_button_size}};
+    min-height: ${{close_button_size}};
+    max-height: ${{close_button_size}};
+}}
+QPushButton#{StyleId.PANEL_CLOSE_BUTTON}:hover {{
+    background-color: rgba(220, 219, 227, 0.5);
+    border: none;
+    min-width: ${{close_button_hover_size}};
+    max-width: ${{close_button_hover_size}};
+    min-height: ${{close_button_hover_size}};
+    max-height: ${{close_button_hover_size}};
+}}
+
+QLabel#{StyleId.PANEL_HEADER_LABEL} {{
+    font-size: ${{font_size_header}};
+    margin-left: ${{margin_left}};
+}}
+
+QFrame#{StyleId.PANEL_SURFACE} {{
+    border: ${{border_width}} solid ${{border_color}};
+    background-color: ${{surface}};
+    border-radius: ${{corner_radius}};
+}}
+
+QSplitter::handle {{
+    background-color: ${{border_color}};
+    margin: 1px;
+}}
+
+QFrame#{StyleId.COMMAND_BAR_OUTER} {{
+    border: ${{border_width}} solid ${{border_color}};
+    background-color: ${{surface}};
+    border-radius: ${{corner_radius}};
+    padding: ${{padding_small}};
+}}
+
+#{StyleId.COMMAND_BAR} QToolButton {{
+    font-size: ${{font_size_base}};
+    background-color: ${{surface}};
+    border: none;
+    border-radius: ${{corner_radius}};
+    padding: 4px 6px;
+}}
+#{StyleId.COMMAND_BAR} QToolButton:hover {{
+    background-color: ${{hover}};
+}}
+
+QToolButton#{StyleId.SPLIT_BUTTON_MAIN} {{
+    font-size: ${{font_size_base}};
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+}}
+QToolButton#{StyleId.SPLIT_BUTTON_MAIN}:hover,
+QToolButton#{StyleId.SPLIT_BUTTON_MAIN}:pressed,
+QToolButton#{StyleId.SPLIT_BUTTON_MAIN}:focus {{
+    background: transparent;
+    outline: none;
+}}
+
+QToolButton#{StyleId.SPLIT_BUTTON_ARROW} {{
+    font-size: ${{font_size_base}};
+    background: transparent;
+    border: none;
+    min-width: 14px;
+    max-width: 14px;
+    padding: 4px 3px;
+}}
+QToolButton#{StyleId.SPLIT_BUTTON_ARROW}:hover,
+QToolButton#{StyleId.SPLIT_BUTTON_ARROW}:pressed,
+QToolButton#{StyleId.SPLIT_BUTTON_ARROW}:focus {{
+    background: transparent;
+    outline: none;
+}}
+QToolButton#{StyleId.SPLIT_BUTTON_ARROW}::menu-indicator {{
+    image: none;
+}}
+
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER} {{
+    font-size: ${{font_size_base}};
+    background-color: ${{surface}};
+    border: none;
+    border-radius: ${{corner_radius}};
+    padding: 4px 6px;
+    padding-bottom: 14px;
+}}
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:hover {{
+    background-color: ${{hover}};
+}}
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}::menu-indicator {{
+    subcontrol-origin: padding;
+    subcontrol-position: bottom center;
+    width: 8px;
+    height: 8px;
+    bottom: 2px;
+}}
+
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE} {{
+    font-size: ${{font_size_base}};
+    background-color: ${{surface}};
+    border: none;
+    border-radius: ${{corner_radius}};
+    padding: 4px 6px;
+    padding-right: 14px;
+}}
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:hover {{
+    background-color: ${{hover}};
+}}
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}::menu-indicator {{
+    subcontrol-origin: padding;
+    subcontrol-position: right center;
+    width: 8px;
+    height: 8px;
+    right: 2px;
+}}
+
+QFrame#{StyleId.FLYOUT_FRAME} {{
+    border: ${{border_width}} solid ${{border_color}};
+    background-color: ${{surface}};
+    border-radius: ${{corner_radius}};
+    padding: 4px;
+}}
+
+QMenu {{
+    background-color: ${{surface}};
+    margin: 2px;
+}}
+QMenu::item {{
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-left: 7px;
+    padding-right: 15px;
+    font-size: ${{font_size_menu_item}};
+}}
+QMenu::item:selected {{
+    background-color: ${{hover}};
+    border-width: 2px;
+    border-radius: 4px;
+    border-color: ${{surface}};
+}}
+QMenu::icon {{
+    padding-left: 15px;
+}}
+QMenu::separator {{
+    height: 1px;
+    background-color: ${{border_color}};
+    margin-left: 0px;
+    margin-right: 0px;
+}}
+QMenu QLabel {{
+    padding-top: 5px;
+    padding-bottom: 5px;
+    padding-right: 10px;
+    margin-left: 10px;
+    font: bold;
+    font-size: ${{font_size_base}};
+    color: ${{text_primary}};
+}}
+
+#{StyleId.TOOLBAR_BLOCK} QToolButton {{
+    font-size: 8pt;
+    background-color: ${{surface}};
+    padding: 4px;
+    border: none;
+    border-radius: ${{corner_radius}};
+}}
+#{StyleId.TOOLBAR_BLOCK} QToolButton::hover {{
+    background-color: ${{hover}};
+    color: ${{text_primary}};
+}}
+"""
 
 
 def compile_stylesheet(template: str) -> str:
@@ -155,3 +354,15 @@ def compile_stylesheet(template: str) -> str:
     for tmp_key, tmp_val in tmp_bindings.items():
         tmp_result = tmp_result.replace(f"${{{tmp_key}}}", tmp_val)
     return tmp_result
+
+
+def apply_global_theme(scale: float | None = None) -> None:
+    """Compiles and sets the global stylesheet on the QApplication instance.
+
+    Args:
+        scale: Optional scale factor passed when called from scale_changed.
+    """
+    tmp_app = QtWidgets.QApplication.instance()
+    if isinstance(tmp_app, QtWidgets.QApplication):
+        tmp_qss = compile_stylesheet(GLOBAL_STYLESHEET_TEMPLATE)
+        tmp_app.setStyleSheet(tmp_qss)

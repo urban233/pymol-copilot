@@ -31,48 +31,12 @@ from typing import Optional
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
 __docformat__ = "google"
 
 # Shared stylesheet applied to both menu block types.
-_MENU_STYLESHEET = """
-QMenu {
-    background-color: white;
-    margin: 2px;
-}
-QMenu::item {
-    padding-top: 5px;
-    padding-bottom: 5px;
-    padding-left: 7px;
-    padding-right: 15px;
-    font-size: 13px;
-}
-QMenu::item:selected {
-    background: #D6E4FD;
-    border-width: 2px;
-    border-radius: 4px;
-    border-color: white;
-}
-QMenu::icon {
-    padding-left: 15px;
-}
-QMenu::separator {
-    height: 1px;
-    background: #E2E2E2;
-    margin-left: 0px;
-    margin-right: 0px;
-}
-QLabel {
-    padding-top: 5px;
-    padding-bottom: 5px;
-    padding-right: 10px;
-    margin-left: 10px;
-    font: bold;
-    font-size: 12px;
-    color: #242424;
-}
-"""
 
 
 class DropdownMenuBlock(QtWidgets.QMenu):
@@ -162,7 +126,7 @@ class InlineMenuBlock(QtWidgets.QWidget):
         self.menu = QtWidgets.QMenu(self)
         # </editor-fold>
         self._init_widget()
-        self.setStyleSheet(_MENU_STYLESHEET)
+        self.setObjectName(theme.StyleId.MENU_BLOCK)
 
     # <editor-fold desc="Public methods">
     def add_action(

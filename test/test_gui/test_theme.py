@@ -109,3 +109,16 @@ def test_compile_stylesheet_raises_error_for_invalid_placeholder(
     # Act & Assert
     with pytest.raises(KeyError):
         theme.compile_stylesheet(tmp_template)
+
+
+def test_apply_global_theme_with_scale(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Test apply_global_theme accepts scale parameter.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    # Arrange & Act & Assert (Should not raise any exception)
+    theme.apply_global_theme(1.5)

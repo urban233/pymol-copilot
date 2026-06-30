@@ -41,6 +41,7 @@ from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import styles
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
 if TYPE_CHECKING:
@@ -416,9 +417,9 @@ class ToolWindowLayoutBlock(QtWidgets.QWidget):
         self._center_frame.setStyleSheet(
             f"""
             QFrame {{
-                border: 0.075em solid {color};
+                border: 1px solid {color};
                 background: {color};
-                border-radius: 0.75em;
+                border-radius: 6px;
             }}
             """
         )
@@ -538,12 +539,12 @@ class ToolWindowLayoutBlock(QtWidgets.QWidget):
         Assigns stylesheet properties to the frames and splitters to ensure
         a cohesive appearance throughout the IDE interface.
         """
-        self._left_upper_frame.setStyleSheet(styles.PANEL_SURFACE_STYLE)
-        self._left_frame.setStyleSheet(styles.PANEL_SURFACE_STYLE)
-        self._center_frame.setStyleSheet(styles.PANEL_SURFACE_STYLE)
-        self._right_frame.setStyleSheet(styles.PANEL_SURFACE_STYLE)
-        self._bottom_frame.setStyleSheet(styles.PANEL_SURFACE_STYLE)
+        self._left_upper_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
+        self._left_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
+        self._center_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
+        self._right_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
+        self._bottom_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
 
-        self._left_splitter.setStyleSheet(styles.SPLITTER_HANDLE_STYLE)
+        self._left_splitter.setObjectName(theme.StyleId.SPLITTER_HANDLE)
 
     # </editor-fold>

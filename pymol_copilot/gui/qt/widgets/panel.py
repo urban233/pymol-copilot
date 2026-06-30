@@ -32,7 +32,7 @@ from typing import Optional
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets
-from pymol_copilot.gui.qt import styles
+from pymol_copilot.gui.qt import theme
 
 __docformat__ = "google"
 
@@ -122,7 +122,8 @@ class PanelBlock(QtWidgets.QWidget):
 
     def _set_styles(self) -> None:
         """Sets the styles for specific UI components."""
-        self._btn_close.setStyleSheet(styles.PANEL_CLOSE_BUTTON_STYLE)
-        self._lbl_header.setStyleSheet(styles.PANEL_HEADER_LABEL_STYLE)
+        self._btn_close.setObjectName(theme.StyleId.PANEL_CLOSE_BUTTON)
+        self._lbl_header.setObjectName(theme.StyleId.PANEL_HEADER_LABEL)
+        self._content_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
 
     # </editor-fold>

@@ -25,25 +25,12 @@ from typing import Optional
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
 __docformat__ = "google"
 
 # Shared stylesheet applied to toolbar buttons.
-_TOOLBAR_STYLESHEET = """
-QToolButton {
-    font-size: 7.9pt;
-    background-color: white;
-    padding: 0.15em;
-    border: none;
-    border-radius: 0.375em;
-}
-QToolButton::hover {
-    background: #f5f5f5;
-    color: black;
-    border-radius: 0.375em;
-}
-"""
 
 
 class ToolbarBlock(QtWidgets.QWidget):
@@ -107,7 +94,7 @@ class ToolbarBlock(QtWidgets.QWidget):
         self._item_to_button: Dict[QtGui.QAction, QtWidgets.QToolButton] = {}
         # </editor-fold>
         self._init_widget()
-        self.setStyleSheet(_TOOLBAR_STYLESHEET)
+        self.setObjectName(theme.StyleId.TOOLBAR_BLOCK)
 
     # <editor-fold desc="Public methods">
     def get_tool_button_for_action(

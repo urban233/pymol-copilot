@@ -25,16 +25,6 @@ from pymol_copilot.gui.qt import ui_defaults
 
 __docformat__ = "google"
 
-# Uses the same template tokens as _OUTER_FRAME_TEMPLATE in command_bar.py —
-# kept as a local template so flyout.py stays decoupled from command_bar internals.
-_FLYOUT_FRAME_TEMPLATE = """
-QFrame {
-    border: ${border_width} solid ${surface};
-    background: ${surface};
-    border-radius: ${corner_radius};
-    padding: ${padding_frame};
-}
-"""
 
 # Shadow clearance on every side so the drop-shadow is never clipped by
 # the transparent window boundary.
@@ -112,9 +102,7 @@ class FlyoutFrame(QtWidgets.QWidget):
             )
 
         self._inner_frame: QtWidgets.QFrame = QtWidgets.QFrame()
-        self._inner_frame.setStyleSheet(
-            theme.compile_stylesheet(_FLYOUT_FRAME_TEMPLATE)
-        )
+        self._inner_frame.setObjectName(theme.StyleId.FLYOUT_FRAME)
 
         if shadow:
             tmp_shadow = QtWidgets.QGraphicsDropShadowEffect()
