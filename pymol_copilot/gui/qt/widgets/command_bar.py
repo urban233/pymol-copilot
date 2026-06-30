@@ -412,6 +412,159 @@ class CommandBarSplitButton(CommandBarButton):
         self._arrow_button.clicked.connect(self._show_menu)
 
 
+class CommandBarDropdownButton(CommandBarButton):
+    """A unified dropdown button — single click area, menu or flyout on click.
+
+    Unlike :class:`CommandBarSplitButton`, there is no separate arrow
+    section: the entire button is the clickable area.  A down-arrow
+    indicator is rendered via QSS in the padding reserved beside (or
+    below) the icon/text content.  The indicator position adapts
+    automatically to the configured :class:`CommandBarButtonStyle`:
+
+    * ``ICON_ONLY``, ``TEXT_BESIDE``, ``TEXT_ONLY`` — arrow to the right.
+    * ``TEXT_UNDER`` — arrow below the text.
+
+    .. warning::
+        The inherited ``clicked`` signal is **never emitted**.
+        ``QToolButton.ToolButtonPopupMode.InstantPopup`` consumes the
+        click internally to open the attached menu.  React to user
+        interaction via ``QMenu.triggered`` or the flyout's
+        ``about_to_show`` / ``about_to_hide`` signals instead.
+
+    .. note::
+        Calling both :meth:`set_menu` and :meth:`set_flyout` on the same
+        instance is not supported.  The second call overwrites the menu
+        attached via ``setMenu()``.
+    """
+
+    def __init__(
+            self,
+            icon: QtGui.QIcon | None,
+            text: str = "",
+            style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
+            size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+            parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialise the dropdown button.
+
+        Args:
+            icon: Icon displayed on the button, or ``None`` for text-only.
+            text: Label text; may be empty for icon-only mode.
+            style: Controls icon/text arrangement and arrow placement.
+            size: Icon size in physical pixels as ``(width, height)``.
+            parent: Optional parent widget.
+        """
+        self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
+        self._menu: QtWidgets.QMenu | None = None
+        self._flyout: FlyoutFrame | None = None
+        super().__init__(icon, text, style, size, parent)
+
+    def _init_widget(self) -> None:
+        """Set up the internal QToolButton and wrap it in a layout."""
+        if self._icon is not None:
+            self._button.setIcon(self._icon)
+            self._button.setIconSize(QtCore.QSize(*self._size))
+        if self._text:
+            self._button.setText(self._text)
+        self._button.setToolButtonStyle(self._style)
+        self._button.setPopupMode(
+            QtWidgets.QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+        self._button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+        tmp_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout(self)
+        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.addWidget(self._button)
+
+    def _set_styles(self) -> None:
+        """Apply the style-adaptive QSS stylesheet."""
+        self._button.setStyleSheet(self._build_stylesheet())
+
+    def _build_stylesheet(self) -> str:
+        """Build the QSS stylesheet adapted to the current button style.
+
+        Reserves extra padding (right or bottom) so the
+        ``::menu-indicator`` subcontrol never overlaps the icon or text,
+        then positions the indicator inside that gap.
+
+        Returns:
+            A complete QSS string ready for
+            :meth:`~PyQt6.QtWidgets.QWidget.setStyleSheet`.
+        """
+        tmp_text_under = (
+            self._style
+            == QtCore.Qt.ToolButtonStyle.ToolButtonTextUnderIcon
+        )
+        if tmp_text_under:
+            tmp_extra_padding = "padding-bottom: 14px;"
+            tmp_indicator_pos = "bottom center"
+            tmp_indicator_offset = "bottom: 2px;"
+        else:
+            tmp_extra_padding = "padding-right: 14px;"
+            tmp_indicator_pos = "right center"
+            tmp_indicator_offset = "right: 2px;"
+        tmp_base = (
+            "QToolButton {"
+            "    font-size: 12px;"
+            "    background-color: white;"
+            "    border: none;"
+            "    border-radius: 0.375em;"
+            f"    padding: 4px 6px; {tmp_extra_padding}"
+            "}"
+            "QToolButton:hover { background: #f5f5f5; }"
+        )
+        tmp_indicator = (
+            "QToolButton::menu-indicator {"
+            "    subcontrol-origin: padding;"
+            f"    subcontrol-position: {tmp_indicator_pos};"
+            "    width: 8px;"
+            "    height: 8px;"
+            f"    {tmp_indicator_offset}"
+            "}"
+        )
+        return tmp_base + tmp_indicator
+
+    def _connect_signals(self) -> None:
+        pass  # InstantPopup handles menu/flyout; clicked is not emitted.
+
+    def set_menu(self, menu: QtWidgets.QMenu) -> None:
+        """Attach a dropdown menu; clicking the button opens it instantly.
+
+        Args:
+            menu: The :class:`QMenu` to open when the button is clicked.
+        """
+        self._menu = menu
+        self._button.setMenu(menu)
+
+    def set_flyout(self, flyout: FlyoutFrame) -> None:
+        """Attach a flyout panel; clicking the button opens it.
+
+        Switches the button to ``DelayedPopup`` mode so that a short
+        click emits the ``clicked`` signal (which opens the flyout) while
+        an empty :class:`QMenu` is still attached to trigger the
+        ``::menu-indicator`` QSS subcontrol rendering.
+
+        Args:
+            flyout: The
+                :class:`~pymol_copilot.gui.qt.widgets.flyout.FlyoutFrame`
+                to show below the button on click.
+        """
+        self._flyout = flyout
+        self._button.setPopupMode(
+            QtWidgets.QToolButton.ToolButtonPopupMode.DelayedPopup
+        )
+        # Empty menu attached only so ::menu-indicator is rendered via QSS.
+        self._button.setMenu(QtWidgets.QMenu(self._button))
+        self._button.clicked.connect(self._show_flyout)
+
+    def _show_flyout(self) -> None:
+        """Open the attached flyout anchored below the button."""
+        from pymol_copilot.gui.qt.widgets.flyout import FlyoutPlacement
+        if self._flyout is not None:
+            self._flyout.show_for(self._button, FlyoutPlacement.BELOW)
+
+
 class CommandBar(QtWidgets.QWidget):
 
     def __init__(self, command_buttons: list[CommandBarButton], parent: QtWidgets.QWidget | None = None) -> None:

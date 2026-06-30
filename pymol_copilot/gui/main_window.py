@@ -63,6 +63,42 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_flyout_btn.set_flyout(tmp_flyout)
         # ----------------------
 
+        tmp_dropdown_menu_btn = command_bar.CommandBarDropdownButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Export",
+            command_bar.CommandBarButtonStyle.TEXT_BESIDE,
+        )
+        tmp_export_menu = QtWidgets.QMenu(tmp_dropdown_menu_btn)
+        tmp_export_menu.addAction("Export as PNG")
+        tmp_export_menu.addAction("Export as SVG")
+        tmp_export_menu.addSeparator()
+        tmp_export_menu.addAction("Export session...")
+        tmp_dropdown_menu_btn.set_menu(tmp_export_menu)
+
+        tmp_dropdown_flyout_btn = command_bar.CommandBarDropdownButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "View",
+            command_bar.CommandBarButtonStyle.TEXT_BESIDE,
+        )
+        tmp_dropdown_flyout = FlyoutFrame(shadow=False)
+        tmp_dropdown_flyout_content = QtWidgets.QWidget()
+        tmp_dropdown_flyout_layout = QtWidgets.QVBoxLayout(
+            tmp_dropdown_flyout_content
+        )
+        tmp_dropdown_flyout_layout.setSpacing(4)
+        tmp_dropdown_flyout_layout.setContentsMargins(0, 0, 0, 0)
+        tmp_dropdown_flyout_layout.addWidget(
+            QtWidgets.QLabel("View options")
+        )
+        tmp_dropdown_flyout_layout.addWidget(
+            QtWidgets.QCheckBox("Cartoon representation")
+        )
+        tmp_dropdown_flyout_layout.addWidget(
+            QtWidgets.QCheckBox("Stick representation")
+        )
+        tmp_dropdown_flyout.set_content(tmp_dropdown_flyout_content)
+        tmp_dropdown_flyout_btn.set_flyout(tmp_dropdown_flyout)
+
         tmp_command_bar = command_bar.CommandBar(
             [
                 command_bar.CommandBarActionButton(
@@ -75,6 +111,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 ),
                 tmp_split_btn,
                 tmp_flyout_btn,
+                tmp_dropdown_menu_btn,
+                tmp_dropdown_flyout_btn,
             ], tmp_central_widget
         )
         tmp_layout.addWidget(tmp_command_bar)
