@@ -487,7 +487,35 @@ class CommandBarDropdownButton(CommandBarButton):
         )
         # Empty menu attached only so ::menu-indicator is rendered via QSS.
         self._button.setMenu(QtWidgets.QMenu(self._button))
-        self._button.clicked.connect(self._show_flyout)
+        self._button.installEventFilter(self)
+        flyout.about_to_show.connect(self._on_flyout_show)
+        flyout.about_to_hide.connect(self._on_flyout_hide)
+
+    def eventFilter(
+        self,
+        obj: QtCore.QObject | None,
+        event: QtCore.QEvent | None,
+    ) -> bool:
+        """Filter events to intercept mouse presses on the button when flyout is set.
+
+        Args:
+            obj: The object receiving the event.
+            event: The event being sent.
+
+        Returns:
+            True to consume the event, False to let it propagate.
+        """
+        if (
+            obj is self._button
+            and event is not None
+            and event.type() == QtCore.QEvent.Type.MouseButtonPress
+        ):
+            if self._flyout is not None:
+                assert isinstance(event, QtGui.QMouseEvent)
+                if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                    self._show_flyout()
+                    return True
+        return super().eventFilter(obj, event)
 
     def _show_flyout(self) -> None:
         """Open the attached flyout anchored below the button."""
@@ -495,6 +523,16 @@ class CommandBarDropdownButton(CommandBarButton):
 
         if self._flyout is not None:
             self._flyout.show_for(self._button, FlyoutPlacement.BELOW)
+
+    def _on_flyout_show(self) -> None:
+        """Slot triggered when the flyout is about to show."""
+        self._button.setProperty("flyoutOpen", True)
+        theme.refresh_widget_style(self._button)
+
+    def _on_flyout_hide(self) -> None:
+        """Slot triggered when the flyout is about to hide."""
+        self._button.setProperty("flyoutOpen", False)
+        theme.refresh_widget_style(self._button)
 
 
 class CommandBar(QtWidgets.QWidget):

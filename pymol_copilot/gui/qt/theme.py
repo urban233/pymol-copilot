@@ -229,7 +229,8 @@ QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:hover {{
     background-color: ${{hover}};
 }}
 QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:pressed,
-QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:open {{
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}:open,
+QToolButton#{StyleId.DROPDOWN_BUTTON_UNDER}[flyoutOpen="true"] {{
     background-color: ${{pressed_shared}};
     border-color: ${{border_active}};
 }}
@@ -253,7 +254,8 @@ QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:hover {{
     background-color: ${{hover}};
 }}
 QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:pressed,
-QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:open {{
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}:open,
+QToolButton#{StyleId.DROPDOWN_BUTTON_BESIDE}[flyoutOpen="true"] {{
     background-color: ${{pressed_shared}};
     border-color: ${{border_active}};
 }}
@@ -376,3 +378,19 @@ def apply_global_theme(scale: float | None = None) -> None:
     if isinstance(tmp_app, QtWidgets.QApplication):
         tmp_qss = compile_stylesheet(GLOBAL_STYLESHEET_TEMPLATE)
         tmp_app.setStyleSheet(tmp_qss)
+
+
+def refresh_widget_style(widget: QtWidgets.QWidget) -> None:
+    """Forces Qt to re-evaluate the global stylesheet on a widget.
+
+    Required when updating object names or dynamic properties after the
+    widget is already rendered.
+
+    Args:
+        widget: The target widget.
+    """
+    tmp_style = widget.style()
+    if isinstance(tmp_style, QtWidgets.QStyle):
+        tmp_style.unpolish(widget)
+        tmp_style.polish(widget)
+        widget.update()
