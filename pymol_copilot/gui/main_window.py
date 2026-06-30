@@ -35,15 +35,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         tmp_command_bar = command_bar.CommandBar(
             [
-                command_bar.CommandBarButton(
+                command_bar.CommandBarActionButton(
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
                     "Home"
                 ),
-                command_bar.CommandBarButton(
+                command_bar.CommandBarActionButton(
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
                     "Home"
                 ),
-                command_bar.CommandBarButton(
+                command_bar.CommandBarSplitButton(
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
                     "Home"
                 )
