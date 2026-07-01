@@ -468,7 +468,7 @@ class CommandBarSplitButton(CommandBarButton):
         )
         main_checked = self._is_main_checked()
 
-        if self._arrow_pressed or self._menu_open:
+        if self._arrow_pressed or self._menu_open or main_checked:
             _fill_section(
                 main_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
             )
@@ -476,12 +476,8 @@ class CommandBarSplitButton(CommandBarButton):
                 arrow_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
             )
         else:
-            if self._main_pressed or (main_checked and self._main_hovered):
+            if self._main_pressed:
                 _fill_section(main_clip, theme.ThemeColors.PRESSED.to_qcolor())
-            elif main_checked:
-                _fill_section(
-                    main_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
-                )
             elif self._main_hovered:
                 _fill_section(main_clip, theme.ThemeColors.HOVER.to_qcolor())
 
@@ -502,7 +498,10 @@ class CommandBarSplitButton(CommandBarButton):
         #     self._arrow_pressed or self._menu_open
         # ):
         if (self._main_hovered or self._arrow_hovered) and not (
-            self._arrow_pressed or self._menu_open or self._main_pressed
+            self._arrow_pressed
+            or self._menu_open
+            or self._main_pressed
+            or main_checked
         ):
             pen = QtGui.QPen(theme.ThemeColors.DIVIDER.to_qcolor())
             pen.setWidth(1)
