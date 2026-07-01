@@ -105,6 +105,7 @@ class CommandBarActionButton(CommandBarButton):
         self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
 
+    @override
     def _init_widget(self) -> None:
         if self._icon is not None:
             self._button.setIcon(self._icon)
@@ -118,11 +119,115 @@ class CommandBarActionButton(CommandBarButton):
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_layout.addWidget(self._button)
 
+    @override
     def _set_styles(self) -> None:
-        pass  # Inherits _COMMAND_BAR_STYLESHEET from the CommandBar ancestor.
+        """Use the inherited command bar QToolButton stylesheet cascade."""
 
+    @override
     def _connect_signals(self) -> None:
         self._button.clicked.connect(self.clicked)
+
+
+class CommandBarToggleButton(CommandBarButton):
+    """A checkable command bar button backed by one ``QToolButton``.
+
+    The button uses Qt's native checkable state, so mouse, keyboard, and
+    programmatic changes all share one source of truth.  Visual feedback is
+    supplied by QSS through the ``:checked`` pseudo-state.
+    """
+
+    toggled: QtCore.pyqtSignal = QtCore.pyqtSignal(bool)
+
+    def __init__(
+        self,
+        icon: QtGui.QIcon | None,
+        text: str = "",
+        style: CommandBarButtonType = CommandBarButtonStyle.ICON_ONLY,
+        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        checked: bool = False,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialize the toggle button.
+
+        Args:
+            icon: Icon displayed on the button, or None.
+            text: Label text.
+            style: The icon and text arrangement style.
+            size: Size in physical pixels.
+            checked: Whether the button starts in the checked state.
+            parent: Optional parent widget.
+        """
+        self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
+        self._checked: bool = checked
+        super().__init__(icon, text, style, size, parent)
+
+    @override
+    def _init_widget(self) -> None:
+        """Set up the internal checkable QToolButton and layout."""
+        if self._icon is not None:
+            self._button.setIcon(self._icon)
+            self._button.setIconSize(QtCore.QSize(*self._size))
+        if self._text:
+            self._button.setText(self._text)
+        self._button.setToolButtonStyle(self._style)
+        self._button.setCheckable(True)
+        self._button.setChecked(self._checked)
+        self._button.setAutoRaise(False)
+        self._button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+        tmp_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout(self)
+        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.addWidget(self._button)
+
+    @override
+    def _set_styles(self) -> None:
+        """Apply the command-bar toggle object name."""
+        self._button.setObjectName(theme.StyleId.TOGGLE_BUTTON)
+
+    @override
+    def _connect_signals(self) -> None:
+        """Connect native button state to public wrapper signals."""
+        self._button.clicked.connect(self._emit_clicked)
+        self._button.toggled.connect(self._emit_toggled)
+
+    def is_checked(self) -> bool:
+        """Return whether the toggle is currently checked.
+
+        Returns:
+            True when the button is checked, otherwise False.
+        """
+        return self._button.isChecked()
+
+    def set_checked(self, checked: bool) -> None:
+        """Set the checked state.
+
+        Args:
+            checked: The new checked state.
+        """
+        self._button.setChecked(checked)
+
+    def toggle(self) -> None:
+        """Invert the checked state and emit Qt's native toggled signal."""
+        self._button.toggle()
+
+    def _emit_clicked(self, checked: bool = False) -> None:
+        """Emit the wrapper click signal.
+
+        Args:
+            checked: Native checked payload from ``QToolButton.clicked``.
+        """
+        del checked
+        self.clicked.emit()
+
+    def _emit_toggled(self, checked: bool) -> None:
+        """Emit the wrapper toggled signal and refresh QSS state.
+
+        Args:
+            checked: The current checked state.
+        """
+        self.toggled.emit(checked)
+        theme.refresh_widget_style(self._button)
 
 
 class CommandBarSplitButton(CommandBarButton):
@@ -165,6 +270,7 @@ class CommandBarSplitButton(CommandBarButton):
         self._arrow_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
 
+    @override
     def _init_widget(self) -> None:
         if self._icon is not None:
             self._main_button.setIcon(self._icon)
@@ -206,10 +312,12 @@ class CommandBarSplitButton(CommandBarButton):
         tmp_layout.addWidget(self._main_button)
         tmp_layout.addWidget(self._arrow_button)
 
+    @override
     def _set_styles(self) -> None:
         self._main_button.setObjectName(theme.StyleId.SPLIT_BUTTON_MAIN)
         self._arrow_button.setObjectName(theme.StyleId.SPLIT_BUTTON_ARROW)
 
+    @override
     def _connect_signals(self) -> None:
         self._main_button.clicked.connect(self.clicked)
 
@@ -223,21 +331,23 @@ class CommandBarSplitButton(CommandBarButton):
             self._arrow_hovered = new_arrow
             self.update()
 
-    def mouseMoveEvent(self, event: QtGui.QMouseEvent | None) -> None:  # noqa: N802
+    @override
+    def mouseMoveEvent(self, a0: QtGui.QMouseEvent | None) -> None:
         """Handle mouse moves that land in the gap between child buttons.
 
         Args:
-            event: The mouse event.
+            a0: The mouse event.
         """
-        if event is not None:
-            self._update_hover_from_parent_x(event.position().x())
-        super().mouseMoveEvent(event)
+        if a0 is not None:
+            self._update_hover_from_parent_x(a0.position().x())
+        super().mouseMoveEvent(a0)
 
-    def leaveEvent(self, event: QtCore.QEvent | None) -> None:  # noqa: N802
+    @override
+    def leaveEvent(self, a0: QtCore.QEvent | None) -> None:
         """Reset all interactive state when the cursor exits the widget.
 
         Args:
-            event: The leave event.
+            a0: The leave event.
         """
         if not self._menu_open:
             self._main_hovered = False
@@ -245,10 +355,10 @@ class CommandBarSplitButton(CommandBarButton):
             self._main_pressed = False
             self._arrow_pressed = False
             self.update()
-        super().leaveEvent(event)
+        super().leaveEvent(a0)
 
     @override
-    def eventFilter(  # noqa: N802
+    def eventFilter(
         self,
         a0: QtCore.QObject | None,
         a1: QtCore.QEvent | None,
@@ -316,7 +426,7 @@ class CommandBarSplitButton(CommandBarButton):
         self.update()
 
     @override
-    def paintEvent(self, a0: QtGui.QPaintEvent | None) -> None:  # noqa: N802
+    def paintEvent(self, a0: QtGui.QPaintEvent | None) -> None:
         """Paint the background highlights, borders, and dividers.
 
         Args:
@@ -378,7 +488,7 @@ class CommandBarSplitButton(CommandBarButton):
         #     self._arrow_pressed or self._menu_open
         # ):
         if (self._main_hovered or self._arrow_hovered) and not (
-                self._arrow_pressed or self._menu_open or self._main_pressed
+            self._arrow_pressed or self._menu_open or self._main_pressed
         ):
             pen = QtGui.QPen(theme.ThemeColors.DIVIDER.to_qcolor())
             pen.setWidth(1)
@@ -490,6 +600,7 @@ class CommandBarDropdownButton(CommandBarButton):
         self._flyout: FlyoutFrame | None = None
         super().__init__(icon, text, style, size, parent)
 
+    @override
     def _init_widget(self) -> None:
         """Set up the internal QToolButton and wrap it in a layout."""
         if self._icon is not None:
@@ -508,6 +619,7 @@ class CommandBarDropdownButton(CommandBarButton):
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_layout.addWidget(self._button)
 
+    @override
     def _set_styles(self) -> None:
         """Apply the style-adaptive object name."""
         tmp_text_under = (
@@ -518,8 +630,9 @@ class CommandBarDropdownButton(CommandBarButton):
         else:
             self._button.setObjectName(theme.StyleId.DROPDOWN_BUTTON_BESIDE)
 
+    @override
     def _connect_signals(self) -> None:
-        pass  # InstantPopup handles menu/flyout; clicked is not emitted.
+        """Leave clicks to the popup/flyout handlers."""
 
     def set_menu(self, menu: QtWidgets.QMenu) -> None:
         """Attach a dropdown menu; clicking the button opens it instantly.
@@ -553,31 +666,32 @@ class CommandBarDropdownButton(CommandBarButton):
         flyout.about_to_show.connect(self._on_flyout_show)
         flyout.about_to_hide.connect(self._on_flyout_hide)
 
-    def eventFilter(  # noqa: N802
+    @override
+    def eventFilter(
         self,
-        obj: QtCore.QObject | None,
-        event: QtCore.QEvent | None,
+        a0: QtCore.QObject | None,
+        a1: QtCore.QEvent | None,
     ) -> bool:
         """Filter events to intercept mouse presses on the button when flyout is set.
 
         Args:
-            obj: The object receiving the event.
-            event: The event being sent.
+            a0: The object receiving the event.
+            a1: The event being sent.
 
         Returns:
             True to consume the event, False to let it propagate.
         """
         if (
-            obj is self._button
-            and event is not None
-            and event.type() == QtCore.QEvent.Type.MouseButtonPress
+            a0 is self._button
+            and a1 is not None
+            and a1.type() == QtCore.QEvent.Type.MouseButtonPress
             and self._flyout is not None
         ):
-            assert isinstance(event, QtGui.QMouseEvent)
-            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+            assert isinstance(a1, QtGui.QMouseEvent)
+            if a1.button() == QtCore.Qt.MouseButton.LeftButton:
                 self._show_flyout()
                 return True
-        return super().eventFilter(obj, event)
+        return super().eventFilter(a0, a1)
 
     def _show_flyout(self) -> None:
         """Open the attached flyout anchored below the button."""

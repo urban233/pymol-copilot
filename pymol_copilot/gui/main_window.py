@@ -93,6 +93,12 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_dropdown_flyout.set_content(tmp_dropdown_flyout_content)
         tmp_dropdown_flyout_btn.set_flyout(tmp_dropdown_flyout)
 
+        tmp_toggle_btn = command_bar.CommandBarToggleButton(
+            icons.icon("pymol_copilot.gui.qt", "ribbon_panel_settings"),
+            "Labels",
+            command_bar.CommandBarButtonStyle.TEXT_BESIDE,
+        )
+
         tmp_command_bar = command_bar.CommandBar(
             [
                 command_bar.CommandBarActionButton(
@@ -107,6 +113,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 tmp_flyout_btn,
                 tmp_dropdown_menu_btn,
                 tmp_dropdown_flyout_btn,
+                tmp_toggle_btn,
             ],
             tmp_central_widget,
         )

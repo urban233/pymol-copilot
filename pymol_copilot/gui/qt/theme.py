@@ -126,6 +126,7 @@ class StyleId(enum.StrEnum):
     COMMAND_BAR_OUTER = "CommandBarOuter"
     SPLIT_BUTTON_MAIN = "SplitButtonMain"
     SPLIT_BUTTON_ARROW = "SplitButtonArrow"
+    TOGGLE_BUTTON = "ToggleButton"
     DROPDOWN_BUTTON_UNDER = "DropdownButtonTextUnder"
     DROPDOWN_BUTTON_BESIDE = "DropdownButtonTextBeside"
     FLYOUT_FRAME = "FlyoutFrame"
@@ -184,6 +185,33 @@ QFrame#{StyleId.COMMAND_BAR_OUTER} {{
 }}
 #{StyleId.COMMAND_BAR} QToolButton:hover {{
     background-color: ${{hover}};
+}}
+
+QToolButton#{StyleId.TOGGLE_BUTTON} {{
+    font-size: ${{font_size_base}};
+    background-color: ${{surface}};
+    border: 1px solid transparent;
+    border-radius: ${{corner_radius}};
+    padding: 3px 5px;
+}}
+QToolButton#{StyleId.TOGGLE_BUTTON}:hover {{
+    background-color: ${{hover}};
+    border-color: ${{border_hover}};
+}}
+QToolButton#{StyleId.TOGGLE_BUTTON}:checked {{
+    background-color: ${{pressed_shared}};
+    border-color: ${{border_active}};
+}}
+QToolButton#{StyleId.TOGGLE_BUTTON}:checked:hover {{
+    background-color: ${{pressed}};
+    border-color: ${{border_active}};
+}}
+QToolButton#{StyleId.TOGGLE_BUTTON}:pressed {{
+    background-color: ${{pressed}};
+    border-color: ${{border_active}};
+}}
+QToolButton#{StyleId.TOGGLE_BUTTON}:focus {{
+    outline: none;
 }}
 
 QToolButton#{StyleId.SPLIT_BUTTON_MAIN} {{
