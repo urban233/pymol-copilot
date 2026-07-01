@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
@@ -78,9 +79,11 @@ class MainContentAreaBlock(QtWidgets.QWidget):
             widget: The new content widget to display.
         """
         while self._main_content_layout.count():
-            tmp_item = self._main_content_layout.takeAt(0)
-            if tmp_item.widget():
-                tmp_item.widget().deleteLater()
+            if (tmp_item := self._main_content_layout.takeAt(0)) is None:
+                raise RuntimeError("tmp_item is None")
+            if (tmp_widget := tmp_item.widget()) is None:
+                raise RuntimeError("tmp_widget is None")
+            tmp_widget.deleteLater()
 
         self._main_content_layout.addWidget(widget)
 

@@ -90,7 +90,16 @@ class PanelBlock(QtWidgets.QWidget):
 
         Useful for panels whose content should remain anchored to the top.
         """
-        self.layout().addStretch()
+        if (tmp_layout := self.layout()) is None:
+            raise RuntimeError("self.layout is None")
+
+        # Check if the layout is a QVBoxLayout (because the layout() method
+        # returns a QLayout instead of a QVBoxLayout which is a child of QLayout)
+        if not isinstance(tmp_layout, QtWidgets.QVBoxLayout):
+            raise TypeError(
+                f"Expected QVBoxLayout, but widget has {type(tmp_layout).__name__}"
+            )
+        tmp_layout.addStretch()
 
     def show_panel(self) -> None:
         """Emit panelOpened to signal that the panel should be shown.

@@ -119,7 +119,6 @@ class TableModelBlock(QtCore.QAbstractTableModel):
     # <editor-fold desc="Public methods">
 
     @override
-    # pyrefly: ignore[bad-override]
     def rowCount(
         self,
         parent: QtCore.QModelIndex = QtCore.QModelIndex(),  # noqa: B008
@@ -138,7 +137,6 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         return len(self._items)
 
     @override
-    # pyrefly: ignore[bad-override]
     def columnCount(
         self,
         parent: QtCore.QModelIndex = QtCore.QModelIndex(),  # noqa: B008
@@ -157,7 +155,6 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         return len(self._headers)
 
     @override
-    # pyrefly: ignore[bad-override]
     def data(
         self,
         index: QtCore.QModelIndex,
@@ -199,7 +196,6 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         return None
 
     @override
-    # pyrefly: ignore[bad-override]
     def headerData(
         self,
         section: int,
@@ -230,7 +226,6 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         return None
 
     @override
-    # pyrefly: ignore[bad-override]
     def sort(
         self,
         column: int,
@@ -488,7 +483,6 @@ class NumpyTableModelBlock(QtCore.QAbstractTableModel):
         # </editor-fold>
 
     @override
-    # pyrefly: ignore[bad-override]
     def rowCount(
         self,
         parent: QtCore.QModelIndex = QtCore.QModelIndex(),  # noqa
@@ -507,7 +501,6 @@ class NumpyTableModelBlock(QtCore.QAbstractTableModel):
         return self._data.shape[0]
 
     @override
-    # pyrefly: ignore[bad-override]
     def columnCount(
         self,
         parent: QtCore.QModelIndex = QtCore.QModelIndex(),  # noqa
@@ -526,7 +519,6 @@ class NumpyTableModelBlock(QtCore.QAbstractTableModel):
         return len(self._headers)
 
     @override
-    # pyrefly: ignore[bad-override]
     def data(
         self,
         index: QtCore.QModelIndex,
@@ -560,7 +552,6 @@ class NumpyTableModelBlock(QtCore.QAbstractTableModel):
         return None
 
     @override
-    # pyrefly: ignore[bad-override]
     def headerData(
         self,
         section: int,
@@ -587,7 +578,6 @@ class NumpyTableModelBlock(QtCore.QAbstractTableModel):
         return None
 
     @override
-    # pyrefly: ignore[bad-override]
     def sort(
         self,
         column: int,
@@ -935,7 +925,6 @@ class SortFilterProxyBlock(QtCore.QSortFilterProxyModel):
         self.invalidateFilter()
 
     @override
-    # pyrefly: ignore[bad-override]
     def filterAcceptsRow(
         self,
         source_row: int,

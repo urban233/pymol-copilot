@@ -409,10 +409,57 @@ def lint(fix: str = "false") -> None:
 def check_types() -> None:
     """Runs static type checking with pyrefly.
 
-    Executes the default pyrefly configuration across the project
-    to verify type safety based on the configuration in pyrefly.toml.
+    Dynamically resolves the local Conda site-packages path using '.env_path'
+    to ensure external layout bindings resolve flawlessly.
     """
-    run("pyrefly check")
+    env_path_file = pathlib.Path(".env_path")
+
+    if not env_path_file.exists():
+        print(
+            _colorize(
+                "Error: '.env_path' file not found in project root.", _COLOR_RED
+            )
+        )
+        sys.exit(1)
+
+    conda_env_path = env_path_file.read_text(encoding="utf-8").strip()
+    if not conda_env_path:
+        print(_colorize("Error: '.env_path' file is empty.", _COLOR_RED))
+        sys.exit(1)
+
+    env_dir = pathlib.Path(conda_env_path).resolve()
+    is_windows = os.name == "nt"
+
+    if is_windows:
+        pyrefly_exe = env_dir / "bin" / "pyrefly.exe"
+        site_packages = env_dir / "Lib" / "site-packages"
+    else:
+        pyrefly_exe = env_dir / "bin" / "pyrefly"
+        py_lib_dirs = list(env_dir.glob("lib/python3.*"))
+        site_packages = (
+            py_lib_dirs[0] / "site-packages"
+            if py_lib_dirs
+            else env_dir / "lib" / "python3" / "site-packages"
+        )
+
+    if not pyrefly_exe.exists():
+        print(
+            _colorize(
+                "Warning: Local pyrefly binary not found in environment. Trying system PATH...",
+                _COLOR_YELLOW,
+            )
+        )
+        cmd = "pyrefly check"
+    else:
+        cmd = f'"{pyrefly_exe}" check'
+
+    # Inject the resolved third-party path cleanly into Pyrefly's parsing context
+    build_env = os.environ.copy()
+    build_env["PYTHONPATH"] = os.pathsep.join(
+        [str(site_packages), build_env.get("PYTHONPATH", "")]
+    )
+
+    run(cmd, env=build_env)
 
 
 @task

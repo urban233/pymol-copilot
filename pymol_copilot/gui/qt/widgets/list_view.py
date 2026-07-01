@@ -127,7 +127,11 @@ class ListViewBlock(QtWidgets.QListView):
         tmp_index = self.currentIndex()
         if not tmp_index.isValid():
             return None
-        return self.model().data(tmp_index, QtCore.Qt.ItemDataRole.UserRole)
+
+        if (tmp_model := self.model()) is None:
+            raise RuntimeError("tmp_model is None")
+
+        return tmp_model.data(tmp_index, QtCore.Qt.ItemDataRole.UserRole)
 
     def select_row(self, row: int) -> None:
         """Programmatically select the row at the given index.
@@ -173,7 +177,10 @@ class ListViewBlock(QtWidgets.QListView):
         Args:
             index: The activated model index.
         """
-        tmp_item = self.model().data(index, QtCore.Qt.ItemDataRole.UserRole)
+        if (tmp_model := self.model()) is None:
+            raise RuntimeError("tmp_model is None")
+
+        tmp_item = tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
         if tmp_item is not None:
             self.item_activated.emit(tmp_item)
 

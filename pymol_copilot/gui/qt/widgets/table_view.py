@@ -61,6 +61,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from typing import Any
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets
@@ -138,7 +139,11 @@ class TableViewBlock(QtWidgets.QTableView):
         index: QtCore.QModelIndex = self.currentIndex()
         if not index.isValid():
             return None
-        return self.model().data(index, QtCore.Qt.ItemDataRole.UserRole)
+
+        if (tmp_model := self.model()) is None:
+            raise RuntimeError("tmp_model is None")
+
+        return tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
 
     def resize_columns_to_content(self) -> None:
         """Resize all columns to fit their current content.
@@ -170,13 +175,15 @@ class TableViewBlock(QtWidgets.QTableView):
         self.setSortingEnabled(True)
 
         # --- Header configuration ---
-        horizontal_header: QtWidgets.QHeaderView = self.horizontalHeader()
+        if (horizontal_header := self.horizontalHeader()) is None:
+            raise RuntimeError("self.horizontalHeader is None")
         horizontal_header.setStretchLastSection(True)
         horizontal_header.setSectionResizeMode(
             QtWidgets.QHeaderView.ResizeMode.Interactive
         )
 
-        vertical_header: QtWidgets.QHeaderView = self.verticalHeader()
+        if (vertical_header := self.verticalHeader()) is None:
+            raise RuntimeError("self.verticalHeader is None")
         vertical_header.setVisible(False)
         vertical_header.setSectionResizeMode(
             QtWidgets.QHeaderView.ResizeMode.ResizeToContents
@@ -190,11 +197,12 @@ class TableViewBlock(QtWidgets.QTableView):
         Args:
             index: The activated model index.
         """
-        item: Optional[object] = self.model().data(
-            index, QtCore.Qt.ItemDataRole.UserRole
-        )
-        if item is not None:
-            self.row_activated.emit(item)
+        if (tmp_model := self.model()) is None:
+            raise RuntimeError("self.model() is None")
+        if (tmp_item := tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)) is None:
+            raise RuntimeError("tmp_item is None")
+
+        self.row_activated.emit(tmp_item)
 
     # </editor-fold>
 

@@ -69,7 +69,7 @@ class DropdownMenuBlock(QtWidgets.QMenu):
 
     # <editor-fold desc="Public methods">
 
-    def mouseReleaseEvent(self, event: QtCore.QEvent) -> None:  # noqa: N802
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent | None) -> None:  # noqa: N802
         """Toggle checkable actions without closing the menu.
 
         For exclusive action groups the clicked action is checked and the
@@ -80,8 +80,11 @@ class DropdownMenuBlock(QtWidgets.QMenu):
         Args:
             event: The mouse-release event.
         """
-        tmp_action = self.actionAt(event.pos())
-        if tmp_action and tmp_action.isCheckable():
+        if event is None:
+            raise RuntimeError("event is None")
+        if (tmp_action := self.actionAt(event.pos())) is None:
+            raise RuntimeError("tmp_action is None")
+        if tmp_action.isCheckable():
             tmp_group = tmp_action.actionGroup()
             if tmp_group is not None and tmp_group.isExclusive():
                 if not tmp_action.isChecked():
