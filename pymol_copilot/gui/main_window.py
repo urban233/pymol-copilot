@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from PyQt6 import QtGui
-from PyQt6 import QtWidgets
-
+from pymol_copilot.gui.qt import QtGui
+from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.widgets import command_bar
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
+from pymol_copilot.gui.widgets import viewer
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -16,13 +16,23 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         """Initializes the main window and sets up the user interface."""
         super().__init__()
-
         self.setWindowTitle("PyMOL Copilot")
         self.resize(800, 600)
 
         self._setup_ui()
 
     def _setup_ui(self) -> None:
+        # <editor-fold desc="General central layout">
+        tmp_central_widget = QtWidgets.QWidget()
+        self.setCentralWidget(tmp_central_widget)
+        tmp_layout = QtWidgets.QVBoxLayout()
+        tmp_central_widget.setLayout(tmp_layout)
+        # </editor-fold>
+        self.viewer = viewer.Viewer()
+        tmp_layout.addWidget(self.viewer)
+
+
+    def _setup_ui_mock(self) -> None:
         """Creates and arranges the GUI components."""
         self._setup_menus()
 
