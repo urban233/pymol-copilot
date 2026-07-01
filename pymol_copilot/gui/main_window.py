@@ -5,7 +5,7 @@ from __future__ import annotations
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
-from pymol_copilot.gui.qt.widgets import command_bar
+from pymol_copilot.gui.qt.widgets import command_bar, auto_expanding_text_edit
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
 
@@ -28,9 +28,27 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_layout = QtWidgets.QVBoxLayout()
         tmp_central_widget.setLayout(tmp_layout)
         # </editor-fold>
+
+        tmp_highlight_btn = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Highlight",
+        )
+        tmp_highlight_btn.clicked.connect(self.highlight_sele)
+        tmp_layout.addWidget(tmp_highlight_btn)
+
         self.viewer = viewer.Viewer()
         tmp_layout.addWidget(self.viewer)
 
+        # Input test
+        self.input = auto_expanding_text_edit.AutoExpandingTextEdit(
+            max_visible_rows=7
+        )
+        self.input.setPlaceholderText("Message... (Shift+Enter for a new line)")
+        tmp_layout.addWidget(self.input)
+
+    def highlight_sele(self):
+        self.viewer.highlight_selection("/1DPX//A/20-25")
+        self.viewer.cmd.select("highlighted", "/1DPX//A/20-25")
 
     def _setup_ui_mock(self) -> None:
         """Creates and arranges the GUI components."""
@@ -69,7 +87,8 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_flyout_btn.set_flyout(tmp_flyout)
 
         tmp_flyout_plus_btn = command_bar.CommandToggleSplitButton(
-            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"), "Options+"
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Options+",
         )
         tmp_flyout_plus_btn.set_flyout(tmp_flyout)
         # ----------------------
@@ -114,12 +133,13 @@ class MainWindow(QtWidgets.QMainWindow):
             command_bar.CommandBarButtonStyle.TEXT_BESIDE,
         )
 
+        tmp_highlight_btn = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Highlight",
+        )
         tmp_command_bar = command_bar.CommandBar(
             [
-                command_bar.CommandBarActionButton(
-                    icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-                    "Home",
-                ),
+                tmp_highlight_btn,
                 command_bar.CommandBarActionButton(
                     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
                     "Home",
@@ -129,7 +149,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 tmp_dropdown_menu_btn,
                 tmp_dropdown_flyout_btn,
                 tmp_toggle_btn,
-                tmp_flyout_plus_btn
+                tmp_flyout_plus_btn,
             ],
             tmp_central_widget,
         )

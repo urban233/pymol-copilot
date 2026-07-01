@@ -22,3 +22,5 @@ dependencies:
   - pyqt6-sip
 
   - numpy
+  - scipy
+  - pymol-open-source=3.1.0

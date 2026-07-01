@@ -24,11 +24,13 @@ def main() -> int:
     # use QT_OPENGL=desktop (auto-detection may fail on Windows)
     if pymol.IS_WINDOWS:
         print("Handling AA_UseDesktopOpenGL")
-        QtCore.QCoreApplication.setAttribute(QtCore.Qt.ApplicationAttribute.AA_UseDesktopOpenGL)
+        QtCore.QCoreApplication.setAttribute(
+            QtCore.Qt.ApplicationAttribute.AA_UseDesktopOpenGL
+        )
 
     # enable 4K scaling on Windows and Linux
     if hasattr(QtCore.Qt, "AA_EnableHighDpiScaling") and not any(
-            v in os.environ for v in ["QT_SCALE_FACTOR", "QT_SCREEN_SCALE_FACTORS"]
+        v in os.environ for v in ["QT_SCALE_FACTOR", "QT_SCREEN_SCALE_FACTORS"]
     ):
         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
 
@@ -45,8 +47,11 @@ def main() -> int:
             return func()
 
         # Dispatch to GUI thread and make OpenGL context current before calling func().
-    pymol.cmd._call_with_opengl_context = lambda func: pymol.cmd._call_in_gui_thread(
-        lambda: _call_with_opengl_context_gui_thread(func)
+
+    pymol.cmd._call_with_opengl_context = lambda func: (
+        pymol.cmd._call_in_gui_thread(
+            lambda: _call_with_opengl_context_gui_thread(func)
+        )
     )
     # </editor-fold>
 
@@ -55,7 +60,6 @@ def main() -> int:
 
     # Hook screen DPI updates to re-apply the compiled stylesheet
     styles.notifier.scale_changed.connect(theme.apply_global_theme)
-
 
     tmp_window.show()
     return tmp_app.exec()

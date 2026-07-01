@@ -199,7 +199,9 @@ class TableViewBlock(QtWidgets.QTableView):
         """
         if (tmp_model := self.model()) is None:
             raise RuntimeError("self.model() is None")
-        if (tmp_item := tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)) is None:
+        if (
+            tmp_item := tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
+        ) is None:
             raise RuntimeError("tmp_item is None")
 
         self.row_activated.emit(tmp_item)

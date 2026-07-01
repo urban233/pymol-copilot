@@ -192,7 +192,9 @@ class BackgroundJob:
 
     def start(self) -> None:
         """Submit the worker to the global thread pool for execution."""
-        tmp_thread_pool: QtCore.QThreadPool | None = QtCore.QThreadPool.globalInstance()
+        tmp_thread_pool: QtCore.QThreadPool | None = (
+            QtCore.QThreadPool.globalInstance()
+        )
         if tmp_thread_pool is None:
             raise RuntimeError("No thread pool available")
         tmp_thread_pool.start(self._worker)
