@@ -118,3 +118,96 @@ def test_toggle_button_click_emits_clicked_signal(
     # Assert
     assert tmp_clicked == [True]
     assert tmp_button.is_checked()
+
+
+def test_toggle_split_button_starts_checked(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Tests that toggle split buttons honor the initial checked state.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    # Arrange & Act
+    assert q_app is not None
+    tmp_button = command_bar.CommandToggleSplitButton(
+        None,
+        "Bold",
+        checked=True,
+    )
+    tmp_tool_buttons = tmp_button.findChildren(QtWidgets.QToolButton)
+
+    # Assert
+    assert tmp_button.is_checked()
+    assert len(tmp_tool_buttons) == 2
+    assert tmp_tool_buttons[0].isCheckable()
+    assert not tmp_tool_buttons[1].isCheckable()
+
+
+def test_toggle_split_button_emits_toggled_signal(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Tests that the split main button emits the wrapper toggled signal.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    # Arrange
+    assert q_app is not None
+    tmp_button = command_bar.CommandToggleSplitButton(None, "Bold")
+    tmp_states: list[bool] = []
+    tmp_button.toggled.connect(tmp_states.append)
+
+    # Act
+    tmp_button.toggle()
+
+    # Assert
+    assert tmp_states == [True]
+    assert tmp_button.is_checked()
+
+
+def test_toggle_split_button_main_click_emits_clicked_signal(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Tests that clicking the split main section emits clicked.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    # Arrange
+    assert q_app is not None
+    tmp_button = command_bar.CommandToggleSplitButton(None, "Bold")
+    tmp_clicked: list[bool] = []
+    tmp_button.clicked.connect(lambda: tmp_clicked.append(True))
+    tmp_tool_buttons = tmp_button.findChildren(QtWidgets.QToolButton)
+
+    # Act
+    assert len(tmp_tool_buttons) == 2
+    tmp_tool_buttons[0].click()
+
+    # Assert
+    assert tmp_clicked == [True]
+    assert tmp_button.is_checked()
+
+
+def test_toggle_split_button_arrow_keeps_main_state(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Tests that clicking the arrow section does not toggle the main section.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    # Arrange
+    assert q_app is not None
+    tmp_button = command_bar.CommandToggleSplitButton(None, "Bold")
+    tmp_menu = QtWidgets.QMenu(tmp_button)
+    tmp_button.set_menu(tmp_menu)
+    tmp_tool_buttons = tmp_button.findChildren(QtWidgets.QToolButton)
+
+    # Act
+    assert len(tmp_tool_buttons) == 2
+    tmp_tool_buttons[1].click()
+
+    # Assert
+    assert not tmp_button.is_checked()

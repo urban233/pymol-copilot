@@ -321,6 +321,14 @@ class CommandBarSplitButton(CommandBarButton):
     def _connect_signals(self) -> None:
         self._main_button.clicked.connect(self.clicked)
 
+    def _is_main_checked(self) -> bool:
+        """Return whether the main button should paint as checked.
+
+        Returns:
+            False for plain split buttons.
+        """
+        return False
+
     def _update_hover_from_parent_x(self, x: float) -> None:
         """Set hover flags based on x-coordinate in parent (self) space."""
         divider_x = float(self._arrow_button.geometry().left())
@@ -458,6 +466,7 @@ class CommandBarSplitButton(CommandBarButton):
         arrow_clip = QtCore.QRectF(
             divider_x, 0, full.width() - divider_x, full.height()
         )
+        main_checked = self._is_main_checked()
 
         if self._arrow_pressed or self._menu_open:
             _fill_section(
@@ -467,8 +476,12 @@ class CommandBarSplitButton(CommandBarButton):
                 arrow_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
             )
         else:
-            if self._main_pressed:
+            if self._main_pressed or (main_checked and self._main_hovered):
                 _fill_section(main_clip, theme.ThemeColors.PRESSED.to_qcolor())
+            elif main_checked:
+                _fill_section(
+                    main_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
+                )
             elif self._main_hovered:
                 _fill_section(main_clip, theme.ThemeColors.HOVER.to_qcolor())
 
@@ -481,6 +494,7 @@ class CommandBarSplitButton(CommandBarButton):
             or self._main_pressed
             or self._arrow_pressed
             or self._menu_open
+            or main_checked
         )
 
         # 3. Divider — only when hovering, not while arrow is pressed or menu is open.
@@ -502,7 +516,7 @@ class CommandBarSplitButton(CommandBarButton):
         if any_active:
             border_color = (
                 theme.ThemeColors.BORDER_ACTIVE.to_qcolor()
-                if (self._arrow_pressed or self._menu_open)
+                if (self._arrow_pressed or self._menu_open or main_checked)
                 else theme.ThemeColors.BORDER_HOVER.to_qcolor()
             )
             pen = QtGui.QPen(border_color)
@@ -551,6 +565,100 @@ class CommandBarSplitButton(CommandBarButton):
         menu.aboutToShow.connect(self._on_menu_show)
         menu.aboutToHide.connect(self._on_menu_hide)
         self._arrow_button.clicked.connect(self._show_menu)
+
+
+class CommandToggleSplitButton(CommandBarSplitButton):
+    """A split button whose main section behaves as a toggle button.
+
+    The main section uses one native checkable ``QToolButton`` while the arrow
+    section inherits the menu and flyout behaviour from
+    :class:`CommandBarSplitButton`.
+    """
+
+    toggled: QtCore.pyqtSignal = QtCore.pyqtSignal(bool)
+
+    def __init__(
+        self,
+        icon: QtGui.QIcon | None,
+        text: str = "",
+        style: CommandBarButtonType = CommandBarButtonStyle.TEXT_ONLY,
+        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        checked: bool = False,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialize the toggle split button.
+
+        Args:
+            icon: Icon displayed on the main section, or None.
+            text: Label text.
+            style: Main button layout style.
+            size: Size in physical pixels.
+            checked: Whether the main section starts checked.
+            parent: Optional parent widget.
+        """
+        self._checked: bool = checked
+        super().__init__(icon, text, style, size, parent)
+
+    @override
+    def _init_widget(self) -> None:
+        """Set up the inherited split UI and make the main button checkable."""
+        super()._init_widget()
+        self._main_button.setCheckable(True)
+        self._main_button.setChecked(self._checked)
+
+    @override
+    def _connect_signals(self) -> None:
+        """Connect native toggle state to public wrapper signals."""
+        self._main_button.clicked.connect(self._emit_clicked)
+        self._main_button.toggled.connect(self._emit_toggled)
+
+    @override
+    def _is_main_checked(self) -> bool:
+        """Return whether the main button is checked.
+
+        Returns:
+            True when the main section is checked, otherwise False.
+        """
+        return self._main_button.isChecked()
+
+    def is_checked(self) -> bool:
+        """Return whether the main section is currently checked.
+
+        Returns:
+            True when the main section is checked, otherwise False.
+        """
+        return self._main_button.isChecked()
+
+    def set_checked(self, checked: bool) -> None:
+        """Set the main section checked state.
+
+        Args:
+            checked: The new checked state.
+        """
+        self._main_button.setChecked(checked)
+        self.update()
+
+    def toggle(self) -> None:
+        """Invert the main section checked state."""
+        self._main_button.toggle()
+
+    def _emit_clicked(self, checked: bool = False) -> None:
+        """Emit the wrapper clicked signal.
+
+        Args:
+            checked: Native checked payload from ``QToolButton.clicked``.
+        """
+        del checked
+        self.clicked.emit()
+
+    def _emit_toggled(self, checked: bool) -> None:
+        """Emit the wrapper toggled signal and refresh custom painting.
+
+        Args:
+            checked: The current checked state.
+        """
+        self.toggled.emit(checked)
+        self.update()
 
 
 class CommandBarDropdownButton(CommandBarButton):

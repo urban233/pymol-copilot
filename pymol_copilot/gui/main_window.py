@@ -57,6 +57,11 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_flyout_layout.addWidget(QtWidgets.QCheckBox("Show labels"))
         tmp_flyout.set_content(tmp_flyout_content)
         tmp_flyout_btn.set_flyout(tmp_flyout)
+
+        tmp_flyout_plus_btn = command_bar.CommandToggleSplitButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"), "Options+"
+        )
+        tmp_flyout_plus_btn.set_flyout(tmp_flyout)
         # ----------------------
 
         tmp_dropdown_menu_btn = command_bar.CommandBarDropdownButton(
@@ -94,7 +99,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_dropdown_flyout_btn.set_flyout(tmp_dropdown_flyout)
 
         tmp_toggle_btn = command_bar.CommandBarToggleButton(
-            icons.icon("pymol_copilot.gui.qt", "ribbon_panel_settings"),
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
             "Labels",
             command_bar.CommandBarButtonStyle.TEXT_BESIDE,
         )
@@ -114,6 +119,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 tmp_dropdown_menu_btn,
                 tmp_dropdown_flyout_btn,
                 tmp_toggle_btn,
+                tmp_flyout_plus_btn
             ],
             tmp_central_widget,
         )
