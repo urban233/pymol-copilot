@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-from PyQt6 import QtCore
 from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.widgets import command_bar
-from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame, FlyoutPlacement
-from pymol_copilot.gui.widgets import input_bar
+from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 
 
 class MainWindow(QtWidgets.QMainWindow):

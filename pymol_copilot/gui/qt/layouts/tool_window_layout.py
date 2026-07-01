@@ -40,7 +40,6 @@ from typing import TYPE_CHECKING
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
-from pymol_copilot.gui.qt import styles
 from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 

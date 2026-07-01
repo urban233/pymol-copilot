@@ -1,6 +1,8 @@
+"""Command bar widgets including action, split, and dropdown button variants."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias, override
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -10,7 +12,7 @@ from pymol_copilot.gui.qt import ui_defaults
 
 
 if TYPE_CHECKING:
-    from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame, FlyoutPlacement
+    from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 
 CommandBarButtonType: TypeAlias = QtCore.Qt.ToolButtonStyle
 
@@ -46,6 +48,15 @@ class CommandBarButton(QtWidgets.QWidget):
         size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """Initialize the command bar button.
+
+        Args:
+            icon: Icon displayed on the button, or None.
+            text: Label text.
+            style: The arrangement style of the button.
+            size: The button size token.
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
         self._icon: QtGui.QIcon | None = icon
         self._text: str = text
@@ -82,6 +93,15 @@ class CommandBarActionButton(CommandBarButton):
         size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """Initialize the action button.
+
+        Args:
+            icon: Icon displayed on the button, or None.
+            text: Label text.
+            style: The button visual style.
+            size: Size in physical pixels.
+            parent: Optional parent widget.
+        """
         self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
 
@@ -125,6 +145,15 @@ class CommandBarSplitButton(CommandBarButton):
         size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """Initialize the split button with independent hover halves.
+
+        Args:
+            icon: Icon displayed on the left half, or None.
+            text: Label text.
+            style: Button layout style.
+            size: Size in physical pixels.
+            parent: Optional parent widget.
+        """
         self._main_hovered: bool = False
         self._arrow_hovered: bool = False
         self._main_pressed: bool = False
@@ -194,14 +223,22 @@ class CommandBarSplitButton(CommandBarButton):
             self._arrow_hovered = new_arrow
             self.update()
 
-    def mouseMoveEvent(self, event: QtGui.QMouseEvent | None) -> None:
-        """Handle mouse moves that land in the gap between child buttons."""
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent | None) -> None:  # noqa: N802
+        """Handle mouse moves that land in the gap between child buttons.
+
+        Args:
+            event: The mouse event.
+        """
         if event is not None:
             self._update_hover_from_parent_x(event.position().x())
         super().mouseMoveEvent(event)
 
-    def leaveEvent(self, event: QtCore.QEvent | None) -> None:
-        """Reset all interactive state when the cursor exits the widget."""
+    def leaveEvent(self, event: QtCore.QEvent | None) -> None:  # noqa: N802
+        """Reset all interactive state when the cursor exits the widget.
+
+        Args:
+            event: The leave event.
+        """
         if not self._menu_open:
             self._main_hovered = False
             self._arrow_hovered = False
@@ -210,31 +247,45 @@ class CommandBarSplitButton(CommandBarButton):
             self.update()
         super().leaveEvent(event)
 
-    def eventFilter(
+    @override
+    def eventFilter(  # noqa: N802
         self,
-        obj: QtCore.QObject | None,
-        event: QtCore.QEvent | None,
+        a0: QtCore.QObject | None,
+        a1: QtCore.QEvent | None,
     ) -> bool:
-        if event is not None and obj in (self._main_button, self._arrow_button):
-            t = event.type()
-            if t == QtCore.QEvent.Type.MouseMove:
-                parent_pos = obj.mapToParent(event.position().toPoint())
-                self._update_hover_from_parent_x(float(parent_pos.x()))
-            elif t == QtCore.QEvent.Type.MouseButtonPress:
-                if obj is self._main_button:
+        """Filter events on child buttons to update visual hover and press states.
+
+        Args:
+            a0: The object monitored.
+            a1: The event captured.
+
+        Returns:
+            True if the event should be consumed, False otherwise.
+        """
+        if (
+            isinstance(a0, QtWidgets.QWidget)
+            and isinstance(a1, QtGui.QMouseEvent)
+            and a0 in (self._main_button, self._arrow_button)
+        ):
+            tmp_type = a1.type()
+            if tmp_type == QtCore.QEvent.Type.MouseMove:
+                tmp_parent_pos = a0.mapToParent(a1.position().toPoint())
+                self._update_hover_from_parent_x(float(tmp_parent_pos.x()))
+            elif tmp_type == QtCore.QEvent.Type.MouseButtonPress:
+                if a0 is self._main_button:
                     self._main_pressed = True
                 else:
                     self._arrow_pressed = True
                 self.update()
-            elif t == QtCore.QEvent.Type.MouseButtonRelease:
-                if obj is self._main_button:
+            elif tmp_type == QtCore.QEvent.Type.MouseButtonRelease:
+                if a0 is self._main_button:
                     self._main_pressed = False
                 else:
                     self._arrow_pressed = False
                 # Deferred sync: Qt's mouse grab may have suppressed leaveEvent
                 # during the hold, leaving pressed flags stuck if the cursor moved away.
                 QtCore.QTimer.singleShot(0, self._sync_pressed_state)
-        return super().eventFilter(obj, event)
+        return super().eventFilter(a0, a1)
 
     def _sync_pressed_state(self) -> None:
         """Clear pressed flags if the cursor left the widget during a mouse-grab."""
@@ -242,25 +293,36 @@ class CommandBarSplitButton(CommandBarButton):
             self._main_button.underMouse()
             or self._arrow_button.underMouse()
             or self.underMouse()
-        ):
-            if self._main_pressed or self._arrow_pressed:
-                self._main_pressed = False
-                self._arrow_pressed = False
-                self.update()
+        ) and (self._main_pressed or self._arrow_pressed):
+            self._main_pressed = False
+            self._arrow_pressed = False
+            self.update()
+        self._main_button.setDown(False)
+        self._arrow_button.setDown(False)
 
     def _on_menu_show(self) -> None:
+        """Set menu-open flag and update split button painting."""
         self._menu_open = True
         self.update()
 
     def _on_menu_hide(self) -> None:
+        """Reset menu-open flag, clear pressed/hover states, and update painting."""
         self._menu_open = False
         self._arrow_pressed = False
         self._arrow_hovered = False
+        self._arrow_button.setDown(False)
+        self._main_button.setDown(False)
         QtCore.QTimer.singleShot(0, self._sync_pressed_state)
         self.update()
 
-    def paintEvent(self, event: QtGui.QPaintEvent | None) -> None:
-        super().paintEvent(event)
+    @override
+    def paintEvent(self, a0: QtGui.QPaintEvent | None) -> None:  # noqa: N802
+        """Paint the background highlights, borders, and dividers.
+
+        Args:
+            a0: The paint event.
+        """
+        super().paintEvent(a0)
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
@@ -312,8 +374,11 @@ class CommandBarSplitButton(CommandBarButton):
         )
 
         # 3. Divider — only when hovering, not while arrow is pressed or menu is open.
+        # if (self._main_hovered or self._arrow_hovered) and not (
+        #     self._arrow_pressed or self._menu_open
+        # ):
         if (self._main_hovered or self._arrow_hovered) and not (
-            self._arrow_pressed or self._menu_open
+                self._arrow_pressed or self._menu_open or self._main_pressed
         ):
             pen = QtGui.QPen(theme.ThemeColors.DIVIDER.to_qcolor())
             pen.setWidth(1)
@@ -345,8 +410,7 @@ class CommandBarSplitButton(CommandBarButton):
             self._menu.popup(pos)
 
     def set_flyout(self, flyout: FlyoutFrame) -> None:
-        """Attach a :class:`~pymol_copilot.gui.qt.widgets.flyout.FlyoutFrame`
-        to the arrow section.
+        """Attach a flyout panel to the arrow section.
 
         Works as an alternative to :meth:`set_menu`: clicking the arrow opens
         the flyout below the button and drives the same ``_menu_open`` paint
@@ -355,8 +419,6 @@ class CommandBarSplitButton(CommandBarButton):
         Args:
             flyout: The flyout panel to open when the arrow is clicked.
         """
-        from pymol_copilot.gui.qt.widgets.flyout import FlyoutPlacement
-
         self._flyout = flyout
         flyout.about_to_show.connect(self._on_menu_show)
         flyout.about_to_hide.connect(self._on_menu_hide)
@@ -491,7 +553,7 @@ class CommandBarDropdownButton(CommandBarButton):
         flyout.about_to_show.connect(self._on_flyout_show)
         flyout.about_to_hide.connect(self._on_flyout_hide)
 
-    def eventFilter(
+    def eventFilter(  # noqa: N802
         self,
         obj: QtCore.QObject | None,
         event: QtCore.QEvent | None,
@@ -509,12 +571,12 @@ class CommandBarDropdownButton(CommandBarButton):
             obj is self._button
             and event is not None
             and event.type() == QtCore.QEvent.Type.MouseButtonPress
+            and self._flyout is not None
         ):
-            if self._flyout is not None:
-                assert isinstance(event, QtGui.QMouseEvent)
-                if event.button() == QtCore.Qt.MouseButton.LeftButton:
-                    self._show_flyout()
-                    return True
+            assert isinstance(event, QtGui.QMouseEvent)
+            if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                self._show_flyout()
+                return True
         return super().eventFilter(obj, event)
 
     def _show_flyout(self) -> None:
@@ -536,11 +598,19 @@ class CommandBarDropdownButton(CommandBarButton):
 
 
 class CommandBar(QtWidgets.QWidget):
+    """A horizontal container bar for action and split buttons."""
+
     def __init__(
         self,
         command_buttons: list[CommandBarButton],
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """Initialize the command bar with a list of buttons.
+
+        Args:
+            command_buttons: Buttons to display in the bar.
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
         self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame()
         self._layout_outer_frame: QtWidgets.QVBoxLayout = (

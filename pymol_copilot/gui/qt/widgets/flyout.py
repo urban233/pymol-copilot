@@ -200,10 +200,12 @@ class FlyoutFrame(QtWidgets.QWidget):
     # Qt overrides
     # ------------------------------------------------------------------
 
-    def showEvent(self, event: QtGui.QShowEvent | None) -> None:
+    def showEvent(self, event: QtGui.QShowEvent | None) -> None:  # noqa: N802
+        """Emit the about_to_show signal when the flyout is shown."""
         super().showEvent(event)
         self.about_to_show.emit()
 
-    def hideEvent(self, event: QtGui.QHideEvent | None) -> None:
+    def hideEvent(self, event: QtGui.QHideEvent | None) -> None:  # noqa: N802
+        """Emit the about_to_hide signal when the flyout is hidden."""
         self.about_to_hide.emit()
         super().hideEvent(event)

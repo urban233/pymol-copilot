@@ -31,9 +31,9 @@ from typing import Any
 from typing import Callable
 from typing import ParamSpec
 
-_ParameterSpecification = ParamSpec("_ParameterSpecification")
-
 from pymol_copilot.gui.qt import QtCore
+
+_ParameterSpecification = ParamSpec("_ParameterSpecification")
 
 __docformat__ = "google"
 

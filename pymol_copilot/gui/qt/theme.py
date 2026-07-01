@@ -196,6 +196,7 @@ QToolButton#{StyleId.SPLIT_BUTTON_MAIN}:hover,
 QToolButton#{StyleId.SPLIT_BUTTON_MAIN}:pressed,
 QToolButton#{StyleId.SPLIT_BUTTON_MAIN}:focus {{
     background: transparent;
+    border: none;
     outline: none;
 }}
 
@@ -211,6 +212,7 @@ QToolButton#{StyleId.SPLIT_BUTTON_ARROW}:hover,
 QToolButton#{StyleId.SPLIT_BUTTON_ARROW}:pressed,
 QToolButton#{StyleId.SPLIT_BUTTON_ARROW}:focus {{
     background: transparent;
+    border: none;
     outline: none;
 }}
 QToolButton#{StyleId.SPLIT_BUTTON_ARROW}::menu-indicator {{
@@ -368,7 +370,7 @@ def compile_stylesheet(template: str) -> str:
     return tmp_result
 
 
-def apply_global_theme(scale: float | None = None) -> None:
+def apply_global_theme(scale: float | None = None) -> None:  # noqa: ARG001
     """Compiles and sets the global stylesheet on the QApplication instance.
 
     Args:
