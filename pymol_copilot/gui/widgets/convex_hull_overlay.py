@@ -191,6 +191,61 @@ class ConvexHullOverlay(QtWidgets.QWidget):
         tmp_painter.drawPath(self._cached_path)
         tmp_painter.end()
 
+    def _cluster_coordinates(
+        self, coords: numpy.ndarray, eps: float
+    ) -> list[numpy.ndarray]:
+        """Clusters 3D coordinates using density-based spatial clustering.
+
+        Uses a fast BFS connected-components algorithm equivalent to DBSCAN
+        with min_samples=1, grouping coordinates that are within the eps
+        cutoff of each other.
+
+        Args:
+            coords: A numpy.ndarray of shape (N, 3) containing 3D coordinates.
+            eps: The spatial distance threshold (epsilon) for clustering.
+
+        Returns:
+            A list of numpy.ndarray coordinate clusters.
+        """
+        tmp_n = len(coords)
+        if tmp_n == 0:
+            return []
+
+        # Calculate pairwise Euclidean distances between all points
+        # shape: (N, N, 3) -> (N, N)
+        tmp_diff = coords[:, numpy.newaxis, :] - coords[numpy.newaxis, :, :]
+        tmp_dists = numpy.linalg.norm(tmp_diff, axis=2)
+
+        # Adjacency list: indices of neighbors for each point (distance <= eps)
+        tmp_adj = [
+            numpy.where(tmp_dists[tmp_i] <= eps)[0] for tmp_i in range(tmp_n)
+        ]
+
+        tmp_visited = numpy.zeros(tmp_n, dtype=bool)
+        tmp_clusters = []
+
+        for tmp_i in range(tmp_n):
+            if tmp_visited[tmp_i]:
+                continue
+
+            # Perform BFS to find connected component (cluster)
+            tmp_cluster_indices = []
+            tmp_queue = [tmp_i]
+            tmp_visited[tmp_i] = True
+
+            while tmp_queue:
+                tmp_curr = tmp_queue.pop(0)
+                tmp_cluster_indices.append(tmp_curr)
+
+                for tmp_neighbor in tmp_adj[tmp_curr]:
+                    if not tmp_visited[tmp_neighbor]:
+                        tmp_visited[tmp_neighbor] = True
+                        tmp_queue.append(tmp_neighbor)
+
+            tmp_clusters.append(coords[tmp_cluster_indices])
+
+        return tmp_clusters
+
     def _calculate_hull_path(
         self,
         coords_3d: numpy.ndarray,
@@ -218,116 +273,138 @@ class ConvexHullOverlay(QtWidgets.QWidget):
         if width <= 0 or height <= 0:
             return None
 
+        # 1. Cluster 3D model-space coordinates using a 12.0 Å cutoff
+        tmp_clusters = self._cluster_coordinates(coords_3d, eps=12.0)
+        if not tmp_clusters:
+            return None
+
         # Extract matrices & translation vectors
         tmp_r = numpy.array(view[0:9]).reshape((3, 3), order="F")
         tmp_cam_orig = numpy.array(view[9:12])
         tmp_model_orig = numpy.array(view[12:15])
         tmp_near_clip = float(view[15])
 
-        # 1. Transform Model to Camera space (accounting for PyMOL's
-        # left-handed view matrix)
-        tmp_shifted = coords_3d - tmp_model_orig
-        tmp_rotated = tmp_shifted @ tmp_r.T
+        tmp_unified_path = QtGui.QPainterPath()
+        tmp_has_path = False
 
-        # Convert camera-space origin (where PyMOL has +X left, +Y down)
-        # to standard right-handed space (subtract instead of add).
-        tmp_x_cam = tmp_rotated[:, 0] - tmp_cam_orig[0]
-        tmp_y_cam = tmp_rotated[:, 1] - tmp_cam_orig[1]
-        tmp_z_cam = tmp_rotated[:, 2] + tmp_cam_orig[2]
-        tmp_coords_cam = numpy.column_stack((tmp_x_cam, tmp_y_cam, tmp_z_cam))
+        for tmp_cluster_coords in tmp_clusters:
+            # 2. Transform Model to Camera space (accounting for PyMOL's
+            # left-handed view matrix)
+            tmp_shifted = tmp_cluster_coords - tmp_model_orig
+            tmp_rotated = tmp_shifted @ tmp_r.T
 
-        # 2. Near clipping plane filter (z_cam <= -near_clip)
-        # Drop points that are too close or behind the camera
-        tmp_min_z = -max(tmp_near_clip, 1e-3)
-        tmp_valid_mask = tmp_coords_cam[:, 2] <= tmp_min_z
-        tmp_coords_cam_clipped = tmp_coords_cam[tmp_valid_mask]
-
-        if len(tmp_coords_cam_clipped) == 0:
-            return None
-
-        # 3. Projection Math
-        tmp_aspect = float(width) / float(height)
-        tmp_tan_fov = math.tan(math.radians(fov / 2.0))
-
-        if is_ortho:
-            tmp_d = -tmp_cam_orig[2]
-            tmp_h_half = tmp_d * tmp_tan_fov
-        else:
-            tmp_d = -tmp_coords_cam_clipped[:, 2]
-            tmp_h_half = tmp_d * tmp_tan_fov
-
-        tmp_w_half = tmp_h_half * tmp_aspect
-
-        # Guard against zero height/width
-        tmp_w_half = numpy.where(tmp_w_half == 0.0, 1e-5, tmp_w_half)
-        tmp_h_half = numpy.where(tmp_h_half == 0.0, 1e-5, tmp_h_half)
-
-        # NDC coordinates
-        tmp_x_ndc = tmp_coords_cam_clipped[:, 0] / tmp_w_half
-        tmp_y_ndc = tmp_coords_cam_clipped[:, 1] / tmp_h_half
-
-        # Map to physical screen viewport coordinates, then scale to logical
-        # pixels using DPI ratio
-        tmp_screen_x = ((tmp_x_ndc + 1.0) * (float(width) * dpi / 2.0)) / dpi
-        tmp_screen_y = ((1.0 - tmp_y_ndc) * (float(height) * dpi / 2.0)) / dpi
-
-        tmp_coords_2d = numpy.column_stack((tmp_screen_x, tmp_screen_y))
-
-        # 4. Determine points to render
-        tmp_count = len(tmp_coords_2d)
-        if tmp_count == 0:
-            return None
-
-        tmp_path = QtGui.QPainterPath()
-        if tmp_count == 1:
-            # Draw circle around the single point
-            tmp_path.addEllipse(
-                QtCore.QPointF(tmp_coords_2d[0][0], tmp_coords_2d[0][1]),
-                10.0,
-                10.0,
+            # Convert camera-space origin (where PyMOL has +X left, +Y down)
+            # to standard right-handed space (subtract instead of add).
+            tmp_x_cam = tmp_rotated[:, 0] - tmp_cam_orig[0]
+            tmp_y_cam = tmp_rotated[:, 1] - tmp_cam_orig[1]
+            tmp_z_cam = tmp_rotated[:, 2] + tmp_cam_orig[2]
+            tmp_coords_cam = numpy.column_stack(
+                (tmp_x_cam, tmp_y_cam, tmp_z_cam)
             )
-        elif tmp_count == 2:
-            # Draw a thick capsule/line path
-            tmp_path.moveTo(
-                QtCore.QPointF(tmp_coords_2d[0][0], tmp_coords_2d[0][1])
-            )
-            tmp_path.lineTo(
-                QtCore.QPointF(tmp_coords_2d[1][0], tmp_coords_2d[1][1])
-            )
-        else:
-            try:
-                # Calculate convex hull
-                tmp_hull = scipy.spatial.ConvexHull(tmp_coords_2d)
-                tmp_hull_points = tmp_coords_2d[tmp_hull.vertices]
 
-                # Build QPainterPath from ordered vertices
-                tmp_path.moveTo(
-                    QtCore.QPointF(tmp_hull_points[0][0], tmp_hull_points[0][1])
+            # 3. Near clipping plane filter (z_cam <= -near_clip)
+            # Drop points that are too close or behind the camera
+            tmp_min_z = -max(tmp_near_clip, 1e-3)
+            tmp_valid_mask = tmp_coords_cam[:, 2] <= tmp_min_z
+            tmp_coords_cam_clipped = tmp_coords_cam[tmp_valid_mask]
+
+            if len(tmp_coords_cam_clipped) == 0:
+                continue
+
+            # 4. Projection Math
+            tmp_aspect = float(width) / float(height)
+            tmp_tan_fov = math.tan(math.radians(fov / 2.0))
+
+            if is_ortho:
+                tmp_d = -tmp_cam_orig[2]
+                tmp_h_half = tmp_d * tmp_tan_fov
+            else:
+                tmp_d = -tmp_coords_cam_clipped[:, 2]
+                tmp_h_half = tmp_d * tmp_tan_fov
+
+            tmp_w_half = tmp_h_half * tmp_aspect
+
+            # Guard against zero height/width
+            tmp_w_half = numpy.where(tmp_w_half == 0.0, 1e-5, tmp_w_half)
+            tmp_h_half = numpy.where(tmp_h_half == 0.0, 1e-5, tmp_h_half)
+
+            # NDC coordinates
+            tmp_x_ndc = tmp_coords_cam_clipped[:, 0] / tmp_w_half
+            tmp_y_ndc = tmp_coords_cam_clipped[:, 1] / tmp_h_half
+
+            # Map to physical screen viewport coordinates, then scale to
+            # logical pixels using DPI ratio
+            tmp_screen_x = (
+                (tmp_x_ndc + 1.0) * (float(width) * dpi / 2.0)
+            ) / dpi
+            tmp_screen_y = (
+                (1.0 - tmp_y_ndc) * (float(height) * dpi / 2.0)
+            ) / dpi
+
+            tmp_coords_2d = numpy.column_stack((tmp_screen_x, tmp_screen_y))
+
+            # 5. Determine points to render for this cluster
+            tmp_count = len(tmp_coords_2d)
+            if tmp_count == 0:
+                continue
+
+            tmp_cluster_path = QtGui.QPainterPath()
+            if tmp_count == 1:
+                # Draw circle around the single point
+                tmp_cluster_path.addEllipse(
+                    QtCore.QPointF(tmp_coords_2d[0][0], tmp_coords_2d[0][1]),
+                    10.0,
+                    10.0,
                 )
-                for tmp_idx in range(1, len(tmp_hull_points)):
-                    tmp_path.lineTo(
-                        QtCore.QPointF(
-                            tmp_hull_points[tmp_idx][0],
-                            tmp_hull_points[tmp_idx][1],
-                        )
-                    )
-                tmp_path.closeSubpath()
-            except Exception:
-                # Fallback to drawing a simple line-loop of points if Qhull
-                # fails due to collinearity
-                tmp_path.moveTo(
+            elif tmp_count == 2:
+                # Draw a thick capsule/line path
+                tmp_cluster_path.moveTo(
                     QtCore.QPointF(tmp_coords_2d[0][0], tmp_coords_2d[0][1])
                 )
-                for tmp_idx in range(1, len(tmp_coords_2d)):
-                    tmp_path.lineTo(
+                tmp_cluster_path.lineTo(
+                    QtCore.QPointF(tmp_coords_2d[1][0], tmp_coords_2d[1][1])
+                )
+            else:
+                try:
+                    # Calculate convex hull
+                    tmp_hull = scipy.spatial.ConvexHull(tmp_coords_2d)
+                    tmp_hull_points = tmp_coords_2d[tmp_hull.vertices]
+
+                    # Build QPainterPath from ordered vertices
+                    tmp_cluster_path.moveTo(
                         QtCore.QPointF(
-                            tmp_coords_2d[tmp_idx][0],
-                            tmp_coords_2d[tmp_idx][1],
+                            tmp_hull_points[0][0], tmp_hull_points[0][1]
                         )
                     )
-                tmp_path.closeSubpath()
+                    for tmp_idx in range(1, len(tmp_hull_points)):
+                        tmp_cluster_path.lineTo(
+                            QtCore.QPointF(
+                                tmp_hull_points[tmp_idx][0],
+                                tmp_hull_points[tmp_idx][1],
+                            )
+                        )
+                    tmp_cluster_path.closeSubpath()
+                except Exception:
+                    # Fallback to drawing a simple line-loop of points if Qhull
+                    # fails due to collinearity
+                    tmp_cluster_path.moveTo(
+                        QtCore.QPointF(tmp_coords_2d[0][0], tmp_coords_2d[0][1])
+                    )
+                    for tmp_idx in range(1, len(tmp_coords_2d)):
+                        tmp_cluster_path.lineTo(
+                            QtCore.QPointF(
+                                tmp_coords_2d[tmp_idx][0],
+                                tmp_coords_2d[tmp_idx][1],
+                            )
+                        )
+                    tmp_cluster_path.closeSubpath()
 
-        return tmp_path
+            tmp_unified_path.addPath(tmp_cluster_path)
+            tmp_has_path = True
+
+        if tmp_has_path:
+            return tmp_unified_path
+        return None
 
 
 class PyMOLWidgetEventFilter(QtCore.QObject):

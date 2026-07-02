@@ -315,3 +315,66 @@ def test_invalid_selection_lifecycle(q_app: QtWidgets.QApplication) -> None:
     # Should clear cache and not crash
     assert tmp_overlay._cached_coords_3d is None
     assert tmp_overlay._cached_path is None
+
+
+def test_coordinate_clustering(q_app: QtWidgets.QApplication) -> None:
+    """Tests density-based coordinate clustering.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    # Coordinates with two clusters: one at origin, one panned far away (>12Å)
+    tmp_coords = numpy.array(
+        [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [50.0, 50.0, 50.0]]
+    )
+    tmp_clusters = tmp_overlay._cluster_coordinates(tmp_coords, eps=12.0)
+    assert len(tmp_clusters) == 2
+    # Verify contents of clusters
+    assert any(len(tmp_c) == 2 for tmp_c in tmp_clusters)
+    assert any(len(tmp_c) == 1 for tmp_c in tmp_clusters)
+
+    # Coordinates within 12Å of each other (should form 1 cluster)
+    tmp_coords_single = numpy.array(
+        [[0.0, 0.0, 0.0], [5.0, 5.0, 5.0], [10.0, 10.0, 10.0]]
+    )
+    tmp_clusters_single = tmp_overlay._cluster_coordinates(
+        tmp_coords_single, eps=12.0
+    )
+    assert len(tmp_clusters_single) == 1
+
+
+def test_multi_cluster_path_rendering(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Tests projection and rendering of multiple coordinate clusters.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+    tmp_overlay.resize(100, 100)
+
+    # Two spatially distinct points, each forming its own single-point cluster
+    tmp_coords = numpy.array([[0.0, 0.0, 0.0], [50.0, 50.0, 50.0]])
+    tmp_path = tmp_overlay._calculate_hull_path(
+        tmp_coords,
+        tmp_cmd.view,
+        is_ortho=False,
+        fov=20.0,
+        width=100,
+        height=100,
+        dpi=1.0,
+    )
+    assert tmp_path is not None
+    # The path bounding rect should span both circles
+    tmp_rect = tmp_path.boundingRect()
+    assert tmp_rect.width() > 0
+    assert tmp_rect.height() > 0

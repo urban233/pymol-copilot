@@ -47,8 +47,10 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_layout.addWidget(self.input)
 
     def highlight_sele(self):
-        self.viewer.highlight_selection("/1DPX//A/20-25")
-        self.viewer.cmd.select("highlighted", "/1DPX//A/20-25")
+        # self.viewer.highlight_selection("/1DPX//A/20-25")
+        # self.viewer.cmd.select("highlighted", "/1DPX//A/20-25")
+        self.viewer.highlight_selection("/1DPX//A/20-25+40-42")
+        self.viewer.cmd.select("highlighted", "/1DPX//A/20-25+40-42")
 
     def _setup_ui_mock(self) -> None:
         """Creates and arranges the GUI components."""
