@@ -44,7 +44,7 @@ def main() -> int:
 
     # Assume GUI thread, make OpenGL context current before calling func().
     def _call_with_opengl_context_gui_thread(
-        func: collections.abc.Callable[[], typing.Any]
+        func: collections.abc.Callable[[], typing.Any],
     ) -> typing.Any:
         """Calls the given function with the PyMOL OpenGL context.
 

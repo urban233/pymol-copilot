@@ -429,29 +429,36 @@ def test_frustum_visibility_check(q_app: QtWidgets.QApplication) -> None:
     # Z coordinate in camera space z_cam = rotated_z + cam_orig[2]
     # For a point at (0, 0, 0) with camera at -50, z_cam = -50.
     # -100 <= -50 <= -10 (Inside frustum)
-    tmp_coords_inside = numpy.array([[0.0, 0.0, 0.0]])
-    tmp_bboxes_inside = tmp_overlay._calculate_cluster_bboxes(
-        tmp_coords_inside,
-        tmp_cmd.view,
-        is_ortho=False,
-        fov=20.0,
-        width=100,
-        height=100,
-    )
-    assert len(tmp_bboxes_inside) == 1
+    tmp_orig_threshold = convex_hull_overlay.FLYOUT_MIN_HULL_SCREEN_AREA_PX
+    convex_hull_overlay.FLYOUT_MIN_HULL_SCREEN_AREA_PX = 0
+    try:
+        tmp_coords_inside = numpy.array([[0.0, 0.0, 0.0]])
+        tmp_bboxes_inside = tmp_overlay._calculate_cluster_bboxes(
+            tmp_coords_inside,
+            tmp_cmd.view,
+            is_ortho=False,
+            fov=20.0,
+            width=100,
+            height=100,
+        )
+        assert len(tmp_bboxes_inside) == 1
+        assert tmp_bboxes_inside[0] is not None
 
-    # Point behind near clipping plane (z_cam = 45.0 + (-50) = -5.0).
-    # Since -5.0 > -10.0, it is clipped.
-    tmp_coords_clipped = numpy.array([[0.0, 0.0, 45.0]])
-    tmp_bboxes_clipped = tmp_overlay._calculate_cluster_bboxes(
-        tmp_coords_clipped,
-        tmp_cmd.view,
-        is_ortho=False,
-        fov=20.0,
-        width=100,
-        height=100,
-    )
-    assert len(tmp_bboxes_clipped) == 0
+        # Point behind near clipping plane (z_cam = 45.0 + (-50) = -5.0).
+        # Since -5.0 > -10.0, it is clipped.
+        tmp_coords_clipped = numpy.array([[0.0, 0.0, 45.0]])
+        tmp_bboxes_clipped = tmp_overlay._calculate_cluster_bboxes(
+            tmp_coords_clipped,
+            tmp_cmd.view,
+            is_ortho=False,
+            fov=20.0,
+            width=100,
+            height=100,
+        )
+        assert len(tmp_bboxes_clipped) == 1
+        assert tmp_bboxes_clipped[0] is None
+    finally:
+        convex_hull_overlay.FLYOUT_MIN_HULL_SCREEN_AREA_PX = tmp_orig_threshold
 
 
 def test_camera_polling_and_debounce(q_app: QtWidgets.QApplication) -> None:
@@ -507,7 +514,7 @@ def test_flyout_clamping_and_positioning(
         fov: float,  # noqa: ARG001
         width: int,  # noqa: ARG001
         height: int,  # noqa: ARG001
-    ) -> list[tuple[float, float, float, float]]:
+    ) -> list[tuple[float, float, float, float] | None]:
         return [(10.0, 5.0, 20.0, 15.0)]
 
     tmp_overlay._calculate_cluster_bboxes = tmp_mock_bboxes_case_1
@@ -525,7 +532,7 @@ def test_flyout_clamping_and_positioning(
         fov: float,  # noqa: ARG001
         width: int,  # noqa: ARG001
         height: int,  # noqa: ARG001
-    ) -> list[tuple[float, float, float, float]]:
+    ) -> list[tuple[float, float, float, float] | None]:
         return [(10.0, 0.0, 20.0, 15.0)]
 
     tmp_overlay._calculate_cluster_bboxes = tmp_mock_bboxes_case_2
@@ -560,3 +567,67 @@ def test_flyout_signals(q_app: QtWidgets.QApplication) -> None:
 
     assert len(tmp_received) == 1
     assert tmp_received[0] == (0, "my_test_sel")
+
+
+def test_prominence_threshold(q_app: QtWidgets.QApplication) -> None:
+    """Tests that clusters with screen area below threshold are ignored.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    # Spatially spread points for the cluster.
+    tmp_coords = numpy.array([[-2.5, -2.5, 0.0], [2.5, 2.5, 0.0]])
+
+    # Case 1: Area is small (< 2500 px^2) because viewport is 10x10.
+    tmp_bboxes_small = tmp_overlay._calculate_cluster_bboxes(
+        tmp_coords,
+        tmp_cmd.view,
+        is_ortho=False,
+        fov=20.0,
+        width=10,
+        height=10,
+    )
+    assert len(tmp_bboxes_small) == 1
+    assert tmp_bboxes_small[0] is None
+
+    # Case 2: Area is large (> 2500 px^2) because viewport is 1000x1000.
+    tmp_bboxes_large = tmp_overlay._calculate_cluster_bboxes(
+        tmp_coords,
+        tmp_cmd.view,
+        is_ortho=False,
+        fov=20.0,
+        width=1000,
+        height=1000,
+    )
+    assert len(tmp_bboxes_large) == 1
+    assert tmp_bboxes_large[0] is not None
+
+
+def test_selection_name_guard(q_app: QtWidgets.QApplication) -> None:
+    """Tests that calling set_selection with same name does not run lifecycle.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_cmd.coords = [[0.0, 0.0, 0.0]]
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    tmp_overlay.set_selection("test_sel")
+    assert len(tmp_overlay._flyouts) == 1
+
+    # Manually clear flyouts list to see if it gets re-created on redundant call
+    tmp_overlay._flyouts = []
+    tmp_overlay.set_selection("test_sel")
+    assert len(tmp_overlay._flyouts) == 0
+
+    # Change name, should re-create
+    tmp_overlay.set_selection("new_test_sel")
+    assert len(tmp_overlay._flyouts) == 1

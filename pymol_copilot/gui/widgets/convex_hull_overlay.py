@@ -17,6 +17,9 @@ from pymol_copilot.gui.qt import styles
 from pymol_copilot.gui.qt.widgets import flyout
 
 
+FLYOUT_MIN_HULL_SCREEN_AREA_PX: int = 2500
+
+
 class ConvexHullOverlay(QtWidgets.QWidget):
     """Transparent overlay for drawing a 2D convex hull of a PyMOL selection."""
 
@@ -493,7 +496,7 @@ class ConvexHullOverlay(QtWidgets.QWidget):
         fov: float,
         width: int,
         height: int,
-    ) -> list[tuple[float, float, float, float]]:
+    ) -> list[tuple[float, float, float, float] | None]:
         """Calculates 2D bounding boxes of projected coordinate clusters.
 
         Args:
@@ -505,7 +508,7 @@ class ConvexHullOverlay(QtWidgets.QWidget):
             height: Widget height.
 
         Returns:
-            A list of bounding boxes (min_x, min_y, max_x, max_y).
+            A list of bounding boxes (min_x, min_y, max_x, max_y) or None.
         """
         if width <= 0 or height <= 0:
             return []
@@ -537,6 +540,7 @@ class ConvexHullOverlay(QtWidgets.QWidget):
                 tmp_z_cam <= -tmp_near_clip
             )
             if not numpy.any(tmp_valid_mask):
+                tmp_bboxes.append(None)
                 continue
 
             tmp_x_cam_clipped = tmp_x_cam[tmp_valid_mask]
@@ -548,6 +552,7 @@ class ConvexHullOverlay(QtWidgets.QWidget):
                 -tmp_z_cam_clipped >= 1e-4
             )
             if not numpy.any(tmp_div_mask):
+                tmp_bboxes.append(None)
                 continue
 
             tmp_x_cam_div = tmp_x_cam_clipped[tmp_div_mask]
@@ -579,6 +584,7 @@ class ConvexHullOverlay(QtWidgets.QWidget):
                 & (tmp_screen_y <= height)
             )
             if not numpy.any(tmp_on_screen_mask):
+                tmp_bboxes.append(None)
                 continue
 
             tmp_screen_x_visible = tmp_screen_x[tmp_on_screen_mask]
@@ -588,6 +594,12 @@ class ConvexHullOverlay(QtWidgets.QWidget):
             tmp_max_x = float(numpy.max(tmp_screen_x_visible))
             tmp_min_y = float(numpy.min(tmp_screen_y_visible))
             tmp_max_y = float(numpy.max(tmp_screen_y_visible))
+
+            # Area prominence check
+            tmp_area = (tmp_max_x - tmp_min_x) * (tmp_max_y - tmp_min_y)
+            if tmp_area < FLYOUT_MIN_HULL_SCREEN_AREA_PX:
+                tmp_bboxes.append(None)
+                continue
 
             tmp_bboxes.append((tmp_min_x, tmp_min_y, tmp_max_x, tmp_max_y))
 
@@ -670,15 +682,17 @@ class ConvexHullOverlay(QtWidgets.QWidget):
         tmp_margin = styles.dp(8)
 
         for tmp_idx, tmp_flyout in enumerate(self._flyouts):
-            if tmp_idx >= len(tmp_bboxes):
+            if tmp_idx >= len(tmp_bboxes) or tmp_bboxes[tmp_idx] is None:
                 tmp_flyout.hide()
                 continue
 
-            tmp_min_x, tmp_min_y, tmp_max_x, tmp_max_y = tmp_bboxes[tmp_idx]
+            tmp_bbox = tmp_bboxes[tmp_idx]
+            assert tmp_bbox is not None
+            tmp_min_x, tmp_min_y, tmp_max_x, tmp_max_y = tmp_bbox
             tmp_center_x = (tmp_min_x + tmp_max_x) / 2.0
 
-            tmp_flyout_w = tmp_flyout.width()
-            tmp_flyout_h = tmp_flyout.height()
+            tmp_flyout_w = tmp_flyout.sizeHint().width()
+            tmp_flyout_h = tmp_flyout.sizeHint().height()
 
             tmp_x = int(tmp_center_x - tmp_flyout_w / 2.0)
 
