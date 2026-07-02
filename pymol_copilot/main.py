@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import sys
+import collections.abc
 import os
+import sys
+import typing
 
 import pymol
 from pymol.Qt.utils import MainThreadCaller
@@ -41,7 +43,17 @@ def main() -> int:
     pymol.cmd._call_in_gui_thread = MainThreadCaller()
 
     # Assume GUI thread, make OpenGL context current before calling func().
-    def _call_with_opengl_context_gui_thread(func):
+    def _call_with_opengl_context_gui_thread(
+        func: collections.abc.Callable[[], typing.Any]
+    ) -> typing.Any:
+        """Calls the given function with the PyMOL OpenGL context.
+
+        Args:
+            func: The function to execute.
+
+        Returns:
+            The return value of func.
+        """
         # IMPORTANT: Here is a part where the explict PyMOL OpenGL widget is used!
         with tmp_window.viewer.pymolwidget:
             return func()

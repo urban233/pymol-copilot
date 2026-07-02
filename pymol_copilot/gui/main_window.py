@@ -46,7 +46,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.input.setPlaceholderText("Message... (Shift+Enter for a new line)")
         tmp_layout.addWidget(self.input)
 
-    def highlight_sele(self):
+    def highlight_sele(self) -> None:
+        """Highlights the selected molecule residue region."""
         # self.viewer.highlight_selection("/1DPX//A/20-25")
         # self.viewer.cmd.select("highlighted", "/1DPX//A/20-25")
         self.viewer.highlight_selection("/1DPX//A/20-25+40-42")

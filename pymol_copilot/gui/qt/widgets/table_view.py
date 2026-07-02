@@ -61,7 +61,6 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
-from typing import Any
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets

@@ -71,11 +71,16 @@ class MockCmd:
         """
         return self.coords
 
-    def get_view(self, output: int) -> list[float]:  # noqa: ARG002
+    def get_view(
+        self,
+        output: int = 1,  # noqa: ARG002
+        quiet: int = 1,  # noqa: ARG002
+    ) -> list[float]:
         """Returns the current view parameters.
 
         Args:
             output: Formatting parameter.
+            quiet: Suppress print output.
 
         Returns:
             The 18-element camera state view list.
@@ -378,3 +383,180 @@ def test_multi_cluster_path_rendering(
     tmp_rect = tmp_path.boundingRect()
     assert tmp_rect.width() > 0
     assert tmp_rect.height() > 0
+
+
+def test_floating_flyout_lifecycle(q_app: QtWidgets.QApplication) -> None:
+    """Tests FloatingFlyout lifecycle management in set_selection.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_cmd.coords = [[0.0, 0.0, 0.0], [50.0, 50.0, 50.0]]
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    # Selection change: from empty to valid
+    tmp_overlay.set_selection("valid_selection")
+    assert len(tmp_overlay._flyouts) == 2
+
+    # Selection change: same selection (no reconnection/rebuild)
+    tmp_overlay.set_selection("valid_selection")
+    assert len(tmp_overlay._flyouts) == 2
+
+    # Selection change: empty selection (calls cleanup)
+    tmp_overlay.set_selection("")
+    assert len(tmp_overlay._flyouts) == 0
+
+
+def test_frustum_visibility_check(q_app: QtWidgets.QApplication) -> None:
+    """Tests frustum visibility check using zero-based clipping planes.
+
+    Note that view[15] is the near clipping plane and view[16] is the
+    far clipping plane.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    # Near clip is view[15] = 10.0, Far clip is view[16] = 100.0.
+    # Camera center is (0, 0, -50).
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    # Z coordinate in camera space z_cam = rotated_z + cam_orig[2]
+    # For a point at (0, 0, 0) with camera at -50, z_cam = -50.
+    # -100 <= -50 <= -10 (Inside frustum)
+    tmp_coords_inside = numpy.array([[0.0, 0.0, 0.0]])
+    tmp_bboxes_inside = tmp_overlay._calculate_cluster_bboxes(
+        tmp_coords_inside,
+        tmp_cmd.view,
+        is_ortho=False,
+        fov=20.0,
+        width=100,
+        height=100,
+    )
+    assert len(tmp_bboxes_inside) == 1
+
+    # Point behind near clipping plane (z_cam = 45.0 + (-50) = -5.0).
+    # Since -5.0 > -10.0, it is clipped.
+    tmp_coords_clipped = numpy.array([[0.0, 0.0, 45.0]])
+    tmp_bboxes_clipped = tmp_overlay._calculate_cluster_bboxes(
+        tmp_coords_clipped,
+        tmp_cmd.view,
+        is_ortho=False,
+        fov=20.0,
+        width=100,
+        height=100,
+    )
+    assert len(tmp_bboxes_clipped) == 0
+
+
+def test_camera_polling_and_debounce(q_app: QtWidgets.QApplication) -> None:
+    """Tests polling loop change detection and debounce timer.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    # Initialize cached camera view
+    tmp_overlay._cached_camera_view = list(tmp_cmd.view)
+
+    # Check that poll doesn't trigger when no camera change occurs
+    tmp_overlay._poll_camera()
+    assert not tmp_overlay._debounce_timer.isActive()
+
+    # Change camera view rotation (elements 0-8)
+    tmp_cmd.view[0] = 0.5
+    tmp_overlay._poll_camera()
+    assert tmp_overlay._debounce_timer.isActive()
+
+
+def test_flyout_clamping_and_positioning(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Tests clamping and vertical flipping to bottom if min_y <= 0.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+    tmp_overlay.resize(1000, 1000)
+
+    # Define a single flyout
+    tmp_flyout = convex_hull_overlay.flyout.FloatingFlyout(tmp_parent)
+    tmp_flyout.resize(100, 30)
+    tmp_overlay._flyouts = [tmp_flyout]
+    tmp_overlay._selection_name = "test"
+
+    # Case 1: min_y is near top (min_y = 5).
+    # min_y is small, placing above makes y < 0, so it flips below (max_y + margin)
+    def tmp_mock_bboxes_case_1(
+        coords_3d: numpy.ndarray,  # noqa: ARG001
+        view: list[float],  # noqa: ARG001
+        is_ortho: bool,  # noqa: ARG001
+        fov: float,  # noqa: ARG001
+        width: int,  # noqa: ARG001
+        height: int,  # noqa: ARG001
+    ) -> list[tuple[float, float, float, float]]:
+        return [(10.0, 5.0, 20.0, 15.0)]
+
+    tmp_overlay._calculate_cluster_bboxes = tmp_mock_bboxes_case_1
+    tmp_overlay._on_camera_still()
+
+    # The flyout should flip to bottom
+    assert tmp_flyout.y() == 15.0 + 8.0  # max_y + margin
+
+    # Case 2: min_y <= 0 (touches or goes beyond top boundary).
+    # It must unconditionally flip below.
+    def tmp_mock_bboxes_case_2(
+        coords_3d: numpy.ndarray,  # noqa: ARG001
+        view: list[float],  # noqa: ARG001
+        is_ortho: bool,  # noqa: ARG001
+        fov: float,  # noqa: ARG001
+        width: int,  # noqa: ARG001
+        height: int,  # noqa: ARG001
+    ) -> list[tuple[float, float, float, float]]:
+        return [(10.0, 0.0, 20.0, 15.0)]
+
+    tmp_overlay._calculate_cluster_bboxes = tmp_mock_bboxes_case_2
+    tmp_overlay._on_camera_still()
+    assert tmp_flyout.y() == 15.0 + 8.0  # max_y + margin
+
+
+def test_flyout_signals(q_app: QtWidgets.QApplication) -> None:
+    """Tests signal emission index contract and selection name capture.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    tmp_cmd = MockCmd()
+    tmp_cmd.coords = [[0.0, 0.0, 0.0]]
+    tmp_parent = QtWidgets.QWidget()
+    tmp_overlay = convex_hull_overlay.ConvexHullOverlay(tmp_parent, tmp_cmd)
+
+    # Store received signal data
+    tmp_received = []
+
+    def on_accept(idx: int, name: str) -> None:
+        tmp_received.append((idx, name))
+
+    tmp_overlay.accept_clicked.connect(on_accept)
+    tmp_overlay.set_selection("my_test_sel")
+
+    # Simulate button click on the first flyout
+    assert len(tmp_overlay._flyouts) == 1
+    tmp_overlay._flyouts[0].accept_button.click()
+
+    assert len(tmp_received) == 1
+    assert tmp_received[0] == (0, "my_test_sel")

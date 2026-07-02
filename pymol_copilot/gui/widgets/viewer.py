@@ -13,7 +13,7 @@ class Viewer(QtWidgets.QWidget):
     """PyMOL Viewer widget."""
 
     # <editor-fold desc="Class attributes">
-    viewportsignal = QtCore.Signal(int, int)
+    viewportsignal = QtCore.pyqtSignal(int, int)
     """A signal for thread-safe viewport command."""
     # </editor-fold>
 

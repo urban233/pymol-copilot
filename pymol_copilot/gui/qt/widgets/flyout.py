@@ -15,6 +15,7 @@ Typical use-cases
 from __future__ import annotations
 
 import enum
+from typing import override
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -209,3 +210,137 @@ class FlyoutFrame(QtWidgets.QWidget):
         """Emit the about_to_hide signal when the flyout is hidden."""
         self.about_to_hide.emit()
         super().hideEvent(event)
+
+
+class FloatingFlyout(QtWidgets.QWidget):
+    """A floating child panel for displaying Accept and Reject actions.
+
+    Unlike FlyoutFrame, this does not use Popup window flags, allowing it to
+    float persistently over the OpenGL canvas without auto-closing during
+    camera interactions.
+    """
+
+    accepted = QtCore.pyqtSignal()
+    rejected = QtCore.pyqtSignal()
+
+    def __init__(self, parent: QtWidgets.QWidget) -> None:
+        """Initializes the floating flyout overlay.
+
+        Args:
+            parent: The parent widget that will contain this overlay.
+        """
+        super().__init__(parent)
+        self.setAttribute(
+            QtCore.Qt.WidgetAttribute.WA_TranslucentBackground, True
+        )
+        self.setAutoFillBackground(False)
+
+        # Visual inner frame styled via global stylesheet
+        self._inner_frame = QtWidgets.QFrame()
+        self._inner_frame.setObjectName(theme.StyleId.FLYOUT_FRAME)
+
+        # Layout inside the inner frame
+        tmp_content_layout = QtWidgets.QHBoxLayout(self._inner_frame)
+        tmp_content_layout.setContentsMargins(
+            styles.dp(8), styles.dp(4), styles.dp(8), styles.dp(4)
+        )
+        tmp_content_layout.setSpacing(styles.dp(8))
+
+        # Setup child controls directly
+        self.label = QtWidgets.QLabel("AI Suggestion")
+        self.accept_button = QtWidgets.QPushButton("Accept")
+        self.reject_button = QtWidgets.QPushButton("Reject")
+
+        # Connect signals
+        self.accept_button.clicked.connect(self.accepted.emit)
+        self.reject_button.clicked.connect(self.rejected.emit)
+
+        # Add to layout
+        tmp_content_layout.addWidget(self.label)
+        tmp_content_layout.addWidget(self.accept_button)
+        tmp_content_layout.addWidget(self.reject_button)
+
+        # Outer layout to support shadow padding
+        tmp_outer_layout = QtWidgets.QVBoxLayout(self)
+        tmp_shadow_padding = styles.dp(6)
+        tmp_outer_layout.setContentsMargins(
+            tmp_shadow_padding,
+            tmp_shadow_padding,
+            tmp_shadow_padding,
+            tmp_shadow_padding,
+        )
+        tmp_outer_layout.addWidget(self._inner_frame)
+
+        self._apply_button_styles()
+
+    def _apply_button_styles(self) -> None:
+        """Applies custom QSS styles to the Accept and Reject buttons."""
+        tmp_accept_style = """
+            QPushButton {
+                background-color: #f1faf1;
+                color: #107c10;
+                border: 1px solid #107c10;
+                border-radius: 4px;
+                font-family: "Segoe UI", sans-serif;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: #107c10;
+                color: white;
+            }
+            QPushButton:pressed {
+                background-color: #0b5b0b;
+                color: #dddddd;
+            }
+        """
+
+        tmp_reject_style = """
+            QPushButton {
+                background-color: #fdf3f4;
+                color: #bc2f32;
+                border: 1px solid #bc2f32;
+                border-radius: 4px;
+                font-family: "Segoe UI", sans-serif;
+                font-size: 11px;
+                font-weight: bold;
+                padding: 4px 8px;
+            }
+            QPushButton:hover {
+                background-color: #bc2f32;
+                color: white;
+            }
+            QPushButton:pressed {
+                background-color: #6e1e1e;
+                color: #dddddd;
+            }
+        """
+
+        self.accept_button.setStyleSheet(tmp_accept_style)
+        self.reject_button.setStyleSheet(tmp_reject_style)
+
+    @override
+    def paintEvent(self, event: QtGui.QPaintEvent | None) -> None:
+        """Paints a custom offset shadow behind the inner frame.
+
+        Args:
+            event: The paint event object.
+        """
+        tmp_painter = QtGui.QPainter(self)
+        tmp_painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+
+        # Translucent shadow settings
+        tmp_shadow_color = QtGui.QColor(0, 0, 0, 30)
+        tmp_radius = float(styles.dp(6))
+
+        # Get visual frame geometry relative to this widget
+        tmp_frame_rect = self._inner_frame.geometry()
+        tmp_shadow_rect = QtCore.QRectF(tmp_frame_rect).translated(
+            float(styles.dp(2)), float(styles.dp(2))
+        )
+
+        tmp_path = QtGui.QPainterPath()
+        tmp_path.addRoundedRect(tmp_shadow_rect, tmp_radius, tmp_radius)
+        tmp_painter.fillPath(tmp_path, QtGui.QBrush(tmp_shadow_color))
+        tmp_painter.end()

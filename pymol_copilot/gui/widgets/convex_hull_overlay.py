@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import math
 import typing
+from typing import override
 
 from PyQt6 import QtCore
 from PyQt6 import QtGui
@@ -12,9 +13,15 @@ from PyQt6 import QtWidgets
 import numpy
 import scipy.spatial
 
+from pymol_copilot.gui.qt import styles
+from pymol_copilot.gui.qt.widgets import flyout
+
 
 class ConvexHullOverlay(QtWidgets.QWidget):
     """Transparent overlay for drawing a 2D convex hull of a PyMOL selection."""
+
+    accept_clicked = QtCore.pyqtSignal(int, str)
+    reject_clicked = QtCore.pyqtSignal(int, str)
 
     def __init__(
         self, parent: QtWidgets.QWidget, cmd_instance: typing.Any
@@ -44,6 +51,19 @@ class ConvexHullOverlay(QtWidgets.QWidget):
         self._cached_dpi: float = 0.0
         self._cached_path: QtGui.QPainterPath | None = None
 
+        # Flyout list and debounce state
+        self._flyouts: list[flyout.FloatingFlyout] = []
+        self._cached_camera_view: list[float] | None = None
+
+        # Configure timers on main thread
+        self._poll_timer = QtCore.QTimer(self)
+        self._poll_timer.setInterval(100)
+        self._poll_timer.timeout.connect(self._poll_camera)
+
+        self._debounce_timer = QtCore.QTimer(self)
+        self._debounce_timer.setSingleShot(True)
+        self._debounce_timer.timeout.connect(self._on_camera_still)
+
         # Setup flags for transparency and mouse event pass-through
         self.setAttribute(
             QtCore.Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
@@ -60,7 +80,66 @@ class ConvexHullOverlay(QtWidgets.QWidget):
         Args:
             selection_name: The name of the PyMOL selection.
         """
+        if selection_name == self._selection_name:
+            return
+
+        if not selection_name:
+            self.cleanup()
+            self.update()
+            return
+
+        tmp_current_state = int(self._cmd.get_state())
+        try:
+            tmp_coords = self._cmd.get_coords(
+                selection_name, state=tmp_current_state
+            )
+            if tmp_coords is not None:
+                tmp_coords_3d = numpy.array(tmp_coords)
+            else:
+                tmp_coords_3d = None
+        except Exception:
+            tmp_coords_3d = None
+
+        if tmp_coords_3d is not None and len(tmp_coords_3d) > 0:
+            tmp_clusters = self._cluster_coordinates(tmp_coords_3d, eps=12.0)
+            tmp_n = len(tmp_clusters)
+        else:
+            tmp_n = 0
+
+        # Synchronize flyout widget list size
+        while len(self._flyouts) > tmp_n:
+            tmp_flyout = self._flyouts.pop()
+            tmp_flyout.hide()
+            tmp_flyout.deleteLater()
+
+        while len(self._flyouts) < tmp_n:
+            tmp_parent = self.parentWidget()
+            assert tmp_parent is not None
+            tmp_flyout = flyout.FloatingFlyout(tmp_parent)
+            tmp_flyout.adjustSize()
+            self._flyouts.append(tmp_flyout)
+
+        # Fresh signal reconnection capturing correct parameters
+        for tmp_idx, tmp_flyout in enumerate(self._flyouts):
+            try:
+                tmp_flyout.accepted.disconnect()
+                tmp_flyout.rejected.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+
+            tmp_flyout.accepted.connect(
+                lambda idx=tmp_idx, sel=selection_name: (
+                    self.accept_clicked.emit(idx, sel)
+                )
+            )
+            tmp_flyout.rejected.connect(
+                lambda idx=tmp_idx, sel=selection_name: (
+                    self.reject_clicked.emit(idx, sel)
+                )
+            )
+
         self._selection_name = selection_name
+        self._poll_timer.start()
         self.update()
 
     def set_colors(
@@ -406,11 +485,260 @@ class ConvexHullOverlay(QtWidgets.QWidget):
             return tmp_unified_path
         return None
 
+    def _calculate_cluster_bboxes(
+        self,
+        coords_3d: numpy.ndarray,
+        view: list[float],
+        is_ortho: bool,
+        fov: float,
+        width: int,
+        height: int,
+    ) -> list[tuple[float, float, float, float]]:
+        """Calculates 2D bounding boxes of projected coordinate clusters.
+
+        Args:
+            coords_3d: The 3D coordinates.
+            view: Camera state list.
+            is_ortho: True if orthoscopic view is active.
+            fov: Field of view value.
+            width: Widget width.
+            height: Widget height.
+
+        Returns:
+            A list of bounding boxes (min_x, min_y, max_x, max_y).
+        """
+        if width <= 0 or height <= 0:
+            return []
+
+        tmp_clusters = self._cluster_coordinates(coords_3d, eps=12.0)
+        if not tmp_clusters:
+            return []
+
+        tmp_r = numpy.array(view[0:9]).reshape((3, 3), order="F")
+        tmp_cam_orig = numpy.array(view[9:12])
+        tmp_model_orig = numpy.array(view[12:15])
+        tmp_near_clip = float(view[15])
+        tmp_far_clip = float(view[16])
+
+        tmp_bboxes = []
+
+        for tmp_cluster_coords in tmp_clusters:
+            # Translation to model origin
+            tmp_shifted = tmp_cluster_coords - tmp_model_orig
+            # Rotation to camera space
+            tmp_rotated = tmp_shifted @ tmp_r
+            # Translation to camera origin
+            tmp_x_cam = tmp_rotated[:, 0] + tmp_cam_orig[0]
+            tmp_y_cam = tmp_rotated[:, 1] + tmp_cam_orig[1]
+            tmp_z_cam = tmp_rotated[:, 2] + tmp_cam_orig[2]
+
+            # Strict frustum visibility check
+            tmp_valid_mask = (tmp_z_cam >= -tmp_far_clip) & (
+                tmp_z_cam <= -tmp_near_clip
+            )
+            if not numpy.any(tmp_valid_mask):
+                continue
+
+            tmp_x_cam_clipped = tmp_x_cam[tmp_valid_mask]
+            tmp_y_cam_clipped = tmp_y_cam[tmp_valid_mask]
+            tmp_z_cam_clipped = tmp_z_cam[tmp_valid_mask]
+
+            # Exclude any points with z_cam >= 0 or -z_cam < 1e-4
+            tmp_div_mask = (tmp_z_cam_clipped < 0) & (
+                -tmp_z_cam_clipped >= 1e-4
+            )
+            if not numpy.any(tmp_div_mask):
+                continue
+
+            tmp_x_cam_div = tmp_x_cam_clipped[tmp_div_mask]
+            tmp_y_cam_div = tmp_y_cam_clipped[tmp_div_mask]
+            tmp_z_cam_div = tmp_z_cam_clipped[tmp_div_mask]
+
+            tmp_aspect = float(width) / float(height)
+            tmp_tan_fov = math.tan(math.radians(fov / 2.0))
+
+            if is_ortho:
+                tmp_h_half = -tmp_cam_orig[2] * tmp_tan_fov
+            else:
+                tmp_h_half = -tmp_z_cam_div * tmp_tan_fov
+
+            tmp_w_half = tmp_h_half * tmp_aspect
+
+            tmp_x_ndc = tmp_x_cam_div / tmp_w_half
+            tmp_y_ndc = tmp_y_cam_div / tmp_h_half
+
+            # Convert NDC to viewport pixels
+            tmp_screen_x = (tmp_x_ndc + 1.0) * width / 2.0
+            tmp_screen_y = (1.0 - tmp_y_ndc) * height / 2.0
+
+            # Filter out points that fall outside viewport bounds
+            tmp_on_screen_mask = (
+                (tmp_screen_x >= 0)
+                & (tmp_screen_x <= width)
+                & (tmp_screen_y >= 0)
+                & (tmp_screen_y <= height)
+            )
+            if not numpy.any(tmp_on_screen_mask):
+                continue
+
+            tmp_screen_x_visible = tmp_screen_x[tmp_on_screen_mask]
+            tmp_screen_y_visible = tmp_screen_y[tmp_on_screen_mask]
+
+            tmp_min_x = float(numpy.min(tmp_screen_x_visible))
+            tmp_max_x = float(numpy.max(tmp_screen_x_visible))
+            tmp_min_y = float(numpy.min(tmp_screen_y_visible))
+            tmp_max_y = float(numpy.max(tmp_screen_y_visible))
+
+            tmp_bboxes.append((tmp_min_x, tmp_min_y, tmp_max_x, tmp_max_y))
+
+        return tmp_bboxes
+
+    def _poll_camera(self) -> None:
+        """Polls PyMOL view and hides flyouts/restarts timer on camera change."""
+        try:
+            tmp_view = list(self._cmd.get_view(quiet=1))
+        except Exception:
+            return
+
+        if (
+            self._cached_camera_view is None
+            or tmp_view[0:12] != self._cached_camera_view[0:12]
+        ):
+            self._cached_camera_view = tmp_view
+            self._hide_flyouts_instantly()
+            self._debounce_timer.start(300)
+
+    def _hide_flyouts_instantly(self) -> None:
+        """Hides all active flyouts immediately without deleting them."""
+        for tmp_flyout in self._flyouts:
+            tmp_flyout.hide()
+
+    def handle_resize(self) -> None:
+        """Handles widget resize events by hiding flyouts and restarting timer."""
+        self._hide_flyouts_instantly()
+        self._debounce_timer.start(300)
+
+    def _on_camera_still(self) -> None:
+        """Calculates bboxes and positions/shows flyouts once camera is still."""
+        if not self._flyouts or not self._selection_name:
+            return
+
+        tmp_current_state = int(self._cmd.get_state())
+        if (
+            self._cached_coords_3d is None
+            or tmp_current_state != self._cached_state
+        ):
+            try:
+                tmp_coords = self._cmd.get_coords(
+                    self._selection_name, state=tmp_current_state
+                )
+                if tmp_coords is not None:
+                    self._cached_coords_3d = numpy.array(tmp_coords)
+                else:
+                    self._cached_coords_3d = None
+            except Exception:
+                self._cached_coords_3d = None
+            self._cached_state = tmp_current_state
+
+        if self._cached_coords_3d is None or len(self._cached_coords_3d) == 0:
+            self._hide_flyouts_instantly()
+            return
+
+        try:
+            tmp_view = list(self._cmd.get_view(quiet=1))
+            tmp_is_ortho = bool(self._cmd.get_setting_boolean("orthoscopic"))
+            tmp_view_17 = float(tmp_view[17])
+            if abs(tmp_view_17) > 1.0:
+                tmp_fov = abs(tmp_view_17)
+            else:
+                tmp_fov = float(self._cmd.get_setting_float("field_of_view"))
+        except Exception:
+            return
+
+        tmp_w = self.width()
+        tmp_h = self.height()
+
+        tmp_bboxes = self._calculate_cluster_bboxes(
+            self._cached_coords_3d,
+            tmp_view,
+            tmp_is_ortho,
+            tmp_fov,
+            tmp_w,
+            tmp_h,
+        )
+
+        tmp_margin = styles.dp(8)
+
+        for tmp_idx, tmp_flyout in enumerate(self._flyouts):
+            if tmp_idx >= len(tmp_bboxes):
+                tmp_flyout.hide()
+                continue
+
+            tmp_min_x, tmp_min_y, tmp_max_x, tmp_max_y = tmp_bboxes[tmp_idx]
+            tmp_center_x = (tmp_min_x + tmp_max_x) / 2.0
+
+            tmp_flyout_w = tmp_flyout.width()
+            tmp_flyout_h = tmp_flyout.height()
+
+            tmp_x = int(tmp_center_x - tmp_flyout_w / 2.0)
+
+            # Vertically flip to bottom if top touches viewport top boundary
+            if tmp_min_y <= 0:
+                tmp_y = int(tmp_max_y + tmp_margin)
+            else:
+                tmp_y = int(tmp_min_y - tmp_flyout_h - tmp_margin)
+                if tmp_y < 0:
+                    tmp_y = int(tmp_max_y + tmp_margin)
+
+            # Clamp coordinates within screen boundaries
+            tmp_x = max(0, min(tmp_x, tmp_w - tmp_flyout_w))
+            tmp_y = max(0, min(tmp_y, tmp_h - tmp_flyout_h))
+
+            tmp_flyout.move(tmp_x, tmp_y)
+            tmp_flyout.show()
+            tmp_flyout.raise_()
+
+    @override
+    def hideEvent(self, event: QtGui.QHideEvent) -> None:
+        """Stops the timers and hides flyout widgets without deleting them.
+
+        Args:
+            event: The QHideEvent instance.
+        """
+        self._poll_timer.stop()
+        self._debounce_timer.stop()
+        self._hide_flyouts_instantly()
+        super().hideEvent(event)
+
+    @override
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        """Starts the timers and schedules layout calculations immediately.
+
+        Args:
+            event: The QShowEvent instance.
+        """
+        super().showEvent(event)
+        if self._selection_name:
+            self._poll_timer.start()
+            QtCore.QTimer.singleShot(50, self._on_camera_still)
+
+    def cleanup(self) -> None:
+        """Stops timers and deletes all floating flyouts from PyMOLGLWidget."""
+        self._poll_timer.stop()
+        self._debounce_timer.stop()
+
+        for tmp_flyout in self._flyouts:
+            tmp_flyout.hide()
+            tmp_flyout.deleteLater()
+
+        self._flyouts.clear()
+        self._selection_name = ""
+
 
 class PyMOLWidgetEventFilter(QtCore.QObject):
     """Event filter to synchronize ConvexHullOverlay with PyMOLGLWidget."""
 
-    def __init__(self, overlay_widget: QtWidgets.QWidget) -> None:
+    def __init__(self, overlay_widget: ConvexHullOverlay) -> None:
         """Initializes the event filter.
 
         Args:
@@ -438,4 +766,6 @@ class PyMOLWidgetEventFilter(QtCore.QObject):
             self._overlay.setGeometry(watched.rect())
             self._overlay.raise_()
             self._overlay.update()
+            if event.type() == QtCore.QEvent.Type.Resize:
+                self._overlay.handle_resize()
         return False
