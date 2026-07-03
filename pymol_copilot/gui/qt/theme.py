@@ -118,10 +118,8 @@ class ThemeMetrics:
 class StyleId(enum.StrEnum):
     """Typesafe identifier names for QSS object names."""
 
-    PANEL_CLOSE_BUTTON = "PanelCloseButton"
-    PANEL_HEADER_LABEL = "PanelHeaderLabel"
-    PANEL_SURFACE = "PanelSurface"
-    SPLITTER_HANDLE = "SplitterHandle"
+    BASIC_BUTTON = "BasicButton"
+    ACCENT_BUTTON = "AccentButton"
     COMMAND_BAR = "CommandBar"
     COMMAND_BAR_OUTER = "CommandBarOuter"
     SPLIT_BUTTON_MAIN = "SplitButtonMain"
@@ -130,11 +128,40 @@ class StyleId(enum.StrEnum):
     DROPDOWN_BUTTON_UNDER = "DropdownButtonTextUnder"
     DROPDOWN_BUTTON_BESIDE = "DropdownButtonTextBeside"
     FLYOUT_FRAME = "FlyoutFrame"
+    # Maybe outdated
+    PANEL_CLOSE_BUTTON = "PanelCloseButton"
+    PANEL_HEADER_LABEL = "PanelHeaderLabel"
+    PANEL_SURFACE = "PanelSurface"
+    SPLITTER_HANDLE = "SplitterHandle"
     MENU_BLOCK = "MenuBlock"
     TOOLBAR_BLOCK = "ToolbarBlock"
 
-
+# TODO: There is an issue with the font-color of the accent button
+#  because that is black but it must be white, and I am not sure how to handle
+#  that with the light and dark theme.
 GLOBAL_STYLESHEET_TEMPLATE = f"""
+QPushButton#{StyleId.BASIC_BUTTON} {{
+    background-color: #fbfbfb;
+    border: 1px solid #cccccc;
+    border-radius: ${{padding_small}};
+    min-height: 22px;
+}}
+QPushButton#{StyleId.BASIC_BUTTON}:hover {{
+    background-color: #f6f6f6;
+    border: 1px solid #e5e5e5;
+}}
+
+QPushButton#{StyleId.ACCENT_BUTTON} {{
+    background-color: #0067c0;
+    border: 1px solid #0067c0;
+    border-radius: ${{padding_small}};
+    min-height: 22px;
+}}
+QPushButton#{StyleId.ACCENT_BUTTON}:hover {{
+    background-color: #007be6;
+    border: 1px solid #007be6;
+}}
+
 QPushButton#{StyleId.PANEL_CLOSE_BUTTON} {{
     background-color: rgba(220, 219, 227, 0.01);
     border: none;

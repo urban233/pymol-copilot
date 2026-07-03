@@ -5,7 +5,7 @@ from __future__ import annotations
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
-from pymol_copilot.gui.qt.widgets import command_bar, auto_expanding_text_edit
+from pymol_copilot.gui.qt.widgets import command_bar, auto_expanding_text_edit, button
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
 
@@ -35,6 +35,9 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_highlight_btn.clicked.connect(self.highlight_sele)
         tmp_layout.addWidget(tmp_highlight_btn)
+
+        tmp_button = button.AccentButton("Test")
+        tmp_layout.addWidget(tmp_button)
 
         self.viewer = viewer.Viewer()
         tmp_layout.addWidget(self.viewer)
