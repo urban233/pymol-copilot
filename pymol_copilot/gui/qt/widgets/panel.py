@@ -15,10 +15,10 @@
 #
 # ==============================================================================
 #
-"""Panel widget block providing collapsible side and bottom tool panels.
+"""Panel widget providing collapsible side and bottom tool panels.
 
-This module contains the PanelBlock class, which represents a collapsible panel
-with a titled header and a close button. It can be used anywhere, for example
+This module contains the Panel class, which represents a collapsible panel
+with a titled header and a close button. It can be used anywhere, for example,
 as a side or bottom panel.
 
 The block emits panelClosed and panelOpened signals and exposes a
@@ -37,7 +37,7 @@ from pymol_copilot.gui.qt import theme
 __docformat__ = "google"
 
 
-class PanelBlock(QtWidgets.QWidget):
+class Panel(QtWidgets.QWidget):
     """A collapsible panel with a titled header and close button.
 
     The panel is composed of a horizontal header row (title label + stretch +

@@ -128,10 +128,12 @@ class StyleId(enum.StrEnum):
     DROPDOWN_BUTTON_UNDER = "DropdownButtonTextUnder"
     DROPDOWN_BUTTON_BESIDE = "DropdownButtonTextBeside"
     FLYOUT_FRAME = "FlyoutFrame"
-    # Maybe outdated
     PANEL_CLOSE_BUTTON = "PanelCloseButton"
     PANEL_HEADER_LABEL = "PanelHeaderLabel"
     PANEL_SURFACE = "PanelSurface"
+    INPUT_BAR_TEXT_BOX = "InputBarTextBox"
+    INPUT_BAR = "InputBar"
+    # Maybe outdated
     SPLITTER_HANDLE = "SplitterHandle"
     MENU_BLOCK = "MenuBlock"
     TOOLBAR_BLOCK = "ToolbarBlock"
@@ -139,6 +141,7 @@ class StyleId(enum.StrEnum):
 # TODO: There is an issue with the font-color of the accent button
 #  because that is black but it must be white, and I am not sure how to handle
 #  that with the light and dark theme.
+
 GLOBAL_STYLESHEET_TEMPLATE = f"""
 QPushButton#{StyleId.BASIC_BUTTON} {{
     background-color: #fbfbfb;
@@ -378,8 +381,31 @@ QMenu QLabel {{
     background-color: ${{hover}};
     color: ${{text_primary}};
 }}
-"""
 
+QPlainTextEdit#{StyleId.INPUT_BAR_TEXT_BOX} {{
+border: none;
+    background-color: transparent;
+    color: #1f1f1f;
+    padding: 0px;
+}}
+
+QPlainTextEdit#{StyleId.INPUT_BAR_TEXT_BOX}:focus {{
+border: none;
+    outline: none;
+}}
+
+QPlainTextEdit#{StyleId.INPUT_BAR_TEXT_BOX} QScrollBar:horizontal {{
+height: 0px;
+    background: transparent;
+}}
+
+QFrame#{StyleId.INPUT_BAR} {{
+    border: ${{border_width}} solid ${{border_color}};
+    background-color: ${{surface}};
+    border-radius: 17px;
+    padding: ${{padding_small}};
+}}
+"""
 
 def compile_stylesheet(template: str) -> str:
     """Formats a QSS template using static ThemeColors and ThemeMetrics.

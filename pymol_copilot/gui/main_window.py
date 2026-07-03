@@ -6,7 +6,7 @@ from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.model import list_model
-from pymol_copilot.gui.qt.widgets import command_bar, auto_expanding_text_edit, button, list_view
+from pymol_copilot.gui.qt.widgets import command_bar, button, list_view, text_box, input_bar
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
 
@@ -40,12 +40,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.viewer = viewer.Viewer()
         tmp_layout.addWidget(self.viewer)
-
-        # Input test
-        self.input = auto_expanding_text_edit.AutoExpandingTextEdit(
-            max_visible_rows=7
-        )
-        self.input.setPlaceholderText("Message... (Shift+Enter for a new line)")
         tmp_layout.addWidget(self.input)
 
     def highlight_sele(self) -> None:
@@ -177,7 +171,8 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_layout.addWidget(tmp_command_bar)
         # --- Begin content
-
+        tmp_text_box = input_bar.InputBar()
+        tmp_layout.addWidget(tmp_text_box)
         # --- End content
         tmp_layout.addStretch(1)
         # tmp_label = QtWidgets.QLabel("PyMOL Copilot")
