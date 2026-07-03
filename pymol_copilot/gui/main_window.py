@@ -153,6 +153,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # List view with search:
         search_view = list_view.ListViewWithSearch()
         search_view.set_model(model)
+        search_view.set_checkboxes_enabled(True)
         tmp_list_flyout_layout.addWidget(search_view)
         tmp_list_flyout.set_content(tmp_list_flyout_content)
         tmp_highlight_btn.set_flyout(tmp_list_flyout)
