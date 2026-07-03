@@ -15,23 +15,23 @@
 #
 # ==============================================================================
 #
-"""List view widget blocks for use with ListModelBlock.
+"""List view widgets for use with ListModel.
 
 This module provides:
 
-* ListViewBlock - a plain QListView pre-configured for use with ListModelBlock.
-* ListViewWithSearchBlock - a composite widget that stacks a search field
-  above a ListViewBlock and filters the model in real time as the user types,
+* ListView - a plain QListView pre-configured for use with ListModel.
+* ListViewWithSearch - a composite widget that stacks a search field
+  above a ListView and filters the model in real time as the user types,
   without requiring a proxy model.
 
 Design rationale:
 QListView requires very little boilerplate to work correctly with
 QAbstractListModel, but callers commonly repeat the same setup steps
-(selection mode, resize mode, no wrapping, word-wrap policy). ListViewBlock
+(selection mode, resize mode, no wrapping, word-wrap policy). ListView
 bakes in sensible defaults so that the caller only needs to set a model
 and connect to item_activated.
 
-ListViewWithSearchBlock additionally avoids the overhead of a
+ListViewWithSearch additionally avoids the overhead of a
 QSortFilterProxyModel by filtering the source model's items lazily:
 the view is simply told to hide rows that do not match via a custom
 _RowFilterDelegate that is only active while a search string is
@@ -40,18 +40,18 @@ natural height.
 
 Typical usage:
 
-    from tkblocks.qt.model import list as list_model
-    from pymol_copilot.gui.qt.widgets.list import ListViewBlock
-    from pymol_copilot.gui.qt.widgets.list import ListViewWithSearchBlock
+    from pymol_copilot.gui.qt.model import list as list_model
+    from pymol_copilot.gui.qt.widgets.list import ListView
+    from pymol_copilot.gui.qt.widgets.list import ListViewWithSearch
 
     # Plain list view:
-    model = list_model.ListModelBlock(initial_data=["Alice", "Bob", "Carol"])
-    view = ListViewBlock()
+    model = list_model.ListModel(initial_data=["Alice", "Bob", "Carol"])
+    view = ListView()
     view.set_model(model)
     view.item_activated.connect(lambda item: print("selected:", item))
 
     # List view with search:
-    search_view = ListViewWithSearchBlock()
+    search_view = ListViewWithSearch()
     search_view.set_model(model)
 """
 
@@ -70,8 +70,8 @@ logger = logging.getLogger(__name__)
 __docformat__ = "google"
 
 
-class ListViewBlock(QtWidgets.QListView):
-    """A QListView pre-configured for use with ListModelBlock.
+class ListView(QtWidgets.QListView):
+    """A QListView pre-configured for use with ListModel.
 
     Provides sensible defaults (single selection, uniform row heights,
     no wrapping) and a convenience signal item_activated that
@@ -85,8 +85,8 @@ class ListViewBlock(QtWidgets.QListView):
             user double-clicks or presses Enter on a row.
 
     Example:
-        model = list_model.ListModelBlock(initial_data=my_strings)
-        view = ListViewBlock()
+        model = list_model.ListModel(initial_data=my_strings)
+        view = ListView()
         view.set_model(model)
         view.item_activated.connect(on_item_selected)
     """
@@ -107,8 +107,8 @@ class ListViewBlock(QtWidgets.QListView):
         self._connect_signals()
 
     # <editor-fold desc="Public methods">
-    def set_model(self, model: "list_model.ListModelBlock") -> None:
-        """Attach a ListModelBlock to this view.
+    def set_model(self, model: "list_model.ListModel") -> None:
+        """Attach a ListModel to this view.
 
         Calling this method is preferred over calling setModel directly
         because it validates the model type.
@@ -187,8 +187,8 @@ class ListViewBlock(QtWidgets.QListView):
     # </editor-fold>
 
 
-class ListViewWithSearchBlock(QtWidgets.QWidget):
-    """A composite widget combining a search field with a ListViewBlock.
+class ListViewWithSearch(QtWidgets.QWidget):
+    """A composite widget combining a search field with a ListView.
 
     The search field filters rows in real time by hiding those whose display
     text does not contain the typed substring (case-insensitive). Filtering
@@ -197,12 +197,12 @@ class ListViewWithSearchBlock(QtWidgets.QWidget):
 
     Attributes:
         search_field: The QLineEdit used for filtering.
-        list_view: The inner ListViewBlock.
+        list_view: The inner ListView.
         item_activated: Forwarded from list_view - emits the raw
             item object when the user activates a row.
 
     Example:
-        widget = ListViewWithSearchBlock()
+        widget = ListViewWithSearch()
         widget.set_model(my_model)
         widget.item_activated.connect(on_item_selected)
     """
@@ -220,16 +220,16 @@ class ListViewWithSearchBlock(QtWidgets.QWidget):
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
-        self._model: Optional["list_model.ListModelBlock"] = None
+        self._model: Optional["list_model.ListModel"] = None
         self.search_field = QtWidgets.QLineEdit()
-        self.list_view = ListViewBlock()
+        self.list_view = ListView()
         # </editor-fold>
         self._init_widget()
         self._connect_signals()
 
     # <editor-fold desc="Public methods">
-    def set_model(self, model: "list_model.ListModelBlock") -> None:
-        """Attach a ListModelBlock to the inner list view.
+    def set_model(self, model: "list_model.ListModel") -> None:
+        """Attach a ListModel to the inner list view.
 
         Also connects the model's modelReset and rowsInserted
         signals so that the filter is re-applied whenever the data changes.
@@ -252,7 +252,7 @@ class ListViewWithSearchBlock(QtWidgets.QWidget):
     # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget layout and child components."""
-        self.search_field.setPlaceholderText("Search…")
+        self.search_field.setPlaceholderText("Search ...")
         self.search_field.setClearButtonEnabled(True)
 
         tmp_layout = QtWidgets.QVBoxLayout(self)

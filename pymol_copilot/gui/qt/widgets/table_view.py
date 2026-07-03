@@ -15,22 +15,22 @@
 #
 # ==============================================================================
 #
-"""Provide table view widget blocks for table models.
+"""Provide table view widgets for table models.
 
-This module provides TableViewBlock (a QTableView pre-configured for use with
-table_model.TableModelBlock and SortFilterProxyBlock) and TableViewWithToolbarBlock
-(a composite widget that places a configurable toolbar row above a TableViewBlock).
-The toolbar contains a search field that filters rows in real time via a
-SortFilterProxyBlock and an optional area for custom action buttons.
+This module provides TableView (a QTableView pre-configured for use with
+table_model.TableModel and SortFilterProxy) and TableViewWithToolbar (a composite widget
+that places a configurable toolbar row above a TableView). The toolbar contains a search
+field that filters rows in real time via a SortFilterProxy and an optional area for
+custom action buttons.
 
 Notes:
     Design rationale:
     QTableView starts with many UI affordances switched on (grid lines,
     stretch-last-column, alternating row colors) that callers then have to
-    turn off one by one. TableViewBlock inverts this: it starts from
+    turn off one by one. TableView inverts this: it starts from
     a clean baseline and lets callers opt-in to extras.
 
-TableViewWithToolbarBlock follows the same pattern used by
+TableViewWithToolbar follows the same pattern used by
 ListViewWithSearchBlock: filtering happens via QSortFilterProxyModel rather than
 row-hiding because table data usually has enough columns that a proxy's index
 mapping is the correct abstraction.
@@ -41,7 +41,7 @@ Example:
     from pymol_copilot.gui.qt.model import table_model
     from pymol_copilot.gui.qt.widgets import table_view
 
-    class JobTableModel(table_model.TableModelBlock):
+    class JobTableModel(table_model.TableModel):
         def _cell_data(self, item, column):
             return [item.name, item.status, item.project][column]
 
@@ -49,11 +49,11 @@ Example:
     model.add_rows(jobs)
 
     # Plain table:
-    view = table_view.TableViewBlock()
+    view = table_view.TableView()
     view.set_model(model)
 
     # Table with toolbar search + proxy:
-    combo = table_view.TableViewWithToolbarBlock(filter_column=1)
+    combo = table_view.TableViewWithToolbar(filter_column=1)
     combo.set_model(model)
 """
 
@@ -72,8 +72,8 @@ logger = logging.getLogger(__name__)
 __docformat__ = "google"
 
 
-class TableViewBlock(QtWidgets.QTableView):
-    """A QTableView pre-configured for use with TableModelBlock.
+class TableView(QtWidgets.QTableView):
+    """A QTableView pre-configured for use with TableModel.
 
     Starts from a minimal-chrome baseline:
     Alternating row colors are disabled (easy to re-enable via stylesheet).
@@ -92,7 +92,7 @@ class TableViewBlock(QtWidgets.QTableView):
 
     Example:
         model = MyTableModel(column_headers=["Name", "Value"])
-        view = TableViewBlock()
+        view = TableView()
         view.set_model(model)
         view.row_activated.connect(lambda item: print(item))
     """
@@ -114,9 +114,9 @@ class TableViewBlock(QtWidgets.QTableView):
     # <editor-fold desc="Public methods">
     def set_model(
         self,
-        model: table_model.TableModelBlock | table_model.SortFilterProxyBlock,
+        model: table_model.TableModel | table_model.SortFilterProxy,
     ) -> None:
-        """Attach a TableModelBlock or SortFilterProxyBlock.
+        """Attach a TableModel or SortFilterProxy.
 
         Passing a proxy is the recommended path when you need sorting or
         multi-criterion filtering; the raw model is fine for simple cases.
@@ -208,11 +208,11 @@ class TableViewBlock(QtWidgets.QTableView):
     # </editor-fold>
 
 
-class TableViewWithToolbarBlock(QtWidgets.QWidget):
-    """A composite widget combining a toolbar with a TableViewBlock.
+class TableViewWithToolbar(QtWidgets.QWidget):
+    """A composite widget combining a toolbar with a TableView.
 
     The toolbar row contains a QLineEdit search field that filters displayed
-    rows in real time using a SortFilterProxyBlock, and a right-aligned
+    rows in real time using a SortFilterProxy, and a right-aligned
     QHBoxLayout slot (toolbar_actions_layout) where callers can insert custom
     QPushButton or QAction widgets.
 
@@ -222,12 +222,12 @@ class TableViewWithToolbarBlock(QtWidgets.QWidget):
 
     Attributes:
         search_field: The QLineEdit for live filtering.
-        table_view: The inner TableViewBlock.
+        table_view: The inner TableView.
         toolbar_actions_layout: Right-aligned QHBoxLayout for custom buttons.
         row_activated: Forwarded from table_view.
 
     Example:
-        combo = TableViewWithToolbarBlock(filter_column=2)
+        combo = TableViewWithToolbar(filter_column=2)
         combo.set_model(my_table_model)
 
         refresh_btn = QPushButton("Refresh")
@@ -255,27 +255,27 @@ class TableViewWithToolbarBlock(QtWidgets.QWidget):
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
         self._filter_column: int = filter_column
-        self._proxy: Optional[table_model.SortFilterProxyBlock] = None
+        self._proxy: table_model.SortFilterProxy | None = None
         self.search_field: QtWidgets.QLineEdit = QtWidgets.QLineEdit()
         self.toolbar_actions_layout: QtWidgets.QHBoxLayout = (
             QtWidgets.QHBoxLayout()
         )
-        self.table_view: TableViewBlock = TableViewBlock()
+        self.table_view: TableView = TableView()
         # </editor-fold>
         self._init_widget()
         self._connect_signals()
 
     # <editor-fold desc="Public methods">
-    def set_model(self, model: table_model.TableModelBlock) -> None:
-        """Attach a TableModelBlock and wire up the search proxy.
+    def set_model(self, model: table_model.TableModel) -> None:
+        """Attach a TableModel and wire up the search proxy.
 
-        A SortFilterProxyBlock is created automatically and set as the view's
+        A SortFilterProxy is created automatically and set as the view's
         model. The raw model is set as the proxy's source model.
 
         Args:
             model: The table model to display and filter.
         """
-        self._proxy = table_model.SortFilterProxyBlock()
+        self._proxy = table_model.SortFilterProxy()
         self._proxy.setSourceModel(model)
 
         if self._filter_column >= 0:
@@ -307,7 +307,7 @@ class TableViewWithToolbarBlock(QtWidgets.QWidget):
     # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget layout and child components."""
-        self.search_field.setPlaceholderText("Search…")
+        self.search_field.setPlaceholderText("Search ...")
         self.search_field.setClearButtonEnabled(True)
         self.search_field.setVisible(self._filter_column >= 0)
 

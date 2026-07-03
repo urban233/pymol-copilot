@@ -17,7 +17,7 @@
 #
 """Provide list model blocks for QListView-backed data.
 
-This module provides the ListModelBlock base class - a
+This module provides the ListModel base class - a
 high-performance, low-memory-footprint flat list model for use with
 QListView and QComboBox.
 
@@ -26,7 +26,7 @@ Notes:
     The legacy SequenceModel and PSASequenceModel subclass
     QStandardItemModel, which allocates one QStandardItem C++ object per
     row. For large datasets this causes significant heap fragmentation.
-    ListModelBlock stores all items in a plain Python list and only
+    ListModel stores all items in a plain Python list and only
     talks to Qt's C++ layer when the view requests a repaint - a pure
     data-oriented approach that keeps item count from affecting memory
     in any meaningful way.
@@ -35,7 +35,7 @@ Notes:
     Typical usage:
 
     # Flat string list, display each item as-is:
-    class NameListModel(ListModelBlock):
+    class NameListModel(ListModel):
         def _display_text(self, item: object) -> str:
             return item.full_name  # type: ignore[union-attr]
 
@@ -57,7 +57,7 @@ logger = logging.getLogger(__name__)
 __docformat__ = "google"
 
 
-class ListModelBlock(QtCore.QAbstractListModel):
+class ListModel(QtCore.QAbstractListModel):
     """A flat list model for QListView and QComboBox.
 
     Stores every item in a plain Python list - no QStandardItem
@@ -73,7 +73,7 @@ class ListModelBlock(QtCore.QAbstractListModel):
         _items: Internal storage for all row objects.
 
     Example:
-        model = ListModelBlock(initial_data=["Alice", "Bob", "Carol"])
+        model = ListModel(initial_data=["Alice", "Bob", "Carol"])
         list_view.setModel(model)
 
         model.add_item("Dave")
@@ -181,7 +181,7 @@ class ListModelBlock(QtCore.QAbstractListModel):
         self.beginInsertRows(QtCore.QModelIndex(), tmp_row, tmp_row)
         self._items.append(item)
         self.endInsertRows()
-        logger.debug("ListModelBlock: item appended at row %d.", tmp_row)
+        logger.debug("ListModel: item appended at row %d.", tmp_row)
         return tmp_row
 
     def add_items(self, items: list[object]) -> None:
@@ -209,7 +209,7 @@ class ListModelBlock(QtCore.QAbstractListModel):
         self._items.extend(items)
         self.endInsertRows()
         logger.debug(
-            "ListModelBlock: %d items appended (rows %d-%d).",
+            "ListModel: %d items appended (rows %d-%d).",
             len(items),
             tmp_first_row,
             tmp_last_row,
@@ -232,7 +232,7 @@ class ListModelBlock(QtCore.QAbstractListModel):
         self.beginRemoveRows(QtCore.QModelIndex(), row, row)
         del self._items[row]
         self.endRemoveRows()
-        logger.debug("ListModelBlock: item at row %d removed.", row)
+        logger.debug("ListModel: item at row %d removed.", row)
 
     def remove_items(self, row: int, count: int) -> None:
         """Remove a block of items from the model in a single batch.
@@ -263,7 +263,7 @@ class ListModelBlock(QtCore.QAbstractListModel):
         del self._items[row : row + count]
         self.endRemoveRows()
         logger.debug(
-            "ListModelBlock: %d items removed starting at row %d.",
+            "ListModel: %d items removed starting at row %d.",
             count,
             row,
         )
@@ -279,7 +279,7 @@ class ListModelBlock(QtCore.QAbstractListModel):
         self.beginResetModel()
         self._items.clear()
         self.endResetModel()
-        logger.debug("ListModelBlock: all items cleared.")
+        logger.debug("ListModel: all items cleared.")
 
     def item(self, row: int) -> object:
         """Return the raw item stored at row.

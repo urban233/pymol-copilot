@@ -5,7 +5,8 @@ from __future__ import annotations
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
-from pymol_copilot.gui.qt.widgets import command_bar, auto_expanding_text_edit, button
+from pymol_copilot.gui.qt.model import list_model
+from pymol_copilot.gui.qt.widgets import command_bar, auto_expanding_text_edit, button, list_view
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
 
@@ -19,7 +20,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("PyMOL Copilot")
         self.resize(800, 600)
 
-        self._setup_ui()
+        # self._setup_ui()
+        self._setup_ui_mock()
 
     def _setup_ui(self) -> None:
         # <editor-fold desc="General central layout">
@@ -35,9 +37,6 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_highlight_btn.clicked.connect(self.highlight_sele)
         tmp_layout.addWidget(tmp_highlight_btn)
-
-        tmp_button = button.AccentButton("Test")
-        tmp_layout.addWidget(tmp_button)
 
         self.viewer = viewer.Viewer()
         tmp_layout.addWidget(self.viewer)
@@ -116,7 +115,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "View",
             command_bar.CommandBarButtonStyle.TEXT_BESIDE,
         )
-        tmp_dropdown_flyout = FlyoutFrame(shadow=False)
+        tmp_list_flyout = FlyoutFrame(shadow=False)
         tmp_dropdown_flyout_content = QtWidgets.QWidget()
         tmp_dropdown_flyout_layout = QtWidgets.QVBoxLayout(
             tmp_dropdown_flyout_content
@@ -130,8 +129,8 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_dropdown_flyout_layout.addWidget(
             QtWidgets.QCheckBox("Stick representation")
         )
-        tmp_dropdown_flyout.set_content(tmp_dropdown_flyout_content)
-        tmp_dropdown_flyout_btn.set_flyout(tmp_dropdown_flyout)
+        tmp_list_flyout.set_content(tmp_dropdown_flyout_content)
+        tmp_dropdown_flyout_btn.set_flyout(tmp_list_flyout)
 
         tmp_toggle_btn = command_bar.CommandBarToggleButton(
             icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
@@ -139,10 +138,27 @@ class MainWindow(QtWidgets.QMainWindow):
             command_bar.CommandBarButtonStyle.TEXT_BESIDE,
         )
 
-        tmp_highlight_btn = command_bar.CommandBarActionButton(
+        tmp_highlight_btn = command_bar.CommandBarDropdownButton(
             icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
             "Highlight",
+            command_bar.CommandBarButtonStyle.ICON_ONLY,
         )
+        tmp_list_flyout = FlyoutFrame(shadow=False)
+        tmp_list_flyout_content = QtWidgets.QWidget()
+        tmp_list_flyout_layout = QtWidgets.QVBoxLayout(
+            tmp_list_flyout_content
+        )
+        tmp_list_flyout_layout.setSpacing(4)
+        tmp_list_flyout_layout.setContentsMargins(0, 0, 0, 0)
+
+        model = list_model.ListModel(initial_data=["Alice", "Bob", "Carol"])
+        # List view with search:
+        search_view = list_view.ListViewWithSearch()
+        search_view.set_model(model)
+        tmp_list_flyout_layout.addWidget(search_view)
+        tmp_list_flyout.set_content(tmp_list_flyout_content)
+        tmp_highlight_btn.set_flyout(tmp_list_flyout)
+
         tmp_command_bar = command_bar.CommandBar(
             [
                 tmp_highlight_btn,
@@ -160,6 +176,9 @@ class MainWindow(QtWidgets.QMainWindow):
             tmp_central_widget,
         )
         tmp_layout.addWidget(tmp_command_bar)
+        # --- Begin content
+
+        # --- End content
         tmp_layout.addStretch(1)
         # tmp_label = QtWidgets.QLabel("PyMOL Copilot")
         # tmp_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)

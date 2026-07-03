@@ -19,16 +19,16 @@
 
 This module provides three classes:
 
-TableModelBlock is a column-aware table model
+TableModel is a column-aware table model
 that stores row objects in a plain Python list and delegates all
 cell-data extraction to a single subclass hook, so no cell-level objects
 are ever allocated.
 
-NumpyTableModelBlock is a column-aware table model
+NumpyTableModel is a column-aware table model
 that stores all rows in a contiguous 2D numpy.ndarray. Data types are
 strictly enforced.
 
-SortFilterProxyBlock is a thin QSortFilterProxyModel subclass
+SortFilterProxy is a thin QSortFilterProxyModel subclass
 that filters rows by matching a configurable column's display text against
 an accepted-values set. It replaces the legacy ActiveJobsProxyModel
 and CompletedJobsProxyModel pair with a single, reusable class.
@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 __docformat__ = "google"
 
 
-class TableModelBlock(QtCore.QAbstractTableModel):
+class TableModel(QtCore.QAbstractTableModel):
     """A column-aware table model for QTableView.
 
     Stores all rows in a plain Python list.  Each element represents one
@@ -72,7 +72,7 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         _sort_key: Optional callable used by sort.
 
     Example:
-        class JobTable(TableModelBlock):
+        class JobTable(TableModel):
             def _cell_data(self, item: object, column: int) -> object:
                 job = item  # type: Job
                 values = [
@@ -291,7 +291,7 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         self._items.append(item)
         self.endInsertRows()
         logger.debug(
-            "TableModelBlock: row successfully appended at index %d.", row
+            "TableModel: row successfully appended at index %d.", row
         )
         return row
 
@@ -319,7 +319,7 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         self._items.extend(items)
         self.endInsertRows()
         logger.debug(
-            "TableModelBlock: %d rows successfully appended (rows %d-%d).",
+            "TableModel: %d rows successfully appended (rows %d-%d).",
             len(items),
             first_row,
             last_row,
@@ -342,7 +342,7 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         self.beginRemoveRows(QtCore.QModelIndex(), row, row)
         del self._items[row]
         self.endRemoveRows()
-        logger.debug("TableModelBlock: row %d successfully removed.", row)
+        logger.debug("TableModel: row %d successfully removed.", row)
 
     def clear(self) -> None:
         """Remove all rows from the model.
@@ -354,7 +354,7 @@ class TableModelBlock(QtCore.QAbstractTableModel):
         self.beginResetModel()
         self._items.clear()
         self.endResetModel()
-        logger.debug("TableModelBlock: all rows successfully cleared.")
+        logger.debug("TableModel: all rows successfully cleared.")
 
     def row_item(self, row: int) -> object:
         """Return the raw item stored at row.
@@ -438,7 +438,7 @@ class TableModelBlock(QtCore.QAbstractTableModel):
     # </editor-fold>
 
 
-class NumpyTableModelBlock(QtCore.QAbstractTableModel):
+class NumpyTableModel(QtCore.QAbstractTableModel):
     """A column-aware, performance-aware table model backed by a NumPy array.
 
     Stores all rows in a contiguous 2D numpy.ndarray. Columns/headers must
@@ -625,7 +625,7 @@ class NumpyTableModelBlock(QtCore.QAbstractTableModel):
         """
         _ = headers
         raise RuntimeError(
-            "Headers and columns are immutable for NumpyTableModelBlock."
+            "Headers and columns are immutable for NumpyTableModel."
         )
 
     def add_row(self, item: Any) -> int:
@@ -802,7 +802,7 @@ def create_list_table_model(
     initial_data: Optional[list[object]] = None,
     sort_key: Optional[Callable[[object], Any]] = None,
     parent: Optional[QtCore.QObject] = None,
-) -> "TableModelBlock":
+) -> "TableModel":
     """Create a table model backed by a Python list.
 
     Args:
@@ -812,9 +812,9 @@ def create_list_table_model(
         parent: Optional Qt parent object.
 
     Returns:
-        An instance of TableModelBlock.
+        An instance of TableModel.
     """
-    model: TableModelBlock = TableModelBlock(
+    model: TableModel = TableModel(
         column_headers=column_headers,
         sort_key=sort_key,
         parent=parent,
@@ -830,20 +830,20 @@ def create_numpy_table_model(
     dtype: Optional[npt.DTypeLike] = None,
     sort_key: Optional[Callable[[object], Any]] = None,
     parent: Optional[QtCore.QObject] = None,
-) -> "NumpyTableModelBlock":
+) -> "NumpyTableModel":
     """Create a table model backed by a NumPy array.
 
     Args:
         column_headers: Column header strings.
         initial_data: Optional initial rows of data to populate.
-        dtype: Optional numpy data type for NumpyTableModelBlock.
+        dtype: Optional numpy data type for NumpyTableModel.
         sort_key: Optional callable used for sorting.
         parent: Optional Qt parent object.
 
     Returns:
-        An instance of NumpyTableModelBlock.
+        An instance of NumpyTableModel.
     """
-    model: NumpyTableModelBlock = NumpyTableModelBlock(
+    model: NumpyTableModel = NumpyTableModel(
         column_headers=column_headers,
         dtype=dtype,
         sort_key=sort_key,
@@ -854,8 +854,8 @@ def create_numpy_table_model(
     return model
 
 
-class SortFilterProxyBlock(QtCore.QSortFilterProxyModel):
-    """A configurable filter proxy for TableModelBlock.
+class SortFilterProxy(QtCore.QSortFilterProxyModel):
+    """A configurable filter proxy for TableModel.
 
     Filters rows by matching the display text of a configurable column
     against a fixed set of accepted string values.  This replaces the
@@ -868,7 +868,7 @@ class SortFilterProxyBlock(QtCore.QSortFilterProxyModel):
             filter.
 
     Example:
-        proxy = SortFilterProxyBlock()
+        proxy = SortFilterProxy()
         proxy.setSourceModel(job_model)
         # Set status column.
         proxy.set_filter_column(3)
@@ -951,8 +951,8 @@ class SortFilterProxyBlock(QtCore.QSortFilterProxyModel):
         if source_model is None:
             return False
 
-        # Optimize: Bypass Qt C++/Python wrapping logic for TableModelBlock and NumpyTableModelBlock
-        if isinstance(source_model, TableModelBlock):
+        # Optimize: Bypass Qt C++/Python wrapping logic for TableModel and NumpyTableModel
+        if isinstance(source_model, TableModel):
             try:
                 list_item: object = source_model._items[source_row]
                 value: Any = source_model._cell_data(
@@ -961,7 +961,7 @@ class SortFilterProxyBlock(QtCore.QSortFilterProxyModel):
                 return value in self._accepted_values
             except IndexError:
                 return False
-        elif isinstance(source_model, NumpyTableModelBlock):
+        elif isinstance(source_model, NumpyTableModel):
             try:
                 numpy_item: np.ndarray = source_model._data[source_row]
                 value: Any = source_model._cell_data(
