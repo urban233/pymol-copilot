@@ -46,9 +46,9 @@ Notes:
 from __future__ import annotations
 
 from collections.abc import Generator
-import logging
 from typing import Any
 from typing import Optional
+import logging
 
 from pymol_copilot.gui.qt import QtCore
 
@@ -146,7 +146,8 @@ class ListModel(QtCore.QAbstractListModel):
             UserRole, or None for any other role.
 
         Notes:
-            Any is used here as Qt data() can return diverse types (str, QIcon, QColor, or objects)
+            Any is used here as Qt data() can return diverse types
+            (str, QIcon, QColor, or objects)
         """
         if not index.isValid() or not (0 <= index.row() < len(self._items)):
             return None

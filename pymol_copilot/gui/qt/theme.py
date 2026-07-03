@@ -19,10 +19,10 @@
 
 from __future__ import annotations
 
+from typing import override
 import contextlib
 import enum
 import re
-from typing import override
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -77,7 +77,7 @@ class _NotifierQObject(QtCore.QObject):
 
     @override
     def eventFilter(
-            self, a0: QtCore.QObject | None, a1: QtCore.QEvent | None
+        self, a0: QtCore.QObject | None, a1: QtCore.QEvent | None
     ) -> bool:
         """Filter events on QApplication.
 
@@ -170,14 +170,15 @@ class ScreenChangeNotifier:
     def _connect_primary_screen_signals(self) -> None:
         """Connect to the primary screen's logical DPI change signal."""
         from pymol_copilot.gui.qt import sip
+
         if self._current_screen is not None:
             if sip.isdeleted(self._current_screen):
                 self._current_screen = None
             else:
                 try:
                     if (
-                            self._current_screen
-                            not in QtWidgets.QApplication.screens()
+                        self._current_screen
+                        not in QtWidgets.QApplication.screens()
                     ):
                         self._current_screen = None
                 except (TypeError, RuntimeError):
@@ -220,7 +221,7 @@ class ScreenChangeNotifier:
             self.scale_changed.emit(tmp_scale)
 
     def _handle_event(
-            self, a0: QtCore.QObject | None, a1: QtCore.QEvent | None
+        self, a0: QtCore.QObject | None, a1: QtCore.QEvent | None
     ) -> bool:
         """Process event filter event.
 
@@ -232,8 +233,8 @@ class ScreenChangeNotifier:
             Always False to allow the event to propagate.
         """
         if (
-                a1 is not None
-                and a1.type() == QtCore.QEvent.Type.DevicePixelRatioChange
+            a1 is not None
+            and a1.type() == QtCore.QEvent.Type.DevicePixelRatioChange
         ):
             tmp_screen = None
             if isinstance(a0, QtWidgets.QWidget):
@@ -717,7 +718,8 @@ def compile_stylesheet(template: str) -> str:
     for tmp_key in tmp_matches:
         if tmp_key not in tmp_bindings:
             raise KeyError(
-                f"Invalid theme token placeholder referenced in template: {tmp_key}"
+                "Invalid theme token placeholder referenced in template: "
+                f"{tmp_key}"
             )
 
     tmp_result = template

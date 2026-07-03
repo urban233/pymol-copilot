@@ -16,6 +16,7 @@
 # ==============================================================================
 #
 """Default configuration values and sizes for UI components."""
+
 from pymol_copilot.gui.qt import theme
 
 __docformat__ = "google"

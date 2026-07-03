@@ -36,11 +36,11 @@ and CompletedJobsProxyModel pair with a single, reusable class.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import override
+import logging
 
 import numpy as np
 import numpy.typing as npt
@@ -112,7 +112,8 @@ class TableModel(QtCore.QAbstractTableModel):
             self._headers: list[str] = column_headers
         else:
             self._headers: list[str] = []
-        # Any is used here to allow any comparable type returned by the sort key.
+        # Any is used here to allow any comparable type returned by the
+        # sort key.
         self._sort_key: Optional[Callable[[object], Any]] = sort_key
         # </editor-fold>
 
@@ -216,7 +217,8 @@ class TableModel(QtCore.QAbstractTableModel):
         Returns:
             The header string for section, or None.
         """
-        # Any is required to match QAbstractTableModel.headerData interface signature.
+        # Any is required to match QAbstractTableModel.headerData interface
+        # signature.
         if (
             orientation == QtCore.Qt.Orientation.Horizontal
             and role == QtCore.Qt.ItemDataRole.DisplayRole
@@ -462,7 +464,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         Args:
             column_headers: Column header strings in left-to-right order.
                 Defaults to an empty list (no headers).
-            dtype: Optional numpy data type for the array. Defaults to np.float64.
+            dtype: Optional numpy data type for the array. Defaults to
+                np.float64.
             sort_key: Optional callable (item) -> sort_key_value used by
                 sort to order rows.
             parent: Optional Qt parent object.
@@ -472,7 +475,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         self._headers: list[str] = (
             list(column_headers) if column_headers else []
         )
-        # Any is used here to allow any comparable type returned by the sort key.
+        # Any is used here to allow any comparable type returned by the
+        # sort key.
         self._sort_key: Optional[Callable[[object], Any]] = sort_key
         actual_dtype: npt.DTypeLike = dtype if dtype is not None else np.float64
         self._data: np.ndarray = np.empty(
@@ -566,7 +570,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         Returns:
             The header string, or None.
         """
-        # Any is required to match QAbstractTableModel.headerData interface signature.
+        # Any is required to match QAbstractTableModel.headerData interface
+        # signature.
         if (
             orientation == QtCore.Qt.Orientation.Horizontal
             and role == QtCore.Qt.ItemDataRole.DisplayRole
@@ -619,7 +624,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             headers: New column header strings.
 
         Raises:
-            RuntimeError: Always raised because headers are immutable after init.
+            RuntimeError: Always raised because headers are immutable after
+                init.
         """
         _ = headers
         raise RuntimeError(
@@ -648,13 +654,16 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
         if row_data.dtype != self._data.dtype:
             raise ValueError(
-                f"Data type mismatch: expected {self._data.dtype}, got {row_data.dtype}."
+                f"Data type mismatch: expected {self._data.dtype}, "
+                f"got {row_data.dtype}."
             )
 
         row_data = row_data.reshape(1, -1)
         if row_data.shape[1] != len(self._headers):
             raise ValueError(
-                f"Invalid parameter format: row length {row_data.shape[1]} does not match column count {len(self._headers)}."
+                "Invalid parameter format: row length "
+                f"{row_data.shape[1]} does not match column count "
+                f"{len(self._headers)}."
             )
 
         row: int = self._data.shape[0]
@@ -682,7 +691,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
         if rows_data.dtype != self._data.dtype:
             raise ValueError(
-                f"Data type mismatch: expected {self._data.dtype}, got {rows_data.dtype}."
+                f"Data type mismatch: expected {self._data.dtype}, "
+                f"got {rows_data.dtype}."
             )
 
         if rows_data.ndim == 1:
@@ -690,7 +700,9 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
         if rows_data.shape[1] != len(self._headers):
             raise ValueError(
-                f"Invalid parameter format: input column count {rows_data.shape[1]} does not match model columns {len(self._headers)}."
+                "Invalid parameter format: input column count "
+                f"{rows_data.shape[1]} does not match model columns "
+                f"{len(self._headers)}."
             )
 
         if rows_data.shape[0] == 0:
@@ -713,7 +725,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         """
         if not (0 <= row < self._data.shape[0]):
             raise IndexError(
-                f"Row index {row} is out of range (0..{self._data.shape[0] - 1})."
+                f"Row index {row} is out of range "
+                f"(0..{self._data.shape[0] - 1})."
             )
 
         self.beginRemoveRows(QtCore.QModelIndex(), row, row)
@@ -742,7 +755,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         """
         if not (0 <= row < self._data.shape[0]):
             raise IndexError(
-                f"Row index {row} is out of range (0..{self._data.shape[0] - 1})."
+                f"Row index {row} is out of range "
+                f"(0..{self._data.shape[0] - 1})."
             )
         return self._data[row]
 
@@ -773,7 +787,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         """
         if not (0 <= row < self._data.shape[0]):
             raise IndexError(
-                f"Row index {row} is out of range (0..{self._data.shape[0] - 1})."
+                f"Row index {row} is out of range "
+                f"(0..{self._data.shape[0] - 1})."
             )
         first_index: QtCore.QModelIndex = self.index(row, 0)
         last_index: QtCore.QModelIndex = self.index(row, len(self._headers) - 1)
@@ -899,7 +914,8 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
         """
         if column < 0:
             raise ValueError(
-                f"Invalid parameter: column index must be non-negative, got {column}."
+                "Invalid parameter: column index must be non-negative, "
+                f"got {column}."
             )
         self._filter_column = column
         self.invalidateFilter()
@@ -949,7 +965,8 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
         if source_model is None:
             return False
 
-        # Optimize: Bypass Qt C++/Python wrapping logic for TableModel and NumpyTableModel
+        # Optimize: Bypass Qt C++/Python wrapping logic for TableModel and
+        # NumpyTableModel
         if isinstance(source_model, TableModel):
             try:
                 list_item: object = source_model._items[source_row]

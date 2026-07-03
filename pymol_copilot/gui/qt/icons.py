@@ -55,10 +55,10 @@ programmer typos early.
 
 from __future__ import annotations
 
-import importlib.resources
-import re
 from typing import Final
 from typing import TYPE_CHECKING
+import importlib.resources
+import re
 
 if TYPE_CHECKING:
     from pymol_copilot.gui.qt import QtGui

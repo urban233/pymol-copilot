@@ -4,15 +4,26 @@ from typing import Callable
 
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
-from pymol_copilot.gui.qt.widgets import flyout, button
+from pymol_copilot.gui.qt.widgets import button
+from pymol_copilot.gui.qt.widgets import flyout
 
 
 def generate_color_stylesheet(hex_color: str) -> str:
-    """Generates a color stylesheet for a QPushButton with the specified background color."""
+    """Generates a color stylesheet for a QPushButton.
+
+    Args:
+        hex_color: The background color in hexadecimal format.
+
+    Returns:
+        The generated stylesheet string.
+
+    Raises:
+        ValueError: If hex_color is None or empty.
+    """
     if hex_color is None or hex_color == "":
         raise ValueError("a_hex_color is either None or an empty string.")
 
-    stylesheet = """QPushButton {
+    tmp_stylesheet = """QPushButton {
                 background-color: %s;
                 border: solid;
                 border-width: 1px;
@@ -34,7 +45,7 @@ def generate_color_stylesheet(hex_color: str) -> str:
                 max-height: 20px;
             }
         """ % (hex_color, hex_color)
-    return stylesheet
+    return tmp_stylesheet
 
 
 class PyMOLColorGrid(QtWidgets.QWidget):
@@ -43,8 +54,8 @@ class PyMOLColorGrid(QtWidgets.QWidget):
     def __init__(self) -> None:
         """Initialize the PyMOL color grid widget and its buttons."""
         super().__init__()
-        grid = QtWidgets.QGridLayout()
-        self.setLayout(grid)
+        tmp_grid = QtWidgets.QGridLayout()
+        self.setLayout(tmp_grid)
 
         # Colors - Reds
         self.c_red = QtWidgets.QPushButton()
@@ -57,10 +68,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_salmon.setStyleSheet(generate_color_stylesheet("#ff9999"))
         self.c_raspberry.setStyleSheet(generate_color_stylesheet("#b24c66"))
 
-        grid.addWidget(self.c_red, 0, 0)
-        grid.addWidget(self.c_tv_red, 1, 0)
-        grid.addWidget(self.c_salmon, 2, 0)
-        grid.addWidget(self.c_raspberry, 3, 0)
+        tmp_grid.addWidget(self.c_red, 0, 0)
+        tmp_grid.addWidget(self.c_tv_red, 1, 0)
+        tmp_grid.addWidget(self.c_salmon, 2, 0)
+        tmp_grid.addWidget(self.c_raspberry, 3, 0)
 
         # Colors - Greens
         self.c_green = QtWidgets.QPushButton()
@@ -73,10 +84,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_palegreen.setStyleSheet(generate_color_stylesheet("#a5e5a5"))
         self.c_forest.setStyleSheet(generate_color_stylesheet("#339933"))
 
-        grid.addWidget(self.c_green, 0, 1)
-        grid.addWidget(self.c_tv_green, 1, 1)
-        grid.addWidget(self.c_palegreen, 2, 1)
-        grid.addWidget(self.c_forest, 3, 1)
+        tmp_grid.addWidget(self.c_green, 0, 1)
+        tmp_grid.addWidget(self.c_tv_green, 1, 1)
+        tmp_grid.addWidget(self.c_palegreen, 2, 1)
+        tmp_grid.addWidget(self.c_forest, 3, 1)
 
         # Colors - Blues
         self.c_blue = QtWidgets.QPushButton()
@@ -89,10 +100,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_lightblue.setStyleSheet(generate_color_stylesheet("#bfbfff"))
         self.c_skyblue.setStyleSheet(generate_color_stylesheet("#337fcc"))
 
-        grid.addWidget(self.c_blue, 0, 2)
-        grid.addWidget(self.c_tv_blue, 1, 2)
-        grid.addWidget(self.c_lightblue, 2, 2)
-        grid.addWidget(self.c_skyblue, 3, 2)
+        tmp_grid.addWidget(self.c_blue, 0, 2)
+        tmp_grid.addWidget(self.c_tv_blue, 1, 2)
+        tmp_grid.addWidget(self.c_lightblue, 2, 2)
+        tmp_grid.addWidget(self.c_skyblue, 3, 2)
 
         # Colors - Yellows
         self.c_yellow = QtWidgets.QPushButton()
@@ -105,10 +116,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_paleyellow.setStyleSheet(generate_color_stylesheet("#ffff7f"))
         self.c_sand.setStyleSheet(generate_color_stylesheet("#b78c4c"))
 
-        grid.addWidget(self.c_yellow, 0, 3)
-        grid.addWidget(self.c_tv_yellow, 1, 3)
-        grid.addWidget(self.c_paleyellow, 2, 3)
-        grid.addWidget(self.c_sand, 3, 3)
+        tmp_grid.addWidget(self.c_yellow, 0, 3)
+        tmp_grid.addWidget(self.c_tv_yellow, 1, 3)
+        tmp_grid.addWidget(self.c_paleyellow, 2, 3)
+        tmp_grid.addWidget(self.c_sand, 3, 3)
 
         # Colors - Magentas
         self.c_magenta = QtWidgets.QPushButton()
@@ -121,10 +132,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_pink.setStyleSheet(generate_color_stylesheet("#ffa5d8"))
         self.c_hotpink.setStyleSheet(generate_color_stylesheet("#ff007f"))
 
-        grid.addWidget(self.c_magenta, 0, 4)
-        grid.addWidget(self.c_purple, 1, 4)
-        grid.addWidget(self.c_pink, 2, 4)
-        grid.addWidget(self.c_hotpink, 3, 4)
+        tmp_grid.addWidget(self.c_magenta, 0, 4)
+        tmp_grid.addWidget(self.c_purple, 1, 4)
+        tmp_grid.addWidget(self.c_pink, 2, 4)
+        tmp_grid.addWidget(self.c_hotpink, 3, 4)
 
         # Colors - Cyan
         self.c_cyan = QtWidgets.QPushButton()
@@ -137,10 +148,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_palecyan.setStyleSheet(generate_color_stylesheet("#ccffff"))
         self.c_teal.setStyleSheet(generate_color_stylesheet("#00bfbf"))
 
-        grid.addWidget(self.c_cyan, 0, 5)
-        grid.addWidget(self.c_aquamarine, 1, 5)
-        grid.addWidget(self.c_palecyan, 2, 5)
-        grid.addWidget(self.c_teal, 3, 5)
+        tmp_grid.addWidget(self.c_cyan, 0, 5)
+        tmp_grid.addWidget(self.c_aquamarine, 1, 5)
+        tmp_grid.addWidget(self.c_palecyan, 2, 5)
+        tmp_grid.addWidget(self.c_teal, 3, 5)
 
         # Colors - Orange
         self.c_orange = QtWidgets.QPushButton()
@@ -153,10 +164,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_lightorange.setStyleSheet(generate_color_stylesheet("#ffcc7f"))
         self.c_olive.setStyleSheet(generate_color_stylesheet("#c4b200"))
 
-        grid.addWidget(self.c_orange, 0, 6)
-        grid.addWidget(self.c_tv_orange, 1, 6)
-        grid.addWidget(self.c_lightorange, 2, 6)
-        grid.addWidget(self.c_olive, 3, 6)
+        tmp_grid.addWidget(self.c_orange, 0, 6)
+        tmp_grid.addWidget(self.c_tv_orange, 1, 6)
+        tmp_grid.addWidget(self.c_lightorange, 2, 6)
+        tmp_grid.addWidget(self.c_olive, 3, 6)
 
         # Colors - Grays
         self.c_white = QtWidgets.QPushButton()
@@ -169,13 +180,14 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_grey_30.setStyleSheet(generate_color_stylesheet("#4c4c4c"))
         self.c_black.setStyleSheet(generate_color_stylesheet("#000000"))
 
-        grid.addWidget(self.c_white, 0, 7)
-        grid.addWidget(self.c_grey_70, 1, 7)
-        grid.addWidget(self.c_grey_30, 2, 7)
-        grid.addWidget(self.c_black, 3, 7)
+        tmp_grid.addWidget(self.c_white, 0, 7)
+        tmp_grid.addWidget(self.c_grey_70, 1, 7)
+        tmp_grid.addWidget(self.c_grey_30, 2, 7)
+        tmp_grid.addWidget(self.c_black, 3, 7)
 
         self.set_all_tooltips()
 
+    # <editor-fold desc="Public methods">
     def set_all_tooltips(self) -> None:
         """Sets tooltips and objectNames for all color widgets."""
         self.c_red.setToolTip("red")
@@ -263,6 +275,7 @@ class PyMOLColorGrid(QtWidgets.QWidget):
                 if isinstance(tmp_attr, QtWidgets.QPushButton):
                     tmp_buttons[tmp_attr.toolTip()] = tmp_attr
         return tmp_buttons
+    # </editor-fold>
 
 
 class _RecentColorsGrid(QtWidgets.QWidget):
@@ -273,7 +286,12 @@ class _RecentColorsGrid(QtWidgets.QWidget):
         callback: Callable | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
-        """Initializes the _RecentColorsGrid widget."""
+        """Initializes the _RecentColorsGrid widget.
+
+        Args:
+            callback: Optional callback function triggered on color selection.
+            parent: Optional parent widget.
+        """
         super().__init__(parent=parent)
         self._recent_colors_layout = QtWidgets.QGridLayout()
         self._recent_colors_layout.setContentsMargins(
@@ -282,40 +300,56 @@ class _RecentColorsGrid(QtWidgets.QWidget):
         self._recent_colors_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
         self.setLayout(self._recent_colors_layout)
 
+        # <editor-fold desc="Instance attributes">
         # Track colors inside a list (8 slots initialized to #ffffff)
         self.recent_colors_list: list[str] = ["#ffffff"] * 8
         self._buttons: list[QtWidgets.QPushButton] = []
+        # </editor-fold>
 
         self._init_widget(callback)
 
+    # <editor-fold desc="Private methods">
     def _init_widget(self, callback: Callable | None) -> None:
-        """Initializes the layout and buttons."""
-        for i in range(8):
-            btn = QtWidgets.QPushButton()
-            btn.setStyleSheet(generate_color_stylesheet("#ffffff"))
+        """Initializes the layout and buttons.
+
+        Args:
+            callback: Optional callback function triggered on color selection.
+        """
+        for tmp_i in range(8):
+            tmp_btn = QtWidgets.QPushButton()
+            tmp_btn.setStyleSheet(generate_color_stylesheet("#ffffff"))
 
             if callback:
-                # Dynamically fetch the current hex value assigned to this specific slot index on click
-                btn.clicked.connect(
-                    lambda _, idx=i: callback(
-                        self.recent_colors_list[idx]
+                # Dynamically fetch the current hex value assigned to this
+                # specific slot index on click
+                tmp_btn.clicked.connect(
+                    lambda _, tmp_idx=tmp_i: callback(
+                        self.recent_colors_list[tmp_idx]
                     )
                 )
 
-            self._recent_colors_layout.addWidget(btn, 0, i)
-            self._buttons.append(btn)
+            self._recent_colors_layout.addWidget(tmp_btn, 0, tmp_i)
+            self._buttons.append(tmp_btn)
+    # </editor-fold>
 
+    # <editor-fold desc="Public methods">
     def add_recent_color(self, hex_color: str) -> None:
-        """Inserts a new color at the front, shifting the older colors down."""
+        """Inserts a new color at the front, shifting the older colors down.
+
+        Args:
+            hex_color: The new color in hexadecimal format.
+        """
         # Insert at the beginning (Index 0) and drop the last item (Index 7)
         self.recent_colors_list.insert(0, hex_color)
         self.recent_colors_list.pop()
 
-        # Update the visual UI stylesheets of all buttons to match the updated order
-        for btn, color in zip(
+        # Update the visual UI stylesheets of all buttons to match
+        # the updated order
+        for tmp_btn, tmp_color in zip(
             self._buttons, self.recent_colors_list, strict=True
         ):
-            btn.setStyleSheet(generate_color_stylesheet(color))
+            tmp_btn.setStyleSheet(generate_color_stylesheet(tmp_color))
+    # </editor-fold>
 
 
 class ColorFlyout(flyout.FlyoutFrame):
@@ -324,22 +358,29 @@ class ColorFlyout(flyout.FlyoutFrame):
     def __init__(self) -> None:
         """Initialize the ColorFlyout widget."""
         super().__init__(shadow=False)
+        # <editor-fold desc="Instance attributes">
         self._content = QtWidgets.QWidget()
-        tmp_layout = QtWidgets.QVBoxLayout(self._content)
         self._color_grid_label = QtWidgets.QLabel("PyMOL Colors")
         self._color_grid = PyMOLColorGrid()
         self._more_colors_button = button.BasicButton("More Colors")
         self._recent_colors_label = QtWidgets.QLabel("Recent Colors")
 
-        # Fixed: Passed the active click handler slot to the grid initialization
+        # Passed active click handler slot to recent colors grid
         self._recent_colors_grid = _RecentColorsGrid(
             callback=self.__slot_recent_color_selected
         )
-
+        # </editor-fold>
+        tmp_layout = QtWidgets.QVBoxLayout(self._content)
         self._init_widget(tmp_layout)
         self._connect_signals()
 
+    # <editor-fold desc="Private methods">
     def _init_widget(self, layout: QtWidgets.QVBoxLayout) -> None:
+        """Initializes the layout of the flyout.
+
+        Args:
+            layout: The main layout of the flyout content.
+        """
         layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         layout.addWidget(self._color_grid_label)
         layout.addWidget(self._color_grid)
@@ -352,20 +393,32 @@ class ColorFlyout(flyout.FlyoutFrame):
         self.set_content(self._content)
 
     def _connect_signals(self) -> None:
-        self._more_colors_button.clicked.connect(self.__slot_open_color_picker)
+        """Connects signals to their respective slots."""
+        self._more_colors_button.clicked.connect(
+            self.__slot_open_color_picker
+        )
+    # </editor-fold>
 
+    # <editor-fold desc="Private slots">
     def __slot_open_color_picker(self) -> None:
+        """Opens the color picker dialog and handles the selected color."""
         tmp_color_picker_dialog = QtWidgets.QColorDialog(self)
         # Execute the dialog and check if the user confirmed/accepted a choice
         if (
             tmp_color_picker_dialog.exec()
             == QtWidgets.QDialog.DialogCode.Accepted
         ):
-            color = tmp_color_picker_dialog.selectedColor()
-            if color.isValid():
-                # .name() returns the standard hexadecimal string format (e.g., "#ff0000")
-                self._recent_colors_grid.add_recent_color(color.name())
+            tmp_color = tmp_color_picker_dialog.selectedColor()
+            if tmp_color.isValid():
+                # .name() returns the standard hexadecimal string format
+                # (e.g., "#ff0000")
+                self._recent_colors_grid.add_recent_color(tmp_color.name())
 
     def __slot_recent_color_selected(self, hex_color: str) -> None:
-        """Triggered whenever an application user clicks on one of the recent color slots."""
+        """Triggered whenever a user clicks on a recent color slot.
+
+        Args:
+            hex_color: The selected color in hexadecimal format.
+        """
         print(f"Selected recent color: {hex_color}")
+    # </editor-fold>

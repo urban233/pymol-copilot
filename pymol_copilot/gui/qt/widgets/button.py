@@ -30,7 +30,8 @@ from pymol_copilot.gui.qt import theme
 class Button(QtWidgets.QPushButton):
     """Base class for styled push buttons.
 
-    Delegates initialization and style configuration to abstract subclass methods.
+    Delegates initialization and style configuration to abstract subclass
+    methods.
     """
 
     def __init__(
@@ -48,6 +49,7 @@ class Button(QtWidgets.QPushButton):
         self._init_widget()
         self._set_styles()
 
+    # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget.
 
@@ -64,10 +66,13 @@ class Button(QtWidgets.QPushButton):
         """
         raise NotImplementedError
 
+    # </editor-fold>
+
 
 class BasicButton(Button):
     """A standard, non-accented button with basic styling."""
 
+    # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget."""
 
@@ -75,16 +80,21 @@ class BasicButton(Button):
         """Apply basic button styles."""
         self.setObjectName(theme.StyleId.BASIC_BUTTON)
 
+    # </editor-fold>
+
 
 class AccentButton(Button):
     """An accented button with the primary theme color highlight."""
 
+    # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget."""
 
     def _set_styles(self) -> None:
         """Apply accented button styles."""
         self.setObjectName(theme.StyleId.ACCENT_BUTTON)
+
+    # </editor-fold>
 
 
 class CircleIconButton(Button):
@@ -105,13 +115,17 @@ class CircleIconButton(Button):
 
         Args:
             icon: The QIcon to display.
-            size_dp: The diameter of the button in logical pixels. Defaults to 24.
+            size_dp: The diameter of the button in logical pixels.
+                Defaults to 24.
             parent: Optional parent widget.
         """
+        # <editor-fold desc="Instance attributes">
         self._icon = icon
         self._size_dp = size_dp
+        # </editor-fold>
         super().__init__("", parent)
 
+    # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget properties, applying the icon."""
         self.setIcon(self._icon)
@@ -150,21 +164,21 @@ class CircleIconButton(Button):
         """
         self.setStyleSheet(tmp_qss)
 
-    def _handle_scale_changed(self, scale: float) -> None:
+    def _handle_scale_changed(self, _scale: float) -> None:
         """Handle screen DPI scaling updates to recalculate circle dimensions.
 
         Args:
-            scale: The new screen scaling factor.
+            _scale: The new screen scaling factor.
         """
-        _ = scale
         self._set_styles()
 
-    def _cleanup_connections(self, obj: QtCore.QObject | None = None) -> None:
+    def _cleanup_connections(self, _obj: QtCore.QObject | None = None) -> None:
         """Clean up scale changed signal connection to prevent memory leaks.
 
         Args:
-            obj: The QObject being destroyed (optional).
+            _obj: The QObject being destroyed (optional).
         """
-        _ = obj
         with contextlib.suppress(TypeError, RuntimeError):
             theme.notifier.scale_changed.disconnect(self._handle_scale_changed)
+
+    # </editor-fold>

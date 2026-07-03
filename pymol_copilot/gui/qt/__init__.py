@@ -23,6 +23,6 @@ try:
     from PyQt6 import QtOpenGLWidgets  # noqa: F401
     from PyQt6 import QtSql  # noqa: F401
     from PyQt6 import QtWidgets  # noqa: F401
-    from PyQt6 import sip
+    from PyQt6 import sip  # noqa: F401
 except ImportError:
     raise ImportError("PyQt6 is not installed.")

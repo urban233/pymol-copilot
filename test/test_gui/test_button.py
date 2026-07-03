@@ -23,7 +23,7 @@ from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 import pytest
 
-from pymol_copilot.gui.qt import styles
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt.widgets import button as button_module
 
 
@@ -99,5 +99,5 @@ def test_circle_icon_button_scale_changed(
 
     # Act & Assert
     # We trigger the scale_changed signal; it must execute without exceptions.
-    styles.notifier.scale_changed.emit(2.0)
+    theme.notifier.scale_changed.emit(2.0)
     assert tmp_button.styleSheet() != ""
