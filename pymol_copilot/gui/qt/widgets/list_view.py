@@ -65,6 +65,7 @@ from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt.model import list_model
+from pymol_copilot.gui.qt.widgets import text_box
 
 
 class CheckBoxDelegate(QtWidgets.QStyledItemDelegate):
@@ -440,7 +441,7 @@ class ListViewWithSearch(QtWidgets.QWidget):
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
         self._model: Optional["list_model.ListModel"] = None
-        self.search_field = QtWidgets.QLineEdit()
+        self.search_field = text_box.TextBox(placeholder_text="Search ...")
         self.select_all_checkbox = QtWidgets.QCheckBox("Select All")
         self.list_view = ListView()
         # </editor-fold>
@@ -506,7 +507,6 @@ class ListViewWithSearch(QtWidgets.QWidget):
     # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initialize the widget layout and child components."""
-        self.search_field.setPlaceholderText("Search ...")
         self.search_field.setClearButtonEnabled(True)
         self.select_all_checkbox.setTristate(True)
         self.select_all_checkbox.setVisible(False)

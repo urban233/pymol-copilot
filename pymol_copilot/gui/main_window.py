@@ -10,7 +10,7 @@ from pymol_copilot.gui.qt.widgets import (
     command_bar,
     input_bar,
     list_view,
-    table_view,
+    table_view, text_box,
 )
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
@@ -176,8 +176,8 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_layout.addWidget(tmp_command_bar)
         # --- Begin content
-        tmp_text_box = input_bar.InputBar()
-        tmp_layout.addWidget(tmp_text_box)
+        tmp_input_box = input_bar.InputBar()
+        tmp_layout.addWidget(tmp_input_box)
 
         class Job:
             """Represent a mock job for the table view demo."""
