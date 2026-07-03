@@ -109,62 +109,6 @@ class CheckBoxDelegate(QtWidgets.QStyledItemDelegate):
 
         super().paint(painter, tmp_option, index)
 
-    def editorEvent(
-        self,
-        event: QtCore.QEvent,
-        model: QtCore.QAbstractItemModel,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
-    ) -> bool:
-        """Handle mouse clicks on the checkbox indicator.
-
-        Toggles selection for the clicked row when the checkbox itself is
-        clicked, without altering the selection of other rows.
-
-        Args:
-            event: The event to handle.
-            model: The source model.
-            option: The style option.
-            index: The model index.
-
-        Returns:
-            True if the event was handled and should not be propagated;
-            False otherwise.
-        """
-        if event.type() in (
-            QtCore.QEvent.Type.MouseButtonPress,
-            QtCore.QEvent.Type.MouseButtonRelease,
-            QtCore.QEvent.Type.MouseButtonDblClick,
-        ):
-            if isinstance(event, QtGui.QMouseEvent):
-                tmp_style = (
-                    option.widget.style()
-                    if option.widget
-                    else QtWidgets.QApplication.style()
-                )
-                if tmp_style is None:
-                    return False
-                tmp_check_rect = tmp_style.subElementRect(
-                    QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
-                    option,
-                    option.widget,
-                )
-                if tmp_check_rect.contains(event.position().toPoint()):
-                    if (
-                        event.type() == QtCore.QEvent.Type.MouseButtonPress
-                        and event.button() == QtCore.Qt.MouseButton.LeftButton
-                    ):
-                        tmp_view = self.parent()
-                        if isinstance(tmp_view, QtWidgets.QAbstractItemView):
-                            tmp_selection_model = tmp_view.selectionModel()
-                            if tmp_selection_model is not None:
-                                tmp_selection_model.select(
-                                    index,
-                                    QtCore.QItemSelectionModel.SelectionFlag.Toggle,
-                                )
-                    return True
-        return super().editorEvent(event, model, option, index)
-
 
 logger = logging.getLogger(__name__)
 
@@ -395,6 +339,69 @@ class ListView(QtWidgets.QListView):
         tmp_item = tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
         if tmp_item is not None:
             self.item_activated.emit(tmp_item)
+
+    def mousePressEvent(  # noqa: N802
+        self, event: QtGui.QMouseEvent
+    ) -> None:
+        """Handle additive checkbox selection on left click.
+
+        Args:
+            event: The mouse event.
+        """
+        if self._checkbox_delegate is not None:
+            tmp_pos = event.position().toPoint()
+            tmp_index = self.indexAt(tmp_pos)
+            if tmp_index.isValid():
+                tmp_option = QtWidgets.QStyleOptionViewItem()
+                tmp_option.rect = self.visualRect(tmp_index)
+                tmp_option.widget = self
+                tmp_option.features |= QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_style = self.style()
+                if tmp_style is not None:
+                    tmp_check_rect = tmp_style.subElementRect(
+                        QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
+                        tmp_option,
+                        self,
+                    )
+                    if tmp_check_rect.contains(tmp_pos):
+                        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                            tmp_selection_model = self.selectionModel()
+                            if tmp_selection_model is not None:
+                                tmp_selection_model.select(
+                                    tmp_index,
+                                    QtCore.QItemSelectionModel.SelectionFlag.Toggle,
+                                )
+                        event.accept()
+                        return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(  # noqa: N802
+        self, event: QtGui.QMouseEvent
+    ) -> None:
+        """Handle ignoring release events on the checkbox area.
+
+        Args:
+            event: The mouse event.
+        """
+        if self._checkbox_delegate is not None:
+            tmp_pos = event.position().toPoint()
+            tmp_index = self.indexAt(tmp_pos)
+            if tmp_index.isValid():
+                tmp_option = QtWidgets.QStyleOptionViewItem()
+                tmp_option.rect = self.visualRect(tmp_index)
+                tmp_option.widget = self
+                tmp_option.features |= QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_style = self.style()
+                if tmp_style is not None:
+                    tmp_check_rect = tmp_style.subElementRect(
+                        QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
+                        tmp_option,
+                        self,
+                    )
+                    if tmp_check_rect.contains(tmp_pos):
+                        event.accept()
+                        return
+        super().mouseReleaseEvent(event)
 
     # </editor-fold>
 
