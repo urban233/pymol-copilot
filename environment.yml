@@ -23,4 +23,7 @@ dependencies:
 
   - numpy
   - scipy
+  - pandas
+  # Needed by pandas for reading and writing MS Excel files
+  - openpyxl
   - pymol-open-source=3.1.0

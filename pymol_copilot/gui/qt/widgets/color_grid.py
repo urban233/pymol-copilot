@@ -1,4 +1,5 @@
 """Module for the custom color grid widget."""
+
 from typing import Callable
 
 from pymol_copilot.gui.qt import QtWidgets
@@ -40,6 +41,7 @@ class PyMOLColorGrid(QtWidgets.QWidget):
     """Class representing the color grid of PyMOL."""
 
     def __init__(self) -> None:
+        """Initialize the PyMOL color grid widget and its buttons."""
         super().__init__()
         grid = QtWidgets.QGridLayout()
         self.setLayout(grid)
@@ -248,15 +250,35 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         self.c_black.setToolTip("black")
         self.c_black.setObjectName("color_black")
 
+    def get_all_color_buttons(self) -> dict[str, QtWidgets.QPushButton]:
+        """Return a dictionary of all color buttons, mapped by tooltip names.
+
+        Returns:
+            A dictionary mapping tooltip string to QPushButton.
+        """
+        tmp_buttons: dict[str, QtWidgets.QPushButton] = {}
+        for tmp_attr_name in dir(self):
+            if tmp_attr_name.startswith("c_"):
+                tmp_attr = getattr(self, tmp_attr_name)
+                if isinstance(tmp_attr, QtWidgets.QPushButton):
+                    tmp_buttons[tmp_attr.toolTip()] = tmp_attr
+        return tmp_buttons
+
 
 class _RecentColorsGrid(QtWidgets.QWidget):
     """Widget for displaying recent colors."""
 
-    def __init__(self, callback: Callable | None = None, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self,
+        callback: Callable | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         """Initializes the _RecentColorsGrid widget."""
         super().__init__(parent=parent)
         self._recent_colors_layout = QtWidgets.QGridLayout()
-        self._recent_colors_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._recent_colors_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         self._recent_colors_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
         self.setLayout(self._recent_colors_layout)
 
@@ -274,7 +296,11 @@ class _RecentColorsGrid(QtWidgets.QWidget):
 
             if callback:
                 # Dynamically fetch the current hex value assigned to this specific slot index on click
-                btn.clicked.connect(lambda checked, idx=i: callback(self.recent_colors_list[idx]))
+                btn.clicked.connect(
+                    lambda _, idx=i: callback(
+                        self.recent_colors_list[idx]
+                    )
+                )
 
             self._recent_colors_layout.addWidget(btn, 0, i)
             self._buttons.append(btn)
@@ -286,7 +312,9 @@ class _RecentColorsGrid(QtWidgets.QWidget):
         self.recent_colors_list.pop()
 
         # Update the visual UI stylesheets of all buttons to match the updated order
-        for btn, color in zip(self._buttons, self.recent_colors_list):
+        for btn, color in zip(
+            self._buttons, self.recent_colors_list, strict=True
+        ):
             btn.setStyleSheet(generate_color_stylesheet(color))
 
 
@@ -294,6 +322,7 @@ class ColorFlyout(flyout.FlyoutFrame):
     """Flyout panel displaying the PyMOL color grid."""
 
     def __init__(self) -> None:
+        """Initialize the ColorFlyout widget."""
         super().__init__(shadow=False)
         self._content = QtWidgets.QWidget()
         tmp_layout = QtWidgets.QVBoxLayout(self._content)
@@ -303,7 +332,9 @@ class ColorFlyout(flyout.FlyoutFrame):
         self._recent_colors_label = QtWidgets.QLabel("Recent Colors")
 
         # Fixed: Passed the active click handler slot to the grid initialization
-        self._recent_colors_grid = _RecentColorsGrid(callback=self.__slot_recent_color_selected)
+        self._recent_colors_grid = _RecentColorsGrid(
+            callback=self.__slot_recent_color_selected
+        )
 
         self._init_widget(tmp_layout)
         self._connect_signals()
@@ -326,7 +357,10 @@ class ColorFlyout(flyout.FlyoutFrame):
     def __slot_open_color_picker(self) -> None:
         tmp_color_picker_dialog = QtWidgets.QColorDialog(self)
         # Execute the dialog and check if the user confirmed/accepted a choice
-        if tmp_color_picker_dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+        if (
+            tmp_color_picker_dialog.exec()
+            == QtWidgets.QDialog.DialogCode.Accepted
+        ):
             color = tmp_color_picker_dialog.selectedColor()
             if color.isValid():
                 # .name() returns the standard hexadecimal string format (e.g., "#ff0000")
