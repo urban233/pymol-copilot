@@ -24,11 +24,13 @@ class InputBar(QtWidgets.QWidget):
             parent: Optional parent widget.
         """
         super().__init__(parent)
-        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame()
-        self._layout_outer_frame: QtWidgets.QVBoxLayout = (
-            QtWidgets.QVBoxLayout()
+        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
+            self
         )
-        self._layout: QtWidgets.QBoxLayout = QtWidgets.QHBoxLayout()
+        self._layout: QtWidgets.QBoxLayout = QtWidgets.QHBoxLayout(
+            self._outer_frame
+        )
         self._input = text_box.ExpandingTextBox()
         self._send_button = button.CircleIconButton(
             icons.icon("pymol_copilot.gui.qt", "arrow_upward")

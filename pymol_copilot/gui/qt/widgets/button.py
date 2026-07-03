@@ -129,7 +129,7 @@ class CircleIconButton(Button):
     def _init_widget(self) -> None:
         """Initialize the widget properties, applying the icon."""
         self.setIcon(self._icon)
-        theme.notifier.scale_changed.connect(self._handle_scale_changed)
+        theme.get_notifier().scale_changed.connect(self._handle_scale_changed)
         self.destroyed.connect(self._cleanup_connections)
 
     def _set_styles(self) -> None:
@@ -179,6 +179,6 @@ class CircleIconButton(Button):
             _obj: The QObject being destroyed (optional).
         """
         with contextlib.suppress(TypeError, RuntimeError):
-            theme.notifier.scale_changed.disconnect(self._handle_scale_changed)
+            theme.get_notifier().scale_changed.disconnect(self._handle_scale_changed)
 
     # </editor-fold>

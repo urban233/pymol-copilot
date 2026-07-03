@@ -57,6 +57,7 @@ from __future__ import annotations
 
 from typing import Final
 from typing import TYPE_CHECKING
+import functools
 import importlib.resources
 import re
 
@@ -70,9 +71,6 @@ _NAME_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_]*$")
 
 _registered: set[str] = set()
 """Set of import-package names that have been registered as icon sources."""
-
-_cache: dict[tuple[str, str, str], QtGui.QIcon] = {}
-"""In-process icon cache keyed by (import_name, name, theme)."""
 
 _DEFAULT_THEME: Final[str] = "default"
 """Internal theme string substituted when the caller passes theme=None."""
@@ -138,12 +136,7 @@ def icon(
             "(lowercase letters, digits, underscores)."
         )
     tmp_resolved_theme = theme if theme is not None else _DEFAULT_THEME
-    tmp_cache_key = (import_name, name, tmp_resolved_theme)
-    if tmp_cache_key in _cache:
-        return _cache[tmp_cache_key]
-    tmp_loaded = _load_icon(import_name, name, tmp_resolved_theme)
-    _cache[tmp_cache_key] = tmp_loaded
-    return tmp_loaded
+    return _cached_icon(import_name, name, tmp_resolved_theme)
 
 
 def is_registered(import_name: str) -> bool:
@@ -164,7 +157,22 @@ def _clear_cache() -> None:
     Intended for use in tests only. Production code must never call this
     because it causes all subsequent icon() calls to re-read from disk.
     """
-    _cache.clear()
+    _cached_icon.cache_clear()
+
+
+@functools.lru_cache(maxsize=512)
+def _cached_icon(import_name: str, name: str, theme: str) -> "QtGui.QIcon":
+    """Load and cache an icon by its canonical key.
+
+    Args:
+        import_name: The importable package name.
+        name: The validated icon name stem.
+        theme: The resolved theme subdirectory name.
+
+    Returns:
+        The loaded QIcon.
+    """
+    return _load_icon(import_name, name, theme)
 
 
 def _load_icon(import_name: str, name: str, theme: str) -> QtGui.QIcon:

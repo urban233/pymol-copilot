@@ -1,11 +1,15 @@
 """Module for the custom color grid widget."""
 
+import logging
 from typing import Callable
 
+from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt.widgets import button
 from pymol_copilot.gui.qt.widgets import flyout
+
+logger = logging.getLogger(__name__)
 
 
 def generate_color_stylesheet(hex_color: str) -> str:
@@ -186,6 +190,16 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         tmp_grid.addWidget(self.c_black, 3, 7)
 
         self.set_all_tooltips()
+        # Build the button lookup dict once; avoids dir() at runtime.
+        self._color_buttons: dict[str, QtWidgets.QPushButton] = {
+            tmp_widget.toolTip(): tmp_widget
+            for tmp_attr_name in vars(self)
+            if tmp_attr_name.startswith("c_")
+            and isinstance(
+                tmp_widget := getattr(self, tmp_attr_name),
+                QtWidgets.QPushButton,
+            )
+        }
 
     # <editor-fold desc="Public methods">
     def set_all_tooltips(self) -> None:
@@ -266,15 +280,10 @@ class PyMOLColorGrid(QtWidgets.QWidget):
         """Return a dictionary of all color buttons, mapped by tooltip names.
 
         Returns:
-            A dictionary mapping tooltip string to QPushButton.
+            A copy of the pre-built mapping of tooltip string to QPushButton.
         """
-        tmp_buttons: dict[str, QtWidgets.QPushButton] = {}
-        for tmp_attr_name in dir(self):
-            if tmp_attr_name.startswith("c_"):
-                tmp_attr = getattr(self, tmp_attr_name)
-                if isinstance(tmp_attr, QtWidgets.QPushButton):
-                    tmp_buttons[tmp_attr.toolTip()] = tmp_attr
-        return tmp_buttons
+        return dict(self._color_buttons)
+
     # </editor-fold>
 
 
@@ -297,7 +306,7 @@ class _RecentColorsGrid(QtWidgets.QWidget):
         self._recent_colors_layout.setContentsMargins(
             *ui_defaults.EMPTY_CONTENTS_MARGINS
         )
-        self._recent_colors_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
+        self._recent_colors_layout.setSpacing(ui_defaults.default_spacing())
         self.setLayout(self._recent_colors_layout)
 
         # <editor-fold desc="Instance attributes">
@@ -330,6 +339,7 @@ class _RecentColorsGrid(QtWidgets.QWidget):
 
             self._recent_colors_layout.addWidget(tmp_btn, 0, tmp_i)
             self._buttons.append(tmp_btn)
+
     # </editor-fold>
 
     # <editor-fold desc="Public methods">
@@ -349,11 +359,15 @@ class _RecentColorsGrid(QtWidgets.QWidget):
             self._buttons, self.recent_colors_list, strict=True
         ):
             tmp_btn.setStyleSheet(generate_color_stylesheet(tmp_color))
+
     # </editor-fold>
 
 
 class ColorFlyout(flyout.FlyoutFrame):
     """Flyout panel displaying the PyMOL color grid."""
+
+    color_selected: QtCore.pyqtSignal = QtCore.pyqtSignal(str)
+    """Emitted with the hex color string when a recent color is selected."""
 
     def __init__(self) -> None:
         """Initialize the ColorFlyout widget."""
@@ -394,9 +408,8 @@ class ColorFlyout(flyout.FlyoutFrame):
 
     def _connect_signals(self) -> None:
         """Connects signals to their respective slots."""
-        self._more_colors_button.clicked.connect(
-            self.__slot_open_color_picker
-        )
+        self._more_colors_button.clicked.connect(self.__slot_open_color_picker)
+
     # </editor-fold>
 
     # <editor-fold desc="Private slots">
@@ -420,5 +433,7 @@ class ColorFlyout(flyout.FlyoutFrame):
         Args:
             hex_color: The selected color in hexadecimal format.
         """
-        print(f"Selected recent color: {hex_color}")
+        logger.debug("Recent color selected: %s", hex_color)
+        self.color_selected.emit(hex_color)
+
     # </editor-fold>

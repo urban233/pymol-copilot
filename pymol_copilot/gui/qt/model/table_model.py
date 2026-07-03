@@ -412,6 +412,15 @@ class TableModel(QtCore.QAbstractTableModel):
             first_index, last_index, [QtCore.Qt.ItemDataRole.DisplayRole]
         )
 
+    @property
+    def headers(self) -> list[str]:
+        """Return a copy of the column header list.
+
+        Returns:
+            A new list of column header strings.
+        """
+        return list(self._headers)
+
     # </editor-fold>
 
     # <editor-fold desc="Private methods">
@@ -482,6 +491,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         self._data: np.ndarray = np.empty(
             (0, len(self._headers)), dtype=actual_dtype
         )
+        self._pending: list[np.ndarray] = []
         # </editor-fold>
 
     @override
@@ -500,7 +510,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         """
         if parent.isValid():
             return 0
-        return self._data.shape[0]
+        return self._data.shape[0] + len(self._pending)
 
     @override
     def columnCount(
@@ -539,6 +549,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         # Any is required to match QAbstractTableModel.data interface signature.
         if not index.isValid():
             return None
+        self._flush_pending()
         row: int = index.row()
         column: int = index.column()
         if not (0 <= row < self._data.shape[0]):
@@ -592,6 +603,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             column: The column index to sort by.
             order: Qt.AscendingOrder or Qt.DescendingOrder.
         """
+        self._flush_pending()
         if self._data.shape[0] == 0:
             return
 
@@ -639,7 +651,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             item: The row array or sequence.
 
         Returns:
-            The row index of the newly inserted item.
+            The row index of the newly inserted row.
 
         Raises:
             ValueError: If the item length or data type is invalid.
@@ -666,9 +678,9 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
                 f"{len(self._headers)}."
             )
 
-        row: int = self._data.shape[0]
+        row: int = self._data.shape[0] + len(self._pending)
         self.beginInsertRows(QtCore.QModelIndex(), row, row)
-        self._data = np.vstack([self._data, row_data])
+        self._pending.append(row_data)
         self.endInsertRows()
         return row
 
@@ -708,10 +720,10 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         if rows_data.shape[0] == 0:
             return
 
-        first_row: int = self._data.shape[0]
+        first_row: int = self._data.shape[0] + len(self._pending)
         last_row: int = first_row + rows_data.shape[0] - 1
         self.beginInsertRows(QtCore.QModelIndex(), first_row, last_row)
-        self._data = np.vstack([self._data, rows_data])
+        self._pending.append(rows_data)
         self.endInsertRows()
 
     def remove_row(self, row: int) -> None:
@@ -735,8 +747,9 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
     def clear(self) -> None:
         """Remove all rows from the model."""
-        if self._data.shape[0] == 0:
+        if self._data.shape[0] == 0 and not self._pending:
             return
+        self._pending.clear()
         self.beginResetModel()
         self._data = np.empty((0, len(self._headers)), dtype=self._data.dtype)
         self.endResetModel()
@@ -753,6 +766,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         Raises:
             IndexError: If row is out of bounds.
         """
+        self._flush_pending()
         if not (0 <= row < self._data.shape[0]):
             raise IndexError(
                 f"Row index {row} is out of range "
@@ -766,6 +780,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         Returns:
             A view of the internal numpy array.
         """
+        self._flush_pending()
         return self._data.view()
 
     def is_empty(self) -> bool:
@@ -795,6 +810,39 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         self.dataChanged.emit(
             first_index, last_index, [QtCore.Qt.ItemDataRole.DisplayRole]
         )
+
+    @property
+    def headers(self) -> list[str]:
+        """Return a copy of the column header list.
+
+        Returns:
+            A new list of column header strings.
+        """
+        return list(self._headers)
+
+    @property
+    def raw_data(self) -> np.ndarray:
+        """Return a read-only view of the backing numpy array.
+
+        Flushes any pending rows before returning.
+
+        Returns:
+            A read-only view of the internal 2D array.
+        """
+        self._flush_pending()
+        return self._data.view()
+
+    def _flush_pending(self) -> None:
+        """Flush the pending-row buffer into the backing array.
+
+        Raises:
+            ValueError: If the pending rows have a column count mismatch.
+        """
+        if not self._pending:
+            return
+        tmp_new_rows = np.vstack(self._pending)
+        self._data = np.vstack([self._data, tmp_new_rows])
+        self._pending.clear()
 
     def _cell_data(self, item: np.ndarray, column: int) -> Any:
         """Return the display value for a single cell.

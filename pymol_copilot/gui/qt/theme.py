@@ -49,7 +49,7 @@ def dp(value: int | float, screen: QtGui.QScreen | None = None) -> int:
     """
     tmp_app = QtWidgets.QApplication.instance()
     if isinstance(tmp_app, QtWidgets.QApplication):
-        notifier.install_event_filter(tmp_app)
+        get_notifier().install_event_filter(tmp_app)
 
     if screen is None and isinstance(tmp_app, QtWidgets.QApplication):
         screen = tmp_app.primaryScreen()
@@ -197,7 +197,8 @@ class ScreenChangeNotifier:
         self._current_screen = tmp_screen
         if tmp_screen is not None:
             tmp_screen.logicalDotsPerInchChanged.connect(
-                self._handle_dpi_change
+                self._handle_dpi_change,
+                QtCore.Qt.ConnectionType.UniqueConnection,
             )
 
     def _handle_primary_screen_change(self, screen: QtGui.QScreen) -> None:
@@ -253,8 +254,22 @@ class ScreenChangeNotifier:
         return False
 
 
-# Module-level singleton, lazily initialized on first import.
-notifier: ScreenChangeNotifier = ScreenChangeNotifier()
+_notifier: ScreenChangeNotifier | None = None
+
+
+def get_notifier() -> ScreenChangeNotifier:
+    """Return the module-level ScreenChangeNotifier, creating it lazily.
+
+    The singleton is not created until this function is first called,
+    ensuring no QObject is allocated before QApplication exists.
+
+    Returns:
+        The singleton ScreenChangeNotifier instance.
+    """
+    global _notifier
+    if _notifier is None:
+        _notifier = ScreenChangeNotifier()
+    return _notifier
 
 
 class ColorToken:
@@ -722,10 +737,19 @@ def compile_stylesheet(template: str) -> str:
                 f"{tmp_key}"
             )
 
-    tmp_result = template
-    for tmp_key, tmp_val in tmp_bindings.items():
-        tmp_result = tmp_result.replace(f"${{{tmp_key}}}", tmp_val)
-    return tmp_result
+    def _replacer(tmp_match: re.Match[str]) -> str:
+        """Return the token binding for a matched placeholder.
+
+        Args:
+            tmp_match: The regex match object containing the token name
+                in group 1.
+
+        Returns:
+            The replacement string for the matched token.
+        """
+        return tmp_bindings[tmp_match.group(1)]
+
+    return re.sub(r"\$\{(\w+)\}", _replacer, template)
 
 
 def apply_global_theme(scale: float | None = None) -> None:  # noqa: ARG001

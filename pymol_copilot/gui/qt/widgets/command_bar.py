@@ -45,7 +45,7 @@ class CommandBarButton(QtWidgets.QWidget):
         icon: QtGui.QIcon | None,
         text: str = "",
         style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
-        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        size: tuple[int, int] | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the command bar button.
@@ -61,18 +61,37 @@ class CommandBarButton(QtWidgets.QWidget):
         self._icon: QtGui.QIcon | None = icon
         self._text: str = text
         self._style: CommandBarButtonType = style
-        self._size: tuple[int, int] = size
+        self._size: tuple[int, int] = (
+            size
+            if size is not None
+            else ui_defaults.UISize.command_bar_button_size()
+        )
         self._init_widget()
         self._set_styles()
         self._connect_signals()
 
     def _init_widget(self) -> None:
+        """Initialize the widget's child components and layout.
+
+        Raises:
+            NotImplementedError: Always; subclasses must override.
+        """
         raise NotImplementedError
 
     def _set_styles(self) -> None:
+        """Apply visual styles and object names to child components.
+
+        Raises:
+            NotImplementedError: Always; subclasses must override.
+        """
         raise NotImplementedError
 
     def _connect_signals(self) -> None:
+        """Wire signal-slot connections between child components.
+
+        Raises:
+            NotImplementedError: Always; subclasses must override.
+        """
         raise NotImplementedError
 
 
@@ -90,7 +109,7 @@ class CommandBarActionButton(CommandBarButton):
         icon: QtGui.QIcon | None,
         text: str = "",
         style: CommandBarButtonType = CommandBarButtonStyle.ICON_ONLY,
-        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        size: tuple[int, int] | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the action button.
@@ -99,7 +118,7 @@ class CommandBarActionButton(CommandBarButton):
             icon: Icon displayed on the button, or None.
             text: Label text.
             style: The button visual style.
-            size: Size in physical pixels.
+            size: Size in physical pixels, or None to use the DPI-scaled default.
             parent: Optional parent widget.
         """
         self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
@@ -143,7 +162,7 @@ class CommandBarToggleButton(CommandBarButton):
         icon: QtGui.QIcon | None,
         text: str = "",
         style: CommandBarButtonType = CommandBarButtonStyle.ICON_ONLY,
-        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        size: tuple[int, int] | None = None,
         checked: bool = False,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
@@ -153,7 +172,7 @@ class CommandBarToggleButton(CommandBarButton):
             icon: Icon displayed on the button, or None.
             text: Label text.
             style: The icon and text arrangement style.
-            size: Size in physical pixels.
+            size: Size in physical pixels, or None to use the DPI-scaled default.
             checked: Whether the button starts in the checked state.
             parent: Optional parent widget.
         """
@@ -247,7 +266,7 @@ class CommandBarSplitButton(CommandBarButton):
         icon: QtGui.QIcon | None,
         text: str = "",
         style: CommandBarButtonType = CommandBarButtonStyle.TEXT_ONLY,
-        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        size: tuple[int, int] | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the split button with independent hover halves.
@@ -581,7 +600,7 @@ class CommandToggleSplitButton(CommandBarSplitButton):
         icon: QtGui.QIcon | None,
         text: str = "",
         style: CommandBarButtonType = CommandBarButtonStyle.TEXT_ONLY,
-        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        size: tuple[int, int] | None = None,
         checked: bool = False,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
@@ -690,7 +709,7 @@ class CommandBarDropdownButton(CommandBarButton):
         icon: QtGui.QIcon | None,
         text: str = "",
         style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
-        size: tuple[int, int] = ui_defaults.UISize.COMMAND_BAR_BUTTON_SIZE,
+        size: tuple[int, int] | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialise the dropdown button.
@@ -833,11 +852,13 @@ class CommandBar(QtWidgets.QWidget):
             parent: Optional parent widget.
         """
         super().__init__(parent)
-        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame()
-        self._layout_outer_frame: QtWidgets.QVBoxLayout = (
-            QtWidgets.QVBoxLayout()
+        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
+            self
         )
-        self._layout: QtWidgets.QBoxLayout = QtWidgets.QHBoxLayout()
+        self._layout: QtWidgets.QBoxLayout = QtWidgets.QHBoxLayout(
+            self._outer_frame
+        )
         self._init_widget(command_buttons)
         self._set_styles()
 

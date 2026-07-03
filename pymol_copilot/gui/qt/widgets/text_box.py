@@ -53,14 +53,17 @@ class TextBox(QtWidgets.QLineEdit):
         """
         key_text = event.text()
 
-        # Check if the key is allowed, Backspace is allowed,
-        # or if it's an empty string (allowing empty input).
+        # Block only single printable characters not in the allowed set.
+        # Multi-char sequences (IME), empty strings (modifier keys), and
+        # standard shortcuts (Ctrl+C/V/X/A) must always propagate.
         if (
-            key_text not in self._allowed_chars
-            and key_text != ""
-            and event.key() != QtCore.Qt.Key.Key_Backspace
+            len(key_text) == 1
+            and key_text not in self._allowed_chars
+            and not event.matches(QtGui.QKeySequence.StandardKey.Copy)
+            and not event.matches(QtGui.QKeySequence.StandardKey.Paste)
+            and not event.matches(QtGui.QKeySequence.StandardKey.Cut)
+            and not event.matches(QtGui.QKeySequence.StandardKey.SelectAll)
         ):
-            # Ignore the key event
             return
 
         # Call the base class implementation to handle other keys

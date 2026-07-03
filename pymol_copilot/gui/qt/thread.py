@@ -83,7 +83,7 @@ class Worker(QtCore.QRunnable):
         """
         super().__init__()
         # <editor-fold desc="Instance attributes">
-        self.setAutoDelete(True)
+        self.setAutoDelete(False)
         self._target_function = target_function
         self._args = args
         self._kwargs = kwargs

@@ -57,6 +57,7 @@ Typical usage:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Optional
 
@@ -458,6 +459,11 @@ class ListViewWithSearch(QtWidgets.QWidget):
         Args:
             model: The list model to display and filter.
         """
+        if self._model is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._model.modelReset.disconnect(self._apply_filter)
+                self._model.rowsInserted.disconnect(self._apply_filter)
+                self._model.rowsRemoved.disconnect(self._apply_filter)
         self._model = model
         self.list_view.set_model(model)
         model.modelReset.connect(self._apply_filter)
@@ -513,7 +519,7 @@ class ListViewWithSearch(QtWidgets.QWidget):
 
         tmp_layout = QtWidgets.QVBoxLayout(self)
         tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        tmp_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
+        tmp_layout.setSpacing(ui_defaults.default_spacing())
         tmp_layout.addWidget(self.search_field)
         tmp_layout.addWidget(self.select_all_checkbox)
         tmp_layout.addWidget(self.list_view)

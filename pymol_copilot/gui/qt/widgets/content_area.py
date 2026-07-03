@@ -79,9 +79,9 @@ class MainContentAreaBlock(QtWidgets.QWidget):
         while self._main_content_layout.count():
             if (tmp_item := self._main_content_layout.takeAt(0)) is None:
                 raise RuntimeError("tmp_item is None")
-            if (tmp_widget := tmp_item.widget()) is None:
-                raise RuntimeError("tmp_widget is None")
-            tmp_widget.deleteLater()
+            tmp_widget = tmp_item.widget()
+            if tmp_widget is not None:
+                tmp_widget.setParent(None)  # type: ignore[arg-type]
 
         self._main_content_layout.addWidget(widget)
 

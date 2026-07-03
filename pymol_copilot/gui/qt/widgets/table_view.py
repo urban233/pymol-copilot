@@ -288,6 +288,12 @@ class CheckableProxyModel(QtCore.QAbstractProxyModel):
         Args:
             source_model: The source model.
         """
+        tmp_old = self.sourceModel()
+        if tmp_old is not None:
+            tmp_old.modelReset.disconnect(self.modelReset)
+            tmp_old.dataChanged.disconnect(self._on_source_data_changed)
+            tmp_old.rowsInserted.disconnect(self._on_source_rows_inserted)
+            tmp_old.rowsRemoved.disconnect(self._on_source_rows_removed)
         super().setSourceModel(source_model)
         source_model.modelReset.connect(self.modelReset)
         source_model.dataChanged.connect(self._on_source_data_changed)
@@ -975,12 +981,6 @@ class TableViewWithToolbar(QtWidgets.QWidget):
             self._update_select_all_checkbox
         )
 
-        tmp_selection_model = self.table_view.selectionModel()
-        if tmp_selection_model is not None:
-            tmp_selection_model.selectionChanged.connect(
-                self._update_select_all_checkbox
-            )
-
     def current_item(self) -> Optional[object]:
         """Return the raw row item for the currently selected row.
 
@@ -1042,17 +1042,17 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         self.toolbar_actions_layout.setContentsMargins(
             *ui_defaults.EMPTY_CONTENTS_MARGINS
         )
-        self.toolbar_actions_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
+        self.toolbar_actions_layout.setSpacing(ui_defaults.default_spacing())
 
         toolbar_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout()
         toolbar_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        toolbar_layout.setSpacing(ui_defaults.DEFAULT_SPACING * 2)
+        toolbar_layout.setSpacing(ui_defaults.default_spacing() * 2)
         toolbar_layout.addWidget(self.search_field, stretch=1)
         toolbar_layout.addLayout(self.toolbar_actions_layout)
 
         root_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
         root_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        root_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
+        root_layout.setSpacing(ui_defaults.default_spacing())
         root_layout.addLayout(toolbar_layout)
         root_layout.addWidget(self.select_all_checkbox)
         root_layout.addWidget(self.table_view)

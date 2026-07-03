@@ -117,7 +117,7 @@ class FlyoutFrame(QtWidgets.QWidget):
         self._content_layout.setContentsMargins(
             theme.dp(8), theme.dp(8), theme.dp(8), theme.dp(8)
         )
-        self._content_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
+        self._content_layout.setSpacing(ui_defaults.default_spacing())
 
         m = theme.dp(_SHADOW_MARGIN) if shadow else 0
         outer_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)

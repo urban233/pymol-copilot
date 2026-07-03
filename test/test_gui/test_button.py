@@ -99,5 +99,5 @@ def test_circle_icon_button_scale_changed(
 
     # Act & Assert
     # We trigger the scale_changed signal; it must execute without exceptions.
-    theme.notifier.scale_changed.emit(2.0)
+    theme.get_notifier().scale_changed.emit(2.0)
     assert tmp_button.styleSheet() != ""

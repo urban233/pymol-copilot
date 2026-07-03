@@ -66,10 +66,10 @@ def read_excel_to_table_model(
             f"Failed to read Excel file '{file_path}': {tmp_err}"
         ) from tmp_err
 
-    if not model._headers:
+    if not model.headers:
         model.set_column_headers([str(tmp_col) for tmp_col in tmp_df.columns])
 
-    tmp_aligned_df = tmp_df.reindex(columns=model._headers)
+    tmp_aligned_df = tmp_df.reindex(columns=model.headers)
     tmp_items = []
     for _, tmp_row in tmp_aligned_df.iterrows():
         tmp_row_dict = tmp_row.to_dict()
@@ -109,7 +109,7 @@ def read_excel_to_numpy_table_model(
         ) from tmp_err
 
     # Reindex columns to match the model's headers
-    tmp_aligned_df = tmp_df.reindex(columns=model._headers)
+    tmp_aligned_df = tmp_df.reindex(columns=model.headers)
     tmp_data = tmp_aligned_df.to_numpy()
     model.add_rows(tmp_data)
 
@@ -243,7 +243,7 @@ def write_table_model_to_excel(
             tmp_row_data.append(tmp_val)
         tmp_rows.append(tmp_row_data)
 
-    tmp_df = pd.DataFrame(tmp_rows, columns=model._headers)
+    tmp_df = pd.DataFrame(tmp_rows, columns=model.headers)
     try:
         tmp_df.to_excel(file_path, index=False, **pandas_kwargs)
     except Exception as tmp_err:
@@ -278,7 +278,7 @@ def write_numpy_table_model_to_excel(
         ValueError: If pandas fails to write the file.
     """
     if use_raw_data:
-        tmp_df = pd.DataFrame(model._data, columns=model._headers)
+        tmp_df = pd.DataFrame(model.raw_data, columns=model.headers)
     else:
         tmp_rows = []
         tmp_row_count = model.rowCount()
@@ -291,7 +291,7 @@ def write_numpy_table_model_to_excel(
                 tmp_val = model.data(tmp_index, role)
                 tmp_row_data.append(tmp_val)
             tmp_rows.append(tmp_row_data)
-        tmp_df = pd.DataFrame(tmp_rows, columns=model._headers)
+        tmp_df = pd.DataFrame(tmp_rows, columns=model.headers)
 
     try:
         tmp_df.to_excel(file_path, index=False, **pandas_kwargs)

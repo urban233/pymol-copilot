@@ -70,7 +70,7 @@ def main() -> int:
     theme.apply_global_theme()
 
     # Hook screen DPI updates to re-apply the compiled stylesheet
-    theme.notifier.scale_changed.connect(theme.apply_global_theme)
+    theme.get_notifier().scale_changed.connect(theme.apply_global_theme)
 
     tmp_window.show()
     return tmp_app.exec()

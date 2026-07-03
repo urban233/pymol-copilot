@@ -95,10 +95,7 @@ class ListModel(QtCore.QAbstractListModel):
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
-        if initial_data:
-            self._items = initial_data
-        else:
-            self._items: list[object] = []
+        self._items: list[object] = list(initial_data) if initial_data else []
         # </editor-fold>
 
     # <editor-fold desc="Public methods">
