@@ -3,49 +3,68 @@
 from __future__ import annotations
 
 import enum
+from typing import override
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
-from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import theme
+
 
 class AllowedChars(enum.StrEnum):
     """Enum for allowed characters in the text box."""
+
     NUMERIC = "0123456789"
     ALPHABETIC = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     SPECIAL = "_-"
 
 
 class TextBox(QtWidgets.QLineEdit):
+    """A line edit widget that limits input characters."""
 
     def __init__(
-            self,
-            allowed_chars: str = AllowedChars.NUMERIC + AllowedChars.ALPHABETIC + AllowedChars.SPECIAL,
-            max_length: int = 30,
-            placeholder_text: str = "",
-            parent: QtWidgets.QWidget | None = None
+        self,
+        allowed_chars: str = AllowedChars.NUMERIC
+        + AllowedChars.ALPHABETIC
+        + AllowedChars.SPECIAL,
+        max_length: int = 30,
+        placeholder_text: str = "",
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """Initialize the text box widget.
+
+        Args:
+            allowed_chars: A string of characters allowed in the text box.
+            max_length: Maximum character length allowed.
+            placeholder_text: Placeholder text to show.
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
         self._allowed_chars: set[str] = set(allowed_chars)
         self.setMaxLength(max_length)
         self.setPlaceholderText(placeholder_text)
 
-    def keyPressEvent(self, event) -> None:
-        """Overrides keyPressEvent of QLineEdit class."""
-        # Get the key code
+    @override
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        """Overrides keyPressEvent of QLineEdit class.
+
+        Args:
+            event: The key event to process.
+        """
         key_text = event.text()
 
-        # Check if the key is allowed, Backspace is allowed, or if it's an empty string (allowing empty input)
+        # Check if the key is allowed, Backspace is allowed,
+        # or if it's an empty string (allowing empty input).
         if (
-                key_text not in self._allowed_chars
-                and key_text != ""
-                and event.key() != QtCore.Qt.Key_Backspace
+            key_text not in self._allowed_chars
+            and key_text != ""
+            and event.key() != QtCore.Qt.Key.Key_Backspace
         ):
             # Ignore the key event
             return
 
         # Call the base class implementation to handle other keys
-        super(TextBox, self).keyPressEvent(event)
+        super().keyPressEvent(event)
 
 
 class ExpandingTextBox(QtWidgets.QPlainTextEdit):

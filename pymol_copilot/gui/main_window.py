@@ -5,14 +5,14 @@ from __future__ import annotations
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
-from pymol_copilot.gui.qt.model import list_model, table_model
-from pymol_copilot.gui.qt.widgets import (
-    command_bar,
-    input_bar,
-    list_view,
-    table_view, text_box,
-)
-from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
+from pymol_copilot.gui.qt.model import list_model
+from pymol_copilot.gui.qt.model import table_model
+from pymol_copilot.gui.qt.widgets import color_grid
+from pymol_copilot.gui.qt.widgets import command_bar
+from pymol_copilot.gui.qt.widgets import flyout
+from pymol_copilot.gui.qt.widgets import input_bar
+from pymol_copilot.gui.qt.widgets import list_view
+from pymol_copilot.gui.qt.widgets import table_view
 from pymol_copilot.gui.widgets import viewer
 
 
@@ -79,7 +79,7 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_flyout_btn = command_bar.CommandBarSplitButton(
             icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"), "Options"
         )
-        tmp_flyout = FlyoutFrame(shadow=False)
+        tmp_flyout = flyout.FlyoutFrame(shadow=False)
         tmp_flyout_content = QtWidgets.QWidget()
         tmp_flyout_layout = QtWidgets.QVBoxLayout(tmp_flyout_content)
         tmp_flyout_layout.setSpacing(4)
@@ -115,7 +115,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "View",
             command_bar.CommandBarButtonStyle.TEXT_BESIDE,
         )
-        tmp_list_flyout = FlyoutFrame(shadow=False)
+        tmp_list_flyout = flyout.FlyoutFrame(shadow=False)
         tmp_dropdown_flyout_content = QtWidgets.QWidget()
         tmp_dropdown_flyout_layout = QtWidgets.QVBoxLayout(
             tmp_dropdown_flyout_content
@@ -143,7 +143,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "Highlight",
             command_bar.CommandBarButtonStyle.ICON_ONLY,
         )
-        tmp_list_flyout = FlyoutFrame(shadow=False)
+        tmp_list_flyout = flyout.FlyoutFrame(shadow=False)
         tmp_list_flyout_content = QtWidgets.QWidget()
         tmp_list_flyout_layout = QtWidgets.QVBoxLayout(tmp_list_flyout_content)
         tmp_list_flyout_layout.setSpacing(4)
@@ -158,13 +158,18 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_list_flyout.set_content(tmp_list_flyout_content)
         tmp_highlight_btn.set_flyout(tmp_list_flyout)
 
+        tmp_highlight_color_btn = command_bar.CommandBarDropdownButton(
+            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+            "Color",
+            command_bar.CommandBarButtonStyle.ICON_ONLY,
+        )
+        tmp_color = color_grid.ColorFlyout()
+        tmp_highlight_color_btn.set_flyout(tmp_color)
+
         tmp_command_bar = command_bar.CommandBar(
             [
                 tmp_highlight_btn,
-                command_bar.CommandBarActionButton(
-                    icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-                    "Home",
-                ),
+                tmp_highlight_color_btn,
                 tmp_split_btn,
                 tmp_flyout_btn,
                 tmp_dropdown_menu_btn,
