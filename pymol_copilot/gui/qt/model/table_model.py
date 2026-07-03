@@ -290,9 +290,7 @@ class TableModel(QtCore.QAbstractTableModel):
         self.beginInsertRows(QtCore.QModelIndex(), row, row)
         self._items.append(item)
         self.endInsertRows()
-        logger.debug(
-            "TableModel: row successfully appended at index %d.", row
-        )
+        logger.debug("TableModel: row successfully appended at index %d.", row)
         return row
 
     def add_rows(self, items: list[object]) -> None:

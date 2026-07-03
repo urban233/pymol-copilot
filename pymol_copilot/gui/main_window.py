@@ -6,7 +6,13 @@ from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.model import list_model
-from pymol_copilot.gui.qt.widgets import command_bar, button, list_view, text_box, input_bar
+from pymol_copilot.gui.qt.widgets import (
+    command_bar,
+    button,
+    list_view,
+    text_box,
+    input_bar,
+)
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
 
@@ -139,9 +145,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         tmp_list_flyout = FlyoutFrame(shadow=False)
         tmp_list_flyout_content = QtWidgets.QWidget()
-        tmp_list_flyout_layout = QtWidgets.QVBoxLayout(
-            tmp_list_flyout_content
-        )
+        tmp_list_flyout_layout = QtWidgets.QVBoxLayout(tmp_list_flyout_content)
         tmp_list_flyout_layout.setSpacing(4)
         tmp_list_flyout_layout.setContentsMargins(0, 0, 0, 0)
 

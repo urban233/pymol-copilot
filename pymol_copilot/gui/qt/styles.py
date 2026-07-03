@@ -169,12 +169,27 @@ class ScreenChangeNotifier:
 
     def _connect_primary_screen_signals(self) -> None:
         """Connect to the primary screen's logical DPI change signal."""
+        from PyQt6 import sip
+
+        if self._current_screen is not None:
+            if sip.isdeleted(self._current_screen):
+                self._current_screen = None
+            else:
+                try:
+                    if (
+                        self._current_screen
+                        not in QtWidgets.QApplication.screens()
+                    ):
+                        self._current_screen = None
+                except (TypeError, RuntimeError):
+                    self._current_screen = None
+
         tmp_screen = QtWidgets.QApplication.primaryScreen()
         if tmp_screen == self._current_screen:
             return
 
         if self._current_screen is not None:
-            with contextlib.suppress(TypeError):
+            with contextlib.suppress(TypeError, RuntimeError):
                 self._current_screen.logicalDotsPerInchChanged.disconnect(
                     self._handle_dpi_change
                 )

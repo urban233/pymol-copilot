@@ -11,11 +11,11 @@ class ExpandingTextBox(QtWidgets.QPlainTextEdit):
     """
 
     def __init__(
-            self,
-            placeholder_text: str = "Ask anything",
-            max_rows: int = 10,
-            min_rows: int = 1,
-            parent: QtWidgets.QWidget | None = None,
+        self,
+        placeholder_text: str = "Ask anything",
+        max_rows: int = 10,
+        min_rows: int = 1,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -24,8 +24,12 @@ class ExpandingTextBox(QtWidgets.QPlainTextEdit):
 
         self.setPlaceholderText(placeholder_text)
         self.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.setHorizontalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.setTabChangesFocus(True)
 
         self.textChanged.connect(self._update_height)

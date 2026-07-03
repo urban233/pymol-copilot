@@ -96,6 +96,9 @@ class ThemeColors:
     BORDER_HOVER = ColorToken("#c7c7c7")
     DIVIDER = ColorToken("#dcdcdc")
     ACCENT = ColorToken("#367af6")
+    ACCENT_HOVER = ColorToken("#4b91f7")
+    ACCENT_PRESSED = ColorToken("#256cf0")
+    TEXT_ON_ACCENT = ColorToken("#ffffff")
     TEXT_PRIMARY = ColorToken("#242424")
     PRESSED_SHARED = ColorToken("#ebebeb")
 
@@ -138,32 +141,39 @@ class StyleId(enum.StrEnum):
     MENU_BLOCK = "MenuBlock"
     TOOLBAR_BLOCK = "ToolbarBlock"
 
-# TODO: There is an issue with the font-color of the accent button
-#  because that is black but it must be white, and I am not sure how to handle
-#  that with the light and dark theme.
 
 GLOBAL_STYLESHEET_TEMPLATE = f"""
 QPushButton#{StyleId.BASIC_BUTTON} {{
-    background-color: #fbfbfb;
-    border: 1px solid #cccccc;
+    background-color: ${{surface}};
+    border: 1px solid ${{border_color}};
     border-radius: ${{padding_small}};
     min-height: 22px;
 }}
 QPushButton#{StyleId.BASIC_BUTTON}:hover {{
-    background-color: #f6f6f6;
-    border: 1px solid #e5e5e5;
+    background-color: ${{hover}};
+    border: 1px solid ${{border_hover}};
+}}
+QPushButton#{StyleId.BASIC_BUTTON}:pressed {{
+    background-color: ${{pressed}};
+    border: 1px solid ${{border_active}};
 }}
 
 QPushButton#{StyleId.ACCENT_BUTTON} {{
-    background-color: #0067c0;
-    border: 1px solid #0067c0;
+    background-color: ${{accent}};
+    border: 1px solid ${{accent}};
     border-radius: ${{padding_small}};
     min-height: 22px;
+    color: ${{text_on_accent}};
 }}
 QPushButton#{StyleId.ACCENT_BUTTON}:hover {{
-    background-color: #007be6;
-    border: 1px solid #007be6;
+    background-color: ${{accent_hover}};
+    border: 1px solid ${{accent_hover}};
 }}
+QPushButton#{StyleId.ACCENT_BUTTON}:pressed {{
+    background-color: ${{accent_pressed}};
+    border: 1px solid ${{accent_pressed}};
+}}
+
 
 QPushButton#{StyleId.PANEL_CLOSE_BUTTON} {{
     background-color: rgba(220, 219, 227, 0.01);
@@ -402,10 +412,11 @@ height: 0px;
 QFrame#{StyleId.INPUT_BAR} {{
     border: ${{border_width}} solid ${{border_color}};
     background-color: ${{surface}};
-    border-radius: 17px;
-    padding: ${{padding_small}};
+    border-radius: 20px;
+    padding: ${{padding_medium}};
 }}
 """
+
 
 def compile_stylesheet(template: str) -> str:
     """Formats a QSS template using static ThemeColors and ThemeMetrics.

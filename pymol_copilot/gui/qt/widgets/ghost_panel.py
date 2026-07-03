@@ -64,7 +64,9 @@ class GhostPanel(QtWidgets.QWidget):
 
 
 class GhostBar(GhostPanel):
-    def __init__(self, command_buttons: list[command_bar.CommandBarButton], parent=None):
+    def __init__(
+        self, command_buttons: list[command_bar.CommandBarButton], parent=None
+    ):
         super().__init__(parent)
         self._command_bar = command_bar.CommandBar(command_buttons, parent=self)
         self.set_content(self._command_bar)
