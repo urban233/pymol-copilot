@@ -25,22 +25,21 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
-from pymol_copilot.gui.qt.widgets import toolbar
+from pymol_copilot.gui.qt.widgets import command_bar
 
 __docformat__ = "google"
 
 
 class MainContentAreaBlock(QtWidgets.QWidget):
-    """A widget representing the main content area with an optional toolbar.
+    """A widget representing the main content area with an optional command bar.
 
     This class manages a central content widget and provides access to an
-    associated toolbar block.
+    associated command bar.
 
     Attributes:
-        _toolbar: The associated ToolbarBlock instance.
+        _command_bar: The associated CommandBar instance.
         _content: The current content widget.
         _main_content_frame: The QFrame containing the main content.
         _main_content_layout: The QVBoxLayout for the main content area.
@@ -48,20 +47,20 @@ class MainContentAreaBlock(QtWidgets.QWidget):
 
     def __init__(
         self,
-        toolbar_block: "toolbar.ToolbarBlock",
+        command_bar_block: command_bar.CommandBar,
         content: QtWidgets.QWidget,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         """Initialize the MainContentAreaBlock.
 
         Args:
-            toolbar_block: The toolbar associated with this content area.
+            command_bar_block: The command bar associated with this content area.
             content: The initial content widget to display.
             parent: The optional parent widget. Defaults to None.
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
-        self._toolbar = toolbar_block
+        self._command_bar = command_bar_block
         self._content = content
         self._main_content_frame = QtWidgets.QFrame()
         self._main_content_layout = QtWidgets.QVBoxLayout(
@@ -87,38 +86,38 @@ class MainContentAreaBlock(QtWidgets.QWidget):
         self._main_content_layout.addWidget(widget)
 
     @property
-    def toolbar(self) -> "toolbar.ToolbarBlock":
-        """Return the toolbar associated with this content area.
+    def command_bar(self) -> command_bar.CommandBar:
+        """Return the command bar associated with this content area.
 
         Returns:
-            The toolbar block.
+            The command bar.
         """
-        return self._toolbar
+        return self._command_bar
 
     # </editor-fold>
 
     # <editor-fold desc="Public static methods">
     @staticmethod
-    def create_with_toolbar(
-        toolbar_block: "toolbar.ToolbarBlock",
+    def create_with_command_bar(
+        command_bar_block: command_bar.CommandBar,
         content: QtWidgets.QWidget,
-    ) -> "MainContentAreaBlock":
-        """Create a MainContentAreaBlock with a specific toolbar and content.
+    ) -> MainContentAreaBlock:
+        """Create a MainContentAreaBlock with command bar and content.
 
         Args:
-            toolbar_block: The toolbar to associate with the content area.
+            command_bar_block: The command bar to associate.
             content: The initial content widget.
 
         Returns:
             A new instance of MainContentAreaBlock.
         """
-        return MainContentAreaBlock(toolbar_block, content)
+        return MainContentAreaBlock(command_bar_block, content)
 
     @staticmethod
     def create_content_area(
         content: QtWidgets.QWidget,
-    ) -> "MainContentAreaBlock":
-        """Create a MainContentAreaBlock with a default (empty) toolbar.
+    ) -> MainContentAreaBlock:
+        """Create a MainContentAreaBlock with a default (empty) command bar.
 
         Args:
             content: The initial content widget.
@@ -126,8 +125,8 @@ class MainContentAreaBlock(QtWidgets.QWidget):
         Returns:
             A new instance of MainContentAreaBlock.
         """
-        tmp_toolbar = toolbar.ToolbarBlock([QtGui.QAction()])
-        return MainContentAreaBlock(tmp_toolbar, content)
+        tmp_command_bar = command_bar.CommandBar([])
+        return MainContentAreaBlock(tmp_command_bar, content)
 
     # </editor-fold>
 

@@ -60,9 +60,11 @@ Example:
 from __future__ import annotations
 
 import logging
+from typing import Any
 from typing import Optional
 
 from pymol_copilot.gui.qt import QtCore
+from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt.model import table_model
@@ -70,6 +72,441 @@ from pymol_copilot.gui.qt.model import table_model
 logger = logging.getLogger(__name__)
 
 __docformat__ = "google"
+
+
+class CheckableProxyModel(QtCore.QAbstractProxyModel):
+    """A proxy model that inserts a checkable checkbox column at column 0.
+
+    All other columns are shifted by +1.
+    """
+
+    def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
+        """Initialize the proxy model.
+
+        Args:
+            parent: Optional parent object.
+        """
+        super().__init__(parent)
+
+    def columnCount(  # noqa: N802
+        self, parent: QtCore.QModelIndex | None = None
+    ) -> int:
+        """Return the number of columns, which is source column count + 1.
+
+        Args:
+            parent: The parent model index.
+
+        Returns:
+            The number of columns.
+        """
+        tmp_parent = parent if parent is not None else QtCore.QModelIndex()
+        tmp_source = self.sourceModel()
+        if tmp_source is None:
+            return 0
+        return tmp_source.columnCount(tmp_parent) + 1
+
+    def rowCount(  # noqa: N802
+        self, parent: QtCore.QModelIndex | None = None
+    ) -> int:
+        """Return the row count from the source model.
+
+        Args:
+            parent: The parent model index.
+
+        Returns:
+            The number of rows.
+        """
+        tmp_parent = parent if parent is not None else QtCore.QModelIndex()
+        tmp_source = self.sourceModel()
+        if tmp_source is None:
+            return 0
+        return tmp_source.rowCount(tmp_parent)
+
+    def mapToSource(  # noqa: N802
+        self, proxy_index: QtCore.QModelIndex
+    ) -> QtCore.QModelIndex:
+        """Map a proxy index to a source model index.
+
+        Args:
+            proxy_index: The proxy model index.
+
+        Returns:
+            The mapped source index, or an invalid index for column 0.
+        """
+        if not proxy_index.isValid():
+            return QtCore.QModelIndex()
+        if proxy_index.column() == 0:
+            return QtCore.QModelIndex()
+        tmp_source = self.sourceModel()
+        if tmp_source is None:
+            return QtCore.QModelIndex()
+        return tmp_source.index(
+            proxy_index.row(),
+            proxy_index.column() - 1,
+            proxy_index.parent(),
+        )
+
+    def mapFromSource(  # noqa: N802
+        self, source_index: QtCore.QModelIndex
+    ) -> QtCore.QModelIndex:
+        """Map a source index to a proxy index.
+
+        Args:
+            source_index: The source model index.
+
+        Returns:
+            The mapped proxy index.
+        """
+        if not source_index.isValid():
+            return QtCore.QModelIndex()
+        return self.index(
+            source_index.row(),
+            source_index.column() + 1,
+            source_index.parent(),
+        )
+
+    def index(
+        self,
+        row: int,
+        column: int,
+        parent: QtCore.QModelIndex | None = None,
+    ) -> QtCore.QModelIndex:
+        """Create a model index for the given row and column.
+
+        Args:
+            row: The row index.
+            column: The column index.
+            parent: The parent index.
+
+        Returns:
+            The created model index.
+        """
+        _ = parent
+        return self.createIndex(row, column)
+
+    def parent(self, child: QtCore.QModelIndex) -> QtCore.QModelIndex:
+        """Return the parent of the child index (always invalid for flat table).
+
+        Args:
+            child: The child index.
+
+        Returns:
+            An invalid model index.
+        """
+        _ = child
+        return QtCore.QModelIndex()
+
+    def data(
+        self,
+        index: QtCore.QModelIndex,
+        role: int = QtCore.Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        """Return data for the given index and role.
+
+        Args:
+            index: The model index.
+            role: The data role.
+
+        Returns:
+            The data value.
+        """
+        if not index.isValid():
+            return None
+
+        if index.column() == 0:
+            if role == QtCore.Qt.ItemDataRole.UserRole:
+                tmp_source = self.sourceModel()
+                if tmp_source is not None:
+                    tmp_src_idx = tmp_source.index(index.row(), 0)
+                    return tmp_source.data(
+                        tmp_src_idx, QtCore.Qt.ItemDataRole.UserRole
+                    )
+            return None
+
+        tmp_src_idx = self.mapToSource(index)
+        tmp_source = self.sourceModel()
+        if tmp_source is None:
+            return None
+        return tmp_source.data(tmp_src_idx, role)
+
+    def headerData(  # noqa: N802
+        self,
+        section: int,
+        orientation: QtCore.Qt.Orientation,
+        role: int = QtCore.Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        """Return the header data for the given section.
+
+        Args:
+            section: The column/row index.
+            orientation: The orientation (horizontal/vertical).
+            role: The data role.
+
+        Returns:
+            The header value.
+        """
+        if (
+            orientation == QtCore.Qt.Orientation.Horizontal
+            and role == QtCore.Qt.ItemDataRole.DisplayRole
+        ):
+            if section == 0:
+                return "Select"
+            tmp_source = self.sourceModel()
+            if tmp_source is not None:
+                return tmp_source.headerData(section - 1, orientation, role)
+        return super().headerData(section, orientation, role)
+
+    def flags(self, index: QtCore.QModelIndex) -> QtCore.Qt.ItemFlag:
+        """Return item flags for the given index.
+
+        Args:
+            index: The index.
+
+        Returns:
+            The item flags.
+        """
+        if not index.isValid():
+            return QtCore.Qt.ItemFlag.NoItemFlags
+
+        if index.column() == 0:
+            return (
+                QtCore.Qt.ItemFlag.ItemIsEnabled
+                | QtCore.Qt.ItemFlag.ItemIsSelectable
+            )
+
+        tmp_src_idx = self.mapToSource(index)
+        tmp_source = self.sourceModel()
+        if tmp_source is None:
+            return QtCore.Qt.ItemFlag.NoItemFlags
+        return tmp_source.flags(tmp_src_idx)
+
+    def setSourceModel(  # noqa: N802
+        self, source_model: QtCore.QAbstractItemModel
+    ) -> None:
+        """Set the source model.
+
+        Args:
+            source_model: The source model.
+        """
+        super().setSourceModel(source_model)
+        source_model.modelReset.connect(self.modelReset)
+        source_model.dataChanged.connect(self._on_source_data_changed)
+        source_model.rowsInserted.connect(self._on_source_rows_inserted)
+        source_model.rowsRemoved.connect(self._on_source_rows_removed)
+
+    def _on_source_data_changed(
+        self,
+        top_left: QtCore.QModelIndex,
+        bottom_right: QtCore.QModelIndex,
+        roles: list[int] | None = None,
+    ) -> None:
+        """Forward data changes from the source model.
+
+        Args:
+            top_left: The top left index.
+            bottom_right: The bottom right index.
+            roles: The changed roles.
+        """
+        tmp_roles = roles if roles is not None else []
+        self.dataChanged.emit(
+            self.mapFromSource(top_left),
+            self.mapFromSource(bottom_right),
+            tmp_roles,
+        )
+
+    def _on_source_rows_inserted(
+        self, parent: QtCore.QModelIndex, start: int, end: int
+    ) -> None:
+        """Forward row insertions from the source model.
+
+        Args:
+            parent: The parent index.
+            start: The start row index.
+            end: The end row index.
+        """
+        _ = parent
+        self.beginInsertRows(QtCore.QModelIndex(), start, end)
+        self.endInsertRows()
+
+    def _on_source_rows_removed(
+        self, parent: QtCore.QModelIndex, start: int, end: int
+    ) -> None:
+        """Forward row removals from the source model.
+
+        Args:
+            parent: The parent index.
+            start: The start row index.
+            end: The end row index.
+        """
+        _ = parent
+        self.beginRemoveRows(QtCore.QModelIndex(), start, end)
+        self.endRemoveRows()
+
+
+class ExcelTableDelegate(QtWidgets.QStyledItemDelegate):
+    """A delegate that paints Excel-style borders, backgrounds and checkboxes."""
+
+    def __init__(
+        self,
+        parent: QtWidgets.QAbstractItemView,
+        checkboxes_enabled: bool = False,
+    ) -> None:
+        """Initialize the delegate.
+
+        Args:
+            parent: The parent item view.
+            checkboxes_enabled: Whether checkboxes are enabled on column 0.
+        """
+        super().__init__(parent)
+        self._checkboxes_enabled = checkboxes_enabled
+
+    def set_checkboxes_enabled(self, enabled: bool) -> None:
+        """Set whether checkboxes are enabled.
+
+        Args:
+            enabled: True to enable checkboxes; False to disable.
+        """
+        self._checkboxes_enabled = enabled
+
+    def paint(
+        self,
+        painter: QtGui.QPainter,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        """Paint the cell with Excel-style selection borders and shading.
+
+        Args:
+            painter: The QPainter to draw with.
+            option: The style options.
+            index: The model index.
+        """
+        tmp_option = QtWidgets.QStyleOptionViewItem(option)
+        self.initStyleOption(tmp_option, index)
+
+        tmp_view = self.parent()
+        tmp_is_selected = False
+        if isinstance(tmp_view, QtWidgets.QAbstractItemView):
+            tmp_sel_model = tmp_view.selectionModel()
+            if tmp_sel_model is not None:
+                tmp_is_selected = tmp_sel_model.isSelected(index)
+
+        # Determine if row is fully selected
+        tmp_is_fully_sel = False
+        if tmp_is_selected and isinstance(tmp_view, QtWidgets.QTableView):
+            tmp_is_fully_sel = True
+            tmp_model = tmp_view.model()
+            tmp_sel_model = tmp_view.selectionModel()
+            if tmp_model is not None and tmp_sel_model is not None:
+                for tmp_col in range(tmp_model.columnCount()):
+                    tmp_idx = tmp_model.index(index.row(), tmp_col)
+                    if not tmp_sel_model.isSelected(tmp_idx):
+                        tmp_is_fully_sel = False
+                        break
+
+        # Checkboxes on column 0
+        if self._checkboxes_enabled and index.column() == 0:
+            tmp_feat = (
+                QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+            )
+            tmp_option.features |= tmp_feat
+            if tmp_is_selected:
+                tmp_option.checkState = QtCore.Qt.CheckState.Checked
+            else:
+                tmp_option.checkState = QtCore.Qt.CheckState.Unchecked
+
+        # Set background shading if row is fully selected
+        if tmp_is_fully_sel:
+            tmp_option.backgroundBrush = QtGui.QBrush(QtGui.QColor("#f2f2f2"))
+
+        # Clear standard selection and focus states to prevent default blue
+        # highlight, focus frame, blue vertical lines, and text borders.
+        tmp_option.state = (
+            tmp_option.state & ~QtWidgets.QStyle.StateFlag.State_Selected
+        )
+        tmp_option.state = (
+            tmp_option.state & ~QtWidgets.QStyle.StateFlag.State_HasFocus
+        )
+
+        super().paint(painter, tmp_option, index)
+
+        # Draw borders on top
+        if tmp_is_selected and isinstance(tmp_view, QtWidgets.QTableView):
+            painter.save()
+            tmp_pen = QtGui.QPen(QtGui.QColor("#107c41"), 2)
+            painter.setPen(tmp_pen)
+            tmp_rect = option.rect
+
+            tmp_sel_model = tmp_view.selectionModel()
+            tmp_model = tmp_view.model()
+            if tmp_sel_model is not None and tmp_model is not None:
+                tmp_row = index.row()
+                tmp_col = index.column()
+                tmp_row_count = tmp_model.rowCount()
+                tmp_col_count = tmp_model.columnCount()
+
+                # Top border: draw if top neighbor is not selected
+                tmp_draw_top = True
+                if tmp_row > 0:
+                    tmp_top_idx = tmp_model.index(tmp_row - 1, tmp_col)
+                    if tmp_sel_model.isSelected(tmp_top_idx):
+                        tmp_draw_top = False
+
+                # Bottom border: draw if bottom neighbor is not selected
+                tmp_draw_bottom = True
+                if tmp_row < tmp_row_count - 1:
+                    tmp_bottom_idx = tmp_model.index(tmp_row + 1, tmp_col)
+                    if tmp_sel_model.isSelected(tmp_bottom_idx):
+                        tmp_draw_bottom = False
+
+                # Left border: draw if left neighbor is not selected
+                tmp_draw_left = True
+                if tmp_col > 0:
+                    tmp_left_idx = tmp_model.index(tmp_row, tmp_col - 1)
+                    if tmp_sel_model.isSelected(tmp_left_idx):
+                        tmp_draw_left = False
+
+                # Right border: draw if right neighbor is not selected
+                tmp_draw_right = True
+                if tmp_col < tmp_col_count - 1:
+                    tmp_right_idx = tmp_model.index(tmp_row, tmp_col + 1)
+                    if tmp_sel_model.isSelected(tmp_right_idx):
+                        tmp_draw_right = False
+
+                # Draw top line
+                if tmp_draw_top:
+                    painter.drawLine(
+                        tmp_rect.left(),
+                        tmp_rect.top() + 1,
+                        tmp_rect.right(),
+                        tmp_rect.top() + 1,
+                    )
+                # Draw bottom line
+                if tmp_draw_bottom:
+                    painter.drawLine(
+                        tmp_rect.left(),
+                        tmp_rect.bottom() - 1,
+                        tmp_rect.right(),
+                        tmp_rect.bottom() - 1,
+                    )
+                # Draw left line
+                if tmp_draw_left:
+                    painter.drawLine(
+                        tmp_rect.left() + 1,
+                        tmp_rect.top(),
+                        tmp_rect.left() + 1,
+                        tmp_rect.bottom(),
+                    )
+                # Draw right line
+                if tmp_draw_right:
+                    painter.drawLine(
+                        tmp_rect.right() - 1,
+                        tmp_rect.top(),
+                        tmp_rect.right() - 1,
+                        tmp_rect.bottom(),
+                    )
+
+            painter.restore()
 
 
 class TableView(QtWidgets.QTableView):
@@ -100,6 +537,8 @@ class TableView(QtWidgets.QTableView):
     # <editor-fold desc="Class attributes">
     row_activated = QtCore.pyqtSignal(object)
     """Emitted with the raw row item when the user activates a row."""
+    selection_changed = QtCore.pyqtSignal()
+    """Emitted when the selection changes."""
     # </editor-fold>
 
     def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
@@ -109,6 +548,7 @@ class TableView(QtWidgets.QTableView):
             parent: Optional parent widget.
         """
         super().__init__(parent)
+        self._excel_delegate = ExcelTableDelegate(self)
         self._init_widget()
 
     # <editor-fold desc="Public methods">
@@ -118,13 +558,21 @@ class TableView(QtWidgets.QTableView):
     ) -> None:
         """Attach a TableModel or SortFilterProxy.
 
-        Passing a proxy is the recommended path when you need sorting or
-        multi-criterion filtering; the raw model is fine for simple cases.
-
         Args:
             model: The model or proxy to display.
         """
-        self.setModel(model)
+        if self._excel_delegate._checkboxes_enabled:
+            tmp_proxy = CheckableProxyModel(self)
+            tmp_proxy.setSourceModel(model)
+            self.setModel(tmp_proxy)
+            self.setColumnWidth(0, 60)
+            horizontal_header = self.horizontalHeader()
+            if horizontal_header is not None:
+                horizontal_header.setSectionResizeMode(
+                    0, QtWidgets.QHeaderView.ResizeMode.Fixed
+                )
+        else:
+            self.setModel(model)
 
     def current_item(self) -> Optional[object]:
         """Return the raw row item for the currently selected row.
@@ -152,6 +600,156 @@ class TableView(QtWidgets.QTableView):
         """
         self.resizeColumnsToContents()
 
+    def set_checkboxes_enabled(self, enabled: bool) -> None:
+        """Enable or disable multi-select checkboxes on column 0.
+
+        Args:
+            enabled: True to show checkboxes and enable multi-selection;
+                False to hide them and revert to single-selection.
+        """
+        self._excel_delegate.set_checkboxes_enabled(enabled)
+        if enabled:
+            tmp_curr_model = self.model()
+            if tmp_curr_model is not None and not isinstance(
+                tmp_curr_model, CheckableProxyModel
+            ):
+                tmp_proxy = CheckableProxyModel(self)
+                tmp_proxy.setSourceModel(tmp_curr_model)
+                self.setModel(tmp_proxy)
+
+            self.setItemDelegateForColumn(0, self._excel_delegate)
+            self.setSelectionMode(
+                QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
+            )
+            self.setColumnWidth(0, 60)
+            horizontal_header = self.horizontalHeader()
+            if horizontal_header is not None:
+                horizontal_header.setSectionResizeMode(
+                    0, QtWidgets.QHeaderView.ResizeMode.Fixed
+                )
+        else:
+            tmp_curr_model = self.model()
+            if tmp_curr_model is not None and isinstance(
+                tmp_curr_model, CheckableProxyModel
+            ):
+                tmp_src = tmp_curr_model.sourceModel()
+                if tmp_src is not None:
+                    self.setModel(tmp_src)
+
+            self.setItemDelegateForColumn(0, None)
+            self.setSelectionMode(
+                QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
+            )
+
+    def select_all(self) -> None:
+        """Select all rows in the table view."""
+        tmp_model = self.model()
+        if tmp_model is None:
+            return
+
+        tmp_selection_model = self.selectionModel()
+        if tmp_selection_model is None:
+            return
+
+        tmp_top_left = tmp_model.index(0, 0)
+        tmp_bottom_right = tmp_model.index(
+            tmp_model.rowCount() - 1,
+            tmp_model.columnCount() - 1,
+        )
+        tmp_selection = QtCore.QItemSelection(tmp_top_left, tmp_bottom_right)
+        tmp_selection_model.select(
+            tmp_selection,
+            QtCore.QItemSelectionModel.SelectionFlag.Select
+            | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+        )
+
+    def select_all_visible(self) -> None:
+        """Select all visible (non-hidden) rows in the table view."""
+        tmp_model = self.model()
+        if tmp_model is None:
+            return
+
+        tmp_selection_model = self.selectionModel()
+        if tmp_selection_model is None:
+            return
+
+        for tmp_row in range(tmp_model.rowCount()):
+            if not self.isRowHidden(tmp_row):
+                tmp_index = tmp_model.index(tmp_row, 0)
+                tmp_selection_model.select(
+                    tmp_index,
+                    QtCore.QItemSelectionModel.SelectionFlag.Select
+                    | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+                )
+
+    def deselect_all(self) -> None:
+        """Deselect all rows in the table view."""
+        tmp_selection_model = self.selectionModel()
+        if tmp_selection_model is not None:
+            tmp_selection_model.clearSelection()
+
+    def selected_items(self) -> list[object]:
+        """Return the raw row objects for all currently selected/checked rows.
+
+        Returns:
+            A list of selected/checked row items.
+        """
+        tmp_model = self.model()
+        if tmp_model is None:
+            return []
+
+        tmp_selection_model = self.selectionModel()
+        if tmp_selection_model is None:
+            return []
+
+        tmp_indexes = tmp_selection_model.selectedRows()
+        tmp_indexes.sort(key=lambda idx: idx.row())
+
+        return [
+            tmp_model.data(idx, QtCore.Qt.ItemDataRole.UserRole)
+            for idx in tmp_indexes
+            if idx.isValid()
+        ]
+
+    def set_selected_items(self, items: list[object]) -> None:
+        """Select/check the rows corresponding to the given items.
+
+        Args:
+            items: A list of row items to select/check.
+        """
+        tmp_model = self.model()
+        if tmp_model is None:
+            return
+
+        tmp_selection_model = self.selectionModel()
+        if tmp_selection_model is None:
+            return
+
+        tmp_selection_model.clearSelection()
+        try:
+            tmp_item_set = set(items)
+            tmp_is_hashable = True
+        except TypeError:
+            tmp_item_set = set()
+            tmp_is_hashable = False
+
+        for tmp_row in range(tmp_model.rowCount()):
+            tmp_index = tmp_model.index(tmp_row, 0)
+            tmp_item = tmp_model.data(
+                tmp_index, QtCore.Qt.ItemDataRole.UserRole
+            )
+            tmp_match = (
+                tmp_item in tmp_item_set
+                if tmp_is_hashable
+                else tmp_item in items
+            )
+            if tmp_match:
+                tmp_selection_model.select(
+                    tmp_index,
+                    QtCore.QItemSelectionModel.SelectionFlag.Select
+                    | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+                )
+
     # </editor-fold>
 
     # <editor-fold desc="Private methods">
@@ -162,15 +760,17 @@ class TableView(QtWidgets.QTableView):
             QtWidgets.QAbstractItemView.SelectionMode.SingleSelection
         )
         self.setSelectionBehavior(
-            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectItems
         )
         self.setEditTriggers(
             QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers
         )
 
+        self.setItemDelegate(self._excel_delegate)
+
         # --- Visual chrome ---
-        self.setShowGrid(False)
-        self.setAlternatingRowColors(False)
+        self.setShowGrid(True)
+        self.setAlternatingRowColors(True)
         self.setSortingEnabled(True)
 
         # --- Header configuration ---
@@ -180,13 +780,15 @@ class TableView(QtWidgets.QTableView):
         horizontal_header.setSectionResizeMode(
             QtWidgets.QHeaderView.ResizeMode.Interactive
         )
+        horizontal_header.setHighlightSections(True)
 
         if (vertical_header := self.verticalHeader()) is None:
             raise RuntimeError("self.verticalHeader is None")
-        vertical_header.setVisible(False)
+        vertical_header.setVisible(True)
         vertical_header.setSectionResizeMode(
             QtWidgets.QHeaderView.ResizeMode.ResizeToContents
         )
+        vertical_header.setHighlightSections(True)
 
         self.activated.connect(self._on_activated)
 
@@ -204,6 +806,91 @@ class TableView(QtWidgets.QTableView):
             raise RuntimeError("tmp_item is None")
 
         self.row_activated.emit(tmp_item)
+
+    def setModel(self, model: QtCore.QAbstractItemModel) -> None:  # noqa: N802
+        """Override to reconnect selection model signals when model changes.
+
+        Args:
+            model: The new model.
+        """
+        super().setModel(model)
+        tmp_selection_model = self.selectionModel()
+        if tmp_selection_model is not None:
+            tmp_selection_model.selectionChanged.connect(
+                self._on_selection_changed
+            )
+
+    def _on_selection_changed(self) -> None:
+        """Forward selectionChanged signal from the selection model."""
+        self.selection_changed.emit()
+
+    def mousePressEvent(  # noqa: N802
+        self, event: QtGui.QMouseEvent
+    ) -> None:
+        """Handle additive checkbox selection on left click in column 0.
+
+        Args:
+            event: The mouse event.
+        """
+        if self._excel_delegate._checkboxes_enabled:
+            tmp_pos = event.position().toPoint()
+            tmp_index = self.indexAt(tmp_pos)
+            if tmp_index.isValid() and tmp_index.column() == 0:
+                tmp_option = QtWidgets.QStyleOptionViewItem()
+                tmp_option.rect = self.visualRect(tmp_index)
+                tmp_option.widget = self
+                tmp_feat = QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_option.features |= tmp_feat
+                tmp_style = self.style()
+                if tmp_style is not None:
+                    tmp_sub_elem = QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator
+                    tmp_check_rect = tmp_style.subElementRect(
+                        tmp_sub_elem,
+                        tmp_option,
+                        self,
+                    )
+                    if tmp_check_rect.contains(tmp_pos):
+                        if event.button() == QtCore.Qt.MouseButton.LeftButton:
+                            tmp_selection_model = self.selectionModel()
+                            if tmp_selection_model is not None:
+                                tmp_selection_model.select(
+                                    tmp_index,
+                                    QtCore.QItemSelectionModel.SelectionFlag.Toggle
+                                    | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+                                )
+                        event.accept()
+                        return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(  # noqa: N802
+        self, event: QtGui.QMouseEvent
+    ) -> None:
+        """Handle ignoring release events on the checkbox area.
+
+        Args:
+            event: The mouse event.
+        """
+        if self._excel_delegate._checkboxes_enabled:
+            tmp_pos = event.position().toPoint()
+            tmp_index = self.indexAt(tmp_pos)
+            if tmp_index.isValid() and tmp_index.column() == 0:
+                tmp_option = QtWidgets.QStyleOptionViewItem()
+                tmp_option.rect = self.visualRect(tmp_index)
+                tmp_option.widget = self
+                tmp_feat = QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_option.features |= tmp_feat
+                tmp_style = self.style()
+                if tmp_style is not None:
+                    tmp_sub_elem = QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator
+                    tmp_check_rect = tmp_style.subElementRect(
+                        tmp_sub_elem,
+                        tmp_option,
+                        self,
+                    )
+                    if tmp_check_rect.contains(tmp_pos):
+                        event.accept()
+                        return
+        super().mouseReleaseEvent(event)
 
     # </editor-fold>
 
@@ -257,6 +944,7 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         self._filter_column: int = filter_column
         self._proxy: table_model.SortFilterProxy | None = None
         self.search_field: QtWidgets.QLineEdit = QtWidgets.QLineEdit()
+        self.select_all_checkbox = QtWidgets.QCheckBox("Select All")
         self.toolbar_actions_layout: QtWidgets.QHBoxLayout = (
             QtWidgets.QHBoxLayout()
         )
@@ -283,6 +971,16 @@ class TableViewWithToolbar(QtWidgets.QWidget):
 
         self.table_view.set_model(self._proxy)
 
+        self.table_view.selection_changed.connect(
+            self._update_select_all_checkbox
+        )
+
+        tmp_selection_model = self.table_view.selectionModel()
+        if tmp_selection_model is not None:
+            tmp_selection_model.selectionChanged.connect(
+                self._update_select_all_checkbox
+            )
+
     def current_item(self) -> Optional[object]:
         """Return the raw row item for the currently selected row.
 
@@ -302,6 +1000,34 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         """
         self.toolbar_actions_layout.addWidget(button)
 
+    def set_checkboxes_enabled(self, enabled: bool) -> None:
+        """Enable or disable multi-select checkboxes on the inner table view.
+
+        Args:
+            enabled: True to show checkboxes and enable multi-selection;
+                False to hide them and revert to single-selection.
+        """
+        self.table_view.set_checkboxes_enabled(enabled)
+        self.select_all_checkbox.setVisible(enabled)
+        if enabled:
+            self._update_select_all_checkbox()
+
+    def selected_items(self) -> list[object]:
+        """Return the raw row objects for all currently selected/checked rows.
+
+        Returns:
+            A list of selected/checked row items.
+        """
+        return self.table_view.selected_items()
+
+    def set_selected_items(self, items: list[object]) -> None:
+        """Select/check the rows corresponding to the given items.
+
+        Args:
+            items: A list of row items to select/check.
+        """
+        self.table_view.set_selected_items(items)
+
     # </editor-fold>
 
     # <editor-fold desc="Private methods">
@@ -310,6 +1036,8 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         self.search_field.setPlaceholderText("Search ...")
         self.search_field.setClearButtonEnabled(True)
         self.search_field.setVisible(self._filter_column >= 0)
+        self.select_all_checkbox.setTristate(True)
+        self.select_all_checkbox.setVisible(False)
 
         self.toolbar_actions_layout.setContentsMargins(
             *ui_defaults.EMPTY_CONTENTS_MARGINS
@@ -326,6 +1054,7 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         root_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         root_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
         root_layout.addLayout(toolbar_layout)
+        root_layout.addWidget(self.select_all_checkbox)
         root_layout.addWidget(self.table_view)
         self.setLayout(root_layout)
 
@@ -333,6 +1062,9 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         """Connect internal widget signals."""
         self.table_view.row_activated.connect(self.row_activated)
         self.search_field.textChanged.connect(self._on_search_text_changed)
+        self.select_all_checkbox.stateChanged.connect(
+            self._on_select_all_state_changed
+        )
 
     def _on_search_text_changed(self, text: str) -> None:
         """Update the proxy filter when the search text changes.
@@ -351,5 +1083,70 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         )
         self._proxy.setFilterFixedString(text)
         self._proxy.setFilterKeyColumn(self._filter_column)
+
+        self._update_select_all_checkbox()
+
+    def _on_select_all_state_changed(self, state: int) -> None:
+        """Handle changes to the Select All checkbox state.
+
+        Args:
+            state: The new Qt.CheckState value.
+        """
+        self.select_all_checkbox.blockSignals(True)
+        try:
+            if state == QtCore.Qt.CheckState.Checked.value:
+                self.table_view.select_all_visible()
+            elif state == QtCore.Qt.CheckState.Unchecked.value:
+                self.table_view.deselect_all()
+            elif state == QtCore.Qt.CheckState.PartiallyChecked.value:
+                self.select_all_checkbox.setCheckState(
+                    QtCore.Qt.CheckState.Checked
+                )
+                self.table_view.select_all_visible()
+        finally:
+            self.select_all_checkbox.blockSignals(False)
+
+    def _update_select_all_checkbox(self) -> None:
+        """Update the Select All checkbox state based on current selection."""
+        if self._proxy is None or self.select_all_checkbox.isHidden():
+            return
+
+        tmp_total_visible = 0
+        tmp_selected_visible = 0
+
+        tmp_selection_model = self.table_view.selectionModel()
+        if tmp_selection_model is None:
+            return
+
+        tmp_model = self.table_view.model()
+        if tmp_model is None:
+            return
+
+        for tmp_row in range(tmp_model.rowCount()):
+            tmp_total_visible += 1
+            tmp_index = tmp_model.index(tmp_row, 0)
+            if tmp_selection_model.isSelected(tmp_index):
+                tmp_selected_visible += 1
+
+        self.select_all_checkbox.blockSignals(True)
+        try:
+            if tmp_total_visible == 0:
+                self.select_all_checkbox.setCheckState(
+                    QtCore.Qt.CheckState.Unchecked
+                )
+            elif tmp_selected_visible == tmp_total_visible:
+                self.select_all_checkbox.setCheckState(
+                    QtCore.Qt.CheckState.Checked
+                )
+            elif tmp_selected_visible == 0:
+                self.select_all_checkbox.setCheckState(
+                    QtCore.Qt.CheckState.Unchecked
+                )
+            else:
+                self.select_all_checkbox.setCheckState(
+                    QtCore.Qt.CheckState.PartiallyChecked
+                )
+        finally:
+            self.select_all_checkbox.blockSignals(False)
 
     # </editor-fold>

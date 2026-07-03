@@ -943,7 +943,7 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
             yet (show-all fallback).
         """
         if not self._accepted_values:
-            return True  # No filter configured — show everything.
+            return super().filterAcceptsRow(source_row, source_parent)
 
         source_model: Optional[QtCore.QAbstractItemModel] = self.sourceModel()
         if source_model is None:

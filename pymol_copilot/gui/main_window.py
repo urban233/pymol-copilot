@@ -5,13 +5,12 @@ from __future__ import annotations
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
-from pymol_copilot.gui.qt.model import list_model
+from pymol_copilot.gui.qt.model import list_model, table_model
 from pymol_copilot.gui.qt.widgets import (
     command_bar,
-    button,
-    list_view,
-    text_box,
     input_bar,
+    list_view,
+    table_view,
 )
 from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
 from pymol_copilot.gui.widgets import viewer
@@ -46,6 +45,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.viewer = viewer.Viewer()
         tmp_layout.addWidget(self.viewer)
+        self.input = input_bar.InputBar()
         tmp_layout.addWidget(self.input)
 
     def highlight_sele(self) -> None:
@@ -178,6 +178,53 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- Begin content
         tmp_text_box = input_bar.InputBar()
         tmp_layout.addWidget(tmp_text_box)
+
+        class Job:
+            """Represent a mock job for the table view demo."""
+
+            def __init__(self, name: str, status: str, project: str) -> None:
+                """Initialize the job.
+
+                Args:
+                    name: The job name.
+                    status: The job status.
+                    project: The project name.
+                """
+                self.name = name
+                self.status = status
+                self.project = project
+
+        class JobTableModel(table_model.TableModel):
+            """Table model for mock jobs."""
+
+            def _cell_data(self, item: object, column: int) -> object:
+                """Return display data for a cell.
+
+                Args:
+                    item: The job item.
+                    column: The column index.
+
+                Returns:
+                    The display string.
+                """
+                if isinstance(item, Job):
+                    return [item.name, item.status, item.project][column]
+                return ""
+
+        tmp_job_model = JobTableModel(
+            column_headers=["Name", "Status", "Project"]
+        )
+        tmp_job_items: list[object] = [
+            Job("Home", "Running", "PyMOL"),
+            Job("Align", "Queued", "cBioMOL"),
+            Job("Render", "Completed", "Copilot"),
+        ]
+        tmp_job_model.add_rows(tmp_job_items)
+        tmp_table_view = table_view.TableView()
+        tmp_table_view.set_model(tmp_job_model)
+        tmp_table_view.set_checkboxes_enabled(True)
+        tmp_layout.addWidget(tmp_table_view)
+
         # --- End content
         tmp_layout.addStretch(1)
         # tmp_label = QtWidgets.QLabel("PyMOL Copilot")

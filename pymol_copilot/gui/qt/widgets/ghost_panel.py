@@ -1,11 +1,25 @@
+"""Provides a semi-transparent ghost panel that fades in on hover."""
+
+from __future__ import annotations
+
+from typing import Optional
+
 from pymol_copilot.gui.qt import QtCore
-from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import theme
+from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt.widgets import command_bar
 
 
 class GhostPanel(QtWidgets.QWidget):
-    def __init__(self, parent=None):
+    """A visual container panel that fades in on mouse hover."""
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        """Initialize the ghost panel.
+
+        Args:
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
 
         # 1. Root layout for HoverOverlay itself
@@ -21,18 +35,28 @@ class GhostPanel(QtWidgets.QWidget):
         # Add the visual frame to the root layout
         self._root_layout.addWidget(self._content_frame)
 
+        self.opacity_effect: Optional[QtWidgets.QGraphicsOpacityEffect] = None
+        self.animation: Optional[QtCore.QPropertyAnimation] = None
+
         self._setup_opacity_animation()
         self._set_style()
 
-    def set_content(self, content: QtWidgets.QWidget):
+    def set_content(self, content: QtWidgets.QWidget) -> None:
+        """Set the content widget displayed inside the panel.
+
+        Args:
+            content: The content widget to display.
+        """
         self._main_layout.addWidget(content)
         # Force the overlay to shrink-wrap strictly to what its content demands
         self.adjustSize()
 
-    def _set_style(self):
+    def _set_style(self) -> None:
+        """Apply styles to the visual frame."""
         self._content_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
 
-    def _setup_opacity_animation(self):
+    def _setup_opacity_animation(self) -> None:
+        """Set up the graphics opacity effect and hover fade animations."""
         # 2. Create an opacity effect and apply it to this widget
         self.opacity_effect = QtWidgets.QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self.opacity_effect)
@@ -48,26 +72,49 @@ class GhostPanel(QtWidgets.QWidget):
         self.animation.setDuration(350)
         self.animation.setEasingCurve(QtCore.QEasingCurve.Type.InOutQuad)
 
-    def enterEvent(self, event):
-        """Triggered when mouse enters the widget"""
-        self.animation.stop()
-        self.animation.setEndValue(0.90)  # Fade to near-solid
-        self.animation.start()
+    def enterEvent(  # noqa: N802 (Qt override)
+        self, event: QtGui.QEnterEvent | None
+    ) -> None:
+        """Triggered when mouse enters the widget.
+
+        Args:
+            event: The enter event.
+        """
+        if self.animation is not None:
+            self.animation.stop()
+            self.animation.setEndValue(0.90)  # Fade to near-solid
+            self.animation.start()
         super().enterEvent(event)
 
-    def leaveEvent(self, event):
-        """Triggered when mouse leaves the widget"""
-        self.animation.stop()
-        self.animation.setEndValue(0.2)  # Fade back to semi-transparent
-        self.animation.start()
+    def leaveEvent(  # noqa: N802 (Qt override)
+        self, event: QtCore.QEvent | None
+    ) -> None:
+        """Triggered when mouse leaves the widget.
+
+        Args:
+            event: The leave event.
+        """
+        if self.animation is not None:
+            self.animation.stop()
+            self.animation.setEndValue(0.2)  # Fade back to semi-transparent
+            self.animation.start()
         super().leaveEvent(event)
 
 
 class GhostBar(GhostPanel):
+    """A hover-responsive action bar that floats on top of content."""
+
     def __init__(
-        self, command_buttons: list[command_bar.CommandBarButton], parent=None
-    ):
+        self,
+        command_buttons: list[command_bar.CommandBarButton],
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        """Initialize the ghost bar.
+
+        Args:
+            command_buttons: The list of buttons to display.
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
         self._command_bar = command_bar.CommandBar(command_buttons, parent=self)
         self.set_content(self._command_bar)
-        # self._content_frame.setObjectName(theme.StyleId.GHOST_BAR)

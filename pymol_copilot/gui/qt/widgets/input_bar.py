@@ -1,16 +1,24 @@
-from pymol_copilot.gui.qt import QtGui, icons
+"""Provides an input bar widget for prompting the AI assistant."""
+
+from __future__ import annotations
+
+from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
-from pymol_copilot.gui.qt.widgets import text_box, button
+from pymol_copilot.gui.qt.widgets import button
+from pymol_copilot.gui.qt.widgets import text_box
 
 
 class InputBar(QtWidgets.QWidget):
+    """Input bar widget containing a text box and send button."""
+
     def __init__(
         self,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
-        """Initialize the inout bar.
+        """Initialize the input bar.
 
         Args:
             parent: Optional parent widget.
@@ -39,6 +47,7 @@ class InputBar(QtWidgets.QWidget):
         self.setObjectName(theme.StyleId.INPUT_BAR)
 
     def _init_widget(self) -> None:
+        """Initialize and lay out the child widgets."""
         self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         self._layout.addWidget(self._input)
         self._layout.addWidget(self._send_button)

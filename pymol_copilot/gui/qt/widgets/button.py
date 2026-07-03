@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
@@ -165,7 +167,5 @@ class CircleIconButton(Button):
             obj: The QObject being destroyed (optional).
         """
         _ = obj
-        try:
+        with contextlib.suppress(TypeError, RuntimeError):
             styles.notifier.scale_changed.disconnect(self._handle_scale_changed)
-        except (TypeError, RuntimeError):
-            pass

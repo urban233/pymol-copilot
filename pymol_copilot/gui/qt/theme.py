@@ -415,6 +415,42 @@ QFrame#{StyleId.INPUT_BAR} {{
     border-radius: 20px;
     padding: ${{padding_medium}};
 }}
+
+QTableView {{
+    background-color: ${{surface}};
+    gridline-color: ${{border_color}};
+    border: 1px solid ${{border_color}};
+    border-radius: ${{corner_radius}};
+    alternate-background-color: ${{hover}};
+}}
+
+QTableView::item {{
+    padding: 6px;
+    border-bottom: 1px solid ${{border_color}};
+}}
+
+QTableView::item:hover {{
+    background-color: ${{hover}};
+}}
+
+QTableView::item:selected {{
+    background-color: rgba(54, 122, 246, 0.15);
+    color: ${{text_primary}};
+}}
+
+QHeaderView::section {{
+    background-color: ${{hover}};
+    color: ${{text_primary}};
+    padding: 5px;
+    border: 1px solid ${{border_color}};
+    font-weight: bold;
+    font-size: ${{font_size_base}};
+}}
+
+QHeaderView::section:checked {{
+    background-color: ${{pressed_shared}};
+    color: #107c41;
+}}
 """
 
 

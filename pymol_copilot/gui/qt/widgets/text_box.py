@@ -1,14 +1,15 @@
+"""Provides an expanding text box widget that grows dynamically with content."""
+
+from __future__ import annotations
+
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
-from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme
+from pymol_copilot.gui.qt import QtWidgets
 
 
 class ExpandingTextBox(QtWidgets.QPlainTextEdit):
-    """A QPlainTextEdit that auto-grows vertically with the number of
-    rendered visual lines (explicit newlines *and* word-wrapped lines),
-    up to `max_rows`, then becomes scrollable.
-    """
+    """A QPlainTextEdit that auto-grows vertically with content."""
 
     def __init__(
         self,
@@ -17,6 +18,14 @@ class ExpandingTextBox(QtWidgets.QPlainTextEdit):
         min_rows: int = 1,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
+        """Initialize the expanding text box.
+
+        Args:
+            placeholder_text: Placeholder text to display.
+            max_rows: Maximum rows before scrollbar appears.
+            min_rows: Minimum rows to display.
+            parent: Optional parent widget.
+        """
         super().__init__(parent)
 
         self._max_rows = max_rows
@@ -36,53 +45,80 @@ class ExpandingTextBox(QtWidgets.QPlainTextEdit):
         self.setObjectName(theme.StyleId.INPUT_BAR_TEXT_BOX)
         self._update_height()
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def resizeEvent(  # noqa: N802 (Qt override)
+        self, event: QtGui.QResizeEvent | None
+    ) -> None:
+        """Handle resizing of the text box widget.
+
+        Args:
+            event: The resize event.
+        """
         # A width change reflows word-wrapping, which changes how many
         # visual lines the content occupies -> recompute height too.
         super().resizeEvent(event)
         self._update_height()
 
     def _line_height(self) -> float:
-        return QtGui.QFontMetrics(self.font()).lineSpacing()
+        """Calculate the height of a single text line.
+
+        Returns:
+            The height of a single line in physical pixels.
+        """
+        return float(QtGui.QFontMetrics(self.font()).lineSpacing())
 
     def _vertical_padding(self) -> float:
-        doc_margin = self.document().documentMargin()
-        frame_width = self.frameWidth()
-        return 2 * (doc_margin + frame_width)
+        """Calculate the vertical padding of the text box.
+
+        Returns:
+            The vertical padding in physical pixels.
+        """
+        tmp_doc = self.document()
+        tmp_doc_margin = (
+            tmp_doc.documentMargin() if tmp_doc is not None else 0.0
+        )
+        tmp_frame_width = float(self.frameWidth())
+        return 2.0 * (tmp_doc_margin + tmp_frame_width)
 
     def _wrapped_line_count(self) -> int:
-        """Total number of *visual* lines across all blocks, i.e. explicit
-        paragraphs (separated by newlines) each split further by word-wrap.
+        """Total number of visual lines across all blocks.
 
-        QPlainTextEdit's document uses QPlainTextDocumentLayout, whose
-        document().size() does not reliably reflect wrapped height. Each
-        block's QTextLayout does, though (it's what the widget itself uses
-        to paint), so we sum lineCount() per block instead.
+        Returns:
+            The count of visual lines.
         """
-        total = 0
-        block = self.document().begin()
-        while block.isValid():
-            layout = block.layout()
-            line_count = layout.lineCount() if layout is not None else 1
-            total += max(line_count, 1)
-            block = block.next()
-        return max(total, 1)
+        tmp_total = 0
+        tmp_doc = self.document()
+        if tmp_doc is not None:
+            tmp_block = tmp_doc.begin()
+            while tmp_block.isValid():
+                tmp_layout = tmp_block.layout()
+                tmp_line_count = (
+                    tmp_layout.lineCount() if tmp_layout is not None else 1
+                )
+                tmp_total += max(tmp_line_count, 1)
+                tmp_block = tmp_block.next()
+        return max(tmp_total, 1)
 
     def _content_height(self) -> float:
-        """Height of the text as Qt would actually render it at the
-        current widget width, including word-wrapped lines."""
-        return self._wrapped_line_count() * self._line_height()
+        """Height of the text as Qt would render it.
+
+        Returns:
+            The text content height in physical pixels.
+        """
+        return float(self._wrapped_line_count()) * self._line_height()
 
     def _update_height(self) -> None:
-        line_height = self._line_height()
-        padding = self._vertical_padding()
+        """Update the height of the widget based on content."""
+        tmp_line_height = self._line_height()
+        tmp_padding = self._vertical_padding()
 
-        min_height = self._min_rows * line_height + padding
-        max_height = self._max_rows * line_height + padding
+        tmp_min_height = float(self._min_rows) * tmp_line_height + tmp_padding
+        tmp_max_height = float(self._max_rows) * tmp_line_height + tmp_padding
 
-        content_height = self._content_height() + padding
-        new_height = max(min_height, min(content_height, max_height))
+        tmp_content_height = self._content_height() + tmp_padding
+        tmp_new_height = max(
+            tmp_min_height, min(tmp_content_height, tmp_max_height)
+        )
 
-        new_height = int(new_height)
-        if new_height != self.height():
-            self.setFixedHeight(new_height)
+        tmp_new_height_int = int(tmp_new_height)
+        if tmp_new_height_int != self.height():
+            self.setFixedHeight(tmp_new_height_int)
