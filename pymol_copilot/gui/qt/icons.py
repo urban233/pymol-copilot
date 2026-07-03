@@ -230,5 +230,5 @@ def _try_read_bytes(import_name: str, rel_path: str) -> bytes | None:
         return None
 
 
-# Auto-register the core SDK package so callers never need to do it manually.
+# Auto-register the core package so callers never need to do it manually.
 register_package("pymol_copilot.gui.qt")

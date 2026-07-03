@@ -24,7 +24,6 @@ import contextlib
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
-from pymol_copilot.gui.qt import styles
 from pymol_copilot.gui.qt import theme
 
 
@@ -116,7 +115,7 @@ class CircleIconButton(Button):
     def _init_widget(self) -> None:
         """Initialize the widget properties, applying the icon."""
         self.setIcon(self._icon)
-        styles.notifier.scale_changed.connect(self._handle_scale_changed)
+        theme.notifier.scale_changed.connect(self._handle_scale_changed)
         self.destroyed.connect(self._cleanup_connections)
 
     def _set_styles(self) -> None:
@@ -168,4 +167,4 @@ class CircleIconButton(Button):
         """
         _ = obj
         with contextlib.suppress(TypeError, RuntimeError):
-            styles.notifier.scale_changed.disconnect(self._handle_scale_changed)
+            theme.notifier.scale_changed.disconnect(self._handle_scale_changed)

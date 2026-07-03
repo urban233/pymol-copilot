@@ -7,14 +7,14 @@ import math
 import typing
 from typing import override
 
-from PyQt6 import QtCore
-from PyQt6 import QtGui
-from PyQt6 import QtWidgets
 import numpy
 import scipy.spatial
 
-from pymol_copilot.gui.qt import styles
+from pymol_copilot.gui.qt import QtCore
+from pymol_copilot.gui.qt import QtGui
+from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt.widgets import flyout
+from pymol_copilot.gui.qt import theme
 
 
 FLYOUT_MIN_HULL_SCREEN_AREA_PX: int = 2500
@@ -679,7 +679,7 @@ class ConvexHullOverlay(QtWidgets.QWidget):
             tmp_h,
         )
 
-        tmp_margin = styles.dp(8)
+        tmp_margin = theme.dp(8)
 
         for tmp_idx, tmp_flyout in enumerate(self._flyouts):
             if tmp_idx >= len(tmp_bboxes) or tmp_bboxes[tmp_idx] is None:

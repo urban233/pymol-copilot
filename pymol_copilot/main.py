@@ -13,7 +13,6 @@ from pymol.Qt.utils import MainThreadCaller
 from pymol_copilot.gui import main_window
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets
-from pymol_copilot.gui.qt import styles
 from pymol_copilot.gui.qt import theme
 
 
@@ -71,7 +70,7 @@ def main() -> int:
     theme.apply_global_theme()
 
     # Hook screen DPI updates to re-apply the compiled stylesheet
-    styles.notifier.scale_changed.connect(theme.apply_global_theme)
+    theme.notifier.scale_changed.connect(theme.apply_global_theme)
 
     tmp_window.show()
     return tmp_app.exec()

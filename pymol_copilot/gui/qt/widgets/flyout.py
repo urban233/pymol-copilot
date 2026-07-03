@@ -20,7 +20,6 @@ from typing import override
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
-from pymol_copilot.gui.qt import styles
 from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
@@ -116,11 +115,11 @@ class FlyoutFrame(QtWidgets.QWidget):
             self._inner_frame
         )
         self._content_layout.setContentsMargins(
-            styles.dp(8), styles.dp(8), styles.dp(8), styles.dp(8)
+            theme.dp(8), theme.dp(8), theme.dp(8), theme.dp(8)
         )
         self._content_layout.setSpacing(ui_defaults.DEFAULT_SPACING)
 
-        m = styles.dp(_SHADOW_MARGIN) if shadow else 0
+        m = theme.dp(_SHADOW_MARGIN) if shadow else 0
         outer_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
         outer_layout.setContentsMargins(m, m, m, m)
         outer_layout.setSpacing(ui_defaults.EMPTY_SPACING)
@@ -242,9 +241,9 @@ class FloatingFlyout(QtWidgets.QWidget):
         # Layout inside the inner frame
         tmp_content_layout = QtWidgets.QHBoxLayout(self._inner_frame)
         tmp_content_layout.setContentsMargins(
-            styles.dp(8), styles.dp(4), styles.dp(8), styles.dp(4)
+            theme.dp(8), theme.dp(4), theme.dp(8), theme.dp(4)
         )
-        tmp_content_layout.setSpacing(styles.dp(8))
+        tmp_content_layout.setSpacing(theme.dp(8))
 
         # Setup child controls directly
         self.label = QtWidgets.QLabel("AI Suggestion")
@@ -262,7 +261,7 @@ class FloatingFlyout(QtWidgets.QWidget):
 
         # Outer layout to support shadow padding
         tmp_outer_layout = QtWidgets.QVBoxLayout(self)
-        tmp_shadow_padding = styles.dp(6)
+        tmp_shadow_padding = theme.dp(6)
         tmp_outer_layout.setContentsMargins(
             tmp_shadow_padding,
             tmp_shadow_padding,
@@ -332,12 +331,12 @@ class FloatingFlyout(QtWidgets.QWidget):
 
         # Translucent shadow settings
         tmp_shadow_color = QtGui.QColor(0, 0, 0, 30)
-        tmp_radius = float(styles.dp(6))
+        tmp_radius = float(theme.dp(6))
 
         # Get visual frame geometry relative to this widget
         tmp_frame_rect = self._inner_frame.geometry()
         tmp_shadow_rect = QtCore.QRectF(tmp_frame_rect).translated(
-            float(styles.dp(2)), float(styles.dp(2))
+            float(theme.dp(2)), float(theme.dp(2))
         )
 
         tmp_path = QtGui.QPainterPath()
