@@ -1,4 +1,15 @@
-# PyMOL Copilot
+<h2 align="center">
+  <strong>PyMOL-Copilot</strong>
+</h2>
+
+<p align="center">
+  <img src="assets/logo/logo.png" alt="PyMOL-Copilot Logo" width="200">
+</p>
+
+
+<p align="center">
+  <strong>A local AI assistant designed for structural biologists.</strong>
+</p>
 
 ![Status: Experimental](https://img.shields.io/badge/status-experimental-orange.svg)
 [![License: BSD-3 Clause](https://img.shields.io/badge/License-BSD%203%20Clause-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
