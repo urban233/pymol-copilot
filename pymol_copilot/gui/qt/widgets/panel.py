@@ -30,11 +30,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pymol_copilot.gui.qt import QtCore
+from pymol_copilot.gui.qt import QtCore, ui_defaults
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme
 
 __docformat__ = "google"
+
+from pymol_copilot.gui.qt.widgets import conversation_canvas, input_bar
 
 
 class Panel(QtWidgets.QWidget):
@@ -109,16 +111,24 @@ class Panel(QtWidgets.QWidget):
         """
         self.panelOpened.emit()
 
+    def add_content(self, widget: QtWidgets.QWidget) -> None:
+        """Add a widget to the content frame."""
+        self._content_frame.layout().addWidget(widget)
+
     # </editor-fold>
 
     # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
         """Initializes the widget by setting up the correct layouts."""
         tmp_header_layout = QtWidgets.QHBoxLayout()
+        tmp_header_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_header_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_header_layout.addWidget(self._lbl_header)
         tmp_header_layout.addStretch()
         tmp_header_layout.addWidget(self._btn_close)
         tmp_global_layout = QtWidgets.QVBoxLayout(self)
+        tmp_global_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_global_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_global_layout.addLayout(tmp_header_layout)
         tmp_global_layout.addWidget(self._content_frame)
         self.setLayout(tmp_global_layout)
@@ -136,3 +146,30 @@ class Panel(QtWidgets.QWidget):
         self._content_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
 
     # </editor-fold>
+
+
+class PmlCopilotPanel(Panel):
+    """A panel for the PML Copilot plugin."""
+
+    def __init__(self) -> None:
+        """Initializes the panel."""
+        super().__init__("PyMOL-Copilot")
+        self._container_widget = QtWidgets.QWidget()
+        self._layout = QtWidgets.QVBoxLayout(self)
+        self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        self._container_widget.setLayout(self._layout)
+
+        self._cui_canvas = conversation_canvas.ConversationCanvas()
+        self._input_bar = input_bar.InputBar()
+        self._layout.addWidget(self._cui_canvas)
+        self._layout.addWidget(self._input_bar)
+        self.add_content(self._container_widget)
+
+        self._demo_only()
+
+    def _demo_only(self):
+        tmp_user_card = conversation_canvas.UserRequestCard(
+            "For the attached file, please make all heading 2s a font of 18, blue font, and not underline."
+        )
+        self._cui_canvas.add_card(tmp_user_card)

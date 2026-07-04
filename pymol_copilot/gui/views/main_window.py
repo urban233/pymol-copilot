@@ -9,7 +9,7 @@ from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.model import list_model
 from pymol_copilot.gui.qt.model import table_model
-from pymol_copilot.gui.qt.widgets import color_grid, pml_command_line
+from pymol_copilot.gui.qt.widgets import color_grid, pml_command_line, panel
 from pymol_copilot.gui.qt.widgets import command_bar
 from pymol_copilot.gui.qt.widgets import flyout
 from pymol_copilot.gui.qt.widgets import input_bar
@@ -78,8 +78,13 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self._command_bar.append_command_button(self._more_cmd_button)
         self._command_bar.append_command_button(self._help_cmd_button)
-        self._command_line = pml_command_line.PmlCommandLine(self.viewer.cmd)
+
+        self._content_layout = QtWidgets.QHBoxLayout()
+
+        self._conversation_panel = panel.PmlCopilotPanel()
+
         self._input_bar = input_bar.InputBar()
+        self._command_line = pml_command_line.PmlCommandLine(self.viewer.cmd)
 
         self._setup_ui()
         self.setMinimumSize(600, 400)
@@ -97,15 +102,25 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_central_widget.setLayout(tmp_layout)
         # </editor-fold>
+        self._content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+
         self.setMenuBar(self._menu_bar)
+
+        tmp_main_content_layout = QtWidgets.QVBoxLayout()
+        tmp_main_content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_main_content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
         tmp_layout.addWidget(self._command_bar)
         tmp_input_bar_wrapper_layout = QtWidgets.QHBoxLayout()
         tmp_input_bar_wrapper_layout.setContentsMargins(120, 0, 120, 0)
         tmp_input_bar_wrapper_layout.addWidget(self._input_bar)
-        tmp_layout.addLayout(tmp_input_bar_wrapper_layout)
-        tmp_layout.addWidget(self.viewer)
-        tmp_layout.addWidget(self._command_line)
+        tmp_main_content_layout.addLayout(tmp_input_bar_wrapper_layout)
+        tmp_main_content_layout.addWidget(self.viewer)
+        tmp_main_content_layout.addWidget(self._command_line)
+        self._content_layout.addLayout(tmp_main_content_layout)
+        self._content_layout.addWidget(self._conversation_panel)
+        tmp_layout.addLayout(self._content_layout)
 
         # tmp_highlight_btn = command_bar.CommandBarActionButton(
         #     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),

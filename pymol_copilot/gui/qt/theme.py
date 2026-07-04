@@ -361,6 +361,9 @@ class ThemeColors:
     TEXT_ON_ACCENT = ColorToken("#ffffff")
     TEXT_PRIMARY = ColorToken("#242424")
     PRESSED_SHARED = ColorToken("#ebebeb")
+    CUI_CARD_SURFACE = ColorToken("#f7f8f9")
+    CUI_CARD_BORDER = ColorToken("#e9eaee")
+    CUI_USER_CARD_SURFACE = ColorToken("#e9eaee")
 
 
 class ThemeMetrics:
@@ -397,6 +400,9 @@ class StyleId(enum.StrEnum):
     INPUT_BAR_TEXT_BOX = "InputBarTextBox"
     INPUT_BAR = "InputBar"
     MINIMAL_TEXT_BOX = "MinimalTextBox"
+    CUI_CARD_SURFACE = "CuiCardSurface"
+    """Base card surface for the conversational user interface (CUI)."""
+    CUI_USER_CARD_SURFACE = "CuiUserCardSurface"
     # Maybe outdated
     SPLITTER_HANDLE = "SplitterHandle"
     MENU_BLOCK = "MenuBlock"
@@ -729,8 +735,50 @@ QHeaderView::section:checked {{
     background-color: ${{pressed_shared}};
     color: #107c41;
 }}
-"""
 
+QFrame#{StyleId.CUI_CARD_SURFACE} {{
+    border: ${{border_width}} solid ${{cui_card_border}};
+    background-color: ${{cui_card_surface}};
+    border-radius: ${{corner_radius}};
+    padding: ${{padding_small}};
+}}
+
+QFrame#{StyleId.CUI_USER_CARD_SURFACE} {{
+    border: ${{border_width}} solid ${{cui_card_border}};
+    background-color: ${{cui_user_card_surface}};
+    border-radius: ${{corner_radius}};
+    padding: ${{padding_small}};
+}}
+"""
+# QFrame#{StyleId.CUI_CARD_SURFACE} {{
+# background-color: ${{surface}};
+# border-top: ${{border_width}} solid ${{border_color}};
+# border-right: ${{border_width}} solid ${{border_color}};
+# border-bottom: ${{border_width}} solid ${{border_color}};
+# /* Left-accented stroke mimicking Microsoft's focus paradigm */
+# border-left: 4px solid ${{accent}};
+# border-radius: ${{corner_radius}};
+# }}
+#
+# /* State Flattening: Strip outer visual weight when item lifecycle ends */
+#                                                                    QFrame#{StyleId.CUI_CARD_SURFACE}[state="historic"] {{
+# background-color: transparent;
+# border-top: ${{border_width}} solid transparent;
+# border-right: ${{border_width}} solid transparent;
+# border-bottom: ${{border_width}} solid transparent;
+# /* Keeps timeline context without attracting structural attention */
+#                                                         border-left: 4px solid ${{divider}};
+# }}
+#
+# /* Default text color inside an active agent card */
+#                                              QFrame#{StyleId.CUI_CARD_SURFACE} QLabel {{
+# color: ${{text_primary}};
+# }}
+#
+# /* Cascading dimming effect applied automatically to child elements */
+#                                                            QFrame#{StyleId.CUI_CARD_SURFACE}[state="historic"] QLabel {{
+# color: ${{border_hover}};
+# }}
 
 # Pre-built colour-token binding map.  Colour tokens are defined as
 # class attributes on ThemeColors and never change at runtime, so
