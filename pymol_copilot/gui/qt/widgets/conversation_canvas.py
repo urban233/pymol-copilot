@@ -4,7 +4,7 @@ from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt.widgets import button
-from pymol_copilot.gui.qt.widgets import input_bar
+from pymol_copilot.gui.qt.widgets import spinner
 
 
 class BaseCard(QtWidgets.QWidget):
@@ -73,50 +73,12 @@ class UserRequestCard(BaseCard):
         self.text_label.setText(text)
 
 
-class SpinnerWidget(QtWidgets.QWidget):
-    """Lightweight rotating-arc spinner drawn entirely with QPainter."""
-
-    def __init__(self, size: int = 16, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-        self._angle = 0
-        self._size = size
-        self._timer = QtCore.QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self.setFixedSize(size, size)
-
-    def _tick(self) -> None:
-        self._angle = (self._angle + 4) % 360
-        self.update()
-
-    def start(self) -> None:
-        self._timer.start(16)
-
-    def stop(self) -> None:
-        self._timer.stop()
-
-    def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # noqa: N802
-        painter = QtGui.QPainter(self)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        pen = QtGui.QPen(QtGui.QColor(theme.ThemeColors.ACCENT.to_hex()))
-        pen.setWidthF(2.0)
-        pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        margin = pen.widthF() + 0.5
-        rect = QtCore.QRectF(
-            margin, margin,
-            self._size - 2 * margin, self._size - 2 * margin,
-        )
-        # Qt arc angles are in 1/16°; arc starts from top (90°) and sweeps 270°
-        painter.drawArc(rect, (90 - self._angle) * 16, 270 * 16)
-        painter.end()
-
-
 class AgentThinkingCard(BaseCard):
     """Card that signals the AI agent is currently processing."""
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(is_user=False, parent=parent)
-        self._spinner = SpinnerWidget(size=theme.dp(16))
+        self._spinner = spinner.SpinnerWidget(size=theme.dp(16))
         self._label = QtWidgets.QLabel("Working\u2026")
 
         row = QtWidgets.QHBoxLayout()
@@ -225,33 +187,45 @@ class ToolApprovalCard(BaseCard):
         footer_layout.addWidget(self._reject_btn)
         footer_layout.addStretch()
 
-        # Status label shown after a decision is made
-        self._status_label = QtWidgets.QLabel("")
-        self._status_label.hide()
+        # Status row shown after a decision is made
+        self._status_widget = QtWidgets.QWidget()
+        self._status_widget.hide()
+        status_layout = QtWidgets.QHBoxLayout(self._status_widget)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(theme.dp(6))
+        self._status_icon_label = QtWidgets.QLabel()
+        self._status_icon_label.setFixedSize(theme.dp(16), theme.dp(16))
+        self._status_text_label = QtWidgets.QLabel()
+        status_layout.addWidget(self._status_icon_label)
+        status_layout.addWidget(self._status_text_label)
+        status_layout.addStretch()
 
         # Assemble — spacing between sections comes from content_layout.setSpacing
         self.content_layout.addLayout(header_row)
         self.content_layout.addWidget(desc_label)
         self.content_layout.addWidget(params_container)
         self.content_layout.addWidget(self._footer)
-        self.content_layout.addWidget(self._status_label)
+        self.content_layout.addWidget(self._status_widget)
 
         self._reject_btn.clicked.connect(self._on_reject)
         self._approve_btn.clicked.connect(self._on_approve)
 
     def _on_approve(self) -> None:
         data = {key: field.text() for key, field in self._fields.items()}
-        self._finalize("\u2713 Approved")
+        self._finalize(icons.icon("pymol_copilot.gui.qt", "check_circle_green"), "Approved")
         self.approved.emit(data)
 
     def _on_reject(self) -> None:
-        self._finalize("\u2717 Rejected")
+        self._finalize(icons.icon("pymol_copilot.gui.qt", "error_red"), "Rejected")
         self.rejected.emit()
 
-    def _finalize(self, outcome: str) -> None:
+    def _finalize(self, outcome_icon: QtGui.QIcon, outcome_text: str) -> None:
         self._footer.hide()
-        self._status_label.setText(outcome)
-        self._status_label.show()
+        self._status_icon_label.setPixmap(
+            outcome_icon.pixmap(QtCore.QSize(theme.dp(16), theme.dp(16)))
+        )
+        self._status_text_label.setText(outcome_text)
+        self._status_widget.show()
         self._outer_frame.setEnabled(False)
 
 
@@ -349,15 +323,24 @@ class PlanApprovalCard(BaseCard):
         footer_layout.addWidget(self._reject_btn)
         footer_layout.addStretch()
 
-        # Status label shown after a decision is made
-        self._status_label = QtWidgets.QLabel("")
-        self._status_label.hide()
+        # Status row shown after a decision is made
+        self._status_widget = QtWidgets.QWidget()
+        self._status_widget.hide()
+        status_layout = QtWidgets.QHBoxLayout(self._status_widget)
+        status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(theme.dp(6))
+        self._status_icon_label = QtWidgets.QLabel()
+        self._status_icon_label.setFixedSize(theme.dp(16), theme.dp(16))
+        self._status_text_label = QtWidgets.QLabel()
+        status_layout.addWidget(self._status_icon_label)
+        status_layout.addWidget(self._status_text_label)
+        status_layout.addStretch()
 
         # Assemble
         self.content_layout.addLayout(header_row)
         self.content_layout.addWidget(steps_widget)
         self.content_layout.addWidget(self._footer)
-        self.content_layout.addWidget(self._status_label)
+        self.content_layout.addWidget(self._status_widget)
 
         self._reject_btn.clicked.connect(self._on_reject)
         self._approve_btn.clicked.connect(self._on_approve)
@@ -375,19 +358,25 @@ class PlanApprovalCard(BaseCard):
 
     def _on_approve(self) -> None:
         accepted = [s for i, s in enumerate(self._steps) if i not in self._skipped]
-        self._finalize(f"\u2713 Approved ({len(accepted)}/{len(self._steps)} steps)")
+        self._finalize(
+            icons.icon("pymol_copilot.gui.qt", "check_circle_green"),
+            f"Approved ({len(accepted)}/{len(self._steps)} steps)",
+        )
         self.approved.emit(accepted)
 
     def _on_reject(self) -> None:
-        self._finalize("\u2717 Rejected")
+        self._finalize(icons.icon("pymol_copilot.gui.qt", "error_red"), "Rejected")
         self.rejected.emit()
 
-    def _finalize(self, outcome: str) -> None:
+    def _finalize(self, outcome_icon: QtGui.QIcon, outcome_text: str) -> None:
         self._footer.hide()
         for btn in self._step_buttons:
             btn.hide()
-        self._status_label.setText(outcome)
-        self._status_label.show()
+        self._status_icon_label.setPixmap(
+            outcome_icon.pixmap(QtCore.QSize(theme.dp(16), theme.dp(16)))
+        )
+        self._status_text_label.setText(outcome_text)
+        self._status_widget.show()
         self._outer_frame.setEnabled(False)
 
 
@@ -409,11 +398,12 @@ class ConversationCanvas(QtWidgets.QScrollArea):
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+        self.setStyleSheet("QScrollArea { border: none; }")
         self.container.setObjectName("CanvasContainer")
         self.container.setStyleSheet("#CanvasContainer { background: transparent;}")
 
         self._layout.setContentsMargins(*ui_defaults.default_contents_margins())
-        self._layout.setSpacing(ui_defaults.default_spacing())
+        self._layout.setSpacing(theme.dp(8))
         self._layout.addItem(self.bottom_spacer)
         self.setWidget(self.container)
 

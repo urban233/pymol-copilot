@@ -31,27 +31,139 @@ from __future__ import annotations
 from typing import Optional
 
 from pymol_copilot.gui.qt import QtCore, ui_defaults, icons
+from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme
 
 __docformat__ = "google"
 
-from pymol_copilot.gui.qt.widgets import conversation_canvas, input_bar
+from pymol_copilot.gui.qt.widgets import command_bar, conversation_canvas, input_bar
+
+
+class PanelHeader(QtWidgets.QWidget):
+    """A header widget for a panel with a title label and close button.
+
+    Signals:
+        panelClosed: Emitted when the user clicks the close button.
+
+    Attributes:
+        _lbl_header: The QLabel displaying the panel title.
+        _btn_close: The close QPushButton.
+    """
+
+    panelClosed = QtCore.pyqtSignal()
+    """Emitted when the user clicks the close button."""
+
+    def __init__(
+        self,
+        title: str,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        """Initialize the panel header.
+
+        Args:
+            title: Text displayed in the header label.
+            parent: Optional parent widget. Defaults to None.
+        """
+        super().__init__(parent)
+        self._lbl_header = QtWidgets.QLabel(title)
+        self._btn_close = QtWidgets.QPushButton()
+        self._init_widget()
+        self._connect_signals()
+
+    def _init_widget(self) -> None:
+        """Set up layout and styles."""
+        tmp_layout = QtWidgets.QHBoxLayout(self)
+        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.addWidget(self._lbl_header)
+        tmp_layout.addStretch()
+        tmp_layout.addWidget(self._btn_close)
+        self._set_styles()
+
+    def _connect_signals(self) -> None:
+        """Connect signals to slots."""
+        self._btn_close.clicked.connect(self.panelClosed.emit)
+
+    def _set_styles(self) -> None:
+        """Apply object names for QSS styling."""
+        self._btn_close.setObjectName(theme.StyleId.PANEL_CLOSE_BUTTON)
+        self._lbl_header.setObjectName(theme.StyleId.PANEL_HEADER_LABEL)
+
+
+class PmlCopilotPanelHeader(PanelHeader):
+    """Panel header for PmlCopilotPanel with an additional History navigation button.
+
+    Extends PanelHeader by inserting a CommandBarActionButton between the title
+    label and the stretch. Emits ``historyRequested`` when the History button is
+    clicked; callers can toggle the button text via ``set_history_button_text``.
+
+    Signals:
+        historyRequested: Emitted when the user clicks the History button.
+    """
+
+    historyRequested = QtCore.pyqtSignal()
+    """Emitted when the user clicks the History button."""
+
+    def __init__(
+        self,
+        parent: Optional[QtWidgets.QWidget] = None,
+    ) -> None:
+        """Initialize the header.
+
+        Args:
+            parent: Optional parent widget. Defaults to None.
+        """
+        # Must be created before super().__init__() calls _init_widget().
+        self._btn_history = command_bar.CommandBarActionButton(
+            icon=None,
+            text="History",
+            style=command_bar.CommandBarButtonStyle.TEXT_ONLY,
+        )
+        super().__init__("PyMOL-Copilot", parent)
+
+    def _init_widget(self) -> None:
+        """Set up layout with History button inserted before the stretch."""
+        tmp_layout = QtWidgets.QHBoxLayout(self)
+        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.addWidget(self._lbl_header)
+        tmp_layout.addWidget(self._btn_history)
+        tmp_layout.addStretch()
+        tmp_layout.addWidget(self._btn_close)
+        self._set_styles()
+
+    def _connect_signals(self) -> None:
+        """Connect close and history button signals."""
+        super()._connect_signals()
+        self._btn_history.clicked.connect(self.historyRequested.emit)
+
+    def set_history_button_text(self, text: str) -> None:
+        """Update the History button label.
+
+        Args:
+            text: New button label (e.g. ``"History"`` or ``"← Chat"``).
+        """
+        self._btn_history._button.setText(text)
 
 
 class Panel(QtWidgets.QWidget):
     """A collapsible panel with a titled header and close button.
 
-    The panel is composed of a horizontal header row (title label + stretch +
-    close button) above a content_frame where callers add their content.
+    The panel mirrors the CommandBar inner/outer-frame pattern: a transparent
+    outer QVBoxLayout sits on ``self``, and a styled ``_outer_frame`` QFrame
+    inside it holds the actual content.  The frame receives the PANEL_SURFACE
+    QSS object name and a subtle drop shadow.
 
     Signals:
         panelClosed: Emitted when the close button is pressed.
         panelOpened: Emitted when show_panel is called.
 
     Attributes:
-        _btn_close: The close QPushButton in the header row.
-        _lbl_header: The QLabel displaying the panel title.
+        _outer_frame: The styled QFrame containing header + content.
+        _layout_outer_frame: The QVBoxLayout on self (outer wrapper).
+        _layout: The QVBoxLayout inside _outer_frame.
+        _header: The PanelHeader widget at the top.
         _content_frame: A QFrame into which callers should add content.
         _layout_content_frame: The QVBoxLayout inside content_frame.
     """
@@ -67,18 +179,24 @@ class Panel(QtWidgets.QWidget):
     def __init__(
         self,
         title: str,
+        header: Optional[PanelHeader] = None,
         parent: Optional[QtWidgets.QWidget] = None,
     ) -> None:
         """Initialize the panel with a title.
 
         Args:
-            title: Text displayed in the panel header.
+            title: Text displayed in the panel header. Ignored when a custom
+                *header* is supplied.
+            header: Optional custom PanelHeader to use instead of the default.
+                When None a default PanelHeader(title) is created.
             parent: Optional parent widget. Defaults to None.
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
-        self._btn_close = QtWidgets.QPushButton()
-        self._lbl_header = QtWidgets.QLabel(title)
+        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        self._layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self._outer_frame)
+        self._header: PanelHeader = header if header is not None else PanelHeader(title)
         self._content_frame = QtWidgets.QFrame()
         self._layout_content_frame = QtWidgets.QVBoxLayout()
         # </editor-fold>
@@ -88,20 +206,11 @@ class Panel(QtWidgets.QWidget):
 
     # <editor-fold desc="Public methods">
     def add_global_stretch(self) -> None:
-        """Append a vertical stretch at the bottom of the global layout.
+        """Append a vertical stretch at the bottom of the inner layout.
 
         Useful for panels whose content should remain anchored to the top.
         """
-        if (tmp_layout := self.layout()) is None:
-            raise RuntimeError("self.layout is None")
-
-        # Check if the layout is a QVBoxLayout (because the layout() method
-        # returns a QLayout instead of a QVBoxLayout which is a child of QLayout)
-        if not isinstance(tmp_layout, QtWidgets.QVBoxLayout):
-            raise TypeError(
-                f"Expected QVBoxLayout, but widget has {type(tmp_layout).__name__}"
-            )
-        tmp_layout.addStretch()
+        self._layout.addStretch()
 
     def show_panel(self) -> None:
         """Emit panelOpened to signal that the panel should be shown.
@@ -119,63 +228,108 @@ class Panel(QtWidgets.QWidget):
 
     # <editor-fold desc="Private methods">
     def _init_widget(self) -> None:
-        """Initializes the widget by setting up the correct layouts."""
-        tmp_header_layout = QtWidgets.QHBoxLayout()
-        tmp_header_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        tmp_header_layout.setSpacing(ui_defaults.EMPTY_SPACING)
-        tmp_header_layout.addWidget(self._lbl_header)
-        tmp_header_layout.addStretch()
-        tmp_header_layout.addWidget(self._btn_close)
-        tmp_global_layout = QtWidgets.QVBoxLayout(self)
-        tmp_global_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        tmp_global_layout.setSpacing(ui_defaults.EMPTY_SPACING)
-        tmp_global_layout.addLayout(tmp_header_layout)
-        tmp_global_layout.addWidget(self._content_frame)
-        self.setLayout(tmp_global_layout)
+        """Initialize the widget by setting up the inner/outer frame layout."""
+        self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        self._layout.addWidget(self._header)
+        self._layout.addWidget(self._content_frame)
+        self._outer_frame.setLayout(self._layout)
+
+        self._layout_outer_frame.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
+        self._layout_outer_frame.setSpacing(ui_defaults.EMPTY_SPACING)
+        self._layout_outer_frame.addWidget(self._outer_frame)
+        self.setLayout(self._layout_outer_frame)
 
         self._set_styles()
 
     def _connect_signals(self) -> None:
-        """Connects signals to slots."""
-        self._btn_close.clicked.connect(self.panelClosed.emit)
+        """Connect signals to slots."""
+        self._header.panelClosed.connect(self.panelClosed.emit)
 
     def _set_styles(self) -> None:
-        """Sets the styles for specific UI components."""
-        self._btn_close.setObjectName(theme.StyleId.PANEL_CLOSE_BUTTON)
-        self._lbl_header.setObjectName(theme.StyleId.PANEL_HEADER_LABEL)
-        self._content_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
+        """Apply object names and shadow effect to the outer frame."""
+        self._outer_frame.setObjectName(theme.StyleId.PANEL_SURFACE)
+        tmp_shadow_effect = QtWidgets.QGraphicsDropShadowEffect()
+        tmp_shadow_effect.setBlurRadius(10)
+        tmp_shadow_effect.setOffset(2, 2)
+        tmp_shadow_effect.setColor(QtGui.QColor(0, 0, 0, 10))
+        self._outer_frame.setGraphicsEffect(tmp_shadow_effect)
 
     # </editor-fold>
 
 
 class PmlCopilotPanel(Panel):
-    """A panel for the PML Copilot plugin."""
+    """A two-page panel for the PML Copilot plugin.
+
+    Page 0 (chat): ConversationCanvas + InputBar.
+    Page 1 (history): QTableWidget listing past conversations.
+
+    The History button in the header toggles between pages and updates its
+    own label to reflect the current navigation direction.
+    """
 
     def __init__(self) -> None:
         """Initializes the panel."""
-        super().__init__("PyMOL-Copilot")
-        self._container_widget = QtWidgets.QWidget()
-        self._layout = QtWidgets.QVBoxLayout(self)
-        self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        self._layout.setSpacing(ui_defaults.EMPTY_SPACING)
-        self._container_widget.setLayout(self._layout)
+        self._panel_header = PmlCopilotPanelHeader()
+        super().__init__("PyMOL-Copilot", header=self._panel_header)
 
+        self._stacked_widget = QtWidgets.QStackedWidget()
+
+        # Page 0 — chat
+        self._chat_widget = QtWidgets.QWidget()
+        self._chat_layout = QtWidgets.QVBoxLayout()
+        self._chat_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._chat_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        self._chat_widget.setLayout(self._chat_layout)
         self._cui_canvas = conversation_canvas.ConversationCanvas()
         self._input_bar = input_bar.InputBar()
-        self._layout.addWidget(self._cui_canvas)
-        self._layout.addWidget(self._input_bar)
-        self.add_content(self._container_widget)
+        self._chat_layout.addWidget(self._cui_canvas)
+        self._chat_layout.addWidget(self._input_bar)
 
+        # Page 1 — history
+        self._history_table = QtWidgets.QTableWidget(0, 2)
+        self._history_table.setHorizontalHeaderLabels(["Date", "Conversation"])
+        self._history_table.horizontalHeader().setStretchLastSection(True)
+        self._history_table.verticalHeader().setVisible(False)
+        self._history_table.setEditTriggers(
+            QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+        self._history_table.setSelectionBehavior(
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows
+        )
+
+        self._stacked_widget.addWidget(self._chat_widget)   # index 0
+        self._stacked_widget.addWidget(self._history_table) # index 1
+
+        self.add_content(self._stacked_widget)
+
+        self._panel_header.historyRequested.connect(self._toggle_history_page)
         self._demo_only()
 
-    def _demo_only(self):
+    def _toggle_history_page(self) -> None:
+        """Toggle between the chat page and the history page."""
+        if self._stacked_widget.currentIndex() == 0:
+            self._stacked_widget.setCurrentIndex(1)
+            self._panel_header.set_history_button_text("← Chat")
+        else:
+            self._stacked_widget.setCurrentIndex(0)
+            self._panel_header.set_history_button_text("History")
+
+    def _demo_only(self) -> None:
+        # Chat page demo cards
         tmp_user_card = conversation_canvas.UserRequestCard(
             "For the attached file, please make all heading 2s a font of 18, blue font, and not underline."
         )
         self._cui_canvas.add_card(tmp_user_card)
         tmp_working_card = conversation_canvas.AgentThinkingCard()
         self._cui_canvas.add_card(tmp_working_card)
-        tool_card = conversation_canvas.ToolApprovalCard("write_cell", "Write value to Excel", {"row": "44", "col": "B", "value": "$24.50"})
+        tool_card = conversation_canvas.ToolApprovalCard(
+            "write_cell",
+            "Write value to Excel",
+            {"row": "44", "col": "B", "value": "$24.50"},
+        )
         self._cui_canvas.add_card(tool_card)
         tool_card.approved.connect(print)
         tool_card.rejected.connect(lambda: print("rejected"))
@@ -192,3 +346,14 @@ class PmlCopilotPanel(Panel):
         self._cui_canvas.add_card(plan_card)
         plan_card.approved.connect(lambda steps: print("Plan approved:", steps))
         plan_card.rejected.connect(lambda: print("Plan rejected"))
+
+        # History page demo rows
+        rows = [
+            ("2026-07-04", "Align residues 10–50 of chain A to reference structure"),
+            ("2026-07-03", "Show surface representation of active site"),
+            ("2026-07-01", "Color by B-factor and export PNG"),
+        ]
+        self._history_table.setRowCount(len(rows))
+        for i, (date, summary) in enumerate(rows):
+            self._history_table.setItem(i, 0, QtWidgets.QTableWidgetItem(date))
+            self._history_table.setItem(i, 1, QtWidgets.QTableWidgetItem(summary))
