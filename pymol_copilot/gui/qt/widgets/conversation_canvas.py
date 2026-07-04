@@ -3,6 +3,7 @@ from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt import theme
+from pymol_copilot.gui.qt.widgets import button
 from pymol_copilot.gui.qt.widgets import input_bar
 
 
@@ -131,6 +132,249 @@ class AgentThinkingCard(BaseCard):
     def stop(self) -> None:
         """Halts the spinner animation when processing is complete."""
         self._spinner.stop()
+
+
+class ToolApprovalCard(BaseCard):
+    """Card that presents a proposed tool call for user review and approval.
+
+    Displays the tool name, an intent description, and an editable parameter
+    list. Emits ``approved`` with the (potentially user-edited) parameter
+    values, or ``rejected`` when the user cancels.
+    """
+
+    approved = QtCore.pyqtSignal(dict)
+    rejected = QtCore.pyqtSignal()
+
+    def __init__(
+        self,
+        tool_name: str,
+        description: str,
+        parameters: dict[str, str],
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(is_user=False, parent=parent)
+        self._parameters = parameters
+        self._fields: dict[str, QtWidgets.QLineEdit] = {}
+
+        # Card-level padding — spacing creates visual section breaks
+        padding = theme.dp(12)
+        self.content_layout.setContentsMargins(padding, padding, padding, padding)
+        self.content_layout.setSpacing(theme.dp(8))
+
+        # Header
+        header_label = QtWidgets.QLabel(f"<b>\u2699 {tool_name}</b>")
+        desc_label = QtWidgets.QLabel(description)
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet(
+            f"color: {theme.ThemeColors.BORDER_ACTIVE.to_hex()}; "
+            f"border: none; background: transparent;"
+        )
+
+        # Parameter rows — each in a white bordered sub-card
+        params_container = QtWidgets.QWidget()
+        params_layout = QtWidgets.QVBoxLayout(params_container)
+        params_layout.setContentsMargins(0, 0, 0, 0)
+        params_layout.setSpacing(theme.dp(4))
+
+        for key, value in parameters.items():
+            row_frame = QtWidgets.QFrame()
+            row_frame.setStyleSheet(
+                f"QFrame {{ "
+                f"background-color: {theme.ThemeColors.SURFACE.to_hex()}; "
+                f"border: 1px solid {theme.ThemeColors.BORDER_COLOR.to_hex()}; "
+                f"border-radius: {theme.dp(4)}px; }}"
+            )
+            row_layout = QtWidgets.QHBoxLayout(row_frame)
+            row_layout.setContentsMargins(
+                theme.dp(8), theme.dp(6), theme.dp(8), theme.dp(6)
+            )
+            row_layout.setSpacing(theme.dp(8))
+
+            key_label = QtWidgets.QLabel(key)
+            key_label.setFixedWidth(theme.dp(80))
+            key_label.setStyleSheet(
+                f"color: {theme.ThemeColors.BORDER_ACTIVE.to_hex()}; "
+                f"border: none; background: transparent;"
+            )
+            field = QtWidgets.QLineEdit(value)
+            field.setObjectName(theme.StyleId.MINIMAL_TEXT_BOX)
+
+            row_layout.addWidget(key_label)
+            row_layout.addWidget(field, 1)
+            params_layout.addWidget(row_frame)
+            self._fields[key] = field
+
+        # Footer
+        self._footer = QtWidgets.QWidget()
+        footer_layout = QtWidgets.QHBoxLayout(self._footer)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        self._approve_btn = button.AccentButton("Approve")
+        self._reject_btn = button.BasicButton("Reject")
+        footer_layout.addWidget(self._approve_btn)
+        footer_layout.addWidget(self._reject_btn)
+        footer_layout.addStretch()
+
+        # Status label shown after a decision is made
+        self._status_label = QtWidgets.QLabel("")
+        self._status_label.hide()
+
+        # Assemble — spacing between sections comes from content_layout.setSpacing
+        self.content_layout.addWidget(header_label)
+        self.content_layout.addWidget(desc_label)
+        self.content_layout.addWidget(params_container)
+        self.content_layout.addWidget(self._footer)
+        self.content_layout.addWidget(self._status_label)
+
+        self._reject_btn.clicked.connect(self._on_reject)
+        self._approve_btn.clicked.connect(self._on_approve)
+
+    def _on_approve(self) -> None:
+        data = {key: field.text() for key, field in self._fields.items()}
+        self._finalize("\u2713 Approved")
+        self.approved.emit(data)
+
+    def _on_reject(self) -> None:
+        self._finalize("\u2717 Rejected")
+        self.rejected.emit()
+
+    def _finalize(self, outcome: str) -> None:
+        self._footer.hide()
+        self._status_label.setText(outcome)
+        self._status_label.show()
+        self._outer_frame.setEnabled(False)
+
+
+class PlanApprovalCard(BaseCard):
+    """Card that presents a multi-step plan for review.
+
+    Individual steps can be skipped before the overall plan is approved.
+    Emits ``approved`` with the list of non-skipped step descriptions, or
+    ``rejected`` when the user cancels the entire plan.
+    """
+
+    approved = QtCore.pyqtSignal(list)
+    rejected = QtCore.pyqtSignal()
+
+    def __init__(
+        self,
+        title: str,
+        steps: list[str],
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(is_user=False, parent=parent)
+        self._steps = steps
+        self._skipped: set[int] = set()
+        self._step_labels: list[QtWidgets.QLabel] = []
+        self._step_buttons: list[button.BasicButton] = []
+
+        # Card-level padding
+        padding = theme.dp(12)
+        self.content_layout.setContentsMargins(padding, padding, padding, padding)
+        self.content_layout.setSpacing(theme.dp(8))
+
+        # Header
+        header_label = QtWidgets.QLabel(f"<b>\U0001f4cb {title}</b>")
+        header_label.setWordWrap(True)
+
+        # Step rows — each in a white bordered sub-card with a numbered badge
+        steps_widget = QtWidgets.QWidget()
+        steps_layout = QtWidgets.QVBoxLayout(steps_widget)
+        steps_layout.setContentsMargins(0, 0, 0, 0)
+        steps_layout.setSpacing(theme.dp(4))
+
+        chip_size = theme.dp(22)
+        chip_radius = theme.dp(11)
+
+        for i, step in enumerate(steps):
+            step_frame = QtWidgets.QFrame()
+            step_frame.setStyleSheet(
+                f"QFrame {{ "
+                f"background-color: {theme.ThemeColors.SURFACE.to_hex()}; "
+                f"border: 1px solid {theme.ThemeColors.BORDER_COLOR.to_hex()}; "
+                f"border-radius: {theme.dp(4)}px; }}"
+            )
+            row_layout = QtWidgets.QHBoxLayout(step_frame)
+            row_layout.setContentsMargins(
+                theme.dp(8), theme.dp(8), theme.dp(8), theme.dp(8)
+            )
+            row_layout.setSpacing(theme.dp(8))
+
+            # Accent-colored circle badge with step number
+            num_chip = QtWidgets.QLabel(f"<b>{i + 1}</b>")
+            num_chip.setFixedSize(chip_size, chip_size)
+            num_chip.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+            num_chip.setStyleSheet(
+                f"background-color: {theme.ThemeColors.ACCENT.to_hex()}; "
+                f"color: white; border-radius: {chip_radius}px; "
+                f"border: none; font-size: {theme.dp(11)}px;"
+            )
+
+            step_label = QtWidgets.QLabel(step)
+            step_label.setWordWrap(True)
+
+            skip_btn = button.BasicButton("Skip")
+
+            row_layout.addWidget(num_chip)
+            row_layout.addWidget(step_label, 1)
+            row_layout.addWidget(skip_btn)
+            steps_layout.addWidget(step_frame)
+
+            self._step_labels.append(step_label)
+            self._step_buttons.append(skip_btn)
+            skip_btn.clicked.connect(
+                lambda _checked, idx=i: self._toggle_step(idx)
+            )
+
+        # Footer
+        self._footer = QtWidgets.QWidget()
+        footer_layout = QtWidgets.QHBoxLayout(self._footer)
+        footer_layout.setContentsMargins(0, 0, 0, 0)
+        self._approve_btn = button.AccentButton("Approve Plan")
+        self._reject_btn = button.BasicButton("Reject All")
+        footer_layout.addWidget(self._approve_btn)
+        footer_layout.addWidget(self._reject_btn)
+        footer_layout.addStretch()
+
+        # Status label shown after a decision is made
+        self._status_label = QtWidgets.QLabel("")
+        self._status_label.hide()
+
+        # Assemble
+        self.content_layout.addWidget(header_label)
+        self.content_layout.addWidget(steps_widget)
+        self.content_layout.addWidget(self._footer)
+        self.content_layout.addWidget(self._status_label)
+
+        self._reject_btn.clicked.connect(self._on_reject)
+        self._approve_btn.clicked.connect(self._on_approve)
+
+    def _toggle_step(self, index: int) -> None:
+        """Toggle the skipped state of a single plan step."""
+        if index in self._skipped:
+            self._skipped.discard(index)
+            self._step_labels[index].setText(self._steps[index])
+            self._step_buttons[index].setText("Skip")
+        else:
+            self._skipped.add(index)
+            self._step_labels[index].setText(f"<s>{self._steps[index]}</s>")
+            self._step_buttons[index].setText("Restore")
+
+    def _on_approve(self) -> None:
+        accepted = [s for i, s in enumerate(self._steps) if i not in self._skipped]
+        self._finalize(f"\u2713 Approved ({len(accepted)}/{len(self._steps)} steps)")
+        self.approved.emit(accepted)
+
+    def _on_reject(self) -> None:
+        self._finalize("\u2717 Rejected")
+        self.rejected.emit()
+
+    def _finalize(self, outcome: str) -> None:
+        self._footer.hide()
+        for btn in self._step_buttons:
+            btn.hide()
+        self._status_label.setText(outcome)
+        self._status_label.show()
+        self._outer_frame.setEnabled(False)
 
 
 class ConversationCanvas(QtWidgets.QScrollArea):

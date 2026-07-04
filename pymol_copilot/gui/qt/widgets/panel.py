@@ -175,3 +175,20 @@ class PmlCopilotPanel(Panel):
         self._cui_canvas.add_card(tmp_user_card)
         tmp_working_card = conversation_canvas.AgentThinkingCard()
         self._cui_canvas.add_card(tmp_working_card)
+        tool_card = conversation_canvas.ToolApprovalCard("write_cell", "Write value to Excel", {"row": "44", "col": "B", "value": "$24.50"})
+        self._cui_canvas.add_card(tool_card)
+        tool_card.approved.connect(print)
+        tool_card.rejected.connect(lambda: print("rejected"))
+        plan_card = conversation_canvas.PlanApprovalCard(
+            "Reformat Document Headings",
+            [
+                "Scan document and collect all Heading 2 elements",
+                "Set font size to 18 pt for each heading",
+                "Apply blue colour (#0066cc) to each heading",
+                "Remove underline formatting from each heading",
+                "Save and close the document",
+            ],
+        )
+        self._cui_canvas.add_card(plan_card)
+        plan_card.approved.connect(lambda steps: print("Plan approved:", steps))
+        plan_card.rejected.connect(lambda: print("Plan rejected"))
