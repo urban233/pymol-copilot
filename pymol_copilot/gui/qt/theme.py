@@ -415,6 +415,8 @@ QPushButton#{StyleId.BASIC_BUTTON} {{
     border: 1px solid ${{border_color}};
     border-radius: ${{padding_small}};
     min-height: 22px;
+    min-width: 80px;
+    max-width: 80px;
 }}
 QPushButton#{StyleId.BASIC_BUTTON}:hover {{
     background-color: ${{hover}};
@@ -430,6 +432,8 @@ QPushButton#{StyleId.ACCENT_BUTTON} {{
     border: 1px solid ${{accent}};
     border-radius: ${{padding_small}};
     min-height: 22px;
+    min-width: 80px;
+    max-width: 80px;
     color: ${{text_on_accent}};
 }}
 QPushButton#{StyleId.ACCENT_BUTTON}:hover {{

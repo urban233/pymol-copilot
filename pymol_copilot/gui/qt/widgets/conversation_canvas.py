@@ -1,4 +1,4 @@
-from pymol_copilot.gui.qt import QtCore
+from pymol_copilot.gui.qt import QtCore, icons
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
@@ -120,7 +120,7 @@ class AgentThinkingCard(BaseCard):
         self._label = QtWidgets.QLabel("Working\u2026")
 
         row = QtWidgets.QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
+        row.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         row.setSpacing(theme.dp(8))
         row.addWidget(self._spinner)
         row.addWidget(self._label)
@@ -157,12 +157,23 @@ class ToolApprovalCard(BaseCard):
         self._fields: dict[str, QtWidgets.QLineEdit] = {}
 
         # Card-level padding — spacing creates visual section breaks
-        padding = theme.dp(12)
-        self.content_layout.setContentsMargins(padding, padding, padding, padding)
+        self.content_layout.setContentsMargins(*ui_defaults.default_contents_margins())
         self.content_layout.setSpacing(theme.dp(8))
 
-        # Header
-        header_label = QtWidgets.QLabel(f"<b>\u2699 {tool_name}</b>")
+        # Header row: optional icon + bold title
+        header_row = QtWidgets.QHBoxLayout()
+        header_row.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        header_row.setSpacing(theme.dp(6))
+
+        tmp_icon = icons.icon("pymol_copilot.gui.qt", "checklist")
+        icon_size = theme.dp(16)
+        icon_label = QtWidgets.QLabel()
+        icon_label.setPixmap(tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size)))
+        icon_label.setFixedSize(icon_size, icon_size)
+        header_row.addWidget(icon_label)
+        header_row.addWidget(QtWidgets.QLabel(f"<b>{tool_name}</b>"))
+        header_row.addStretch()
+
         desc_label = QtWidgets.QLabel(description)
         desc_label.setWordWrap(True)
         desc_label.setStyleSheet(
@@ -173,7 +184,7 @@ class ToolApprovalCard(BaseCard):
         # Parameter rows — each in a white bordered sub-card
         params_container = QtWidgets.QWidget()
         params_layout = QtWidgets.QVBoxLayout(params_container)
-        params_layout.setContentsMargins(0, 0, 0, 0)
+        params_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         params_layout.setSpacing(theme.dp(4))
 
         for key, value in parameters.items():
@@ -207,7 +218,7 @@ class ToolApprovalCard(BaseCard):
         # Footer
         self._footer = QtWidgets.QWidget()
         footer_layout = QtWidgets.QHBoxLayout(self._footer)
-        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         self._approve_btn = button.AccentButton("Approve")
         self._reject_btn = button.BasicButton("Reject")
         footer_layout.addWidget(self._approve_btn)
@@ -219,7 +230,7 @@ class ToolApprovalCard(BaseCard):
         self._status_label.hide()
 
         # Assemble — spacing between sections comes from content_layout.setSpacing
-        self.content_layout.addWidget(header_label)
+        self.content_layout.addLayout(header_row)
         self.content_layout.addWidget(desc_label)
         self.content_layout.addWidget(params_container)
         self.content_layout.addWidget(self._footer)
@@ -259,6 +270,7 @@ class PlanApprovalCard(BaseCard):
         self,
         title: str,
         steps: list[str],
+        icon: QtGui.QIcon | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(is_user=False, parent=parent)
@@ -267,33 +279,35 @@ class PlanApprovalCard(BaseCard):
         self._step_labels: list[QtWidgets.QLabel] = []
         self._step_buttons: list[button.BasicButton] = []
 
-        # Card-level padding
-        padding = theme.dp(12)
-        self.content_layout.setContentsMargins(padding, padding, padding, padding)
+        self.content_layout.setContentsMargins(*ui_defaults.default_contents_margins())
         self.content_layout.setSpacing(theme.dp(8))
 
-        # Header
-        header_label = QtWidgets.QLabel(f"<b>\U0001f4cb {title}</b>")
-        header_label.setWordWrap(True)
+        # Header row: optional icon + bold title
+        header_row = QtWidgets.QHBoxLayout()
+        header_row.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        header_row.setSpacing(theme.dp(6))
+
+        tmp_icon = icons.icon("pymol_copilot.gui.qt", "checklist")
+        icon_size = theme.dp(16)
+        icon_label = QtWidgets.QLabel()
+        icon_label.setPixmap(tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size)))
+        icon_label.setFixedSize(icon_size, icon_size)
+        header_row.addWidget(icon_label)
+        title_label = QtWidgets.QLabel(f"<b>{title}</b>")
+        title_label.setWordWrap(True)
+        header_row.addWidget(title_label, 1)
 
         # Step rows — each in a white bordered sub-card with a numbered badge
         steps_widget = QtWidgets.QWidget()
         steps_layout = QtWidgets.QVBoxLayout(steps_widget)
-        steps_layout.setContentsMargins(0, 0, 0, 0)
+        steps_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         steps_layout.setSpacing(theme.dp(4))
 
         chip_size = theme.dp(22)
         chip_radius = theme.dp(11)
 
         for i, step in enumerate(steps):
-            step_frame = QtWidgets.QFrame()
-            step_frame.setStyleSheet(
-                f"QFrame {{ "
-                f"background-color: {theme.ThemeColors.SURFACE.to_hex()}; "
-                f"border: 1px solid {theme.ThemeColors.BORDER_COLOR.to_hex()}; "
-                f"border-radius: {theme.dp(4)}px; }}"
-            )
-            row_layout = QtWidgets.QHBoxLayout(step_frame)
+            row_layout = QtWidgets.QHBoxLayout()
             row_layout.setContentsMargins(
                 theme.dp(8), theme.dp(8), theme.dp(8), theme.dp(8)
             )
@@ -317,7 +331,7 @@ class PlanApprovalCard(BaseCard):
             row_layout.addWidget(num_chip)
             row_layout.addWidget(step_label, 1)
             row_layout.addWidget(skip_btn)
-            steps_layout.addWidget(step_frame)
+            steps_layout.addLayout(row_layout)
 
             self._step_labels.append(step_label)
             self._step_buttons.append(skip_btn)
@@ -328,7 +342,7 @@ class PlanApprovalCard(BaseCard):
         # Footer
         self._footer = QtWidgets.QWidget()
         footer_layout = QtWidgets.QHBoxLayout(self._footer)
-        footer_layout.setContentsMargins(0, 0, 0, 0)
+        footer_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         self._approve_btn = button.AccentButton("Approve Plan")
         self._reject_btn = button.BasicButton("Reject All")
         footer_layout.addWidget(self._approve_btn)
@@ -340,7 +354,7 @@ class PlanApprovalCard(BaseCard):
         self._status_label.hide()
 
         # Assemble
-        self.content_layout.addWidget(header_label)
+        self.content_layout.addLayout(header_row)
         self.content_layout.addWidget(steps_widget)
         self.content_layout.addWidget(self._footer)
         self.content_layout.addWidget(self._status_label)

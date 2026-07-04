@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pymol_copilot.gui.qt import QtCore, ui_defaults
+from pymol_copilot.gui.qt import QtCore, ui_defaults, icons
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme
 
