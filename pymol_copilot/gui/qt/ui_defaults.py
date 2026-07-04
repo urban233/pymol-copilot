@@ -49,26 +49,6 @@ def small_contents_margins() -> list[int]:
     return [tmp_v, tmp_v, tmp_v, 2]
 
 
-def ribbon_contents_margins() -> list[int]:
-    """Return DPI-scaled ribbon content margins.
-
-    Returns:
-        A list of four margin values in physical pixels.
-    """
-    tmp_v = theme.dp(3)
-    return [tmp_v, 0, tmp_v, 0]
-
-
-def ribbon_panel_contents_margins() -> list[int]:
-    """Return DPI-scaled ribbon panel content margins.
-
-    Returns:
-        A list of four margin values in physical pixels.
-    """
-    tmp_v = theme.dp(2)
-    return [tmp_v, 0, tmp_v, 0]
-
-
 def default_spacing() -> int:
     """Return DPI-scaled default layout spacing.
 
@@ -108,4 +88,4 @@ class UISize:
             A tuple (width, height) in physical pixels.
         """
         tmp_v = theme.dp(24)
-        return (tmp_v, tmp_v)
+        return tmp_v, tmp_v

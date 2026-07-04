@@ -176,26 +176,11 @@ def _cached_icon(import_name: str, name: str, theme: str) -> "QtGui.QIcon":
 
 
 def _load_icon(import_name: str, name: str, theme: str) -> QtGui.QIcon:
-    """Load a QIcon from package data without caching.
-
-    Tries the themed subdirectory first, then falls back to the flat layout.
-    Uses read_bytes() throughout to remain zip-safe: no temporary files
-    are created and no as_file() context manager is involved. Qt loads
-    the pixel data eagerly from the byte buffer, so the buffer can be
-    discarded immediately after loadFromData returns.
-
-    Args:
-        import_name: The importable package name that owns the asset.
-        name: Validated icon name (filename stem).
-        theme: Theme subdirectory name (never None at this point).
-
-    Returns:
-        A QIcon whose internal pixmap is populated from the asset bytes.
-
-    Raises:
-        FileNotFoundError: If no candidate path yields a readable file.
+    """Load a QIcon from package data by delegating the path matching
+    directly to QIcon to preserve scalable vector properties natively.
     """
     from pymol_copilot.gui.qt import QtGui
+    import importlib.resources
 
     tmp_candidates = (
         f"assets/icons/{theme}/{name}.svg",
@@ -203,12 +188,18 @@ def _load_icon(import_name: str, name: str, theme: str) -> QtGui.QIcon:
         f"assets/icons/{name}.svg",
         f"assets/icons/{name}.png",
     )
+
+    tmp_traversable = importlib.resources.files(import_name)
     for tmp_candidate in tmp_candidates:
-        tmp_data = _try_read_bytes(import_name, tmp_candidate)
-        if tmp_data is not None:
-            tmp_pixmap = QtGui.QPixmap()
-            tmp_pixmap.loadFromData(tmp_data)
-            return QtGui.QIcon(tmp_pixmap)
+        file_node = tmp_traversable
+        for tmp_part in tmp_candidate.split("/"):
+            file_node = file_node.joinpath(tmp_part)
+
+        if file_node.is_file():
+            with importlib.resources.as_file(file_node) as tmp_path:
+                # QIcon reads the path directly and links its dynamic SVG scaler engine
+                return QtGui.QIcon(str(tmp_path))
+
     raise FileNotFoundError(
         f"Icon not found: package={import_name!r}, "
         f"name={name!r}, theme={theme!r}. "

@@ -878,6 +878,10 @@ class CommandBar(QtWidgets.QWidget):
         self._init_widget(command_buttons)
         self._set_styles()
 
+    def append_command_button(self, command_button: CommandBarButton) -> None:
+        """Append a button to the command bar."""
+        self._layout.addWidget(command_button)
+
     def _set_styles(self) -> None:
         """Apply the global theme object names and shadow effects."""
         self._outer_frame.setObjectName(theme.StyleId.COMMAND_BAR_OUTER)
