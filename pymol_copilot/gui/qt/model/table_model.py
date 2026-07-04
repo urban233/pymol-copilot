@@ -491,7 +491,6 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         self._data: np.ndarray = np.empty(
             (0, len(self._headers)), dtype=actual_dtype
         )
-        self._pending: list[np.ndarray] = []
         # </editor-fold>
 
     @override
@@ -510,7 +509,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         """
         if parent.isValid():
             return 0
-        return self._data.shape[0] + len(self._pending)
+        return self._data.shape[0]
 
     @override
     def columnCount(
@@ -549,7 +548,6 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         # Any is required to match QAbstractTableModel.data interface signature.
         if not index.isValid():
             return None
-        self._flush_pending()
         row: int = index.row()
         column: int = index.column()
         if not (0 <= row < self._data.shape[0]):
@@ -603,7 +601,6 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             column: The column index to sort by.
             order: Qt.AscendingOrder or Qt.DescendingOrder.
         """
-        self._flush_pending()
         if self._data.shape[0] == 0:
             return
 
@@ -678,9 +675,14 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
                 f"{len(self._headers)}."
             )
 
-        row: int = self._data.shape[0] + len(self._pending)
+        row: int = self._data.shape[0]
         self.beginInsertRows(QtCore.QModelIndex(), row, row)
-        self._pending.append(row_data)
+        # Directly extend _data so the model is consistent for the entire
+        # duration of the beginInsertRows / endInsertRows pair.  Deferring
+        # this into a pending buffer and flushing inside data() was unsafe:
+        # the view's C++ delegate could call data() mid-paint and trigger a
+        # np.vstack that moved the array in memory.
+        self._data = np.vstack([self._data, row_data])
         self.endInsertRows()
         return row
 
@@ -720,10 +722,10 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         if rows_data.shape[0] == 0:
             return
 
-        first_row: int = self._data.shape[0] + len(self._pending)
+        first_row: int = self._data.shape[0]
         last_row: int = first_row + rows_data.shape[0] - 1
         self.beginInsertRows(QtCore.QModelIndex(), first_row, last_row)
-        self._pending.append(rows_data)
+        self._data = np.vstack([self._data, rows_data])
         self.endInsertRows()
 
     def remove_row(self, row: int) -> None:
@@ -747,9 +749,8 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
     def clear(self) -> None:
         """Remove all rows from the model."""
-        if self._data.shape[0] == 0 and not self._pending:
+        if self._data.shape[0] == 0:
             return
-        self._pending.clear()
         self.beginResetModel()
         self._data = np.empty((0, len(self._headers)), dtype=self._data.dtype)
         self.endResetModel()
@@ -766,7 +767,6 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         Raises:
             IndexError: If row is out of bounds.
         """
-        self._flush_pending()
         if not (0 <= row < self._data.shape[0]):
             raise IndexError(
                 f"Row index {row} is out of range "
@@ -780,7 +780,6 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         Returns:
             A view of the internal numpy array.
         """
-        self._flush_pending()
         return self._data.view()
 
     def is_empty(self) -> bool:
@@ -824,25 +823,10 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
     def raw_data(self) -> np.ndarray:
         """Return a read-only view of the backing numpy array.
 
-        Flushes any pending rows before returning.
-
         Returns:
             A read-only view of the internal 2D array.
         """
-        self._flush_pending()
         return self._data.view()
-
-    def _flush_pending(self) -> None:
-        """Flush the pending-row buffer into the backing array.
-
-        Raises:
-            ValueError: If the pending rows have a column count mismatch.
-        """
-        if not self._pending:
-            return
-        tmp_new_rows = np.vstack(self._pending)
-        self._data = np.vstack([self._data, tmp_new_rows])
-        self._pending.clear()
 
     def _cell_data(self, item: np.ndarray, column: int) -> Any:
         """Return the display value for a single cell.
@@ -1013,33 +997,17 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
         if source_model is None:
             return False
 
-        # Optimize: Bypass Qt C++/Python wrapping logic for TableModel and
-        # NumpyTableModel
-        if isinstance(source_model, TableModel):
-            try:
-                list_item: object = source_model._items[source_row]
-                value: Any = source_model._cell_data(
-                    list_item, self._filter_column
-                )
-                return value in self._accepted_values
-            except IndexError:
-                return False
-        elif isinstance(source_model, NumpyTableModel):
-            try:
-                numpy_item: np.ndarray = source_model._data[source_row]
-                value: Any = source_model._cell_data(
-                    numpy_item, self._filter_column
-                )
-                return value in self._accepted_values
-            except IndexError:
-                return False
-
-        index: QtCore.QModelIndex = source_model.index(
+        # Always use the public data() API so the request goes through Qt's
+        # index-validation layer.  The previous optimisation that accessed
+        # source_model._items and source_model._data directly bypassed that
+        # validation and was an out-of-bounds read risk when rows were
+        # inserted concurrently.
+        tmp_index: QtCore.QModelIndex = source_model.index(
             source_row, self._filter_column, source_parent
         )
-        value: Any = source_model.data(
-            index, QtCore.Qt.ItemDataRole.DisplayRole
+        tmp_value: Any = source_model.data(
+            tmp_index, QtCore.Qt.ItemDataRole.DisplayRole
         )
-        return value in self._accepted_values
+        return tmp_value in self._accepted_values
 
     # </editor-fold>

@@ -130,7 +130,23 @@ class ScreenChangeNotifier:
         """
         from PyQt6 import sip
 
-        if self._qobject is None or sip.isdeleted(self._qobject):
+        if self._qobject is None:
+            self._qobject = _NotifierQObject(self)
+            self._installed = False
+            tmp_app = QtWidgets.QApplication.instance()
+            if isinstance(tmp_app, QtWidgets.QApplication):
+                self.install_event_filter(tmp_app)
+        elif sip.isdeleted(self._qobject):
+            # The C++ QObject was unexpectedly freed (e.g., during teardown).
+            # We cannot call removeEventFilter on a deleted object, so the
+            # old filter entry is already gone from Qt's side.  Log a warning
+            # so developers can investigate the unexpected deletion path.
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "_NotifierQObject was unexpectedly deleted by Qt. "
+                "Recreating it."
+            )
             self._qobject = _NotifierQObject(self)
             self._installed = False
             tmp_app = QtWidgets.QApplication.instance()
@@ -198,7 +214,7 @@ class ScreenChangeNotifier:
         if tmp_screen is not None:
             tmp_screen.logicalDotsPerInchChanged.connect(
                 self._handle_dpi_change,
-                QtCore.Qt.ConnectionType.UniqueConnection,
+                QtCore.Qt.ConnectionType.UniqueConnection,  # type: ignore[call-arg]
             )
 
     def _handle_primary_screen_change(self, screen: QtGui.QScreen) -> None:
@@ -266,7 +282,7 @@ def get_notifier() -> ScreenChangeNotifier:
     Returns:
         The singleton ScreenChangeNotifier instance.
     """
-    global _notifier
+    global _notifier  # noqa: PLW0603
     if _notifier is None:
         _notifier = ScreenChangeNotifier()
     return _notifier
@@ -698,10 +714,24 @@ QHeaderView::section:checked {{
 """
 
 
+# Pre-built colour-token binding map.  Colour tokens are defined as
+# class attributes on ThemeColors and never change at runtime, so
+# this dict is computed exactly once at import time rather than on
+# every compile_stylesheet() call (which fires on every DPI change).
+_COLOR_BINDINGS: dict[str, str] = {
+    tmp_name.lower(): tmp_attr.to_hex()
+    for tmp_name, tmp_attr in vars(ThemeColors).items()
+    if not tmp_name.startswith("_") and isinstance(tmp_attr, ColorToken)
+}
+
+
 def compile_stylesheet(template: str) -> str:
     """Formats a QSS template using static ThemeColors and ThemeMetrics.
 
     Placeholders should be in the format ${token_name} (e.g., ${surface}).
+    Colour bindings are taken from the module-level ``_COLOR_BINDINGS`` dict
+    (built once at import time).  Size bindings are recomputed on each call
+    because they are DPI-dependent.
 
     Args:
         template: QSS template containing token placeholders.
@@ -712,20 +742,11 @@ def compile_stylesheet(template: str) -> str:
     Raises:
         KeyError: If an invalid placeholder is specified in the template.
     """
-    tmp_bindings: dict[str, str] = {}
+    # Start from the cached colour bindings and overlay DPI-sensitive sizes.
+    tmp_bindings: dict[str, str] = dict(_COLOR_BINDINGS)
 
-    for tmp_name in dir(ThemeColors):
-        if tmp_name.startswith("_"):
-            continue
-        tmp_attr = getattr(ThemeColors, tmp_name)
-        if isinstance(tmp_attr, ColorToken):
-            tmp_bindings[tmp_name.lower()] = tmp_attr.to_hex()
-
-    for tmp_name in dir(ThemeMetrics):
-        if tmp_name.startswith("_"):
-            continue
-        tmp_attr = getattr(ThemeMetrics, tmp_name)
-        if isinstance(tmp_attr, SizeToken):
+    for tmp_name, tmp_attr in vars(ThemeMetrics).items():
+        if not tmp_name.startswith("_") and isinstance(tmp_attr, SizeToken):
             tmp_bindings[tmp_name.lower()] = tmp_attr.to_qss()
 
     # Find all ${key} pattern occurrences

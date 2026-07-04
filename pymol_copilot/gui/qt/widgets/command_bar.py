@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from typing import TYPE_CHECKING, TypeAlias, override
 
 from pymol_copilot.gui.qt import QtCore
@@ -561,6 +563,13 @@ class CommandBarSplitButton(CommandBarButton):
         Args:
             flyout: The flyout panel to open when the arrow is clicked.
         """
+        if self._flyout is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._flyout.about_to_show.disconnect(self._on_menu_show)
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._flyout.about_to_hide.disconnect(self._on_menu_hide)
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._arrow_button.clicked.disconnect(self._show_flyout)
         self._flyout = flyout
         flyout.about_to_show.connect(self._on_menu_show)
         flyout.about_to_hide.connect(self._on_menu_hide)
@@ -579,6 +588,13 @@ class CommandBarSplitButton(CommandBarButton):
         Args:
             menu: The :class:`QMenu` to open when the arrow button is clicked.
         """
+        if self._menu is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._menu.aboutToShow.disconnect(self._on_menu_show)
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._menu.aboutToHide.disconnect(self._on_menu_hide)
+            with contextlib.suppress(TypeError, RuntimeError):
+                self._arrow_button.clicked.disconnect(self._show_menu)
         self._menu = menu
         menu.aboutToShow.connect(self._on_menu_show)
         menu.aboutToHide.connect(self._on_menu_hide)

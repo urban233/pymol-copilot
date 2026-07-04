@@ -24,6 +24,7 @@ heavy functions to background threads without freezing the UI.
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
 import traceback
 
@@ -38,6 +39,12 @@ _ParameterSpecification = ParamSpec("_ParameterSpecification")
 __docformat__ = "google"
 
 LOGGER = logging.getLogger(__name__)
+
+# Module-level set that keeps a strong Python reference to every running
+# Worker from the moment it is submitted to QThreadPool until its finished
+# signal fires.  Without this anchor the Python wrapper can be GC'd while
+# the pool still holds the raw C++ pointer, causing a use-after-free.
+_ACTIVE_WORKERS: set["Worker"] = set()
 
 
 class WorkerSignals(QtCore.QObject):
@@ -94,17 +101,23 @@ class Worker(QtCore.QRunnable):
     def run(self) -> None:
         """Execute the target function and emit corresponding signals."""
         try:
-            # Provide a progress callback to the function.
-            def progress_callback(percentage: int, message: str) -> None:
-                """Emit progress percentage and message to the UI thread.
+            # Only inject progress_callback when the target function's
+            # signature explicitly declares the parameter.  Unconditional
+            # injection caused TypeError for every function that did not
+            # accept it, propagating into the pool's C++ exception handler.
+            tmp_sig = inspect.signature(self._target_function)
+            if "progress_callback" in tmp_sig.parameters:
 
-                Args:
-                    percentage: The current progress percentage.
-                    message: An accompanying status message.
-                """
-                self.signals.progress.emit(percentage, message)
+                def progress_callback(percentage: int, message: str) -> None:
+                    """Emit progress percentage and message to the UI thread.
 
-            self._kwargs["progress_callback"] = progress_callback
+                    Args:
+                        percentage: The current progress percentage.
+                        message: An accompanying status message.
+                    """
+                    self.signals.progress.emit(percentage, message)
+
+                self._kwargs["progress_callback"] = progress_callback
 
             tmp_result = self._target_function(*self._args, **self._kwargs)
             self.signals.success.emit(tmp_result)
@@ -197,6 +210,13 @@ class BackgroundJob:
         )
         if tmp_thread_pool is None:
             raise RuntimeError("No thread pool available")
+        # Anchor the worker in _ACTIVE_WORKERS so the Python wrapper stays
+        # alive while the pool holds the raw C++ pointer.  The worker removes
+        # itself once finished is emitted.
+        _ACTIVE_WORKERS.add(self._worker)
+        self._worker.signals.finished.connect(
+            lambda: _ACTIVE_WORKERS.discard(self._worker)
+        )
         tmp_thread_pool.start(self._worker)
 
     # </editor-fold>

@@ -1,7 +1,8 @@
 """Module for the custom color grid widget."""
 
+from __future__ import annotations
+
 import logging
-from typing import Callable
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets
@@ -288,17 +289,23 @@ class PyMOLColorGrid(QtWidgets.QWidget):
 
 
 class _RecentColorsGrid(QtWidgets.QWidget):
-    """Widget for displaying recent colors."""
+    """Widget for displaying recent colors.
+
+    Exposes a ``color_selected`` signal instead of accepting a raw callback
+    to avoid the Python reference cycle that the callback pattern creates
+    when the caller (ColorFlyout) holds a strong reference to this widget.
+    """
+
+    color_selected: QtCore.pyqtSignal = QtCore.pyqtSignal(str)
+    """Emitted with the hex color string when a recent-color slot is clicked."""
 
     def __init__(
         self,
-        callback: Callable | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initializes the _RecentColorsGrid widget.
 
         Args:
-            callback: Optional callback function triggered on color selection.
             parent: Optional parent widget.
         """
         super().__init__(parent=parent)
@@ -315,28 +322,24 @@ class _RecentColorsGrid(QtWidgets.QWidget):
         self._buttons: list[QtWidgets.QPushButton] = []
         # </editor-fold>
 
-        self._init_widget(callback)
+        self._init_widget()
 
     # <editor-fold desc="Private methods">
-    def _init_widget(self, callback: Callable | None) -> None:
+    def _init_widget(self) -> None:
         """Initializes the layout and buttons.
 
-        Args:
-            callback: Optional callback function triggered on color selection.
+        Each button emits ``color_selected`` with the color currently
+        assigned to that slot, avoiding any Python reference cycle that
+        would arise from capturing a caller-supplied callback closure.
         """
         for tmp_i in range(8):
             tmp_btn = QtWidgets.QPushButton()
             tmp_btn.setStyleSheet(generate_color_stylesheet("#ffffff"))
-
-            if callback:
-                # Dynamically fetch the current hex value assigned to this
-                # specific slot index on click
-                tmp_btn.clicked.connect(
-                    lambda _, tmp_idx=tmp_i: callback(
-                        self.recent_colors_list[tmp_idx]
-                    )
+            tmp_btn.clicked.connect(
+                lambda _, tmp_idx=tmp_i: self.color_selected.emit(
+                    self.recent_colors_list[tmp_idx]
                 )
-
+            )
             self._recent_colors_layout.addWidget(tmp_btn, 0, tmp_i)
             self._buttons.append(tmp_btn)
 
@@ -380,9 +383,7 @@ class ColorFlyout(flyout.FlyoutFrame):
         self._recent_colors_label = QtWidgets.QLabel("Recent Colors")
 
         # Passed active click handler slot to recent colors grid
-        self._recent_colors_grid = _RecentColorsGrid(
-            callback=self.__slot_recent_color_selected
-        )
+        self._recent_colors_grid = _RecentColorsGrid()
         # </editor-fold>
         tmp_layout = QtWidgets.QVBoxLayout(self._content)
         self._init_widget(tmp_layout)
@@ -409,6 +410,12 @@ class ColorFlyout(flyout.FlyoutFrame):
     def _connect_signals(self) -> None:
         """Connects signals to their respective slots."""
         self._more_colors_button.clicked.connect(self.__slot_open_color_picker)
+        # Connect via Qt signal-slot (no Python reference cycle) instead of
+        # a raw callback that would form ColorFlyout → _RecentColorsGrid
+        # → lambda → bound-method → ColorFlyout.
+        self._recent_colors_grid.color_selected.connect(
+            self.__slot_recent_color_selected
+        )
 
     # </editor-fold>
 

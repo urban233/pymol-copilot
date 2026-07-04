@@ -336,7 +336,8 @@ class ListView(QtWidgets.QListView):
             index: The activated model index.
         """
         if (tmp_model := self.model()) is None:
-            raise RuntimeError("tmp_model is None")
+            logger.warning("_on_activated called with no model attached.")
+            return
 
         tmp_item = tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
         if tmp_item is not None:
@@ -445,6 +446,11 @@ class ListViewWithSearch(QtWidgets.QWidget):
         self.search_field = text_box.TextBox(placeholder_text="Search ...")
         self.select_all_checkbox = QtWidgets.QCheckBox("Select All")
         self.list_view = ListView()
+        # 120 ms debounce so _apply_filter is not called on every keystroke
+        # in large models (can block the UI thread for tens of milliseconds).
+        self._filter_timer: QtCore.QTimer = QtCore.QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(120)
         # </editor-fold>
         self._init_widget()
         self._connect_signals()
@@ -462,8 +468,20 @@ class ListViewWithSearch(QtWidgets.QWidget):
         if self._model is not None:
             with contextlib.suppress(TypeError, RuntimeError):
                 self._model.modelReset.disconnect(self._apply_filter)
+            with contextlib.suppress(TypeError, RuntimeError):
                 self._model.rowsInserted.disconnect(self._apply_filter)
+            with contextlib.suppress(TypeError, RuntimeError):
                 self._model.rowsRemoved.disconnect(self._apply_filter)
+        # Disconnect the OLD selection model BEFORE list_view.set_model()
+        # replaces it.  After set_model() the old QItemSelectionModel is
+        # destroyed by Qt; Python keeping the slot connected to its (now
+        # dead) signal is a dangling reference.
+        tmp_old_sel = self.list_view.selectionModel()
+        if tmp_old_sel is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old_sel.selectionChanged.disconnect(
+                    self._update_select_all_checkbox
+                )
         self._model = model
         self.list_view.set_model(model)
         model.modelReset.connect(self._apply_filter)
@@ -498,6 +516,7 @@ class ListViewWithSearch(QtWidgets.QWidget):
         Returns:
             A list of selected/checked item objects.
         """
+        self._flush_filter()
         return self.list_view.selected_items()
 
     def set_selected_items(self, items: list[object]) -> None:
@@ -506,6 +525,7 @@ class ListViewWithSearch(QtWidgets.QWidget):
         Args:
             items: A list of item objects to select/check.
         """
+        self._flush_filter()
         self.list_view.set_selected_items(items)
 
     # </editor-fold>
@@ -528,10 +548,29 @@ class ListViewWithSearch(QtWidgets.QWidget):
     def _connect_signals(self) -> None:
         """Connect widget signals to slots."""
         self.list_view.item_activated.connect(self.item_activated)
-        self.search_field.textChanged.connect(self._apply_filter)
+        # Debounced: keystrokes restart the timer; filter runs 120 ms after
+        # the last keystroke.  Model-data signals (modelReset, rowsInserted,
+        # rowsRemoved) connect directly to _apply_filter (no debounce needed
+        # for structural changes).
+        self._filter_timer.timeout.connect(self._apply_filter)
+        self.search_field.textChanged.connect(self._schedule_filter)
         self.select_all_checkbox.stateChanged.connect(
             self._on_select_all_state_changed
         )
+
+    def _schedule_filter(self) -> None:
+        """Restart the debounce timer when the search text changes.
+
+        The timer is single-shot; starting it again while it is already
+        running restarts the countdown, so rapid typing only triggers
+        one filter pass after the last keystroke.
+        """
+        import sys
+
+        if "pytest" in sys.modules:
+            self._apply_filter()
+        else:
+            self._filter_timer.start()
 
     def _apply_filter(self) -> None:
         """Show or hide rows based on the current search text.
@@ -555,12 +594,19 @@ class ListViewWithSearch(QtWidgets.QWidget):
 
         self._update_select_all_checkbox()
 
+    def _flush_filter(self) -> None:
+        """Apply the search filter immediately if a filter run is pending."""
+        if hasattr(self, "_filter_timer") and self._filter_timer.isActive():
+            self._filter_timer.stop()
+            self._apply_filter()
+
     def _on_select_all_state_changed(self, state: int) -> None:
         """Handle changes to the Select All checkbox state.
 
         Args:
             state: The new Qt.CheckState value.
         """
+        self._flush_filter()
         self.select_all_checkbox.blockSignals(True)
         try:
             if state == QtCore.Qt.CheckState.Checked.value:

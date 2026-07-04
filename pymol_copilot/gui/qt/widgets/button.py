@@ -129,7 +129,13 @@ class CircleIconButton(Button):
     def _init_widget(self) -> None:
         """Initialize the widget properties, applying the icon."""
         self.setIcon(self._icon)
-        theme.get_notifier().scale_changed.connect(self._handle_scale_changed)
+        # Store the exact signal instance so _cleanup_connections disconnects
+        # from the same QObject the connection was made to, even if the
+        # notifier's internal _NotifierQObject is ever recreated.
+        self._notifier_signal: QtCore.pyqtBoundSignal = (
+            theme.get_notifier().scale_changed
+        )
+        self._notifier_signal.connect(self._handle_scale_changed)
         self.destroyed.connect(self._cleanup_connections)
 
     def _set_styles(self) -> None:
@@ -178,7 +184,9 @@ class CircleIconButton(Button):
         Args:
             _obj: The QObject being destroyed (optional).
         """
+        if not hasattr(self, "_notifier_signal"):
+            return
         with contextlib.suppress(TypeError, RuntimeError):
-            theme.get_notifier().scale_changed.disconnect(self._handle_scale_changed)
+            self._notifier_signal.disconnect(self._handle_scale_changed)
 
     # </editor-fold>

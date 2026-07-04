@@ -59,6 +59,7 @@ Example:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 from typing import Optional
@@ -290,10 +291,14 @@ class CheckableProxyModel(QtCore.QAbstractProxyModel):
         """
         tmp_old = self.sourceModel()
         if tmp_old is not None:
-            tmp_old.modelReset.disconnect(self.modelReset)
-            tmp_old.dataChanged.disconnect(self._on_source_data_changed)
-            tmp_old.rowsInserted.disconnect(self._on_source_rows_inserted)
-            tmp_old.rowsRemoved.disconnect(self._on_source_rows_removed)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.modelReset.disconnect(self.modelReset)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.dataChanged.disconnect(self._on_source_data_changed)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.rowsInserted.disconnect(self._on_source_rows_inserted)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.rowsRemoved.disconnect(self._on_source_rows_removed)
         super().setSourceModel(source_model)
         source_model.modelReset.connect(self.modelReset)
         source_model.dataChanged.connect(self._on_source_data_changed)
@@ -397,18 +402,15 @@ class ExcelTableDelegate(QtWidgets.QStyledItemDelegate):
             if tmp_sel_model is not None:
                 tmp_is_selected = tmp_sel_model.isSelected(index)
 
-        # Determine if row is fully selected
+        # Determine if row is fully selected via isRowSelected — O(1) internal
+        # Qt check, replacing the previous O(columns) isSelected loop.
         tmp_is_fully_sel = False
         if tmp_is_selected and isinstance(tmp_view, QtWidgets.QTableView):
-            tmp_is_fully_sel = True
-            tmp_model = tmp_view.model()
-            tmp_sel_model = tmp_view.selectionModel()
-            if tmp_model is not None and tmp_sel_model is not None:
-                for tmp_col in range(tmp_model.columnCount()):
-                    tmp_idx = tmp_model.index(index.row(), tmp_col)
-                    if not tmp_sel_model.isSelected(tmp_idx):
-                        tmp_is_fully_sel = False
-                        break
+            tmp_sel_model_2 = tmp_view.selectionModel()
+            if tmp_sel_model_2 is not None:
+                tmp_is_fully_sel = tmp_sel_model_2.isRowSelected(
+                    index.row(), QtCore.QModelIndex()
+                )
 
         # Checkboxes on column 0
         if self._checkboxes_enabled and index.column() == 0:
@@ -805,11 +807,16 @@ class TableView(QtWidgets.QTableView):
             index: The activated model index.
         """
         if (tmp_model := self.model()) is None:
-            raise RuntimeError("self.model() is None")
-        if (
-            tmp_item := tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
-        ) is None:
-            raise RuntimeError("tmp_item is None")
+            logger.warning("_on_activated called with no model attached.")
+            return
+        tmp_item = tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
+        if tmp_item is None:
+            logger.warning(
+                "_on_activated: no UserRole data at index (%d, %d).",
+                index.row(),
+                index.column(),
+            )
+            return
 
         self.row_activated.emit(tmp_item)
 
@@ -819,6 +826,15 @@ class TableView(QtWidgets.QTableView):
         Args:
             model: The new model.
         """
+        # Disconnect the OLD selection model BEFORE super().setModel() replaces
+        # it; otherwise the stale QItemSelectionModel keeps the slot alive and
+        # selection_changed fires on an orphaned model.
+        tmp_old_sel = self.selectionModel()
+        if tmp_old_sel is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old_sel.selectionChanged.disconnect(
+                    self._on_selection_changed
+                )
         super().setModel(model)
         tmp_selection_model = self.selectionModel()
         if tmp_selection_model is not None:
@@ -969,6 +985,12 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         Args:
             model: The table model to display and filter.
         """
+        # Disconnect before reassigning to avoid stacking duplicate connections
+        # on repeated set_model() calls.
+        with contextlib.suppress(TypeError, RuntimeError):
+            self.table_view.selection_changed.disconnect(
+                self._update_select_all_checkbox
+            )
         self._proxy = table_model.SortFilterProxy()
         self._proxy.setSourceModel(model)
 
@@ -1111,9 +1133,6 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         if self._proxy is None or self.select_all_checkbox.isHidden():
             return
 
-        tmp_total_visible = 0
-        tmp_selected_visible = 0
-
         tmp_selection_model = self.table_view.selectionModel()
         if tmp_selection_model is None:
             return
@@ -1122,25 +1141,30 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         if tmp_model is None:
             return
 
-        for tmp_row in range(tmp_model.rowCount()):
-            tmp_total_visible += 1
-            tmp_index = tmp_model.index(tmp_row, 0)
-            if tmp_selection_model.isSelected(tmp_index):
-                tmp_selected_visible += 1
+        tmp_total_visible = sum(
+            1
+            for tmp_row in range(tmp_model.rowCount())
+            if not self.table_view.isRowHidden(tmp_row)
+        )
+
+        # Deduplicate by row to count selected ROWS, not selected cells.
+        # selectedIndexes() is a single C++ call rather than an O(n) loop
+        # of isSelected() invocations, avoiding the O(n²) behaviour that
+        # occurred during select_all_visible (selection_changed fires per row).
+        tmp_selected_rows: set[int] = {
+            tmp_idx.row() for tmp_idx in tmp_selection_model.selectedIndexes()
+        }
+        tmp_selected_visible = len(tmp_selected_rows)
 
         self.select_all_checkbox.blockSignals(True)
         try:
-            if tmp_total_visible == 0:
+            if tmp_total_visible == 0 or tmp_selected_visible == 0:
                 self.select_all_checkbox.setCheckState(
                     QtCore.Qt.CheckState.Unchecked
                 )
-            elif tmp_selected_visible == tmp_total_visible:
+            elif tmp_selected_visible >= tmp_total_visible:
                 self.select_all_checkbox.setCheckState(
                     QtCore.Qt.CheckState.Checked
-                )
-            elif tmp_selected_visible == 0:
-                self.select_all_checkbox.setCheckState(
-                    QtCore.Qt.CheckState.Unchecked
                 )
             else:
                 self.select_all_checkbox.setCheckState(

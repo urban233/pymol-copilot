@@ -362,7 +362,7 @@ class ListModel(QtCore.QAbstractListModel):
         """
         return str(item)
 
-    def _tooltip_for_item(self, item: object) -> Optional[str]:
+    def _tooltip_for_item(self, item: object) -> Optional[str]:  # noqa: ARG002
         """Return an optional tooltip string for item.
 
         The default implementation returns None (no tooltip). Override
@@ -374,6 +374,6 @@ class ListModel(QtCore.QAbstractListModel):
         Returns:
             A tooltip string, or None to suppress the tooltip.
         """
-        raise NotImplementedError("This should be implemented by a subclass.")
+        return None
 
     # </editor-fold>
