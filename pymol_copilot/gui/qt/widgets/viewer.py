@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pmg_qt import pymol_gl_widget
 
-from pymol_copilot.gui.qt import QtCore
+from pymol_copilot.gui.qt import QtCore, ui_defaults
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.widgets import convex_hull_overlay
 
@@ -42,6 +42,7 @@ class Viewer(QtWidgets.QWidget):
 
     def _init_widget(self) -> None:
         self._layout.addWidget(self.pymolwidget)
+        self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         self.setLayout(self._layout)
 
     def _connect_signals(self) -> None:

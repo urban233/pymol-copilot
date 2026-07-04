@@ -10,7 +10,7 @@ import typing
 import pymol
 from pymol.Qt.utils import MainThreadCaller
 
-from pymol_copilot.gui import main_window
+from pymol_copilot.gui.views import main_window
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme

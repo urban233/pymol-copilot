@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt.model import list_model
 from pymol_copilot.gui.qt.model import table_model
-from pymol_copilot.gui.qt.widgets import color_grid
+from pymol_copilot.gui.qt.widgets import color_grid, pml_command_line
 from pymol_copilot.gui.qt.widgets import command_bar
 from pymol_copilot.gui.qt.widgets import flyout
 from pymol_copilot.gui.qt.widgets import input_bar
 from pymol_copilot.gui.qt.widgets import list_view
 from pymol_copilot.gui.qt.widgets import table_view
-from pymol_copilot.gui.widgets import viewer
+from pymol_copilot.gui.qt.widgets import viewer
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -22,31 +24,38 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         """Initializes the main window and sets up the user interface."""
         super().__init__()
+        self._menu_bar = QtWidgets.QMenuBar()
+        self.viewer = viewer.Viewer()
+        self._command_line = pml_command_line.PmlCommandLine(self.viewer.cmd)
         self.setWindowTitle("PyMOL Copilot")
         self.resize(800, 600)
 
-        # self._setup_ui()
-        self._setup_ui_mock()
+        self._setup_ui()
+        # self._setup_ui_mock()
 
     def _setup_ui(self) -> None:
         # <editor-fold desc="General central layout">
         tmp_central_widget = QtWidgets.QWidget()
         self.setCentralWidget(tmp_central_widget)
         tmp_layout = QtWidgets.QVBoxLayout()
+        tmp_layout.setContentsMargins(*ui_defaults.default_contents_margins())
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_central_widget.setLayout(tmp_layout)
         # </editor-fold>
+        self.setMenuBar(self._menu_bar)
 
-        tmp_highlight_btn = command_bar.CommandBarActionButton(
-            icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
-            "Highlight",
-        )
-        tmp_highlight_btn.clicked.connect(self.highlight_sele)
-        tmp_layout.addWidget(tmp_highlight_btn)
-
-        self.viewer = viewer.Viewer()
         tmp_layout.addWidget(self.viewer)
-        self.input = input_bar.InputBar()
-        tmp_layout.addWidget(self.input)
+        tmp_layout.addWidget(self._command_line)
+
+        # tmp_highlight_btn = command_bar.CommandBarActionButton(
+        #     icons.icon("pymol_copilot.gui.qt", "add_photo_alternate"),
+        #     "Highlight",
+        # )
+        # tmp_highlight_btn.clicked.connect(self.highlight_sele)
+        # tmp_layout.addWidget(tmp_highlight_btn)
+
+        # self.input = input_bar.InputBar()
+        # tmp_layout.addWidget(self.input)
 
     def highlight_sele(self) -> None:
         """Highlights the selected molecule residue region."""
