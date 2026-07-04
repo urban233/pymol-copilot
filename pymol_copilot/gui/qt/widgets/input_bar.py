@@ -42,17 +42,25 @@ class InputBar(QtWidgets.QWidget):
         """Apply the global theme object names and shadow effects."""
         self._outer_frame.setObjectName(theme.StyleId.INPUT_BAR)
         tmp_shadow_effect = QtWidgets.QGraphicsDropShadowEffect()
-        tmp_shadow_effect.setBlurRadius(20)
-        tmp_shadow_effect.setOffset(3, 3)
-        tmp_shadow_effect.setColor(QtGui.QColor(0, 0, 0, 30))
+        tmp_shadow_effect.setBlurRadius(10)
+        tmp_shadow_effect.setOffset(2, 2)
+        tmp_shadow_effect.setColor(QtGui.QColor(0, 0, 0, 10))
         self._outer_frame.setGraphicsEffect(tmp_shadow_effect)
         self.setObjectName(theme.StyleId.INPUT_BAR)
 
     def _init_widget(self) -> None:
         """Initialize and lay out the child widgets."""
         self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._layout_outer_frame.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
+
         self._layout.addWidget(self._input)
         self._layout.addWidget(self._send_button)
         self._outer_frame.setLayout(self._layout)
         self._layout_outer_frame.addWidget(self._outer_frame)
         self.setLayout(self._layout_outer_frame)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Maximum,
+        )

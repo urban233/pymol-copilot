@@ -14,6 +14,7 @@ class PmlLineEdit(QtWidgets.QLineEdit):
     """Internal line edit component that preserves the original PyMOL drag-and-drop
     behavior and processes keystroke filtering.
     """
+
     def __init__(self, parent: PmlCommandLine) -> None:
         super().__init__(parent)
         self._cmd_line = parent
@@ -31,7 +32,10 @@ class PmlLineEdit(QtWidgets.QLineEdit):
     def focusInEvent(self, event: QtGui.QFocusEvent) -> None:
         """Triggers the history overlay immediately when the field gains focus."""
         super().focusInEvent(event)
-        if event.reason() in (QtCore.Qt.FocusReason.MouseFocusReason, QtCore.Qt.FocusReason.TabFocusReason):
+        if event.reason() in (
+            QtCore.Qt.FocusReason.MouseFocusReason,
+            QtCore.Qt.FocusReason.TabFocusReason,
+        ):
             self._cmd_line.show_history()
 
     @override
@@ -105,7 +109,11 @@ class PmlLineEdit(QtWidgets.QLineEdit):
 
         event.acceptProposedAction()
         urls = event.mimeData().urls()
-        droppedtext = urls[0].toLocalFile() if urls and urls[0].isLocalFile() else event.mimeData().text()
+        droppedtext = (
+            urls[0].toLocalFile()
+            if urls and urls[0].isLocalFile()
+            else event.mimeData().text()
+        )
 
         pos = self.cursorPosition()
         text = self.text()
@@ -126,7 +134,10 @@ class PmlHistoryOverlay(QtWidgets.QWidget):
     """Internal log viewer panel that styles itself to overlay cleanly over
     surrounding window layouts without taking up static vertical space.
     """
-    def __init__(self, parent: QtWidgets.QWidget, lineedit: QtWidgets.QLineEdit) -> None:
+
+    def __init__(
+        self, parent: QtWidgets.QWidget, lineedit: QtWidgets.QLineEdit
+    ) -> None:
         super().__init__(parent)
         self.lineedit = lineedit
         self.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
@@ -136,7 +147,8 @@ class PmlHistoryOverlay(QtWidgets.QWidget):
             PmlHistoryOverlay {
                 background-color: #ffffff;
                 border: 1px solid #d2d2d2;
-                border-radius: 4px;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
             }
         """)
 
@@ -147,11 +159,12 @@ class PmlHistoryOverlay(QtWidgets.QWidget):
         self.browser = QtWidgets.QPlainTextEdit(self)
         self.browser.setObjectName("feedback_browser")
         self.browser.setReadOnly(True)
-        self.browser.setStyleSheet("border: none; background: transparent;")
+        self.browser.setStyleSheet("QPlainTextEdit { border: none; }")
         self.browser.setFocusProxy(self.lineedit)
 
         try:
             from pymol.Qt.utils import connectFontContextMenu, getMonospaceFont
+
             self.browser.setFont(getMonospaceFont())
             connectFontContextMenu(self.browser)
         except ImportError:
@@ -164,26 +177,41 @@ class PmlHistoryOverlay(QtWidgets.QWidget):
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mousePressEvent(event)
         if self.lineedit:
-            QtCore.QTimer.singleShot(0, lambda: self.lineedit.setFocus(QtCore.Qt.FocusReason.OtherFocusReason))
+            QtCore.QTimer.singleShot(
+                0,
+                lambda: self.lineedit.setFocus(
+                    QtCore.Qt.FocusReason.OtherFocusReason
+                ),
+            )
 
 
 class PmlCommandLine(QtWidgets.QWidget):
     """A completely unified composite layout widget that houses the PyMOL prompt,
     the text input field, and an encapsulated log history polling overlay panel.
     """
+
     commandSubmitted = QtCore.Signal(str)
     completionRequested = QtCore.Signal()
 
-    def __init__(self, cmd=None, parent: QtWidgets.QWidget | None = None) -> None:
-        """Initialize the unified command line."""
-        super().__init__(parent)
-        self.cmd = cmd if cmd is not None else pymol.cmd
+    def __init__(
+            self, cmd=None, parent: QtWidgets.QWidget | None = None
+    ) -> None:
+        """Initialize the unified command line.
 
-        # Prevent parent layout from stretching this widget vertically
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy.Policy.Preferred,
-            QtWidgets.QSizePolicy.Policy.Maximum
+        Args:
+            cmd: Optional PyMOL command instance.
+            parent: Optional parent widget.
+        """
+        super().__init__(parent)
+        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
+            self
         )
+        self._main_layout: QtWidgets.QBoxLayout = QtWidgets.QHBoxLayout(
+            self._outer_frame
+        )
+
+        self.cmd = cmd if cmd is not None else pymol.cmd
 
         # Local command history index tracking states
         self._history: list[str] = []
@@ -191,17 +219,35 @@ class PmlCommandLine(QtWidgets.QWidget):
         self._history_buffer = ""
         self._overlay_height = 200
 
-        # Primary input panel layout configurations
-        self._main_layout = QtWidgets.QHBoxLayout(self)
-        self._main_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        self._main_layout.setSpacing(ui_defaults.default_spacing())
-
-        self.command_label = QtWidgets.QLabel("PyMOL>")
-        self.command_label.setObjectName("command_label")
+        # Lazy initialize history display overlay canvas layer
+        self._history_overlay: PmlHistoryOverlay | None = None
 
         self.lineedit = PmlLineEdit(self)
+        self._feedback_timer = QtCore.QTimer(self)
+
+        self._init_widget()
+        self._set_styles()
+
+    def _set_styles(self) -> None:
+        """Apply the global theme object names and shadow effects."""
+        self._outer_frame.setObjectName(theme.StyleId.COMMAND_BAR_OUTER)
+        tmp_shadow_effect = QtWidgets.QGraphicsDropShadowEffect()
+        tmp_shadow_effect.setBlurRadius(10)
+        tmp_shadow_effect.setOffset(2, 2)
+        tmp_shadow_effect.setColor(QtGui.QColor(0, 0, 0, 10))
+        self._outer_frame.setGraphicsEffect(tmp_shadow_effect)
+        self.lineedit.setObjectName(theme.StyleId.MINIMAL_TEXT_BOX)
+
+    def _init_widget(self) -> None:
+        self._main_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._main_layout.setSpacing(ui_defaults.default_spacing())
+        self._layout_outer_frame.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
+
         self.lineedit.setObjectName("command_line")
-        self.lineedit.setToolTip('''Command Input Area
+        self.lineedit.setPlaceholderText("Type PyMOL commands here...")
+        self.lineedit.setToolTip("""Command Input Area
 
 Get the list of commands by hitting <TAB>
 
@@ -213,22 +259,25 @@ PyMOL> help color
 
 Get autocompletion for many arguments by hitting <TAB>
 PyMOL> color ye<TAB>    (will autocomplete "yellow")
-''')
+""")
 
-        self._main_layout.addWidget(self.command_label)
         self._main_layout.addWidget(self.lineedit)
-        self.setLayout(self._main_layout)
-
-        # Lazy initialize history display overlay canvas layer
-        self._history_overlay: PmlHistoryOverlay | None = None
+        self._outer_frame.setLayout(self._main_layout)
+        self._layout_outer_frame.addWidget(self._outer_frame)
+        self.setLayout(self._layout_outer_frame)
 
         # Dynamic visibility management hook links
         self.lineedit.textChanged.connect(self._on_text_changed)
 
         # Fully encapsulated self-managed polling loop
-        self._feedback_timer = QtCore.QTimer(self)
         self._feedback_timer.timeout.connect(self._poll_pymol_feedback)
         self._feedback_timer.start(100)
+
+        # Prevent parent layout from stretching this widget vertically
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Maximum,
+        )
 
     def _ensure_overlay_initialized(self) -> None:
         if self._history_overlay is None:
@@ -243,12 +292,14 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
             return
 
         # Explicitly calculates position bounds UPWARD from layout coordinates
-        local_pos = self.lineedit.mapTo(top_window, QtCore.QPoint(0, -self._overlay_height - 2))
+        local_pos = self.lineedit.mapTo(
+            top_window, QtCore.QPoint(-4, -self._overlay_height - 4)
+        )
         self._history_overlay.setGeometry(
             local_pos.x(),
             local_pos.y(),
-            self.lineedit.width(),
-            self._overlay_height
+            self.lineedit.width() + 8,
+            self._overlay_height,
         )
         self._history_overlay.show()
         self._history_overlay.raise_()
@@ -264,7 +315,11 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
     def check_focus_loss(self) -> None:
         if self._history_overlay and self._history_overlay.isVisible():
             focus_w = QtWidgets.QApplication.focusWidget()
-            if focus_w != self.lineedit and focus_w != self._history_overlay and focus_w != self._history_overlay.browser:
+            if (
+                    focus_w != self.lineedit
+                    and focus_w != self._history_overlay
+                    and focus_w != self._history_overlay.browser
+            ):
                 self.hide_history()
 
     def _poll_pymol_feedback(self) -> None:
@@ -286,15 +341,23 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         # Tokenize current text input parameters
         parts = text.split()
-        is_command_only = (len(parts) == 1 and not text.endswith(" ")) or len(parts) == 0
+        is_command_only = (len(parts) == 1 and not text.endswith(" ")) or len(
+            parts
+        ) == 0
 
         candidates = []
 
         # Case 1: Completing the first word (The core PyMOL command keyword)
         if is_command_only:
             current_word = parts[0] if parts else ""
-            if hasattr(self.cmd, 'kwhash') and hasattr(self.cmd.kwhash, 'keywords'):
-                candidates = [k for k in self.cmd.kwhash.keywords if k.startswith(current_word)]
+            if hasattr(self.cmd, "kwhash") and hasattr(
+                    self.cmd.kwhash, "keywords"
+            ):
+                candidates = [
+                    k
+                    for k in self.cmd.kwhash.keywords
+                    if k.startswith(current_word)
+                ]
 
         # Case 2: Completing arguments (colors, system settings, or structure object selections)
         else:
@@ -303,21 +366,23 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
             # Compile possible match options from colors, names, and settings registries
             color_names = []
-            if hasattr(self.cmd, 'get_color_indices'):
+            if hasattr(self.cmd, "get_color_indices"):
                 try:
                     color_names = [c[0] for c in self.cmd.get_color_indices()]
                 except Exception:
                     pass
 
             object_names = []
-            if hasattr(self.cmd, 'get_names'):
+            if hasattr(self.cmd, "get_names"):
                 try:
                     object_names = self.cmd.get_names()
                 except Exception:
                     pass
 
             setting_names = []
-            if hasattr(self.cmd, 'setting') and hasattr(self.cmd.setting, '_get_setting_names'):
+            if hasattr(self.cmd, "setting") and hasattr(
+                    self.cmd.setting, "_get_setting_names"
+            ):
                 try:
                     setting_names = self.cmd.setting._get_setting_names()
                 except Exception:
@@ -331,7 +396,9 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
             else:
                 pool = object_names + color_names + setting_names
 
-            candidates = [item for item in pool if item.startswith(current_word)]
+            candidates = [
+                item for item in pool if item.startswith(current_word)
+            ]
 
         if not candidates:
             return
@@ -342,35 +409,66 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
         # Extrapolate longest common prefix sequence from candidate matches
         longest_prefix = os.path.commonprefix(candidates)
 
-        if longest_prefix and longest_prefix != (parts[-1] if not is_command_only and parts else text):
+        if longest_prefix and longest_prefix != (
+                parts[-1] if not is_command_only and parts else text
+        ):
             # Substitute matching segment inline into lineedit buffer
             if is_command_only:
                 self.lineedit.setText(longest_prefix)
             else:
-                base_text = text.rsplit(maxsplit=1)[0] if not text.endswith(" ") else text
+                base_text = (
+                    text.rsplit(maxsplit=1)[0]
+                    if not text.endswith(" ")
+                    else text
+                )
                 if base_text and not base_text.endswith(" "):
                     base_text += " "
                 self.lineedit.setText(base_text + longest_prefix)
         elif len(candidates) > 1:
             # If multiple matching options remain, echo suggestions to history overlay
-            self.append_feedback(["\nCompletions:"] + [f"  {c}" for c in sorted(candidates)])
+            self.append_feedback(
+                ["\nCompletions:"] + [f"  {c}" for c in sorted(candidates)]
+            )
 
     @override
-    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
-        if watched is self.window() and event.type() in (QtCore.QEvent.Type.Resize, QtCore.QEvent.Type.Move):
+    def eventFilter(
+            self, watched: QtCore.QObject, event: QtCore.QEvent
+    ) -> bool:
+        if watched is self.window() and event.type() in (
+                QtCore.QEvent.Type.Resize,
+                QtCore.QEvent.Type.Move,
+        ):
             if self._history_overlay and self._history_overlay.isVisible():
                 self.show_history()
 
-        if event.type() == QtCore.QEvent.Type.MouseButtonPress and self._history_overlay and self._history_overlay.isVisible():
-            pos = event.globalPosition().toPoint() if hasattr(event, "globalPosition") else event.globalPos()
+        if (
+                event.type() == QtCore.QEvent.Type.MouseButtonPress
+                and self._history_overlay
+                and self._history_overlay.isVisible()
+        ):
+            pos = (
+                event.globalPosition().toPoint()
+                if hasattr(event, "globalPosition")
+                else event.globalPos()
+            )
 
             overlay_geo = self._history_overlay.geometry()
-            global_overlay_rect = QtCore.QRect(self._history_overlay.parentWidget().mapToGlobal(overlay_geo.topLeft()), overlay_geo.size())
+            global_overlay_rect = QtCore.QRect(
+                self._history_overlay.parentWidget().mapToGlobal(
+                    overlay_geo.topLeft()
+                ),
+                overlay_geo.size(),
+            )
 
             input_geo = self.geometry()
-            global_input_rect = QtCore.QRect(self.parentWidget().mapToGlobal(input_geo.topLeft()), input_geo.size())
+            global_input_rect = QtCore.QRect(
+                self.parentWidget().mapToGlobal(input_geo.topLeft()),
+                input_geo.size(),
+            )
 
-            if not global_overlay_rect.contains(pos) and not global_input_rect.contains(pos):
+            if not global_overlay_rect.contains(
+                    pos
+            ) and not global_input_rect.contains(pos):
                 self.hide_history()
 
         return super().eventFilter(watched, event)
@@ -394,10 +492,11 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         try:
             from pymol import colorprinting
-            html = colorprinting.text2html('\n'.join(feedback))
+
+            html = colorprinting.text2html("\n".join(feedback))
             self._history_overlay.browser.appendHtml(html)
         except ImportError:
-            self._history_overlay.browser.appendPlainText('\n'.join(feedback))
+            self._history_overlay.browser.appendPlainText("\n".join(feedback))
 
         scrollbar = self._history_overlay.browser.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
@@ -428,10 +527,17 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
     def history_back_search(self) -> None:
         prefix = self.lineedit.text()
-        start_idx = self._history_index if self._history_index != -1 else len(self._history)
+        start_idx = (
+            self._history_index
+            if self._history_index != -1
+            else len(self._history)
+        )
 
         for i in range(start_idx - 1, -1, -1):
-            if self._history[i].startswith(prefix) and self._history[i] != prefix:
+            if (
+                    self._history[i].startswith(prefix)
+                    and self._history[i] != prefix
+            ):
                 self._history_index = i
                 self.lineedit.setText(self._history[i])
                 return
@@ -452,7 +558,9 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
                     self.append_feedback([f"Error running command: {e}"])
 
             win = self.window()
-            if hasattr(win, 'pymolwidget') and hasattr(win.pymolwidget, '_pymolProcess'):
+            if hasattr(win, "pymolwidget") and hasattr(
+                    win.pymolwidget, "_pymolProcess"
+            ):
                 win.pymolwidget._pymolProcess()
 
         self.lineedit.clear()

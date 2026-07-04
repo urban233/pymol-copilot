@@ -16,6 +16,7 @@ from pymol_copilot.gui.qt.widgets import input_bar
 from pymol_copilot.gui.qt.widgets import list_view
 from pymol_copilot.gui.qt.widgets import table_view
 from pymol_copilot.gui.qt.widgets import viewer
+from pymol_copilot.gui.qt.widgets import pml_menu_bar
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -24,13 +25,22 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         """Initializes the main window and sets up the user interface."""
         super().__init__()
-        self._menu_bar = QtWidgets.QMenuBar()
         self.viewer = viewer.Viewer()
+        self._menu_bar = pml_menu_bar.PyMOLMenuBar(self, self.viewer.cmd)
+
+        self._command_bar = command_bar.CommandBar(
+            [
+                command_bar.CommandBarActionButton(None, "Mouse Mode"),
+            ]
+        )
         self._command_line = pml_command_line.PmlCommandLine(self.viewer.cmd)
-        self.setWindowTitle("PyMOL Copilot")
-        self.resize(800, 600)
+        self._input_bar = input_bar.InputBar()
 
         self._setup_ui()
+        self.setMinimumSize(600, 400)
+        self.setWindowIcon(icons.icon("pymol_copilot.gui.qt", "logo_icon"))
+        self.setWindowTitle("Open-Source PyMOL Copilot")
+        self.resize(800, 600)
         # self._setup_ui_mock()
 
     def _setup_ui(self) -> None:
@@ -44,6 +54,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # </editor-fold>
         self.setMenuBar(self._menu_bar)
 
+        tmp_layout.addWidget(self._command_bar)
+        tmp_input_bar_wrapper_layout = QtWidgets.QHBoxLayout()
+        tmp_input_bar_wrapper_layout.setContentsMargins(120, 0, 120, 0)
+        tmp_input_bar_wrapper_layout.addWidget(self._input_bar)
+        tmp_layout.addLayout(tmp_input_bar_wrapper_layout)
         tmp_layout.addWidget(self.viewer)
         tmp_layout.addWidget(self._command_line)
 

@@ -396,6 +396,7 @@ class StyleId(enum.StrEnum):
     PANEL_SURFACE = "PanelSurface"
     INPUT_BAR_TEXT_BOX = "InputBarTextBox"
     INPUT_BAR = "InputBar"
+    MINIMAL_TEXT_BOX = "MinimalTextBox"
     # Maybe outdated
     SPLITTER_HANDLE = "SplitterHandle"
     MENU_BLOCK = "MenuBlock"
@@ -672,8 +673,25 @@ height: 0px;
 QFrame#{StyleId.INPUT_BAR} {{
     border: ${{border_width}} solid ${{border_color}};
     background-color: ${{surface}};
-    border-radius: 20px;
-    padding: ${{padding_medium}};
+    border-radius: 17px;
+    padding: ${{padding_small}};
+}}
+
+QLineEdit#{StyleId.MINIMAL_TEXT_BOX} {{
+border: none;
+    background-color: transparent;
+    color: #1f1f1f;
+    padding: 0px;
+}}
+
+QLineEdit#{StyleId.MINIMAL_TEXT_BOX}:focus {{
+border: none;
+    outline: none;
+}}
+
+QLineEdit#{StyleId.MINIMAL_TEXT_BOX} QScrollBar:horizontal {{
+height: 0px;
+    background: transparent;
 }}
 
 QTableView {{

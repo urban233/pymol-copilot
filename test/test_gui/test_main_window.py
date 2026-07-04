@@ -5,7 +5,7 @@ from __future__ import annotations
 from PyQt6 import QtWidgets
 import pytest
 
-from pymol_copilot.gui import main_window
+from pymol_copilot.gui.views import main_window
 
 
 @pytest.fixture
