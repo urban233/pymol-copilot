@@ -35,29 +35,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self._save_cmd_button = command_bar.CommandBarActionButton(
             icons.icon("pymol_copilot.gui.qt", "save"),
         )
-        self._wizard_cmd_button = command_bar.CommandBarActionButton(
-            icons.icon("pymol_copilot.gui.qt", "wizard"),
-        )
-        self._mouse_cmd_button = command_bar.CommandBarActionButton(
-            icons.icon("pymol_copilot.gui.qt", "mouse"),
-        )
-        self._settings_cmd_button = command_bar.CommandBarActionButton(
-            icons.icon("pymol_copilot.gui.qt", "settings"),
-        )
-        self._help_cmd_button = command_bar.CommandBarActionButton(
-            icons.icon("pymol_copilot.gui.qt", "help"),
-        )
         self._undo_cmd_button = command_bar.CommandBarActionButton(
             icons.icon("pymol_copilot.gui.qt", "undo"),
         )
         self._redo_cmd_button = command_bar.CommandBarActionButton(
             icons.icon("pymol_copilot.gui.qt", "redo"),
         )
+        self._build_cmd_button = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "build"),
+        )
         self._movie_cmd_button = command_bar.CommandBarActionButton(
             icons.icon("pymol_copilot.gui.qt", "movie"),
         )
-        self._build_cmd_button = command_bar.CommandBarActionButton(
-            icons.icon("pymol_copilot.gui.qt", "build"),
+        self._settings_cmd_button = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "settings"),
+        )
+        self._mouse_cmd_button = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "mouse"),
+        )
+        self._wizard_cmd_button = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "wizard"),
+        )
+        self._help_cmd_button = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "help"),
+        )
+        self._ai_cmd_button = command_bar.CommandBarActionButton(
+            icons.icon("pymol_copilot.gui.qt", "ai"),
         )
 
         self._command_bar = command_bar.CommandBar(
@@ -71,6 +74,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._settings_cmd_button,
                 self._mouse_cmd_button,
                 self._wizard_cmd_button,
+                self._ai_cmd_button,
             ]
         )
         self._more_cmd_button = command_bar.CommandBarActionButton(

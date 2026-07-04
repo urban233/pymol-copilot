@@ -376,7 +376,7 @@ class ThemeMetrics:
     FONT_SIZE_BASE = SizeToken(12)
     CLOSE_BUTTON_SIZE = SizeToken(36)
     CLOSE_BUTTON_HOVER_SIZE = SizeToken(40)
-    FONT_SIZE_HEADER = SizeToken(20)
+    FONT_SIZE_HEADER = SizeToken(16)
     MARGIN_LEFT = SizeToken(8)
     FONT_SIZE_MENU_ITEM = SizeToken(13)
 

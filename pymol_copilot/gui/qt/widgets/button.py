@@ -97,6 +97,105 @@ class AccentButton(Button):
     # </editor-fold>
 
 
+class IconButton(Button):
+    """A fully transparent, borderless button that centers an icon.
+
+    No background or border is painted in any state. The button is fixed
+    to a square hit area of ``size_dp`` logical pixels; the icon fills that
+    area without padding.  Icon size can be changed at any time via
+    :meth:`set_icon_size_dp`.
+
+    Attributes:
+        _icon: The QIcon rendered inside the button.
+        _size_dp: The button (and icon) size in logical pixels.
+    """
+
+    def __init__(
+        self,
+        icon: QtGui.QIcon,
+        size_dp: int = 24,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialize the GhostIconButton.
+
+        Args:
+            icon: The QIcon to display.
+            size_dp: The button and icon size in logical pixels. Defaults to 24.
+            parent: Optional parent widget.
+        """
+        # <editor-fold desc="Instance attributes">
+        self._icon = icon
+        self._size_dp = size_dp
+        # </editor-fold>
+        super().__init__("", parent)
+
+    # <editor-fold desc="Public methods">
+    def set_icon_size_dp(self, size_dp: int) -> None:
+        """Change the icon and button size.
+
+        Args:
+            size_dp: New size in logical pixels.
+        """
+        self._size_dp = size_dp
+        self.setIconSize(QtCore.QSize(theme.SizeToken(size_dp).px, theme.SizeToken(size_dp).px))
+        self._set_styles()
+
+    # </editor-fold>
+
+    # <editor-fold desc="Private methods">
+    def _init_widget(self) -> None:
+        """Set the icon and connect to DPI-change notifications."""
+        self.setIcon(self._icon)
+        self._notifier_signal: QtCore.pyqtBoundSignal = (
+            theme.get_notifier().scale_changed
+        )
+        self._notifier_signal.connect(self._handle_scale_changed)
+        self.destroyed.connect(self._cleanup_connections)
+
+    def _set_styles(self) -> None:
+        """Apply a fully transparent, fixed-size stylesheet with hover highlight."""
+        tmp_size_px = theme.SizeToken(self._size_dp).px
+        self.setIconSize(QtCore.QSize(tmp_size_px, tmp_size_px))
+        tmp_radius_px = tmp_size_px // 2
+        tmp_qss = f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                padding: 0px;
+                border-radius: {tmp_radius_px}px;
+                min-width: {tmp_size_px}px;
+                max-width: {tmp_size_px}px;
+                min-height: {tmp_size_px}px;
+                max-height: {tmp_size_px}px;
+            }}
+            QPushButton:hover {{
+                background-color: #efefef;
+            }}
+        """
+        self.setStyleSheet(tmp_qss)
+
+    def _handle_scale_changed(self, _scale: float) -> None:
+        """Recalculate pixel dimensions when screen DPI changes.
+
+        Args:
+            _scale: The new screen scaling factor.
+        """
+        self._set_styles()
+
+    def _cleanup_connections(self, _obj: QtCore.QObject | None = None) -> None:
+        """Disconnect the scale-changed signal to prevent memory leaks.
+
+        Args:
+            _obj: The QObject being destroyed (optional).
+        """
+        if not hasattr(self, "_notifier_signal"):
+            return
+        with contextlib.suppress(TypeError, RuntimeError):
+            self._notifier_signal.disconnect(self._handle_scale_changed)
+
+    # </editor-fold>
+
+
 class CircleIconButton(Button):
     """A circular button widget that displays an icon instead of text.
 

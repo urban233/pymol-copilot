@@ -37,7 +37,7 @@ from pymol_copilot.gui.qt import theme
 
 __docformat__ = "google"
 
-from pymol_copilot.gui.qt.widgets import command_bar, conversation_canvas, input_bar
+from pymol_copilot.gui.qt.widgets import command_bar, conversation_canvas, input_bar, button
 
 
 class PanelHeader(QtWidgets.QWidget):
@@ -67,15 +67,17 @@ class PanelHeader(QtWidgets.QWidget):
         """
         super().__init__(parent)
         self._lbl_header = QtWidgets.QLabel(title)
-        self._btn_close = QtWidgets.QPushButton()
+        self._btn_close = button.IconButton(
+            icons.icon("pymol_copilot.gui.qt", "close")
+        )
         self._init_widget()
         self._connect_signals()
 
     def _init_widget(self) -> None:
         """Set up layout and styles."""
         tmp_layout = QtWidgets.QHBoxLayout(self)
-        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.setContentsMargins(*ui_defaults.default_contents_margins())
+        tmp_layout.setSpacing(ui_defaults.default_spacing())
         tmp_layout.addWidget(self._lbl_header)
         tmp_layout.addStretch()
         tmp_layout.addWidget(self._btn_close)
@@ -96,7 +98,7 @@ class PmlCopilotPanelHeader(PanelHeader):
 
     Extends PanelHeader by inserting a CommandBarActionButton between the title
     label and the stretch. Emits ``historyRequested`` when the History button is
-    clicked; callers can toggle the button text via ``set_history_button_text``.
+    clicked; callers can toggle the button text via ``set_history_button_icon``.
 
     Signals:
         historyRequested: Emitted when the user clicks the History button.
@@ -115,21 +117,28 @@ class PmlCopilotPanelHeader(PanelHeader):
             parent: Optional parent widget. Defaults to None.
         """
         # Must be created before super().__init__() calls _init_widget().
-        self._btn_history = command_bar.CommandBarActionButton(
-            icon=None,
-            text="History",
-            style=command_bar.CommandBarButtonStyle.TEXT_ONLY,
+        self._btn_history = button.IconButton(
+            icon=icons.icon("pymol_copilot.gui.qt", "history")
         )
         super().__init__("PyMOL-Copilot", parent)
 
     def _init_widget(self) -> None:
         """Set up layout with History button inserted before the stretch."""
         tmp_layout = QtWidgets.QHBoxLayout(self)
-        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setContentsMargins(*ui_defaults.default_contents_margins())
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+
+        tmp_icon = icons.icon("pymol_copilot.gui.qt", "ai")
+        icon_size = theme.dp(24)
+        icon_label = QtWidgets.QLabel()
+        icon_label.setPixmap(tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size)))
+        icon_label.setFixedSize(icon_size, icon_size)
+        icon_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignHCenter)
+        tmp_layout.addWidget(icon_label)
+
         tmp_layout.addWidget(self._lbl_header)
-        tmp_layout.addWidget(self._btn_history)
         tmp_layout.addStretch()
+        tmp_layout.addWidget(self._btn_history)
         tmp_layout.addWidget(self._btn_close)
         self._set_styles()
 
@@ -138,13 +147,13 @@ class PmlCopilotPanelHeader(PanelHeader):
         super()._connect_signals()
         self._btn_history.clicked.connect(self.historyRequested.emit)
 
-    def set_history_button_text(self, text: str) -> None:
-        """Update the History button label.
+    def set_history_button_icon(self, icon: QtGui.QIcon) -> None:
+        """Update the History button icon.
 
         Args:
-            text: New button label (e.g. ``"History"`` or ``"← Chat"``).
+            icon: The new icon to display.
         """
-        self._btn_history._button.setText(text)
+        self._btn_history.setIcon(icon)
 
 
 class Panel(QtWidgets.QWidget):
@@ -312,10 +321,10 @@ class PmlCopilotPanel(Panel):
         """Toggle between the chat page and the history page."""
         if self._stacked_widget.currentIndex() == 0:
             self._stacked_widget.setCurrentIndex(1)
-            self._panel_header.set_history_button_text("← Chat")
+            self._panel_header.set_history_button_icon(icons.icon("pymol_copilot.gui.qt", "arrow_back"))
         else:
             self._stacked_widget.setCurrentIndex(0)
-            self._panel_header.set_history_button_text("History")
+            self._panel_header.set_history_button_icon(icons.icon("pymol_copilot.gui.qt", "history"))
 
     def _demo_only(self) -> None:
         # Chat page demo cards
