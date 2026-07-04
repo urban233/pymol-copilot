@@ -355,7 +355,7 @@ class ThemeColors:
     BORDER_ACTIVE = ColorToken("#616161")
     BORDER_HOVER = ColorToken("#c7c7c7")
     DIVIDER = ColorToken("#dcdcdc")
-    ACCENT = ColorToken("#367af6")
+    ACCENT = ColorToken("#009AE5")
     ACCENT_HOVER = ColorToken("#4b91f7")
     ACCENT_PRESSED = ColorToken("#256cf0")
     TEXT_ON_ACCENT = ColorToken("#ffffff")

@@ -173,3 +173,5 @@ class PmlCopilotPanel(Panel):
             "For the attached file, please make all heading 2s a font of 18, blue font, and not underline."
         )
         self._cui_canvas.add_card(tmp_user_card)
+        tmp_working_card = conversation_canvas.AgentThinkingCard()
+        self._cui_canvas.add_card(tmp_working_card)

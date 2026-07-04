@@ -1,4 +1,5 @@
 from pymol_copilot.gui.qt import QtCore
+from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt import theme
@@ -69,6 +70,67 @@ class UserRequestCard(BaseCard):
     def set_text(self, text: str) -> None:
         """Dynamically updates the inner message text mapping."""
         self.text_label.setText(text)
+
+
+class SpinnerWidget(QtWidgets.QWidget):
+    """Lightweight rotating-arc spinner drawn entirely with QPainter."""
+
+    def __init__(self, size: int = 16, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._angle = 0
+        self._size = size
+        self._timer = QtCore.QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self.setFixedSize(size, size)
+
+    def _tick(self) -> None:
+        self._angle = (self._angle + 4) % 360
+        self.update()
+
+    def start(self) -> None:
+        self._timer.start(16)
+
+    def stop(self) -> None:
+        self._timer.stop()
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # noqa: N802
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
+        pen = QtGui.QPen(QtGui.QColor(theme.ThemeColors.ACCENT.to_hex()))
+        pen.setWidthF(2.0)
+        pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        margin = pen.widthF() + 0.5
+        rect = QtCore.QRectF(
+            margin, margin,
+            self._size - 2 * margin, self._size - 2 * margin,
+        )
+        # Qt arc angles are in 1/16°; arc starts from top (90°) and sweeps 270°
+        painter.drawArc(rect, (90 - self._angle) * 16, 270 * 16)
+        painter.end()
+
+
+class AgentThinkingCard(BaseCard):
+    """Card that signals the AI agent is currently processing."""
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(is_user=False, parent=parent)
+        self._spinner = SpinnerWidget(size=theme.dp(16))
+        self._label = QtWidgets.QLabel("Working\u2026")
+
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(theme.dp(8))
+        row.addWidget(self._spinner)
+        row.addWidget(self._label)
+        row.addStretch()
+
+        self.content_layout.addLayout(row)
+        self._spinner.start()
+
+    def stop(self) -> None:
+        """Halts the spinner animation when processing is complete."""
+        self._spinner.stop()
 
 
 class ConversationCanvas(QtWidgets.QScrollArea):
