@@ -87,5 +87,6 @@ class UISize:
         Returns:
             A tuple (width, height) in physical pixels.
         """
-        tmp_v = theme.dp(24)
+        # tmp_v = theme.dp(24)
+        tmp_v = theme.dp(20)
         return tmp_v, tmp_v
