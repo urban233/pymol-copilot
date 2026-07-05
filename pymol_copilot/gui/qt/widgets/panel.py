@@ -334,6 +334,15 @@ class PmlCopilotPanel(Panel):
 
         self._panel_header.historyRequested.connect(self._toggle_history_page)
 
+    def submit_text(self, text: str) -> None:
+        """Forward *text* into the panel as if the user typed and submitted it.
+
+        Args:
+            text: The message text to submit.
+        """
+        self._input_bar.set_processing(True)
+        self._input_bar.submitted.emit(text)
+
     def _toggle_history_page(self) -> None:
         """Toggle between the chat page and the history page."""
         if self._stacked_widget.currentIndex() == 0:
@@ -346,3 +355,87 @@ class PmlCopilotPanel(Panel):
             self._panel_header.set_history_button_icon(
                 icons.icon("pymol_copilot.gui.qt", "history")
             )
+
+
+class SidePanelStack(QtWidgets.QWidget):
+    """A collapsible side panel container backed by a QStackedWidget.
+
+    The entire stack can be shown or hidden; the caller is responsible for
+    triggering show/hide (e.g. via a toolbar button). Panels inside own their
+    own visual appearance — no extra frame or border is added here.
+
+    Signals:
+        panelToggled: Emitted when visibility or the active panel changes.
+            Carries (index, is_expanded) where index is -1 when hidden.
+
+    Attributes:
+        _stacked_widget: The QStackedWidget switching between panel contents.
+        _panel_count: Number of panels registered so far.
+        _active_index: Index of the currently visible panel, or -1 if hidden.
+    """
+
+    panelToggled = QtCore.pyqtSignal(int, bool)
+    """Emitted when the panel is toggled. Args: (panel_index, is_expanded)."""
+
+    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+        """Initialize the SidePanelStack.
+
+        Args:
+            parent: Optional parent widget. Defaults to None.
+        """
+        super().__init__(parent)
+        self._panel_count: int = 0
+        self._active_index: int = -1
+
+        self._stacked_widget = QtWidgets.QStackedWidget()
+
+        tmp_layout = QtWidgets.QVBoxLayout(self)
+        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.addWidget(self._stacked_widget)
+        self.setLayout(tmp_layout)
+
+        self.setMinimumWidth(theme.dp(240))
+
+    def add_panel(
+        self,
+        title: str,
+        icon: QtGui.QIcon,
+        widget: QtWidgets.QWidget,
+    ) -> int:
+        """Register a panel and return its index.
+
+        The stack starts hidden; call :meth:`set_active` to show a panel.
+
+        Args:
+            title: Descriptive name (reserved for future use).
+            icon: Panel icon (reserved for future use).
+            widget: The widget shown as the panel content.
+
+        Returns:
+            The zero-based index of the newly added panel.
+        """
+        index = self._panel_count
+        self._stacked_widget.addWidget(widget)
+        self._panel_count += 1
+        return index
+
+    def set_active(self, index: int) -> None:
+        """Show the panel at *index*, making the stack visible if hidden.
+
+        Args:
+            index: Zero-based panel index to activate.
+        """
+        if not (0 <= index < self._panel_count):
+            return
+        self._stacked_widget.setCurrentIndex(index)
+        self._active_index = index
+        self.show()
+        self.panelToggled.emit(index, True)
+
+    def collapse(self) -> None:
+        """Hide the entire stack."""
+        self._active_index = -1
+        self.hide()
+        self.panelToggled.emit(-1, False)
+

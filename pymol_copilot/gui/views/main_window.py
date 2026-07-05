@@ -6,6 +6,7 @@ import sys
 import webbrowser
 from typing import TYPE_CHECKING, override
 
+from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
@@ -246,7 +247,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # </editor-fold>
 
         # # <editor-fold desc="Console Inputs and Layout Shell Declarations">
-        self._content_layout = QtWidgets.QHBoxLayout()
+        self._side_panel_stack = panel.SidePanelStack()
         self._input_bar = input_bar.InputBar()
         self._command_line = pml_command_line.PmlCommandLine(self.viewer.cmd)
 
@@ -269,26 +270,69 @@ class MainWindow(QtWidgets.QMainWindow):
         # </editor-fold>
 
         # # <editor-fold desc="Main Application Panel Packing and Display Layout">
-        self._content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        self._content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
-
         # self.setMenuBar(self._menu_bar)
 
         tmp_main_content_layout = QtWidgets.QVBoxLayout()
         tmp_main_content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         tmp_main_content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
-        tmp_layout.addWidget(self._command_bar)
         tmp_input_bar_wrapper_layout = QtWidgets.QHBoxLayout()
         tmp_input_bar_wrapper_layout.setContentsMargins(120, 0, 120, 0)
         tmp_input_bar_wrapper_layout.addWidget(self._input_bar)
         tmp_main_content_layout.addLayout(tmp_input_bar_wrapper_layout)
         tmp_main_content_layout.addWidget(self.viewer)
         tmp_main_content_layout.addWidget(self._command_line)
-        self._content_layout.addLayout(tmp_main_content_layout)
-        self._content_layout.addWidget(self._conversation_panel)
-        tmp_layout.addLayout(self._content_layout)
+
+        tmp_main_content_widget = QtWidgets.QWidget()
+        tmp_main_content_widget.setLayout(tmp_main_content_layout)
+
+        self._side_panel_stack.add_panel(
+            "PyMOL Copilot",
+            icons.icon("pymol_copilot.gui.qt", "ai"),
+            self._conversation_panel,
+        )
+
+        self._content_splitter = QtWidgets.QSplitter(
+            QtCore.Qt.Orientation.Horizontal
+        )
+        self._content_splitter.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._content_splitter.addWidget(tmp_main_content_widget)
+        self._content_splitter.addWidget(self._side_panel_stack)
+        self._content_splitter.setStretchFactor(0, 1)
+        self._content_splitter.setStretchFactor(1, 0)
+        self._content_splitter.setChildrenCollapsible(False)
+        self._side_panel_stack.hide()
+
+        self._ai_cmd_button.clicked.connect(self._toggle_side_panel)
+        self._conversation_panel.panelClosed.connect(self._side_panel_stack.collapse)
+        self._side_panel_stack.panelToggled.connect(
+            lambda _idx, expanded: self._input_bar.setVisible(not expanded)
+        )
+        self._input_bar.submitted.connect(self._on_main_input_submitted)
+
+        tmp_layout.addWidget(self._command_bar)
+        tmp_layout.addWidget(self._content_splitter)
         # </editor-fold>
+
+    def _toggle_side_panel(self) -> None:
+        """Toggle the side panel: show it if hidden, collapse it if visible."""
+        if self._side_panel_stack.isVisible():
+            self._side_panel_stack.collapse()
+        else:
+            self._side_panel_stack.set_active(0)
+
+    def _on_main_input_submitted(self, text: str) -> None:
+        """Forward text from the main input bar into the AI panel.
+
+        Opens the panel first if it is currently hidden.
+
+        Args:
+            text: The submitted message text.
+        """
+        if not self._side_panel_stack.isVisible():
+            self._side_panel_stack.set_active(0)
+        self._input_bar.set_processing(False)
+        self._conversation_panel.submit_text(text)
 
 
 # # <editor-fold desc="Memory-Safe Data-Driven Menu Engine">

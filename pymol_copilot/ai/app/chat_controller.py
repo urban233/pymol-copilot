@@ -33,6 +33,7 @@ from pymol_copilot.ai.inference import prompt_builder
 from pymol_copilot.ai.inference.conversation import Conversation
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt.thread import background_task
+from pymol_copilot.gui.qt.widgets.conversation_canvas import AgentCancelledCard
 from pymol_copilot.gui.qt.widgets.conversation_canvas import AgentThinkingCard
 from pymol_copilot.gui.qt.widgets.conversation_canvas import PlanApprovalCard
 from pymol_copilot.gui.qt.widgets.conversation_canvas import UserRequestCard
@@ -132,6 +133,7 @@ class ChatController(QtCore.QObject):
         self._backend: InferenceBackend | None = None
         self._cancel_event = threading.Event()
         self._thinking_card: AgentThinkingCard | None = None
+        self._cancelled_card: AgentCancelledCard | None = None
 
         self._wire_panel()
         if self._execution_worker:
@@ -140,6 +142,7 @@ class ChatController(QtCore.QObject):
     def _wire_panel(self) -> None:
         """Connect UI signals from the panel."""
         self._panel._input_bar.submitted.connect(self._on_user_submit)
+        self._panel._input_bar.stopRequested.connect(self.request_cancel)
 
     def _wire_execution(self) -> None:
         """Connect UI signals from the execution worker."""
@@ -212,12 +215,24 @@ class ChatController(QtCore.QObject):
         """
         self._parser.feed(delta)
 
+    def request_cancel(self) -> None:
+        """Request cancellation and immediately show the cancelling card."""
+        self._cancel_event.set()
+        if self._thinking_card:
+            self._thinking_card.stop()
+            self._thinking_card.hide()
+            self._thinking_card.deleteLater()
+            self._thinking_card = None
+        self._cancelled_card = AgentCancelledCard()
+        self._panel._cui_canvas.add_card(self._cancelled_card)
+
     def _on_inference_success(self, output: str) -> None:
         """Handle successful completion of inference.
 
         Args:
             output: The generated text output.
         """
+        self._panel._input_bar.set_processing(False)
         if self._thinking_card:
             self._thinking_card.stop()
             self._thinking_card.hide()
@@ -267,8 +282,15 @@ class ChatController(QtCore.QObject):
             tb: Formatted traceback string.
         """
         LOGGER.error("Inference error: %s\n%s", exc, tb)
+        self._panel._input_bar.set_processing(False)
         if self._thinking_card:
             self._thinking_card.stop()
+            self._thinking_card.hide()
+            self._thinking_card.deleteLater()
+            self._thinking_card = None
+        if isinstance(exc, InterruptedError) and self._cancelled_card:
+            self._cancelled_card.stop()
+            self._cancelled_card = None
 
     def _on_execution_finished(self, log_lines: list[str]) -> None:
         """Handle successful execution of steps.

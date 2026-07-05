@@ -102,6 +102,29 @@ class AgentThinkingCard(BaseCard):
         self._spinner.stop()
 
 
+class AgentCancelledCard(BaseCard):
+    """Card shown when the user cancels an in-progress generation."""
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(is_user=False, parent=parent)
+        self._spinner = spinner.SpinnerWidget(size=theme.dp(16), color="#dc4352")
+        self._label = QtWidgets.QLabel("Cancelled")
+
+        row = QtWidgets.QHBoxLayout()
+        row.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        row.setSpacing(theme.dp(8))
+        row.addWidget(self._spinner)
+        row.addWidget(self._label)
+        row.addStretch()
+
+        self.content_layout.addLayout(row)
+        self._spinner.start()
+
+    def stop(self) -> None:
+        """Halts the spinner animation."""
+        self._spinner.stop()
+
+
 class ToolApprovalCard(BaseCard):
     """Card that presents a proposed tool call for user review and approval.
 

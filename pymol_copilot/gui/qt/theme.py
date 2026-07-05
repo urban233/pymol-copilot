@@ -403,6 +403,7 @@ class StyleId(enum.StrEnum):
     CUI_CARD_SURFACE = "CuiCardSurface"
     """Base card surface for the conversational user interface (CUI)."""
     CUI_USER_CARD_SURFACE = "CuiUserCardSurface"
+    SIDE_TAB_BUTTON = "SideTabButton"
     # Maybe outdated
     SPLITTER_HANDLE = "SplitterHandle"
     MENU_BLOCK = "MenuBlock"
@@ -752,6 +753,31 @@ QFrame#{StyleId.CUI_USER_CARD_SURFACE} {{
     background-color: ${{cui_user_card_surface}};
     border-radius: ${{corner_radius}};
     padding: ${{padding_small}};
+}}
+
+QPushButton#{StyleId.SIDE_TAB_BUTTON} {{
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: ${{corner_radius}};
+    padding: 0px;
+}}
+QPushButton#{StyleId.SIDE_TAB_BUTTON}:hover {{
+    background-color: ${{hover}};
+}}
+QPushButton#{StyleId.SIDE_TAB_BUTTON}:checked {{
+    background-color: ${{pressed_shared}};
+    border-color: ${{border_active}};
+}}
+QPushButton#{StyleId.SIDE_TAB_BUTTON}:checked:hover {{
+    background-color: ${{pressed}};
+    border-color: ${{border_active}};
+}}
+QPushButton#{StyleId.SIDE_TAB_BUTTON}:pressed {{
+    background-color: ${{pressed}};
+    border-color: ${{border_active}};
+}}
+QPushButton#{StyleId.SIDE_TAB_BUTTON}:focus {{
+    outline: none;
 }}
 """
 # QFrame#{StyleId.CUI_CARD_SURFACE} {{

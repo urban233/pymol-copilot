@@ -8,11 +8,15 @@ class SpinnerWidget(QtWidgets.QWidget):
     """Lightweight rotating-arc spinner drawn entirely with QPainter."""
 
     def __init__(
-        self, size: int = 16, parent: QtWidgets.QWidget | None = None
+        self,
+        size: int = 16,
+        color: str | None = None,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._angle = 0
         self._size = size
+        self._color = color
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._tick)
         self.setFixedSize(size, size)
@@ -30,7 +34,7 @@ class SpinnerWidget(QtWidgets.QWidget):
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # noqa: N802
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        pen = QtGui.QPen(QtGui.QColor(theme.ThemeColors.ACCENT.to_hex()))
+        pen = QtGui.QPen(QtGui.QColor(self._color if self._color else theme.ThemeColors.ACCENT.to_hex()))
         pen.setWidthF(2.0)
         pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)

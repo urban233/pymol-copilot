@@ -13,9 +13,10 @@ from pymol_copilot.gui.qt.widgets import text_box
 
 
 class InputBar(QtWidgets.QWidget):
-    """Input bar widget containing a text box and send button."""
+    """Input bar widget containing a text box and send/stop button."""
 
     submitted = QtCore.pyqtSignal(str)
+    stopRequested = QtCore.pyqtSignal()
 
     def __init__(
         self,
@@ -27,6 +28,7 @@ class InputBar(QtWidgets.QWidget):
             parent: Optional parent widget.
         """
         super().__init__(parent)
+        self._is_processing: bool = False
         self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
         self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
             self
@@ -68,12 +70,47 @@ class InputBar(QtWidgets.QWidget):
             QtWidgets.QSizePolicy.Policy.Maximum,
         )
 
-        self._send_button.clicked.connect(self._on_submit)
+        self._send_button.clicked.connect(self._on_button_clicked)
         self._input.returnPressed.connect(self._on_submit)
+
+    def set_processing(self, processing: bool) -> None:
+        """Switch between send and stop mode.
+
+        Always re-enables the button and input (exits cancelling state too).
+
+        Args:
+            processing: True to show the stop icon, False to restore send icon.
+        """
+        self._is_processing = processing
+        self._send_button.setEnabled(True)
+        self._input.setEnabled(True)
+        if processing:
+            self._send_button.setIcon(
+                icons.icon("pymol_copilot.gui.qt", "stop")
+            )
+        else:
+            self._send_button.setIcon(
+                icons.icon("pymol_copilot.gui.qt", "arrow_upward")
+            )
+
+    def set_cancelling(self) -> None:
+        """Disable input while waiting for cancellation to complete."""
+        self._is_processing = False
+        self._send_button.setEnabled(False)
+        self._input.setEnabled(False)
+
+    def _on_button_clicked(self) -> None:
+        """Dispatch button click to submit or stop depending on current state."""
+        if self._is_processing:
+            self.set_cancelling()
+            self.stopRequested.emit()
+        else:
+            self._on_submit()
 
     def _on_submit(self) -> None:
         """Handle the submit action and emit submitted signal."""
         text = self._input.toPlainText().strip()
         if text:
             self._input.clear()
+            self.set_processing(True)
             self.submitted.emit(text)
