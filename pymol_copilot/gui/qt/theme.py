@@ -408,6 +408,10 @@ class StyleId(enum.StrEnum):
     SPLITTER_HANDLE = "SplitterHandle"
     MENU_BLOCK = "MenuBlock"
     TOOLBAR_BLOCK = "ToolbarBlock"
+    TABBED_COMMAND_BAR = "TabbedCommandBar"
+    TABBED_COMMAND_BAR_OUTER = "TabbedCommandBarOuter"
+    TABBED_COMMAND_BAR_TAB = "TabbedCommandBarTab"
+    TABBED_COMMAND_BAR_DIVIDER = "TabbedCommandBarDivider"
 
 
 GLOBAL_STYLESHEET_TEMPLATE = f"""
@@ -496,6 +500,17 @@ QFrame#{StyleId.COMMAND_BAR_OUTER} {{
     padding: 4px 6px;
 }}
 #{StyleId.COMMAND_BAR} QToolButton:hover {{
+    background-color: ${{hover}};
+}}
+
+#{StyleId.TABBED_COMMAND_BAR} QToolButton {{
+    font-size: ${{font_size_base}};
+    background-color: ${{surface}};
+    border: none;
+    border-radius: ${{corner_radius}};
+    padding: 4px 6px;
+}}
+#{StyleId.TABBED_COMMAND_BAR} QToolButton:hover {{
     background-color: ${{hover}};
 }}
 
@@ -778,6 +793,39 @@ QPushButton#{StyleId.SIDE_TAB_BUTTON}:pressed {{
 }}
 QPushButton#{StyleId.SIDE_TAB_BUTTON}:focus {{
     outline: none;
+}}
+
+QFrame#{StyleId.TABBED_COMMAND_BAR_OUTER} {{
+    border: ${{border_width}} solid ${{border_color}};
+    background-color: ${{surface}};
+    border-radius: ${{corner_radius}};
+    padding: 0px;
+}}
+
+QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB} {{
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0px;
+    padding: 4px 10px;
+    font-size: ${{font_size_base}};
+    color: ${{text_primary}};
+}}
+QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB}:hover {{
+    background-color: ${{hover}};
+}}
+QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB}:checked {{
+    background-color: transparent;
+    border-bottom: 2px solid ${{accent}};
+    font-weight: bold;
+}}
+QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB}:pressed {{
+    background-color: ${{pressed}};
+}}
+
+QFrame#{StyleId.TABBED_COMMAND_BAR_DIVIDER} {{
+    background-color: ${{border_color}};
+    border: none;
 }}
 """
 # QFrame#{StyleId.CUI_CARD_SURFACE} {{

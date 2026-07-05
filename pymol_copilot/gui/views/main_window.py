@@ -244,6 +244,24 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self._command_bar.append_command_button(self._more_cmd_button)
         self._command_bar.append_command_button(self._help_cmd_button)
+        self._command_bar = command_bar.TabbedCommandBar(
+            [
+                ("Home",
+                 [
+                     self._open_cmd_button,
+                     self._save_cmd_button,
+                     self._export_cmd_button,
+                     self._build_cmd_button,
+                     self._movie_cmd_button,
+                     self._settings_cmd_button,
+                     self._mouse_cmd_button,
+                     self._wizard_cmd_button,
+                     self._ai_cmd_button,
+                 ]
+                ),
+                ("Display", [])
+            ]
+        )
         # </editor-fold>
 
         # # <editor-fold desc="Console Inputs and Layout Shell Declarations">

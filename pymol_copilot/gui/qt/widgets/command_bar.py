@@ -908,3 +908,126 @@ class CommandBar(QtWidgets.QWidget):
             QtWidgets.QSizePolicy.Policy.Preferred,
             QtWidgets.QSizePolicy.Policy.Maximum,
         )
+
+
+class TabbedCommandBar(QtWidgets.QWidget):
+    """A command bar with named tabs; each tab shows its own set of buttons."""
+
+    def __init__(
+        self,
+        tabs: list[tuple[str, list[CommandBarButton]]],
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialize the tabbed command bar.
+
+        Args:
+            tabs: Ordered list of (tab_name, buttons) pairs. The first entry
+                is selected on construction.
+            parent: Optional parent widget.
+        """
+        super().__init__(parent)
+        self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        self._tab_buttons: list[QtWidgets.QPushButton] = []
+        self._tab_group: QtWidgets.QButtonGroup = QtWidgets.QButtonGroup(self)
+        self._stack: QtWidgets.QStackedWidget = QtWidgets.QStackedWidget(
+            self._outer_frame
+        )
+        self._divider: QtWidgets.QFrame = QtWidgets.QFrame(self._outer_frame)
+        self._init_widget(tabs)
+        self._set_styles()
+
+    def _init_widget(self, tabs: list[tuple[str, list[CommandBarButton]]]) -> None:
+        self._layout_outer_frame.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
+
+        outer_content_layout = QtWidgets.QVBoxLayout()
+        outer_content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        outer_content_layout.setSpacing(0)
+        self._outer_frame.setLayout(outer_content_layout)
+
+        # Tab bar row
+        tab_bar_widget = QtWidgets.QWidget(self._outer_frame)
+        tab_bar_layout = QtWidgets.QHBoxLayout(tab_bar_widget)
+        tab_bar_layout.setContentsMargins(
+            theme.dp(4), theme.dp(2), theme.dp(4), 0
+        )
+        tab_bar_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+
+        # Bold font metrics for pre-allocating minimum button width.
+        # The :checked QSS state applies font-weight:bold, which widens the
+        # text.  Computing the min-width now (before the stylesheet is
+        # applied) prevents clipping when a tab becomes active.
+        _bold_font = QtGui.QFont()
+        _bold_font.setPixelSize(theme.ThemeMetrics.FONT_SIZE_BASE.px)
+        _bold_font.setBold(True)
+        _fm = QtGui.QFontMetrics(_bold_font)
+        # QSS padding: 10 px each side; dp(4) safety buffer
+        _tab_h_padding = theme.dp(10) * 2 + theme.dp(4)
+
+        self._tab_group.setExclusive(True)
+        for i, (name, _) in enumerate(tabs):
+            btn = QtWidgets.QPushButton(name, tab_bar_widget)
+            btn.setCheckable(True)
+            btn.setMinimumWidth(_fm.horizontalAdvance(name) + _tab_h_padding)
+            self._tab_group.addButton(btn, i)
+            self._tab_buttons.append(btn)
+            tab_bar_layout.addWidget(btn)
+        tab_bar_layout.addStretch(1)
+        self._tab_group.idClicked.connect(self._switch_tab)
+
+        # Divider between tab bar and content
+        self._divider.setFrameShape(QtWidgets.QFrame.Shape.HLine)
+        self._divider.setFrameShadow(QtWidgets.QFrame.Shadow.Plain)
+        self._divider.setFixedHeight(theme.dp(1))
+
+        # Content stack — one page per tab
+        for _, buttons in tabs:
+            page = QtWidgets.QWidget()
+            page_layout = QtWidgets.QHBoxLayout(page)
+            page_layout.setContentsMargins(*ui_defaults.default_contents_margins())
+            page_layout.setSpacing(ui_defaults.default_spacing())
+            for btn in buttons:
+                page_layout.addWidget(btn)
+            page_layout.addStretch(1)
+            self._stack.addWidget(page)
+
+        outer_content_layout.addWidget(tab_bar_widget)
+        outer_content_layout.addWidget(self._divider)
+        outer_content_layout.addWidget(self._stack)
+
+        self._layout_outer_frame.addWidget(self._outer_frame)
+        self.setLayout(self._layout_outer_frame)
+
+        if self._tab_buttons:
+            self._switch_tab(0)
+
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Maximum,
+        )
+
+    def _switch_tab(self, index: int) -> None:
+        """Switch the visible content page and mark the corresponding tab button.
+
+        Args:
+            index: Zero-based index of the tab to activate.
+        """
+        self._stack.setCurrentIndex(index)
+        btn = self._tab_group.button(index)
+        if btn is not None:
+            btn.setChecked(True)
+
+    def _set_styles(self) -> None:
+        """Apply global theme object names and shadow effects."""
+        self._outer_frame.setObjectName(theme.StyleId.TABBED_COMMAND_BAR_OUTER)
+        self._divider.setObjectName(theme.StyleId.TABBED_COMMAND_BAR_DIVIDER)
+        for btn in self._tab_buttons:
+            btn.setObjectName(theme.StyleId.TABBED_COMMAND_BAR_TAB)
+        tmp_shadow = QtWidgets.QGraphicsDropShadowEffect()
+        tmp_shadow.setBlurRadius(10)
+        tmp_shadow.setOffset(2, 2)
+        tmp_shadow.setColor(QtGui.QColor(0, 0, 0, 10))
+        self._outer_frame.setGraphicsEffect(tmp_shadow)
+        self.setObjectName(theme.StyleId.TABBED_COMMAND_BAR)
