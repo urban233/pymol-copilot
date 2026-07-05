@@ -25,6 +25,7 @@ from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme
+from pymol_copilot.gui.qt import ui_defaults
 
 
 class Button(QtWidgets.QPushButton):
@@ -293,3 +294,96 @@ class CircleIconButton(Button):
             self._notifier_signal.disconnect(self._handle_scale_changed)
 
     # </editor-fold>
+
+
+class ToggleButton(QtWidgets.QWidget):
+    """A styled toggle button based on QToolButton.
+
+    Provides a clean, checkable toggle button interface.
+    """
+
+    clicked = QtCore.pyqtSignal()
+    toggled = QtCore.pyqtSignal(bool)
+
+    def __init__(
+        self,
+        text: str = "",
+        checked: bool = False,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialize the ToggleButton.
+
+        Args:
+            text: Label text.
+            checked: Whether the button starts checked.
+            parent: Optional parent widget.
+        """
+        super().__init__(parent)
+        self._text = text
+        self._checked = checked
+        self._button = QtWidgets.QToolButton()
+
+        self._init_widget()
+        self._set_styles()
+        self._connect_signals()
+
+    def _init_widget(self) -> None:
+        """Initialize the widget."""
+        if self._text:
+            self._button.setText(self._text)
+        self._button.setCheckable(True)
+        self._button.setChecked(self._checked)
+        self._button.setAutoRaise(False)
+        self._button.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
+
+        tmp_layout = QtWidgets.QHBoxLayout(self)
+        tmp_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_layout.addWidget(self._button)
+
+    def _set_styles(self) -> None:
+        """Apply styles to the widget."""
+        self._button.setObjectName(theme.StyleId.TOGGLE_BUTTON)
+
+    def _connect_signals(self) -> None:
+        """Wire signal-slot connections."""
+        self._button.clicked.connect(self._emit_clicked)
+        self._button.toggled.connect(self._emit_toggled)
+
+    def is_checked(self) -> bool:
+        """Return whether the toggle is currently checked.
+
+        Returns:
+            True when the button is checked, otherwise False.
+        """
+        return self._button.isChecked()
+
+    def set_checked(self, checked: bool) -> None:
+        """Set the checked state.
+
+        Args:
+            checked: The new checked state.
+        """
+        self._button.setChecked(checked)
+
+    def toggle(self) -> None:
+        """Invert the checked state and emit toggled signal."""
+        self._button.toggle()
+
+    def _emit_clicked(self, checked: bool = False) -> None:
+        """Emit clicked signal.
+
+        Args:
+            checked: Check status.
+        """
+        del checked
+        self.clicked.emit()
+
+    def _emit_toggled(self, checked: bool) -> None:
+        """Emit toggled signal and refresh stylesheet state.
+
+        Args:
+            checked: The current checked state.
+        """
+        self.toggled.emit(checked)
+        theme.refresh_widget_style(self._button)

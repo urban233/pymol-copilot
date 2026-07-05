@@ -511,8 +511,7 @@ class CompletedCard(BaseCard):
         tmp_header_row.addWidget(self.title_label, 1)
 
         # AI toggle button (single checkable button labeled "AI")
-        self._ai_toggle_btn = button.BasicButton("AI")
-        self._ai_toggle_btn.setCheckable(True)
+        self._ai_toggle_btn = button.ToggleButton("AI")
         self._ai_toggle_btn.setFixedWidth(theme.dp(60))
         tmp_header_row.addWidget(self._ai_toggle_btn)
 

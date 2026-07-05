@@ -101,3 +101,28 @@ def test_circle_icon_button_scale_changed(
     # We trigger the scale_changed signal; it must execute without exceptions.
     theme.get_notifier().scale_changed.emit(2.0)
     assert tmp_button.styleSheet() != ""
+
+
+def test_toggle_button_properties(q_app: QtWidgets.QApplication) -> None:
+    """Verify that ToggleButton properties and toggle states behave correctly.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    # Arrange & Act
+    tmp_button = button_module.ToggleButton(text="Test", checked=True)
+
+    # Assert
+    assert tmp_button._text == "Test"
+    assert tmp_button.is_checked()
+
+    # Act
+    tmp_button.set_checked(False)
+    # Assert
+    assert not tmp_button.is_checked()
+
+    # Act
+    tmp_button.toggle()
+    # Assert
+    assert tmp_button.is_checked()
