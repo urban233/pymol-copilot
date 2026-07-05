@@ -813,10 +813,12 @@ QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB} {{
 }}
 QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB}:hover {{
     background-color: ${{hover}};
+    border-radius: ${{corner_radius}};
 }}
 QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB}:checked {{
     background-color: transparent;
     border-bottom: 2px solid ${{accent}};
+    border-radius: 0px;
     font-weight: bold;
 }}
 QPushButton#{StyleId.TABBED_COMMAND_BAR_TAB}:pressed {{
