@@ -18,9 +18,12 @@
 
 from __future__ import annotations
 
+import glob
 import logging
+import os
+import pathlib
 import threading
-from typing import Any
+import uuid
 from typing import Callable
 
 from pymol_copilot.ai.app.models.plan_parser import PlanParser
@@ -35,6 +38,7 @@ from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt.thread import background_task
 from pymol_copilot.gui.qt.widgets.conversation_canvas import AgentCancelledCard
 from pymol_copilot.gui.qt.widgets.conversation_canvas import AgentThinkingCard
+from pymol_copilot.gui.qt.widgets.conversation_canvas import CompletedCard
 from pymol_copilot.gui.qt.widgets.conversation_canvas import PlanApprovalCard
 from pymol_copilot.gui.qt.widgets.conversation_canvas import UserRequestCard
 from pymol_copilot.gui.qt.widgets.panel import PmlCopilotPanel
@@ -134,6 +138,9 @@ class ChatController(QtCore.QObject):
         self._cancel_event = threading.Event()
         self._thinking_card: AgentThinkingCard | None = None
         self._cancelled_card: AgentCancelledCard | None = None
+        self._temp_user_file: str | None = None
+        self._temp_ai_file: str | None = None
+        self._current_completed_card: CompletedCard | None = None
 
         self._wire_panel()
         if self._execution_worker:
@@ -174,6 +181,7 @@ class ChatController(QtCore.QObject):
         Args:
             text: The text entered by the user.
         """
+        self._glob_cleanup_temp_files()
         self._cancel_event.clear()
         self._parser.reset()
 
@@ -272,6 +280,18 @@ class ChatController(QtCore.QObject):
         tmp_accepted_steps = [
             step for step in all_steps if step.display_label in approved_texts
         ]
+
+        tmp_tx_id = uuid.uuid4().hex
+        self._temp_user_file = os.path.join(
+            os.getcwd(), f"_pymol_copilot_temp_user_{tmp_tx_id}.pse"
+        )
+
+        try:
+            tmp_cmd = self._execution_worker._session_provider.get_cmd()
+            tmp_cmd.save(self._temp_user_file)
+        except Exception as tmp_exc:
+            LOGGER.error("Failed to save pre-execution session: %s", tmp_exc)
+
         self._execution_worker.submit(tmp_accepted_steps)
 
     def _on_inference_error(self, exc: Exception, tb: str) -> None:
@@ -298,7 +318,35 @@ class ChatController(QtCore.QObject):
         Args:
             log_lines: Log outputs from execution.
         """
-        pass
+        LOGGER.info("Execution finished: %s", log_lines)
+        if not self._execution_worker or not self._temp_user_file:
+            return
+
+        tmp_filename = os.path.basename(self._temp_user_file)
+        tmp_tx_id = tmp_filename.replace(
+            "_pymol_copilot_temp_user_", ""
+        ).replace(".pse", "")
+
+        self._temp_ai_file = os.path.join(
+            os.getcwd(), f"_pymol_copilot_temp_ai_{tmp_tx_id}.pse"
+        )
+
+        try:
+            tmp_cmd = self._execution_worker._session_provider.get_cmd()
+            tmp_cmd.save(self._temp_ai_file)
+        except Exception as tmp_exc:
+            LOGGER.error("Failed to save post-execution session: %s", tmp_exc)
+            return
+
+        self._current_completed_card = CompletedCard()
+        self._current_completed_card.ai_toggle_changed.connect(
+            self._handle_ai_toggle
+        )
+        self._current_completed_card.rollback_requested.connect(
+            self._handle_rollback
+        )
+        self._current_completed_card.accepted.connect(self._handle_accept)
+        self._panel._cui_canvas.add_card(self._current_completed_card)
 
     def _on_execution_failed(self, step_index: int, message: str) -> None:
         """Handle execution failure.
@@ -307,4 +355,78 @@ class ChatController(QtCore.QObject):
             step_index: Index of the failing step.
             message: The failure message.
         """
-        pass
+        LOGGER.error("Execution failed at step %d: %s", step_index, message)
+        self._cleanup_current_temp_files()
+
+    def _handle_ai_toggle(self, is_ai: bool) -> None:
+        """Toggle active PyMOL session between User and AI state.
+
+        Args:
+            is_ai: True to load AI session, False to load User session.
+        """
+        if not self._execution_worker:
+            return
+        tmp_file = self._temp_ai_file if is_ai else self._temp_user_file
+        if not tmp_file or not pathlib.Path(tmp_file).exists():
+            LOGGER.warning("Session file does not exist: %s", tmp_file)
+            return
+
+        try:
+            tmp_cmd = self._execution_worker._session_provider.get_cmd()
+            # For now a workaround: load replaces active session
+            tmp_cmd.load(tmp_file)
+        except Exception as tmp_exc:
+            LOGGER.error("Failed to toggle session: %s", tmp_exc)
+
+    def _handle_rollback(self) -> None:
+        """Roll back PyMOL session to pre-execution state."""
+        if not self._execution_worker or not self._temp_user_file:
+            return
+
+        try:
+            tmp_cmd = self._execution_worker._session_provider.get_cmd()
+            # For now a workaround: load pre-execution session
+            tmp_cmd.load(self._temp_user_file)
+        except Exception as tmp_exc:
+            LOGGER.error("Failed to rollback session: %s", tmp_exc)
+
+        if self._current_completed_card:
+            self._current_completed_card.show_rolled_back()
+
+        self._cleanup_current_temp_files()
+
+    def _handle_accept(self) -> None:
+        """Accept the AI plan execution changes."""
+        if self._current_completed_card:
+            self._current_completed_card.show_accepted()
+
+        self._cleanup_current_temp_files()
+
+    def _cleanup_current_temp_files(self) -> None:
+        """Delete user and AI session files for the current card."""
+        for tmp_file in (self._temp_user_file, self._temp_ai_file):
+            if tmp_file and pathlib.Path(tmp_file).exists():
+                try:
+                    os.remove(tmp_file)
+                except Exception as tmp_exc:
+                    LOGGER.error(
+                        "Failed to delete temp file %s: %s",
+                        tmp_file,
+                        tmp_exc,
+                    )
+        self._temp_user_file = None
+        self._temp_ai_file = None
+
+    def _glob_cleanup_temp_files(self) -> None:
+        """Find and delete all temporary session files in the CWD."""
+        tmp_pattern = os.path.join(os.getcwd(), "_pymol_copilot_temp_*.pse")
+        tmp_files = glob.glob(tmp_pattern)
+        for tmp_file in tmp_files:
+            try:
+                os.remove(tmp_file)
+            except Exception as tmp_exc:
+                LOGGER.error(
+                    "Failed to delete temp file %s: %s",
+                    tmp_file,
+                    tmp_exc,
+                )

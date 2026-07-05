@@ -34,7 +34,13 @@ class SpinnerWidget(QtWidgets.QWidget):
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:  # noqa: N802
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
-        pen = QtGui.QPen(QtGui.QColor(self._color if self._color else theme.ThemeColors.ACCENT.to_hex()))
+        pen = QtGui.QPen(
+            QtGui.QColor(
+                self._color
+                if self._color
+                else theme.ThemeColors.ACCENT.to_hex()
+            )
+        )
         pen.setWidthF(2.0)
         pen.setCapStyle(QtCore.Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)

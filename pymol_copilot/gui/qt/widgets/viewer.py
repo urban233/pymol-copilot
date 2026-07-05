@@ -36,8 +36,8 @@ class Viewer(QtWidgets.QWidget):
         self.pymolwidget.installEventFilter(self._filter)
 
         # Only for demonstration purposes.
-        # self.cmd.fetch("1DPX")
-        # self.cmd.remove("solvent")
+        self.cmd.fetch("1DPX")
+        self.cmd.remove("solvent")
         # self.cmd.color("yellow", "1DPX")
 
     def _init_widget(self) -> None:

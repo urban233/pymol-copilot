@@ -190,8 +190,8 @@ class PmlCommandLine(QtWidgets.QWidget):
     the text input field, and an encapsulated log history polling overlay panel.
     """
 
-    commandSubmitted = QtCore.Signal(str)
-    completionRequested = QtCore.Signal()
+    commandSubmitted = QtCore.pyqtSignal(str)
+    completionRequested = QtCore.pyqtSignal()
 
     def __init__(
         self, cmd=None, parent: QtWidgets.QWidget | None = None

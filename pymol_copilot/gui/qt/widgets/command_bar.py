@@ -927,7 +927,9 @@ class TabbedCommandBar(QtWidgets.QWidget):
         """
         super().__init__(parent)
         self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
-        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
+            self
+        )
         self._tab_buttons: list[QtWidgets.QPushButton] = []
         self._tab_group: QtWidgets.QButtonGroup = QtWidgets.QButtonGroup(self)
         self._stack: QtWidgets.QStackedWidget = QtWidgets.QStackedWidget(
@@ -937,13 +939,17 @@ class TabbedCommandBar(QtWidgets.QWidget):
         self._init_widget(tabs)
         self._set_styles()
 
-    def _init_widget(self, tabs: list[tuple[str, list[CommandBarButton]]]) -> None:
+    def _init_widget(
+        self, tabs: list[tuple[str, list[CommandBarButton]]]
+    ) -> None:
         self._layout_outer_frame.setContentsMargins(
             *ui_defaults.default_contents_margins()
         )
 
         outer_content_layout = QtWidgets.QVBoxLayout()
-        outer_content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        outer_content_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         outer_content_layout.setSpacing(0)
         self._outer_frame.setLayout(outer_content_layout)
 
@@ -986,7 +992,9 @@ class TabbedCommandBar(QtWidgets.QWidget):
         for _, buttons in tabs:
             page = QtWidgets.QWidget()
             page_layout = QtWidgets.QHBoxLayout(page)
-            page_layout.setContentsMargins(*ui_defaults.default_contents_margins())
+            page_layout.setContentsMargins(
+                *ui_defaults.default_contents_margins()
+            )
             page_layout.setSpacing(ui_defaults.default_spacing())
             for btn in buttons:
                 page_layout.addWidget(btn)

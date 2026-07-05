@@ -438,4 +438,3 @@ class SidePanelStack(QtWidgets.QWidget):
         self._active_index = -1
         self.hide()
         self.panelToggled.emit(-1, False)
-

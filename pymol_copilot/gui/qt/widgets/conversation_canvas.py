@@ -107,7 +107,9 @@ class AgentCancelledCard(BaseCard):
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(is_user=False, parent=parent)
-        self._spinner = spinner.SpinnerWidget(size=theme.dp(16), color="#dc4352")
+        self._spinner = spinner.SpinnerWidget(
+            size=theme.dp(16), color="#dc4352"
+        )
         self._label = QtWidgets.QLabel("Cancelled")
 
         row = QtWidgets.QHBoxLayout()
@@ -461,3 +463,117 @@ class ConversationCanvas(QtWidgets.QScrollArea):
         """Inserts a card into the stack timeline above the bottom spacer safety zone."""
         insert_index = max(0, self._layout.count() - 1)
         self._layout.insertWidget(insert_index, card)
+
+
+class CompletedCard(BaseCard):
+    """Card shown after successful plan execution, supporting A/B toggle and rollback.
+
+    Allows A/B checking the visual output in the active session and rolling back
+    the session.
+    """
+
+    rollback_requested = QtCore.pyqtSignal()
+    ai_toggle_changed = QtCore.pyqtSignal(bool)
+    accepted = QtCore.pyqtSignal()
+
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        """Initialize the CompletedCard.
+
+        Args:
+            parent: Optional parent widget.
+        """
+        super().__init__(is_user=False, parent=parent)
+
+        self.content_layout.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
+        self.content_layout.setSpacing(theme.dp(8))
+
+        # Header row: checklist icon + bold title
+        tmp_header_row = QtWidgets.QHBoxLayout()
+        tmp_header_row.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_header_row.setSpacing(theme.dp(6))
+
+        tmp_icon = icons.icon("pymol_copilot.gui.qt", "check_circle_green")
+        tmp_icon_size = theme.dp(16)
+        tmp_icon_label = QtWidgets.QLabel()
+        tmp_icon_label.setPixmap(
+            tmp_icon.pixmap(QtCore.QSize(tmp_icon_size, tmp_icon_size))
+        )
+        tmp_icon_label.setFixedSize(tmp_icon_size, tmp_icon_size)
+        tmp_header_row.addWidget(tmp_icon_label)
+
+        self.title_label = QtWidgets.QLabel("<b>Execution Completed</b>")
+        self.title_label.setWordWrap(True)
+        tmp_header_row.addWidget(self.title_label, 1)
+
+        # AI toggle button (single checkable button labeled "AI")
+        self._ai_toggle_btn = button.BasicButton("AI")
+        self._ai_toggle_btn.setCheckable(True)
+        self._ai_toggle_btn.setFixedWidth(theme.dp(60))
+        tmp_header_row.addWidget(self._ai_toggle_btn)
+
+        # Footer
+        self._footer = QtWidgets.QWidget()
+        tmp_footer_layout = QtWidgets.QHBoxLayout(self._footer)
+        tmp_footer_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
+        self._accept_btn = button.AccentButton("Accept")
+        self._rollback_btn = button.BasicButton("Rollback")
+        tmp_footer_layout.addWidget(self._accept_btn)
+        tmp_footer_layout.addWidget(self._rollback_btn)
+        tmp_footer_layout.addStretch()
+
+        # Status row shown after finalized or rolled back
+        self._status_widget = QtWidgets.QWidget()
+        self._status_widget.hide()
+        tmp_status_layout = QtWidgets.QHBoxLayout(self._status_widget)
+        tmp_status_layout.setContentsMargins(0, 0, 0, 0)
+        tmp_status_layout.setSpacing(theme.dp(6))
+        self._status_icon_label = QtWidgets.QLabel()
+        self._status_icon_label.setFixedSize(theme.dp(16), theme.dp(16))
+        self._status_text_label = QtWidgets.QLabel()
+        tmp_status_layout.addWidget(self._status_icon_label)
+        tmp_status_layout.addWidget(self._status_text_label)
+        tmp_status_layout.addStretch()
+
+        self.content_layout.addLayout(tmp_header_row)
+        self.content_layout.addWidget(self._footer)
+        self.content_layout.addWidget(self._status_widget)
+
+        self._ai_toggle_btn.toggled.connect(self.ai_toggle_changed.emit)
+        self._rollback_btn.clicked.connect(self.rollback_requested.emit)
+        self._accept_btn.clicked.connect(self.accepted.emit)
+
+    def show_rolled_back(self) -> None:
+        """Freeze card state as Rolled Back."""
+        self._finalize(
+            icons.icon("pymol_copilot.gui.qt", "error_red"), "Rolled Back"
+        )
+
+    def show_accepted(self) -> None:
+        """Freeze card state as Finalized."""
+        self._finalize(
+            icons.icon("pymol_copilot.gui.qt", "check_circle_green"),
+            "Finalized",
+        )
+
+    def _finalize(self, outcome_icon: QtGui.QIcon, outcome_text: str) -> None:
+        """Helper to lock the UI and show static status.
+
+        Args:
+            outcome_icon: The icon showing the outcome status.
+            outcome_text: The label text describing the outcome.
+        """
+        self._footer.hide()
+        self._ai_toggle_btn.setEnabled(False)
+        self._status_icon_label.setPixmap(
+            outcome_icon.pixmap(QtCore.QSize(theme.dp(16), theme.dp(16)))
+        )
+        self._status_text_label.setText(outcome_text)
+        self._status_widget.show()
+        self._outer_frame.setEnabled(False)
