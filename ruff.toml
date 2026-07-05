@@ -5,7 +5,9 @@
 target-version = "py313"
 
 # Exclude a variety of commonly ignored directories.
-exclude = []
+exclude = [
+    "tmp"
+]
 
 # Same as Black.
 line-length = 80

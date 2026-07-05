@@ -37,7 +37,12 @@ from pymol_copilot.gui.qt import theme
 
 __docformat__ = "google"
 
-from pymol_copilot.gui.qt.widgets import command_bar, conversation_canvas, input_bar, button
+from pymol_copilot.gui.qt.widgets import (
+    command_bar,
+    conversation_canvas,
+    input_bar,
+    button,
+)
 
 
 class PanelHeader(QtWidgets.QWidget):
@@ -131,9 +136,14 @@ class PmlCopilotPanelHeader(PanelHeader):
         tmp_icon = icons.icon("pymol_copilot.gui.qt", "ai")
         icon_size = theme.dp(24)
         icon_label = QtWidgets.QLabel()
-        icon_label.setPixmap(tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size)))
+        icon_label.setPixmap(
+            tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size))
+        )
         icon_label.setFixedSize(icon_size, icon_size)
-        icon_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignVCenter | QtCore.Qt.AlignmentFlag.AlignHCenter)
+        icon_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignVCenter
+            | QtCore.Qt.AlignmentFlag.AlignHCenter
+        )
         tmp_layout.addWidget(icon_label)
 
         tmp_layout.addWidget(self._lbl_header)
@@ -203,9 +213,15 @@ class Panel(QtWidgets.QWidget):
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
         self._outer_frame: QtWidgets.QFrame = QtWidgets.QFrame(self)
-        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
-        self._layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self._outer_frame)
-        self._header: PanelHeader = header if header is not None else PanelHeader(title)
+        self._layout_outer_frame: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
+            self
+        )
+        self._layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(
+            self._outer_frame
+        )
+        self._header: PanelHeader = (
+            header if header is not None else PanelHeader(title)
+        )
         self._content_frame = QtWidgets.QFrame()
         self._layout_content_frame = QtWidgets.QVBoxLayout()
         # </editor-fold>
@@ -289,7 +305,9 @@ class PmlCopilotPanel(Panel):
         # Page 0 — chat
         self._chat_widget = QtWidgets.QWidget()
         self._chat_layout = QtWidgets.QVBoxLayout()
-        self._chat_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._chat_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         self._chat_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         self._chat_widget.setLayout(self._chat_layout)
         self._cui_canvas = conversation_canvas.ConversationCanvas()
@@ -309,60 +327,22 @@ class PmlCopilotPanel(Panel):
             QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows
         )
 
-        self._stacked_widget.addWidget(self._chat_widget)   # index 0
-        self._stacked_widget.addWidget(self._history_table) # index 1
+        self._stacked_widget.addWidget(self._chat_widget)  # index 0
+        self._stacked_widget.addWidget(self._history_table)  # index 1
 
         self.add_content(self._stacked_widget)
 
         self._panel_header.historyRequested.connect(self._toggle_history_page)
-        self._demo_only()
 
     def _toggle_history_page(self) -> None:
         """Toggle between the chat page and the history page."""
         if self._stacked_widget.currentIndex() == 0:
             self._stacked_widget.setCurrentIndex(1)
-            self._panel_header.set_history_button_icon(icons.icon("pymol_copilot.gui.qt", "arrow_back"))
+            self._panel_header.set_history_button_icon(
+                icons.icon("pymol_copilot.gui.qt", "arrow_back")
+            )
         else:
             self._stacked_widget.setCurrentIndex(0)
-            self._panel_header.set_history_button_icon(icons.icon("pymol_copilot.gui.qt", "history"))
-
-    def _demo_only(self) -> None:
-        # Chat page demo cards
-        tmp_user_card = conversation_canvas.UserRequestCard(
-            "For the attached file, please make all heading 2s a font of 18, blue font, and not underline."
-        )
-        self._cui_canvas.add_card(tmp_user_card)
-        tmp_working_card = conversation_canvas.AgentThinkingCard()
-        self._cui_canvas.add_card(tmp_working_card)
-        tool_card = conversation_canvas.ToolApprovalCard(
-            "write_cell",
-            "Write value to Excel",
-            {"row": "44", "col": "B", "value": "$24.50"},
-        )
-        self._cui_canvas.add_card(tool_card)
-        tool_card.approved.connect(print)
-        tool_card.rejected.connect(lambda: print("rejected"))
-        plan_card = conversation_canvas.PlanApprovalCard(
-            "Reformat Document Headings",
-            [
-                "Scan document and collect all Heading 2 elements",
-                "Set font size to 18 pt for each heading",
-                "Apply blue colour (#0066cc) to each heading",
-                "Remove underline formatting from each heading",
-                "Save and close the document",
-            ],
-        )
-        self._cui_canvas.add_card(plan_card)
-        plan_card.approved.connect(lambda steps: print("Plan approved:", steps))
-        plan_card.rejected.connect(lambda: print("Plan rejected"))
-
-        # History page demo rows
-        rows = [
-            ("2026-07-04", "Align residues 10–50 of chain A to reference structure"),
-            ("2026-07-03", "Show surface representation of active site"),
-            ("2026-07-01", "Color by B-factor and export PNG"),
-        ]
-        self._history_table.setRowCount(len(rows))
-        for i, (date, summary) in enumerate(rows):
-            self._history_table.setItem(i, 0, QtWidgets.QTableWidgetItem(date))
-            self._history_table.setItem(i, 1, QtWidgets.QTableWidgetItem(summary))
+            self._panel_header.set_history_button_icon(
+                icons.icon("pymol_copilot.gui.qt", "history")
+            )

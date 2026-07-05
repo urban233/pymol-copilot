@@ -194,7 +194,7 @@ class PmlCommandLine(QtWidgets.QWidget):
     completionRequested = QtCore.Signal()
 
     def __init__(
-            self, cmd=None, parent: QtWidgets.QWidget | None = None
+        self, cmd=None, parent: QtWidgets.QWidget | None = None
     ) -> None:
         """Initialize the unified command line.
 
@@ -239,7 +239,9 @@ class PmlCommandLine(QtWidgets.QWidget):
         self.lineedit.setObjectName(theme.StyleId.MINIMAL_TEXT_BOX)
 
     def _init_widget(self) -> None:
-        self._main_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._main_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         self._main_layout.setSpacing(ui_defaults.default_spacing())
         self._layout_outer_frame.setContentsMargins(
             *ui_defaults.default_contents_margins()
@@ -316,9 +318,9 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
         if self._history_overlay and self._history_overlay.isVisible():
             focus_w = QtWidgets.QApplication.focusWidget()
             if (
-                    focus_w != self.lineedit
-                    and focus_w != self._history_overlay
-                    and focus_w != self._history_overlay.browser
+                focus_w != self.lineedit
+                and focus_w != self._history_overlay
+                and focus_w != self._history_overlay.browser
             ):
                 self.hide_history()
 
@@ -351,7 +353,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
         if is_command_only:
             current_word = parts[0] if parts else ""
             if hasattr(self.cmd, "kwhash") and hasattr(
-                    self.cmd.kwhash, "keywords"
+                self.cmd.kwhash, "keywords"
             ):
                 candidates = [
                     k
@@ -381,7 +383,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
             setting_names = []
             if hasattr(self.cmd, "setting") and hasattr(
-                    self.cmd.setting, "_get_setting_names"
+                self.cmd.setting, "_get_setting_names"
             ):
                 try:
                     setting_names = self.cmd.setting._get_setting_names()
@@ -410,7 +412,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
         longest_prefix = os.path.commonprefix(candidates)
 
         if longest_prefix and longest_prefix != (
-                parts[-1] if not is_command_only and parts else text
+            parts[-1] if not is_command_only and parts else text
         ):
             # Substitute matching segment inline into lineedit buffer
             if is_command_only:
@@ -432,19 +434,19 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
     @override
     def eventFilter(
-            self, watched: QtCore.QObject, event: QtCore.QEvent
+        self, watched: QtCore.QObject, event: QtCore.QEvent
     ) -> bool:
         if watched is self.window() and event.type() in (
-                QtCore.QEvent.Type.Resize,
-                QtCore.QEvent.Type.Move,
+            QtCore.QEvent.Type.Resize,
+            QtCore.QEvent.Type.Move,
         ):
             if self._history_overlay and self._history_overlay.isVisible():
                 self.show_history()
 
         if (
-                event.type() == QtCore.QEvent.Type.MouseButtonPress
-                and self._history_overlay
-                and self._history_overlay.isVisible()
+            event.type() == QtCore.QEvent.Type.MouseButtonPress
+            and self._history_overlay
+            and self._history_overlay.isVisible()
         ):
             pos = (
                 event.globalPosition().toPoint()
@@ -467,7 +469,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
             )
 
             if not global_overlay_rect.contains(
-                    pos
+                pos
             ) and not global_input_rect.contains(pos):
                 self.hide_history()
 
@@ -535,8 +537,8 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
         for i in range(start_idx - 1, -1, -1):
             if (
-                    self._history[i].startswith(prefix)
-                    and self._history[i] != prefix
+                self._history[i].startswith(prefix)
+                and self._history[i] != prefix
             ):
                 self._history_index = i
                 self.lineedit.setText(self._history[i])
@@ -559,7 +561,7 @@ PyMOL> color ye<TAB>    (will autocomplete "yellow")
 
             win = self.window()
             if hasattr(win, "pymolwidget") and hasattr(
-                    win.pymolwidget, "_pymolProcess"
+                win.pymolwidget, "_pymolProcess"
             ):
                 win.pymolwidget._pymolProcess()
 

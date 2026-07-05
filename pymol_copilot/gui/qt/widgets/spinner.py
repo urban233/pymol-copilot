@@ -7,7 +7,9 @@ from pymol_copilot.gui.qt import theme
 class SpinnerWidget(QtWidgets.QWidget):
     """Lightweight rotating-arc spinner drawn entirely with QPainter."""
 
-    def __init__(self, size: int = 16, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, size: int = 16, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._angle = 0
         self._size = size
@@ -34,9 +36,11 @@ class SpinnerWidget(QtWidgets.QWidget):
         painter.setPen(pen)
         margin = pen.widthF() + 0.5
         rect = QtCore.QRectF(
-            margin, margin,
-            self._size - 2 * margin, self._size - 2 * margin,
-            )
+            margin,
+            margin,
+            self._size - 2 * margin,
+            self._size - 2 * margin,
+        )
         # Qt arc angles are in 1/16°; arc starts from top (90°) and sweeps 270°
         painter.drawArc(rect, (90 - self._angle) * 16, 270 * 16)
         painter.end()

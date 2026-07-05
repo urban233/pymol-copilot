@@ -137,7 +137,11 @@ class IconButton(Button):
             size_dp: New size in logical pixels.
         """
         self._size_dp = size_dp
-        self.setIconSize(QtCore.QSize(theme.SizeToken(size_dp).px, theme.SizeToken(size_dp).px))
+        self.setIconSize(
+            QtCore.QSize(
+                theme.SizeToken(size_dp).px, theme.SizeToken(size_dp).px
+            )
+        )
         self._set_styles()
 
     # </editor-fold>

@@ -15,7 +15,9 @@ class BaseCard(QtWidgets.QWidget):
     central design tokens.
     """
 
-    def __init__(self, is_user: bool = False, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, is_user: bool = False, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
         self._layout = QtWidgets.QVBoxLayout(self)
         self._outer_frame = QtWidgets.QFrame()
@@ -25,7 +27,9 @@ class BaseCard(QtWidgets.QWidget):
     def _init_widget(self, is_user) -> None:
         self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         self._layout.setSpacing(ui_defaults.EMPTY_SPACING)
-        self.content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self.content_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         self.content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
         if is_user:
@@ -56,7 +60,9 @@ class BaseCard(QtWidgets.QWidget):
 class UserRequestCard(BaseCard):
     """Card component representing the user's initial input or instruction."""
 
-    def __init__(self, text: str, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, text: str, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(is_user=True, parent=parent)
         self.text_label = QtWidgets.QLabel(text)
         self.text_label.setWordWrap(True)
@@ -119,7 +125,9 @@ class ToolApprovalCard(BaseCard):
         self._fields: dict[str, QtWidgets.QLineEdit] = {}
 
         # Card-level padding — spacing creates visual section breaks
-        self.content_layout.setContentsMargins(*ui_defaults.default_contents_margins())
+        self.content_layout.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
         self.content_layout.setSpacing(theme.dp(8))
 
         # Header row: optional icon + bold title
@@ -130,7 +138,9 @@ class ToolApprovalCard(BaseCard):
         tmp_icon = icons.icon("pymol_copilot.gui.qt", "checklist")
         icon_size = theme.dp(16)
         icon_label = QtWidgets.QLabel()
-        icon_label.setPixmap(tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size)))
+        icon_label.setPixmap(
+            tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size))
+        )
         icon_label.setFixedSize(icon_size, icon_size)
         header_row.addWidget(icon_label)
         header_row.addWidget(QtWidgets.QLabel(f"<b>{tool_name}</b>"))
@@ -212,11 +222,15 @@ class ToolApprovalCard(BaseCard):
 
     def _on_approve(self) -> None:
         data = {key: field.text() for key, field in self._fields.items()}
-        self._finalize(icons.icon("pymol_copilot.gui.qt", "check_circle_green"), "Approved")
+        self._finalize(
+            icons.icon("pymol_copilot.gui.qt", "check_circle_green"), "Approved"
+        )
         self.approved.emit(data)
 
     def _on_reject(self) -> None:
-        self._finalize(icons.icon("pymol_copilot.gui.qt", "error_red"), "Rejected")
+        self._finalize(
+            icons.icon("pymol_copilot.gui.qt", "error_red"), "Rejected"
+        )
         self.rejected.emit()
 
     def _finalize(self, outcome_icon: QtGui.QIcon, outcome_text: str) -> None:
@@ -253,7 +267,9 @@ class PlanApprovalCard(BaseCard):
         self._step_labels: list[QtWidgets.QLabel] = []
         self._step_buttons: list[button.BasicButton] = []
 
-        self.content_layout.setContentsMargins(*ui_defaults.default_contents_margins())
+        self.content_layout.setContentsMargins(
+            *ui_defaults.default_contents_margins()
+        )
         self.content_layout.setSpacing(theme.dp(8))
 
         # Header row: optional icon + bold title
@@ -264,7 +280,9 @@ class PlanApprovalCard(BaseCard):
         tmp_icon = icons.icon("pymol_copilot.gui.qt", "checklist")
         icon_size = theme.dp(16)
         icon_label = QtWidgets.QLabel()
-        icon_label.setPixmap(tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size)))
+        icon_label.setPixmap(
+            tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size))
+        )
         icon_label.setFixedSize(icon_size, icon_size)
         header_row.addWidget(icon_label)
         title_label = QtWidgets.QLabel(f"<b>{title}</b>")
@@ -357,7 +375,9 @@ class PlanApprovalCard(BaseCard):
             self._step_buttons[index].setText("Restore")
 
     def _on_approve(self) -> None:
-        accepted = [s for i, s in enumerate(self._steps) if i not in self._skipped]
+        accepted = [
+            s for i, s in enumerate(self._steps) if i not in self._skipped
+        ]
         self._finalize(
             icons.icon("pymol_copilot.gui.qt", "check_circle_green"),
             f"Approved ({len(accepted)}/{len(self._steps)} steps)",
@@ -365,7 +385,9 @@ class PlanApprovalCard(BaseCard):
         self.approved.emit(accepted)
 
     def _on_reject(self) -> None:
-        self._finalize(icons.icon("pymol_copilot.gui.qt", "error_red"), "Rejected")
+        self._finalize(
+            icons.icon("pymol_copilot.gui.qt", "error_red"), "Rejected"
+        )
         self.rejected.emit()
 
     def _finalize(self, outcome_icon: QtGui.QIcon, outcome_text: str) -> None:
@@ -388,19 +410,24 @@ class ConversationCanvas(QtWidgets.QScrollArea):
         self.container = QtWidgets.QWidget()
         self._layout = QtWidgets.QVBoxLayout(self.container)
         self.bottom_spacer = QtWidgets.QSpacerItem(
-            0, 0,
+            0,
+            0,
             QtWidgets.QSizePolicy.Policy.Minimum,
-            QtWidgets.QSizePolicy.Policy.Expanding
+            QtWidgets.QSizePolicy.Policy.Expanding,
         )
         self._init_widget()
 
     def _init_widget(self) -> None:
         self.setWidgetResizable(True)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(
+            QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
 
         self.setStyleSheet("QScrollArea { border: none; }")
         self.container.setObjectName("CanvasContainer")
-        self.container.setStyleSheet("#CanvasContainer { background: transparent;}")
+        self.container.setStyleSheet(
+            "#CanvasContainer { background: transparent;}"
+        )
 
         self._layout.setContentsMargins(*ui_defaults.default_contents_margins())
         self._layout.setSpacing(theme.dp(8))

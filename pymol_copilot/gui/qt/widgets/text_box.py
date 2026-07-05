@@ -73,6 +73,8 @@ class TextBox(QtWidgets.QLineEdit):
 class ExpandingTextBox(QtWidgets.QPlainTextEdit):
     """A QPlainTextEdit that auto-grows vertically with content."""
 
+    returnPressed = QtCore.pyqtSignal()
+
     def __init__(
         self,
         placeholder_text: str = "Ask anything",
@@ -106,6 +108,22 @@ class ExpandingTextBox(QtWidgets.QPlainTextEdit):
         self.textChanged.connect(self._update_height)
         self.setObjectName(theme.StyleId.INPUT_BAR_TEXT_BOX)
         self._update_height()
+
+    @override
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        """Handle key press events to intercept Return key.
+
+        Args:
+            event: The key event to process.
+        """
+        if (
+            event.key() in (QtCore.Qt.Key.Key_Return, QtCore.Qt.Key.Key_Enter)
+            and not event.modifiers() & QtCore.Qt.KeyboardModifier.ShiftModifier
+        ):
+            self.returnPressed.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def resizeEvent(  # noqa: N802 (Qt override)
         self, event: QtGui.QResizeEvent | None

@@ -582,22 +582,38 @@ class PyMOLMenuBarController:
         self.model._recent_filenames_db.commit()
 
     def export_molecule(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'file_save') and self.model.desktop_gui.file_save:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "file_save")
+            and self.model.desktop_gui.file_save
+        ):
             self.model.desktop_gui.file_save()
 
     def export_map(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'file_save_map') and self.model.desktop_gui.file_save_map:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "file_save_map")
+            and self.model.desktop_gui.file_save_map
+        ):
             self.model.desktop_gui.file_save_map()
 
     def export_alignment(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'file_save_aln') and self.model.desktop_gui.file_save_aln:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "file_save_aln")
+            and self.model.desktop_gui.file_save_aln
+        ):
             self.model.desktop_gui.file_save_aln()
 
     def export_image_wrl(self):
-        self._generic_file_save("Save VRML Image", "VRML 2 WRL File (*.wrl)", "wrl")
+        self._generic_file_save(
+            "Save VRML Image", "VRML 2 WRL File (*.wrl)", "wrl"
+        )
 
     def export_image_dae(self):
-        self._generic_file_save("Save COLLADA Image", "COLLADA File (*.dae)", "dae")
+        self._generic_file_save(
+            "Save COLLADA Image", "COLLADA File (*.dae)", "dae"
+        )
 
     def export_image_gltf(self):
         self._generic_file_save("Save GLTF Image", "GLTF File (*.gltf)", "gltf")
@@ -609,25 +625,47 @@ class PyMOLMenuBarController:
         self._generic_file_save("Save STL Image", "STL File (*.stl)", "stl")
 
     def export_movie_mpeg(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'file_save_mpeg') and self.model.desktop_gui.file_save_mpeg:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "file_save_mpeg")
+            and self.model.desktop_gui.file_save_mpeg
+        ):
             self.model.desktop_gui.file_save_mpeg()
         else:
-            self._generic_file_save("Save MPEG Movie", "MPEG Movie (*.mpeg *.mpg)", "mpeg")
+            self._generic_file_save(
+                "Save MPEG Movie", "MPEG Movie (*.mpeg *.mpg)", "mpeg"
+            )
 
     def export_movie_mov(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'file_save_mov') and self.model.desktop_gui.file_save_mov:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "file_save_mov")
+            and self.model.desktop_gui.file_save_mov
+        ):
             self.model.desktop_gui.file_save_mov()
         else:
-            self._generic_file_save("Save Quicktime Movie", "Quicktime Movie (*.mov)", "mov")
+            self._generic_file_save(
+                "Save Quicktime Movie", "Quicktime Movie (*.mov)", "mov"
+            )
 
     def export_movie_mpng(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'file_save_mpng') and self.model.desktop_gui.file_save_mpng:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "file_save_mpng")
+            and self.model.desktop_gui.file_save_mpng
+        ):
             self.model.desktop_gui.file_save_mpng()
         else:
-            self._generic_file_save("Save PNG Movie Frames", "PNG Images (*.png)", "png")
+            self._generic_file_save(
+                "Save PNG Movie Frames", "PNG Images (*.png)", "png"
+            )
 
     def edit_pymolrc(self):
-        if self.model.desktop_gui and hasattr(self.model.desktop_gui, 'edit_pymolrc') and self.model.desktop_gui.edit_pymolrc:
+        if (
+            self.model.desktop_gui
+            and hasattr(self.model.desktop_gui, "edit_pymolrc")
+            and self.model.desktop_gui.edit_pymolrc
+        ):
             self.model.desktop_gui.edit_pymolrc()
         else:
             home = pathlib.Path.home()
@@ -654,12 +692,15 @@ class PyMOLMenuBarController:
 
         # Re-route the active dictionary tracks to safely isolate legacy Tkinter-wrapped items
         self.view.menu_bar.menudict["PluginQt"] = plugin_menu
-        self.view.menu_bar.menudict["Plugin"] = plugin_menu.addMenu("Legacy Plugins")
+        self.view.menu_bar.menudict["Plugin"] = plugin_menu.addMenu(
+            "Legacy Plugins"
+        )
         self.view.menu_bar.menudict["Plugin"].setTearOffEnabled(True)
         self.view.menu_bar.menudict["PluginQt"].addSeparator()
 
         plugins.HAVE_QT = True
         plugins.initialize(app)
+
 
 # ==============================================================================
 # 3. VIEW LAYER (Qt Architecture Blueprint Mappings & Tree Inflation)
@@ -686,7 +727,17 @@ class PyMOLMenuBarView:
             ("menu", "Scene", self._build_scene_menu(cmd)),
             ("menu", "Mouse", self._build_mouse_menu(cmd)),
             ("menu", "Wizard", self._build_wizard_menu(cmd)),
-            ("menu", "Plugin", [("command", "Initialize Plugin System", self.controller.initialize_plugins)]),
+            (
+                "menu",
+                "Plugin",
+                [
+                    (
+                        "command",
+                        "Initialize Plugin System",
+                        self.controller.initialize_plugins,
+                    )
+                ],
+            ),
             ("menu", "Help", self._build_help_menu(cmd)),
         ]
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import icons
@@ -13,6 +14,8 @@ from pymol_copilot.gui.qt.widgets import text_box
 
 class InputBar(QtWidgets.QWidget):
     """Input bar widget containing a text box and send button."""
+
+    submitted = QtCore.pyqtSignal(str)
 
     def __init__(
         self,
@@ -64,3 +67,13 @@ class InputBar(QtWidgets.QWidget):
             QtWidgets.QSizePolicy.Policy.Preferred,
             QtWidgets.QSizePolicy.Policy.Maximum,
         )
+
+        self._send_button.clicked.connect(self._on_submit)
+        self._input.returnPressed.connect(self._on_submit)
+
+    def _on_submit(self) -> None:
+        """Handle the submit action and emit submitted signal."""
+        text = self._input.toPlainText().strip()
+        if text:
+            self._input.clear()
+            self.submitted.emit(text)

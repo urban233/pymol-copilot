@@ -17,6 +17,11 @@ from pymol_copilot.gui.qt.widgets import list_view
 from pymol_copilot.gui.qt.widgets import table_view
 from pymol_copilot.gui.qt.widgets import viewer
 from pymol_copilot.gui.qt.widgets import pml_menu_bar
+import pathlib
+from pymol_copilot.ai.app.chat_controller import ChatController
+from pymol_copilot.ai.backend.config import InferenceConfig
+from pymol_copilot.ai.execution.execution_worker import ExecutionWorker
+from pymol_copilot.ai.execution.pymol_session import InjectedPyMOLSession
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -87,6 +92,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._conversation_panel = panel.PmlCopilotPanel()
 
+        tmp_model_path = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "ai"
+            / "training"
+            / "models"
+            / "cbiomol-pymol-assistant-Q4_K_M.gguf"
+        )
+        self._ai_config = InferenceConfig(
+            model_path=tmp_model_path,
+            n_ctx=8192,
+            mock=False,
+        )
+        self._pymol_session = InjectedPyMOLSession(self.viewer)
+        self._execution_worker = ExecutionWorker(self._pymol_session, self)
+
+        self._chat_controller = ChatController(
+            panel=self._conversation_panel,
+            config=self._ai_config,
+            execution_worker=self._execution_worker,
+            parent=self,
+        )
+
         self._input_bar = input_bar.InputBar()
         self._command_line = pml_command_line.PmlCommandLine(self.viewer.cmd)
 
@@ -106,13 +133,17 @@ class MainWindow(QtWidgets.QMainWindow):
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
         tmp_central_widget.setLayout(tmp_layout)
         # </editor-fold>
-        self._content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        self._content_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         self._content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
         self.setMenuBar(self._menu_bar)
 
         tmp_main_content_layout = QtWidgets.QVBoxLayout()
-        tmp_main_content_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_main_content_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
         tmp_main_content_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
         tmp_layout.addWidget(self._command_bar)
