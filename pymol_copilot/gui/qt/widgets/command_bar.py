@@ -1019,6 +1019,24 @@ class TabbedCommandBar(QtWidgets.QWidget):
         if btn is not None:
             btn.setChecked(True)
 
+    def append_command_button(
+        self, tab_index: int, command_button: CommandBarButton
+    ) -> None:
+        """Append a button to the end of a tab's button row.
+
+        The button is added after the trailing stretch, mirroring the
+        behaviour of :meth:`CommandBar.append_command_button`.
+
+        Args:
+            tab_index: Zero-based index of the target tab.
+            command_button: The button to append.
+        """
+        page = self._stack.widget(tab_index)
+        if page is not None:
+            layout = page.layout()
+            if isinstance(layout, QtWidgets.QHBoxLayout):
+                layout.addWidget(command_button)
+
     def _set_styles(self) -> None:
         """Apply global theme object names and shadow effects."""
         self._outer_frame.setObjectName(theme.StyleId.TABBED_COMMAND_BAR_OUTER)

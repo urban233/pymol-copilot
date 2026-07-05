@@ -1,14 +1,14 @@
-<h2 align="center">
-  <strong>PyMOL-Copilot</strong>
-</h2>
-
 <p align="center">
-  <img src="assets/logo/logo.png" alt="PyMOL-Copilot Logo" width="200">
+  <img src="assets/logo/logo.png" alt="PyMOL-Copilot Logo" width="100">
 </p>
 
 
 <p align="center">
   <strong>A local AI assistant designed for structural biologists.</strong>
+</p>
+
+<p align="center">
+  <img src="assets/splash_screen.png" alt="PyMOL-Copilot Logo" width="600">
 </p>
 
 ![Status: Experimental](https://img.shields.io/badge/status-experimental-orange.svg)
