@@ -1,3 +1,22 @@
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
+# -------------------------------------------------------------------
+# This file contains source code for the cBioMOL computer program
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Source code is available at <https://github.com/urban233/cBioMOL>
+# -------------------------------------------------------------------
+# It is unlawful to modify or remove this copyright notice.
+# -------------------------------------------------------------------
+# Please see the accompanying LICENSE file for further information.
+# -------------------------------------------------------------------
+# Primary author of this source file:
+# Martin Urban
+# -------------------------------------------------------------------
+# Additional authors of this source file include:
+#
+# ==============================================================================
+#
 """Flyout panel for displaying arbitrary content near a widget or the cursor.
 
 FlyoutFrame is a floating, frameless popup window styled to match the
@@ -119,11 +138,11 @@ class FlyoutFrame(QtWidgets.QWidget):
         )
         self._content_layout.setSpacing(ui_defaults.default_spacing())
 
-        m = theme.dp(_SHADOW_MARGIN) if shadow else 0
-        outer_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
-        outer_layout.setContentsMargins(m, m, m, m)
-        outer_layout.setSpacing(ui_defaults.EMPTY_SPACING)
-        outer_layout.addWidget(self._inner_frame)
+        tmp_m = theme.dp(_SHADOW_MARGIN) if shadow else 0
+        tmp_outer_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        tmp_outer_layout.setContentsMargins(tmp_m, tmp_m, tmp_m, tmp_m)
+        tmp_outer_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_outer_layout.addWidget(self._inner_frame)
 
     # ------------------------------------------------------------------
     # Content management
@@ -139,9 +158,9 @@ class FlyoutFrame(QtWidgets.QWidget):
             widget: The widget to display inside the flyout.
         """
         while self._content_layout.count():
-            item = self._content_layout.takeAt(0)
-            if item is not None and item.widget() is not None:
-                item.widget().setParent(None)  # type: ignore[arg-type]
+            tmp_item = self._content_layout.takeAt(0)
+            if tmp_item is not None and tmp_item.widget() is not None:
+                tmp_item.widget().setParent(None)  # type: ignore[arg-type]
         self._content_layout.addWidget(widget)
 
     # ------------------------------------------------------------------
@@ -158,17 +177,17 @@ class FlyoutFrame(QtWidgets.QWidget):
             global_pos: Desired top-left position in global screen coordinates.
         """
         self.adjustSize()
-        screen = (
+        tmp_screen = (
             QtWidgets.QApplication.screenAt(global_pos)
             or QtWidgets.QApplication.primaryScreen()
         )
-        if screen is not None:
-            available = screen.availableGeometry()
-            x = min(global_pos.x(), available.right() - self.width())
-            y = min(global_pos.y(), available.bottom() - self.height())
-            x = max(x, available.left())
-            y = max(y, available.top())
-            global_pos = QtCore.QPoint(x, y)
+        if tmp_screen is not None:
+            tmp_available = tmp_screen.availableGeometry()
+            tmp_x = min(global_pos.x(), tmp_available.right() - self.width())
+            tmp_y = min(global_pos.y(), tmp_available.bottom() - self.height())
+            tmp_x = max(tmp_x, tmp_available.left())
+            tmp_y = max(tmp_y, tmp_available.top())
+            global_pos = QtCore.QPoint(tmp_x, tmp_y)
         self.move(global_pos)
         self.show()
 
@@ -185,16 +204,20 @@ class FlyoutFrame(QtWidgets.QWidget):
                 Defaults to :attr:`FlyoutPlacement.BELOW`.
         """
         self.adjustSize()
-        origin = anchor.mapToGlobal(QtCore.QPoint(0, 0))
+        tmp_origin = anchor.mapToGlobal(QtCore.QPoint(0, 0))
         if placement is FlyoutPlacement.BELOW:
-            pos = anchor.mapToGlobal(QtCore.QPoint(0, anchor.height()))
+            tmp_pos = anchor.mapToGlobal(QtCore.QPoint(0, anchor.height()))
         elif placement is FlyoutPlacement.ABOVE:
-            pos = QtCore.QPoint(origin.x(), origin.y() - self.height())
+            tmp_pos = QtCore.QPoint(
+                tmp_origin.x(), tmp_origin.y() - self.height()
+            )
         elif placement is FlyoutPlacement.RIGHT:
-            pos = anchor.mapToGlobal(QtCore.QPoint(anchor.width(), 0))
+            tmp_pos = anchor.mapToGlobal(QtCore.QPoint(anchor.width(), 0))
         else:  # LEFT
-            pos = QtCore.QPoint(origin.x() - self.width(), origin.y())
-        self.show_at(pos)
+            tmp_pos = QtCore.QPoint(
+                tmp_origin.x() - self.width(), tmp_origin.y()
+            )
+        self.show_at(tmp_pos)
 
     # ------------------------------------------------------------------
     # Qt overrides
@@ -219,8 +242,8 @@ class FloatingFlyout(QtWidgets.QWidget):
     camera interactions.
     """
 
-    accepted = QtCore.pyqtSignal()
-    rejected = QtCore.pyqtSignal()
+    accepted: QtCore.pyqtSignal = QtCore.pyqtSignal()
+    rejected: QtCore.pyqtSignal = QtCore.pyqtSignal()
 
     def __init__(self, parent: QtWidgets.QWidget) -> None:
         """Initializes the floating flyout overlay.

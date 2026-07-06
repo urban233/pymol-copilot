@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -28,20 +30,19 @@ button to the panelClosed signal directly.
 
 from __future__ import annotations
 
-from typing import Optional
-
-from pymol_copilot.gui.qt import QtCore, ui_defaults, icons
+from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import icons
 from pymol_copilot.gui.qt import theme
+from pymol_copilot.gui.qt import ui_defaults
 
 __docformat__ = "google"
 
 from pymol_copilot.gui.qt.widgets import (
-    command_bar,
+    button,
     conversation_canvas,
     input_bar,
-    button,
 )
 
 
@@ -56,13 +57,13 @@ class PanelHeader(QtWidgets.QWidget):
         _btn_close: The close QPushButton.
     """
 
-    panelClosed = QtCore.pyqtSignal()
+    panelClosed: QtCore.pyqtSignal = QtCore.pyqtSignal()
     """Emitted when the user clicks the close button."""
 
     def __init__(
         self,
         title: str,
-        parent: Optional[QtWidgets.QWidget] = None,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the panel header.
 
@@ -99,7 +100,7 @@ class PanelHeader(QtWidgets.QWidget):
 
 
 class PmlCopilotPanelHeader(PanelHeader):
-    """Panel header for PmlCopilotPanel with an additional History navigation button.
+    """Panel header for PmlCopilotPanel with history navigation.
 
     Extends PanelHeader by inserting a CommandBarActionButton between the title
     label and the stretch. Emits ``historyRequested`` when the History button is
@@ -109,12 +110,12 @@ class PmlCopilotPanelHeader(PanelHeader):
         historyRequested: Emitted when the user clicks the History button.
     """
 
-    historyRequested = QtCore.pyqtSignal()
+    historyRequested: QtCore.pyqtSignal = QtCore.pyqtSignal()
     """Emitted when the user clicks the History button."""
 
     def __init__(
         self,
-        parent: Optional[QtWidgets.QWidget] = None,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the header.
 
@@ -134,17 +135,17 @@ class PmlCopilotPanelHeader(PanelHeader):
         tmp_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
         tmp_icon = icons.icon("pymol_copilot.gui.qt", "ai")
-        icon_size = theme.dp(24)
-        icon_label = QtWidgets.QLabel()
-        icon_label.setPixmap(
-            tmp_icon.pixmap(QtCore.QSize(icon_size, icon_size))
+        tmp_icon_size = theme.dp(24)
+        tmp_icon_label = QtWidgets.QLabel()
+        tmp_icon_label.setPixmap(
+            tmp_icon.pixmap(QtCore.QSize(tmp_icon_size, tmp_icon_size))
         )
-        icon_label.setFixedSize(icon_size, icon_size)
-        icon_label.setAlignment(
+        tmp_icon_label.setFixedSize(tmp_icon_size, tmp_icon_size)
+        tmp_icon_label.setAlignment(
             QtCore.Qt.AlignmentFlag.AlignVCenter
             | QtCore.Qt.AlignmentFlag.AlignHCenter
         )
-        tmp_layout.addWidget(icon_label)
+        tmp_layout.addWidget(tmp_icon_label)
 
         tmp_layout.addWidget(self._lbl_header)
         tmp_layout.addStretch()
@@ -188,18 +189,18 @@ class Panel(QtWidgets.QWidget):
     """
 
     # <editor-fold desc="Class attributes">
-    panelClosed = QtCore.pyqtSignal()
+    panelClosed: QtCore.pyqtSignal = QtCore.pyqtSignal()
     """Emitted when the user clicks the close button."""
 
-    panelOpened = QtCore.pyqtSignal()
+    panelOpened: QtCore.pyqtSignal = QtCore.pyqtSignal()
     """Emitted when show_panel is called."""
     # </editor-fold>
 
     def __init__(
         self,
         title: str,
-        header: Optional[PanelHeader] = None,
-        parent: Optional[QtWidgets.QWidget] = None,
+        header: PanelHeader | None = None,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the panel with a title.
 
@@ -246,8 +247,13 @@ class Panel(QtWidgets.QWidget):
         self.panelOpened.emit()
 
     def add_content(self, widget: QtWidgets.QWidget) -> None:
-        """Add a widget to the content frame."""
-        self._content_frame.layout().addWidget(widget)
+        """Add a widget to the content frame.
+
+        Args:
+            widget: The child widget to add.
+        """
+        if (tmp_layout := self._content_frame.layout()) is not None:
+            tmp_layout.addWidget(widget)
 
     # </editor-fold>
 
@@ -318,8 +324,14 @@ class PmlCopilotPanel(Panel):
         # Page 1 — history
         self._history_table = QtWidgets.QTableWidget(0, 2)
         self._history_table.setHorizontalHeaderLabels(["Date", "Conversation"])
-        self._history_table.horizontalHeader().setStretchLastSection(True)
-        self._history_table.verticalHeader().setVisible(False)
+        if (
+            tmp_horiz_header := self._history_table.horizontalHeader()
+        ) is not None:
+            tmp_horiz_header.setStretchLastSection(True)
+        if (
+            tmp_vert_header := self._history_table.verticalHeader()
+        ) is not None:
+            tmp_vert_header.setVisible(False)
         self._history_table.setEditTriggers(
             QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers
         )
@@ -374,10 +386,10 @@ class SidePanelStack(QtWidgets.QWidget):
         _active_index: Index of the currently visible panel, or -1 if hidden.
     """
 
-    panelToggled = QtCore.pyqtSignal(int, bool)
+    panelToggled: QtCore.pyqtSignal = QtCore.pyqtSignal(int, bool)
     """Emitted when the panel is toggled. Args: (panel_index, is_expanded)."""
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         """Initialize the SidePanelStack.
 
         Args:
@@ -399,8 +411,8 @@ class SidePanelStack(QtWidgets.QWidget):
 
     def add_panel(
         self,
-        title: str,
-        icon: QtGui.QIcon,
+        title: str,  # noqa: ARG002
+        icon: QtGui.QIcon,  # noqa: ARG002
         widget: QtWidgets.QWidget,
     ) -> int:
         """Register a panel and return its index.
@@ -415,10 +427,10 @@ class SidePanelStack(QtWidgets.QWidget):
         Returns:
             The zero-based index of the newly added panel.
         """
-        index = self._panel_count
+        tmp_index = self._panel_count
         self._stacked_widget.addWidget(widget)
         self._panel_count += 1
-        return index
+        return tmp_index
 
     def set_active(self, index: int) -> None:
         """Show the panel at *index*, making the stack visible if hidden.

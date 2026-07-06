@@ -1,20 +1,37 @@
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
+# -------------------------------------------------------------------
+# This file contains source code for the cBioMOL computer program
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Source code is available at <https://github.com/urban233/cBioMOL>
+# -------------------------------------------------------------------
+# It is unlawful to modify or remove this copyright notice.
+# -------------------------------------------------------------------
+# Please see the accompanying LICENSE file for further information.
+# -------------------------------------------------------------------
+# Primary author of this source file:
+# Martin Urban
+# -------------------------------------------------------------------
+# Additional authors of this source file include:
+#
+# ==============================================================================
+#
 """Provides a semi-transparent ghost panel that fades in on hover."""
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
-from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import QtWidgets
+from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt.widgets import command_bar
 
 
 class GhostPanel(QtWidgets.QWidget):
     """A visual container panel that fades in on mouse hover."""
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         """Initialize the ghost panel.
 
         Args:
@@ -35,8 +52,8 @@ class GhostPanel(QtWidgets.QWidget):
         # Add the visual frame to the root layout
         self._root_layout.addWidget(self._content_frame)
 
-        self.opacity_effect: Optional[QtWidgets.QGraphicsOpacityEffect] = None
-        self.animation: Optional[QtCore.QPropertyAnimation] = None
+        self.opacity_effect: QtWidgets.QGraphicsOpacityEffect | None = None
+        self.animation: QtCore.QPropertyAnimation | None = None
 
         self._setup_opacity_animation()
         self._set_style()
@@ -107,7 +124,7 @@ class GhostBar(GhostPanel):
     def __init__(
         self,
         command_buttons: list[command_bar.CommandBarButton],
-        parent: Optional[QtWidgets.QWidget] = None,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the ghost bar.
 

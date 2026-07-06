@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -64,7 +66,7 @@ def dp(value: int | float, screen: QtGui.QScreen | None = None) -> int:
 class _NotifierQObject(QtCore.QObject):
     """Internal QObject subclass for emitting Qt signals."""
 
-    scale_changed = QtCore.pyqtSignal(float)
+    scale_changed: QtCore.pyqtSignal = QtCore.pyqtSignal(float)
 
     def __init__(self, outer: ScreenChangeNotifier) -> None:
         """Initialize the _NotifierQObject.
@@ -212,9 +214,10 @@ class ScreenChangeNotifier:
 
         self._current_screen = tmp_screen
         if tmp_screen is not None:
+            tmp_unique = QtCore.Qt.ConnectionType.UniqueConnection
             tmp_screen.logicalDotsPerInchChanged.connect(
                 self._handle_dpi_change,
-                QtCore.Qt.ConnectionType.UniqueConnection,  # type: ignore[call-arg]
+                tmp_unique,  # type: ignore[call-arg]
             )
 
     def _handle_primary_screen_change(self, screen: QtGui.QScreen) -> None:
@@ -830,35 +833,7 @@ QFrame#{StyleId.TABBED_COMMAND_BAR_DIVIDER} {{
     border: none;
 }}
 """
-# QFrame#{StyleId.CUI_CARD_SURFACE} {{
-# background-color: ${{surface}};
-# border-top: ${{border_width}} solid ${{border_color}};
-# border-right: ${{border_width}} solid ${{border_color}};
-# border-bottom: ${{border_width}} solid ${{border_color}};
-# /* Left-accented stroke mimicking Microsoft's focus paradigm */
-# border-left: 4px solid ${{accent}};
-# border-radius: ${{corner_radius}};
-# }}
-#
-# /* State Flattening: Strip outer visual weight when item lifecycle ends */
-#                                                                    QFrame#{StyleId.CUI_CARD_SURFACE}[state="historic"] {{
-# background-color: transparent;
-# border-top: ${{border_width}} solid transparent;
-# border-right: ${{border_width}} solid transparent;
-# border-bottom: ${{border_width}} solid transparent;
-# /* Keeps timeline context without attracting structural attention */
-#                                                         border-left: 4px solid ${{divider}};
-# }}
-#
-# /* Default text color inside an active agent card */
-#                                              QFrame#{StyleId.CUI_CARD_SURFACE} QLabel {{
-# color: ${{text_primary}};
-# }}
-#
-# /* Cascading dimming effect applied automatically to child elements */
-#                                                            QFrame#{StyleId.CUI_CARD_SURFACE}[state="historic"] QLabel {{
-# color: ${{border_hover}};
-# }}
+
 
 # Pre-built colour-token binding map.  Colour tokens are defined as
 # class attributes on ThemeColors and never change at runtime, so

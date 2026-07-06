@@ -1,10 +1,30 @@
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
+# -------------------------------------------------------------------
+# This file contains source code for the cBioMOL computer program
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Source code is available at <https://github.com/urban233/cBioMOL>
+# -------------------------------------------------------------------
+# It is unlawful to modify or remove this copyright notice.
+# -------------------------------------------------------------------
+# Please see the accompanying LICENSE file for further information.
+# -------------------------------------------------------------------
+# Primary author of this source file:
+# Martin Urban
+# -------------------------------------------------------------------
+# Additional authors of this source file include:
+#
+# ==============================================================================
+#
 """Command bar widgets including action, split, and dropdown button variants."""
 
 from __future__ import annotations
 
 import contextlib
-
-from typing import TYPE_CHECKING, TypeAlias, override
+from typing import TYPE_CHECKING
+from typing import TypeAlias
+from typing import override
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -12,9 +32,8 @@ from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import theme
 from pymol_copilot.gui.qt import ui_defaults
 
-
 if TYPE_CHECKING:
-    from pymol_copilot.gui.qt.widgets.flyout import FlyoutFrame
+    from pymol_copilot.gui.qt.widgets import flyout
 
 CommandBarButtonType: TypeAlias = QtCore.Qt.ToolButtonStyle
 
@@ -120,7 +139,8 @@ class CommandBarActionButton(CommandBarButton):
             icon: Icon displayed on the button, or None.
             text: Label text.
             style: The button visual style.
-            size: Size in physical pixels, or None to use the DPI-scaled default.
+            size: Size in physical pixels, or None to use the DPI-scaled
+                default.
             parent: Optional parent widget.
         """
         self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
@@ -128,6 +148,7 @@ class CommandBarActionButton(CommandBarButton):
 
     @override
     def _init_widget(self) -> None:
+        """Initialize the action button widget and layout."""
         if self._icon is not None:
             self._button.setIcon(self._icon)
             self._button.setIconSize(QtCore.QSize(*self._size))
@@ -146,6 +167,7 @@ class CommandBarActionButton(CommandBarButton):
 
     @override
     def _connect_signals(self) -> None:
+        """Connect button signals to handlers."""
         self._button.clicked.connect(self.clicked)
 
 
@@ -174,7 +196,8 @@ class CommandBarToggleButton(CommandBarButton):
             icon: Icon displayed on the button, or None.
             text: Label text.
             style: The icon and text arrangement style.
-            size: Size in physical pixels, or None to use the DPI-scaled default.
+            size: Size in physical pixels, or None to use the DPI-scaled
+                default.
             checked: Whether the button starts in the checked state.
             parent: Optional parent widget.
         """
@@ -286,13 +309,14 @@ class CommandBarSplitButton(CommandBarButton):
         self._arrow_pressed: bool = False
         self._menu_open: bool = False
         self._menu: QtWidgets.QMenu | None = None
-        self._flyout: FlyoutFrame | None = None
+        self._flyout: flyout.FlyoutFrame | None = None
         self._main_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         self._arrow_button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         super().__init__(icon, text, style, size, parent)
 
     @override
     def _init_widget(self) -> None:
+        """Initialize the split button widgets and layout."""
         if self._icon is not None:
             self._main_button.setIcon(self._icon)
             self._main_button.setIconSize(QtCore.QSize(*self._size))
@@ -335,11 +359,13 @@ class CommandBarSplitButton(CommandBarButton):
 
     @override
     def _set_styles(self) -> None:
+        """Set object names and styles for split button components."""
         self._main_button.setObjectName(theme.StyleId.SPLIT_BUTTON_MAIN)
         self._arrow_button.setObjectName(theme.StyleId.SPLIT_BUTTON_ARROW)
 
     @override
     def _connect_signals(self) -> None:
+        """Connect button signal to split button clicked handler."""
         self._main_button.clicked.connect(self.clicked)
 
     def _is_main_checked(self) -> bool:
@@ -352,12 +378,15 @@ class CommandBarSplitButton(CommandBarButton):
 
     def _update_hover_from_parent_x(self, x: float) -> None:
         """Set hover flags based on x-coordinate in parent (self) space."""
-        divider_x = float(self._arrow_button.geometry().left())
-        new_main = x < divider_x
-        new_arrow = x >= divider_x
-        if new_main != self._main_hovered or new_arrow != self._arrow_hovered:
-            self._main_hovered = new_main
-            self._arrow_hovered = new_arrow
+        tmp_divider_x = float(self._arrow_button.geometry().left())
+        tmp_new_main = x < tmp_divider_x
+        tmp_new_arrow = x >= tmp_divider_x
+        if (
+            tmp_new_main != self._main_hovered
+            or tmp_new_arrow != self._arrow_hovered
+        ):
+            self._main_hovered = tmp_new_main
+            self._arrow_hovered = tmp_new_arrow
             self.update()
 
     @override
@@ -392,7 +421,7 @@ class CommandBarSplitButton(CommandBarButton):
         a0: QtCore.QObject | None,
         a1: QtCore.QEvent | None,
     ) -> bool:
-        """Filter events on child buttons to update visual hover and press states.
+        """Filter child events to update visual hover and press states.
 
         Args:
             a0: The object monitored.
@@ -422,12 +451,13 @@ class CommandBarSplitButton(CommandBarButton):
                 else:
                     self._arrow_pressed = False
                 # Deferred sync: Qt's mouse grab may have suppressed leaveEvent
-                # during the hold, leaving pressed flags stuck if the cursor moved away.
+                # during the hold, leaving pressed flags stuck if the cursor
+                # moved away.
                 QtCore.QTimer.singleShot(0, self._sync_pressed_state)
         return super().eventFilter(a0, a1)
 
     def _sync_pressed_state(self) -> None:
-        """Clear pressed flags if the cursor left the widget during a mouse-grab."""
+        """Clear pressed flags if the cursor left during a mouse-grab."""
         if not (
             self._main_button.underMouse()
             or self._arrow_button.underMouse()
@@ -445,7 +475,7 @@ class CommandBarSplitButton(CommandBarButton):
         self.update()
 
     def _on_menu_hide(self) -> None:
-        """Reset menu-open flag, clear pressed/hover states, and update painting."""
+        """Reset menu-open, hover, and pressed states, and repaint."""
         self._menu_open = False
         self._arrow_pressed = False
         self._arrow_hovered = False
@@ -465,14 +495,14 @@ class CommandBarSplitButton(CommandBarButton):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing)
 
-        radius = theme.ThemeMetrics.CORNER_RADIUS.px
-        full = QtCore.QRectF(self.rect())
-        divider_x = float(self._arrow_button.geometry().left())
+        tmp_radius = theme.ThemeMetrics.CORNER_RADIUS.px
+        tmp_full = QtCore.QRectF(self.rect())
+        tmp_divider_x = float(self._arrow_button.geometry().left())
 
         # 1. Surface base — establishes the rounded shape for the whole widget.
         painter.setPen(QtCore.Qt.PenStyle.NoPen)
         painter.setBrush(QtGui.QBrush(theme.ThemeColors.SURFACE.to_qcolor()))
-        painter.drawRoundedRect(full, radius, radius)
+        painter.drawRoundedRect(tmp_full, tmp_radius, tmp_radius)
 
         # 2. Section highlights — clip to each half, then draw the same full
         #    rounded rect so corners are geometrically identical to the border.
@@ -480,71 +510,78 @@ class CommandBarSplitButton(CommandBarButton):
             painter.setClipRect(clip)
             painter.setBrush(QtGui.QBrush(color))
             painter.setPen(QtCore.Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(full, radius, radius)
+            painter.drawRoundedRect(tmp_full, tmp_radius, tmp_radius)
             painter.setClipping(False)
 
-        main_clip = QtCore.QRectF(0, 0, divider_x, full.height())
-        arrow_clip = QtCore.QRectF(
-            divider_x, 0, full.width() - divider_x, full.height()
+        tmp_main_clip = QtCore.QRectF(0, 0, tmp_divider_x, tmp_full.height())
+        tmp_arrow_clip = QtCore.QRectF(
+            tmp_divider_x,
+            0,
+            tmp_full.width() - tmp_divider_x,
+            tmp_full.height(),
         )
-        main_checked = self._is_main_checked()
+        tmp_main_checked = self._is_main_checked()
 
-        if self._arrow_pressed or self._menu_open or main_checked:
+        if self._arrow_pressed or self._menu_open or tmp_main_checked:
             _fill_section(
-                main_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
+                tmp_main_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
             )
             _fill_section(
-                arrow_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
+                tmp_arrow_clip, theme.ThemeColors.PRESSED_SHARED.to_qcolor()
             )
         else:
             if self._main_pressed:
-                _fill_section(main_clip, theme.ThemeColors.PRESSED.to_qcolor())
+                _fill_section(
+                    tmp_main_clip, theme.ThemeColors.PRESSED.to_qcolor()
+                )
             elif self._main_hovered:
-                _fill_section(main_clip, theme.ThemeColors.HOVER.to_qcolor())
+                _fill_section(
+                    tmp_main_clip, theme.ThemeColors.HOVER.to_qcolor()
+                )
 
             if self._arrow_hovered:
-                _fill_section(arrow_clip, theme.ThemeColors.HOVER.to_qcolor())
+                _fill_section(
+                    tmp_arrow_clip, theme.ThemeColors.HOVER.to_qcolor()
+                )
 
-        any_active = (
+        tmp_any_active = (
             self._main_hovered
             or self._arrow_hovered
             or self._main_pressed
             or self._arrow_pressed
             or self._menu_open
-            or main_checked
+            or tmp_main_checked
         )
 
-        # 3. Divider — only when hovering, not while arrow is pressed or menu is open.
-        # if (self._main_hovered or self._arrow_hovered) and not (
-        #     self._arrow_pressed or self._menu_open
-        # ):
+        # 3. Divider — only when hovering, not while arrow is pressed or menu is
+        #    open.
         if (self._main_hovered or self._arrow_hovered) and not (
             self._arrow_pressed
             or self._menu_open
             or self._main_pressed
-            or main_checked
+            or tmp_main_checked
         ):
-            pen = QtGui.QPen(theme.ThemeColors.DIVIDER.to_qcolor())
-            pen.setWidth(1)
-            painter.setPen(pen)
+            tmp_pen = QtGui.QPen(theme.ThemeColors.DIVIDER.to_qcolor())
+            tmp_pen.setWidth(1)
+            painter.setPen(tmp_pen)
             painter.drawLine(
-                QtCore.QPointF(divider_x - 0.5, 0.0),
-                QtCore.QPointF(divider_x - 0.5, full.height()),
+                QtCore.QPointF(tmp_divider_x - 0.5, 0.0),
+                QtCore.QPointF(tmp_divider_x - 0.5, tmp_full.height()),
             )
 
         # 4. Outer border — same radius as base so pixels align exactly.
-        if any_active:
-            border_color = (
+        if tmp_any_active:
+            tmp_border_color = (
                 theme.ThemeColors.BORDER_ACTIVE.to_qcolor()
-                if (self._arrow_pressed or self._menu_open or main_checked)
+                if (self._arrow_pressed or self._menu_open or tmp_main_checked)
                 else theme.ThemeColors.BORDER_HOVER.to_qcolor()
             )
-            pen = QtGui.QPen(border_color)
-            pen.setWidth(1)
-            painter.setPen(pen)
+            tmp_pen = QtGui.QPen(tmp_border_color)
+            tmp_pen.setWidth(1)
+            painter.setPen(tmp_pen)
             painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(
-                full.adjusted(0.5, 0.5, -0.5, -0.5), radius, radius
+                tmp_full.adjusted(0.5, 0.5, -0.5, -0.5), tmp_radius, tmp_radius
             )
 
     def _show_menu(self) -> None:
@@ -553,7 +590,7 @@ class CommandBarSplitButton(CommandBarButton):
             pos = self.mapToGlobal(QtCore.QPoint(0, self.height()))
             self._menu.popup(pos)
 
-    def set_flyout(self, flyout: FlyoutFrame) -> None:
+    def set_flyout(self, flyout: flyout.FlyoutFrame) -> None:
         """Attach a flyout panel to the arrow section.
 
         Works as an alternative to :meth:`set_menu`: clicking the arrow opens
@@ -739,7 +776,7 @@ class CommandBarDropdownButton(CommandBarButton):
         """
         self._button: QtWidgets.QToolButton = QtWidgets.QToolButton()
         self._menu: QtWidgets.QMenu | None = None
-        self._flyout: FlyoutFrame | None = None
+        self._flyout: flyout.FlyoutFrame | None = None
         super().__init__(icon, text, style, size, parent)
 
     @override
@@ -785,7 +822,7 @@ class CommandBarDropdownButton(CommandBarButton):
         self._menu = menu
         self._button.setMenu(menu)
 
-    def set_flyout(self, flyout: FlyoutFrame) -> None:
+    def set_flyout(self, flyout: flyout.FlyoutFrame) -> None:
         """Attach a flyout panel; clicking the button opens it.
 
         Switches the button to ``DelayedPopup`` mode so that a short
@@ -814,7 +851,7 @@ class CommandBarDropdownButton(CommandBarButton):
         a0: QtCore.QObject | None,
         a1: QtCore.QEvent | None,
     ) -> bool:
-        """Filter events to intercept mouse presses on the button when flyout is set.
+        """Filter mouse presses on the button when a flyout is set.
 
         Args:
             a0: The object receiving the event.
@@ -893,13 +930,14 @@ class CommandBar(QtWidgets.QWidget):
         self.setObjectName(theme.StyleId.COMMAND_BAR)
 
     def _init_widget(self, command_buttons: list[CommandBarButton]) -> None:
+        """Initialize the command bar layout and populate buttons."""
         self._layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
         self._layout_outer_frame.setContentsMargins(
             *ui_defaults.default_contents_margins()
         )
 
-        for button in command_buttons:
-            self._layout.addWidget(button)
+        for tmp_button in command_buttons:
+            self._layout.addWidget(tmp_button)
         self._layout.addStretch(1)
         self._outer_frame.setLayout(self._layout)
         self._layout_outer_frame.addWidget(self._outer_frame)
@@ -942,45 +980,48 @@ class TabbedCommandBar(QtWidgets.QWidget):
     def _init_widget(
         self, tabs: list[tuple[str, list[CommandBarButton]]]
     ) -> None:
+        """Initialize the tabbed command bar tabs, stack, and layout."""
         self._layout_outer_frame.setContentsMargins(
             *ui_defaults.default_contents_margins()
         )
 
-        outer_content_layout = QtWidgets.QVBoxLayout()
-        outer_content_layout.setContentsMargins(
+        tmp_outer_content_layout = QtWidgets.QVBoxLayout()
+        tmp_outer_content_layout.setContentsMargins(
             *ui_defaults.EMPTY_CONTENTS_MARGINS
         )
-        outer_content_layout.setSpacing(0)
-        self._outer_frame.setLayout(outer_content_layout)
+        tmp_outer_content_layout.setSpacing(0)
+        self._outer_frame.setLayout(tmp_outer_content_layout)
 
         # Tab bar row
-        tab_bar_widget = QtWidgets.QWidget(self._outer_frame)
-        tab_bar_layout = QtWidgets.QHBoxLayout(tab_bar_widget)
-        tab_bar_layout.setContentsMargins(
+        tmp_tab_bar_widget = QtWidgets.QWidget(self._outer_frame)
+        tmp_tab_bar_layout = QtWidgets.QHBoxLayout(tmp_tab_bar_widget)
+        tmp_tab_bar_layout.setContentsMargins(
             theme.dp(4), theme.dp(2), theme.dp(4), 0
         )
-        tab_bar_layout.setSpacing(ui_defaults.EMPTY_SPACING)
+        tmp_tab_bar_layout.setSpacing(ui_defaults.EMPTY_SPACING)
 
         # Bold font metrics for pre-allocating minimum button width.
         # The :checked QSS state applies font-weight:bold, which widens the
         # text.  Computing the min-width now (before the stylesheet is
         # applied) prevents clipping when a tab becomes active.
-        _bold_font = QtGui.QFont()
-        _bold_font.setPixelSize(theme.ThemeMetrics.FONT_SIZE_BASE.px)
-        _bold_font.setBold(True)
-        _fm = QtGui.QFontMetrics(_bold_font)
+        tmp_bold_font = QtGui.QFont()
+        tmp_bold_font.setPixelSize(theme.ThemeMetrics.FONT_SIZE_BASE.px)
+        tmp_bold_font.setBold(True)
+        tmp_fm = QtGui.QFontMetrics(tmp_bold_font)
         # QSS padding: 10 px each side; dp(4) safety buffer
-        _tab_h_padding = theme.dp(10) * 2 + theme.dp(4)
+        tmp_tab_h_padding = theme.dp(10) * 2 + theme.dp(4)
 
         self._tab_group.setExclusive(True)
-        for i, (name, _) in enumerate(tabs):
-            btn = QtWidgets.QPushButton(name, tab_bar_widget)
-            btn.setCheckable(True)
-            btn.setMinimumWidth(_fm.horizontalAdvance(name) + _tab_h_padding)
-            self._tab_group.addButton(btn, i)
-            self._tab_buttons.append(btn)
-            tab_bar_layout.addWidget(btn)
-        tab_bar_layout.addStretch(1)
+        for tmp_i, (tmp_name, _) in enumerate(tabs):
+            tmp_btn = QtWidgets.QPushButton(tmp_name, tmp_tab_bar_widget)
+            tmp_btn.setCheckable(True)
+            tmp_btn.setMinimumWidth(
+                tmp_fm.horizontalAdvance(tmp_name) + tmp_tab_h_padding
+            )
+            self._tab_group.addButton(tmp_btn, tmp_i)
+            self._tab_buttons.append(tmp_btn)
+            tmp_tab_bar_layout.addWidget(tmp_btn)
+        tmp_tab_bar_layout.addStretch(1)
         self._tab_group.idClicked.connect(self._switch_tab)
 
         # Divider between tab bar and content
@@ -989,21 +1030,21 @@ class TabbedCommandBar(QtWidgets.QWidget):
         self._divider.setFixedHeight(theme.dp(1))
 
         # Content stack — one page per tab
-        for _, buttons in tabs:
-            page = QtWidgets.QWidget()
-            page_layout = QtWidgets.QHBoxLayout(page)
-            page_layout.setContentsMargins(
+        for _, tmp_buttons in tabs:
+            tmp_page = QtWidgets.QWidget()
+            tmp_page_layout = QtWidgets.QHBoxLayout(tmp_page)
+            tmp_page_layout.setContentsMargins(
                 *ui_defaults.default_contents_margins()
             )
-            page_layout.setSpacing(ui_defaults.default_spacing())
-            for btn in buttons:
-                page_layout.addWidget(btn)
-            page_layout.addStretch(1)
-            self._stack.addWidget(page)
+            tmp_page_layout.setSpacing(ui_defaults.default_spacing())
+            for tmp_btn in tmp_buttons:
+                tmp_page_layout.addWidget(tmp_btn)
+            tmp_page_layout.addStretch(1)
+            self._stack.addWidget(tmp_page)
 
-        outer_content_layout.addWidget(tab_bar_widget)
-        outer_content_layout.addWidget(self._divider)
-        outer_content_layout.addWidget(self._stack)
+        tmp_outer_content_layout.addWidget(tmp_tab_bar_widget)
+        tmp_outer_content_layout.addWidget(self._divider)
+        tmp_outer_content_layout.addWidget(self._stack)
 
         self._layout_outer_frame.addWidget(self._outer_frame)
         self.setLayout(self._layout_outer_frame)
@@ -1017,15 +1058,15 @@ class TabbedCommandBar(QtWidgets.QWidget):
         )
 
     def _switch_tab(self, index: int) -> None:
-        """Switch the visible content page and mark the corresponding tab button.
+        """Switch content page and check the corresponding tab button.
 
         Args:
             index: Zero-based index of the tab to activate.
         """
         self._stack.setCurrentIndex(index)
-        btn = self._tab_group.button(index)
-        if btn is not None:
-            btn.setChecked(True)
+        tmp_btn = self._tab_group.button(index)
+        if tmp_btn is not None:
+            tmp_btn.setChecked(True)
 
     def append_command_button(
         self, tab_index: int, command_button: CommandBarButton
@@ -1039,11 +1080,11 @@ class TabbedCommandBar(QtWidgets.QWidget):
             tab_index: Zero-based index of the target tab.
             command_button: The button to append.
         """
-        page = self._stack.widget(tab_index)
-        if page is not None:
-            layout = page.layout()
-            if isinstance(layout, QtWidgets.QHBoxLayout):
-                layout.addWidget(command_button)
+        tmp_page = self._stack.widget(tab_index)
+        if tmp_page is not None:
+            tmp_layout = tmp_page.layout()
+            if isinstance(tmp_layout, QtWidgets.QHBoxLayout):
+                tmp_layout.addWidget(command_button)
 
     def _set_styles(self) -> None:
         """Apply global theme object names and shadow effects."""

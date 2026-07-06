@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -55,14 +57,12 @@ programmer typos early.
 
 from __future__ import annotations
 
-from typing import Final
-from typing import TYPE_CHECKING
 import functools
 import importlib.resources
 import re
+from typing import Final
 
-if TYPE_CHECKING:
-    from pymol_copilot.gui.qt import QtGui
+from pymol_copilot.gui import qt
 
 __docformat__ = "google"
 
@@ -104,7 +104,7 @@ def icon(
     name: str,
     *,
     theme: str | None = None,
-) -> QtGui.QIcon:
+) -> qt.QtGui.QIcon:
     """Return a cached QIcon for the given package and icon name.
 
     On the first call for a given (import_name, name, theme) combination
@@ -161,7 +161,7 @@ def _clear_cache() -> None:
 
 
 @functools.lru_cache(maxsize=512)
-def _cached_icon(import_name: str, name: str, theme: str) -> "QtGui.QIcon":
+def _cached_icon(import_name: str, name: str, theme: str) -> qt.QtGui.QIcon:
     """Load and cache an icon by its canonical key.
 
     Args:
@@ -175,13 +175,8 @@ def _cached_icon(import_name: str, name: str, theme: str) -> "QtGui.QIcon":
     return _load_icon(import_name, name, theme)
 
 
-def _load_icon(import_name: str, name: str, theme: str) -> QtGui.QIcon:
-    """Load a QIcon from package data by delegating the path matching
-    directly to QIcon to preserve scalable vector properties natively.
-    """
-    from pymol_copilot.gui.qt import QtGui
-    import importlib.resources
-
+def _load_icon(import_name: str, name: str, theme: str) -> qt.QtGui.QIcon:
+    """Load a QIcon from package data by delegating path matching."""
     tmp_candidates = (
         f"assets/icons/{theme}/{name}.svg",
         f"assets/icons/{theme}/{name}.png",
@@ -191,14 +186,15 @@ def _load_icon(import_name: str, name: str, theme: str) -> QtGui.QIcon:
 
     tmp_traversable = importlib.resources.files(import_name)
     for tmp_candidate in tmp_candidates:
-        file_node = tmp_traversable
+        tmp_file_node = tmp_traversable
         for tmp_part in tmp_candidate.split("/"):
-            file_node = file_node.joinpath(tmp_part)
+            tmp_file_node = tmp_file_node.joinpath(tmp_part)
 
-        if file_node.is_file():
-            with importlib.resources.as_file(file_node) as tmp_path:
-                # QIcon reads the path directly and links its dynamic SVG scaler engine
-                return QtGui.QIcon(str(tmp_path))
+        if tmp_file_node.is_file():
+            with importlib.resources.as_file(tmp_file_node) as tmp_path:
+                # QIcon reads the path directly and links its dynamic SVG
+                # scaler engine.
+                return qt.QtGui.QIcon(str(tmp_path))
 
     raise FileNotFoundError(
         f"Icon not found: package={import_name!r}, "

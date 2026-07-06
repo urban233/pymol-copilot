@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -158,7 +160,9 @@ class IconButton(Button):
         self.destroyed.connect(self._cleanup_connections)
 
     def _set_styles(self) -> None:
-        """Apply a fully transparent, fixed-size stylesheet with hover highlight."""
+        """Apply a fully transparent, fixed-size stylesheet with hover
+        highlight.
+        """
         tmp_size_px = theme.SizeToken(self._size_dp).px
         self.setIconSize(QtCore.QSize(tmp_size_px, tmp_size_px))
         tmp_radius_px = tmp_size_px // 2

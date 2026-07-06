@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -16,6 +18,8 @@
 # ==============================================================================
 #
 """Default configuration values and sizes for UI components."""
+
+from __future__ import annotations
 
 from pymol_copilot.gui.qt import theme
 

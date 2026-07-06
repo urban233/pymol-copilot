@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -18,10 +20,10 @@
 """Provide table view widgets for table models.
 
 This module provides TableView (a QTableView pre-configured for use with
-table_model.TableModel and SortFilterProxy) and TableViewWithToolbar (a composite widget
-that places a configurable toolbar row above a TableView). The toolbar contains a search
-field that filters rows in real time via a SortFilterProxy and an optional area for
-custom action buttons.
+table_model.TableModel and SortFilterProxy) and TableViewWithToolbar (a
+composite widget that places a configurable toolbar row above a TableView).
+The toolbar contains a search field that filters rows in real time via a
+SortFilterProxy and an optional area for custom action buttons.
 
 Notes:
     Design rationale:
@@ -31,9 +33,9 @@ Notes:
     a clean baseline and lets callers opt-in to extras.
 
 TableViewWithToolbar follows the same pattern used by
-ListViewWithSearchBlock: filtering happens via QSortFilterProxyModel rather than
-row-hiding because table data usually has enough columns that a proxy's index
-mapping is the correct abstraction.
+ListViewWithSearchBlock: filtering happens via QSortFilterProxyModel rather
+than row-hiding because table data usually has enough columns that a proxy's
+index mapping is the correct abstraction.
 
 Example:
     Typical usage:
@@ -62,7 +64,6 @@ from __future__ import annotations
 import contextlib
 import logging
 from typing import Any
-from typing import Optional
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -81,7 +82,7 @@ class CheckableProxyModel(QtCore.QAbstractProxyModel):
     All other columns are shifted by +1.
     """
 
-    def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
+    def __init__(self, parent: QtCore.QObject | None = None) -> None:
         """Initialize the proxy model.
 
         Args:
@@ -355,7 +356,7 @@ class CheckableProxyModel(QtCore.QAbstractProxyModel):
 
 
 class ExcelTableDelegate(QtWidgets.QStyledItemDelegate):
-    """A delegate that paints Excel-style borders, backgrounds and checkboxes."""
+    """A delegate that paints Excel-style borders, backgrounds, and checkboxes."""
 
     def __init__(
         self,
@@ -543,13 +544,13 @@ class TableView(QtWidgets.QTableView):
     """
 
     # <editor-fold desc="Class attributes">
-    row_activated = QtCore.pyqtSignal(object)
+    row_activated: QtCore.pyqtSignal = QtCore.pyqtSignal(object)
     """Emitted with the raw row item when the user activates a row."""
-    selection_changed = QtCore.pyqtSignal()
+    selection_changed: QtCore.pyqtSignal = QtCore.pyqtSignal()
     """Emitted when the selection changes."""
     # </editor-fold>
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         """Initialize the table view with sensible defaults.
 
         Args:
@@ -582,7 +583,7 @@ class TableView(QtWidgets.QTableView):
         else:
             self.setModel(model)
 
-    def current_item(self) -> Optional[object]:
+    def current_item(self) -> object | None:
         """Return the raw row item for the currently selected row.
 
         When a proxy model is active the item is resolved through the proxy.
@@ -591,14 +592,14 @@ class TableView(QtWidgets.QTableView):
             The domain object for the selected row, or None if no row is
             selected.
         """
-        index: QtCore.QModelIndex = self.currentIndex()
-        if not index.isValid():
+        tmp_index: QtCore.QModelIndex = self.currentIndex()
+        if not tmp_index.isValid():
             return None
 
         if (tmp_model := self.model()) is None:
             raise RuntimeError("tmp_model is None")
 
-        return tmp_model.data(index, QtCore.Qt.ItemDataRole.UserRole)
+        return tmp_model.data(tmp_index, QtCore.Qt.ItemDataRole.UserRole)
 
     def resize_columns_to_content(self) -> None:
         """Resize all columns to fit their current content.
@@ -875,10 +876,13 @@ class TableView(QtWidgets.QTableView):
                         if event.button() == QtCore.Qt.MouseButton.LeftButton:
                             tmp_selection_model = self.selectionModel()
                             if tmp_selection_model is not None:
+                                tmp_flags = (
+                                    QtCore.QItemSelectionModel.SelectionFlag.Toggle
+                                    | QtCore.QItemSelectionModel.SelectionFlag.Rows
+                                )
                                 tmp_selection_model.select(
                                     tmp_index,
-                                    QtCore.QItemSelectionModel.SelectionFlag.Toggle
-                                    | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+                                    tmp_flags,
                                 )
                         event.accept()
                         return
@@ -944,14 +948,14 @@ class TableViewWithToolbar(QtWidgets.QWidget):
     """
 
     # <editor-fold desc="Class attributes">
-    row_activated = QtCore.pyqtSignal(object)
+    row_activated: QtCore.pyqtSignal = QtCore.pyqtSignal(object)
     """Emitted with the raw row item when the user activates a row."""
     # </editor-fold>
 
     def __init__(
         self,
         filter_column: int = 0,
-        parent: Optional[QtWidgets.QWidget] = None,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         """Initialize the composite table widget.
 
@@ -1003,7 +1007,7 @@ class TableViewWithToolbar(QtWidgets.QWidget):
             self._update_select_all_checkbox
         )
 
-    def current_item(self) -> Optional[object]:
+    def current_item(self) -> object | None:
         """Return the raw row item for the currently selected row.
 
         Resolves the proxy mapping automatically.
@@ -1066,19 +1070,21 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         )
         self.toolbar_actions_layout.setSpacing(ui_defaults.default_spacing())
 
-        toolbar_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout()
-        toolbar_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        toolbar_layout.setSpacing(ui_defaults.default_spacing() * 2)
-        toolbar_layout.addWidget(self.search_field, stretch=1)
-        toolbar_layout.addLayout(self.toolbar_actions_layout)
+        tmp_toolbar_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout()
+        tmp_toolbar_layout.setContentsMargins(
+            *ui_defaults.EMPTY_CONTENTS_MARGINS
+        )
+        tmp_toolbar_layout.setSpacing(ui_defaults.default_spacing() * 2)
+        tmp_toolbar_layout.addWidget(self.search_field, stretch=1)
+        tmp_toolbar_layout.addLayout(self.toolbar_actions_layout)
 
-        root_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
-        root_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
-        root_layout.setSpacing(ui_defaults.default_spacing())
-        root_layout.addLayout(toolbar_layout)
-        root_layout.addWidget(self.select_all_checkbox)
-        root_layout.addWidget(self.table_view)
-        self.setLayout(root_layout)
+        tmp_root_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
+        tmp_root_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
+        tmp_root_layout.setSpacing(ui_defaults.default_spacing())
+        tmp_root_layout.addLayout(tmp_toolbar_layout)
+        tmp_root_layout.addWidget(self.select_all_checkbox)
+        tmp_root_layout.addWidget(self.table_view)
+        self.setLayout(tmp_root_layout)
 
     def _connect_signals(self) -> None:
         """Connect internal widget signals."""

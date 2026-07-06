@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -25,7 +27,6 @@ from __future__ import annotations
 
 from typing import Any
 from typing import Callable
-from typing import Optional
 
 import numpy.typing as npt
 import pandas as pd
@@ -37,7 +38,7 @@ from pymol_copilot.gui.qt.model import table_model
 def read_excel_to_table_model(
     file_path: str,
     model: table_model.TableModel,
-    row_factory: Optional[Callable[[dict[str, Any]], object]] = None,
+    row_factory: Callable[[dict[str, Any]], object] | None = None,
     **pandas_kwargs: Any,
 ) -> None:
     """Read an Excel file and populate a TableModel.
@@ -116,9 +117,9 @@ def read_excel_to_numpy_table_model(
 
 def load_excel_as_table_model(
     file_path: str,
-    row_factory: Optional[Callable[[dict[str, Any]], object]] = None,
-    sort_key: Optional[Callable[[object], Any]] = None,
-    parent: Optional[QtCore.QObject] = None,
+    row_factory: Callable[[dict[str, Any]], object] | None = None,
+    sort_key: Callable[[object], Any] | None = None,
+    parent: QtCore.QObject | None = None,
     **pandas_kwargs: Any,
 ) -> table_model.TableModel:
     """Read an Excel file and return a new TableModel.
@@ -168,9 +169,9 @@ def load_excel_as_table_model(
 
 def load_excel_as_numpy_table_model(
     file_path: str,
-    dtype: Optional[npt.DTypeLike] = None,
-    sort_key: Optional[Callable[[object], Any]] = None,
-    parent: Optional[QtCore.QObject] = None,
+    dtype: npt.DTypeLike | None = None,
+    sort_key: Callable[[object], Any] | None = None,
+    parent: QtCore.QObject | None = None,
     **pandas_kwargs: Any,
 ) -> table_model.NumpyTableModel:
     """Read an Excel file and return a new NumpyTableModel.

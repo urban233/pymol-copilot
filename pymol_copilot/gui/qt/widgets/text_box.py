@@ -1,3 +1,22 @@
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
+# -------------------------------------------------------------------
+# This file contains source code for the cBioMOL computer program
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Source code is available at <https://github.com/urban233/cBioMOL>
+# -------------------------------------------------------------------
+# It is unlawful to modify or remove this copyright notice.
+# -------------------------------------------------------------------
+# Please see the accompanying LICENSE file for further information.
+# -------------------------------------------------------------------
+# Primary author of this source file:
+# Martin Urban
+# -------------------------------------------------------------------
+# Additional authors of this source file include:
+#
+# ==============================================================================
+#
 """Provides an expanding text box widget that grows dynamically with content."""
 
 from __future__ import annotations
@@ -51,14 +70,14 @@ class TextBox(QtWidgets.QLineEdit):
         Args:
             event: The key event to process.
         """
-        key_text = event.text()
+        tmp_key_text = event.text()
 
         # Block only single printable characters not in the allowed set.
         # Multi-char sequences (IME), empty strings (modifier keys), and
         # standard shortcuts (Ctrl+C/V/X/A) must always propagate.
         if (
-            len(key_text) == 1
-            and key_text not in self._allowed_chars
+            len(tmp_key_text) == 1
+            and tmp_key_text not in self._allowed_chars
             and not event.matches(QtGui.QKeySequence.StandardKey.Copy)
             and not event.matches(QtGui.QKeySequence.StandardKey.Paste)
             and not event.matches(QtGui.QKeySequence.StandardKey.Cut)
@@ -73,7 +92,7 @@ class TextBox(QtWidgets.QLineEdit):
 class ExpandingTextBox(QtWidgets.QPlainTextEdit):
     """A QPlainTextEdit that auto-grows vertically with content."""
 
-    returnPressed = QtCore.pyqtSignal()
+    returnPressed: QtCore.pyqtSignal = QtCore.pyqtSignal()
 
     def __init__(
         self,

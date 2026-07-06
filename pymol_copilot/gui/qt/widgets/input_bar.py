@@ -1,3 +1,22 @@
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
+# -------------------------------------------------------------------
+# This file contains source code for the cBioMOL computer program
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Source code is available at <https://github.com/urban233/cBioMOL>
+# -------------------------------------------------------------------
+# It is unlawful to modify or remove this copyright notice.
+# -------------------------------------------------------------------
+# Please see the accompanying LICENSE file for further information.
+# -------------------------------------------------------------------
+# Primary author of this source file:
+# Martin Urban
+# -------------------------------------------------------------------
+# Additional authors of this source file include:
+#
+# ==============================================================================
+#
 """Provides an input bar widget for prompting the AI assistant."""
 
 from __future__ import annotations
@@ -15,8 +34,8 @@ from pymol_copilot.gui.qt.widgets import text_box
 class InputBar(QtWidgets.QWidget):
     """Input bar widget containing a text box and send/stop button."""
 
-    submitted = QtCore.pyqtSignal(str)
-    stopRequested = QtCore.pyqtSignal()
+    submitted: QtCore.pyqtSignal = QtCore.pyqtSignal(str)
+    stopRequested: QtCore.pyqtSignal = QtCore.pyqtSignal()
 
     def __init__(
         self,
@@ -100,7 +119,7 @@ class InputBar(QtWidgets.QWidget):
         self._input.setEnabled(False)
 
     def _on_button_clicked(self) -> None:
-        """Dispatch button click to submit or stop depending on current state."""
+        """Dispatch click to submit or stop depending on current state."""
         if self._is_processing:
             self.set_cancelling()
             self.stopRequested.emit()
@@ -109,8 +128,8 @@ class InputBar(QtWidgets.QWidget):
 
     def _on_submit(self) -> None:
         """Handle the submit action and emit submitted signal."""
-        text = self._input.toPlainText().strip()
-        if text:
+        tmp_text = self._input.toPlainText().strip()
+        if tmp_text:
             self._input.clear()
             self.set_processing(True)
-            self.submitted.emit(text)
+            self.submitted.emit(tmp_text)

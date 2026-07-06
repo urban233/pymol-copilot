@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -59,7 +61,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import Optional
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -139,18 +140,18 @@ class ListView(QtWidgets.QListView):
     """
 
     # <editor-fold desc="Class attributes">
-    item_activated = QtCore.pyqtSignal(object)
+    item_activated: QtCore.pyqtSignal = QtCore.pyqtSignal(object)
     """Emitted with the raw item object when the user activates a row."""
     # </editor-fold>
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         """Initialize the list view with sensible defaults.
 
         Args:
             parent: Optional parent widget.
         """
         super().__init__(parent)
-        self._checkbox_delegate: Optional[CheckBoxDelegate] = None
+        self._checkbox_delegate: CheckBoxDelegate | None = None
         self._init_widget()
         self._connect_signals()
 
@@ -166,7 +167,7 @@ class ListView(QtWidgets.QListView):
         """
         self.setModel(model)
 
-    def current_item(self) -> Optional[object]:
+    def current_item(self) -> object | None:
         """Return the raw item object for the currently selected row.
 
         Returns:
@@ -358,11 +359,13 @@ class ListView(QtWidgets.QListView):
                 tmp_option = QtWidgets.QStyleOptionViewItem()
                 tmp_option.rect = self.visualRect(tmp_index)
                 tmp_option.widget = self
-                tmp_option.features |= QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_feat = QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_option.features |= tmp_feat
                 tmp_style = self.style()
                 if tmp_style is not None:
+                    tmp_sub = QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator
                     tmp_check_rect = tmp_style.subElementRect(
-                        QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
+                        tmp_sub,
                         tmp_option,
                         self,
                     )
@@ -370,9 +373,10 @@ class ListView(QtWidgets.QListView):
                         if event.button() == QtCore.Qt.MouseButton.LeftButton:
                             tmp_selection_model = self.selectionModel()
                             if tmp_selection_model is not None:
+                                tmp_flag = QtCore.QItemSelectionModel.SelectionFlag.Toggle
                                 tmp_selection_model.select(
                                     tmp_index,
-                                    QtCore.QItemSelectionModel.SelectionFlag.Toggle,
+                                    tmp_flag,
                                 )
                         event.accept()
                         return
@@ -393,11 +397,13 @@ class ListView(QtWidgets.QListView):
                 tmp_option = QtWidgets.QStyleOptionViewItem()
                 tmp_option.rect = self.visualRect(tmp_index)
                 tmp_option.widget = self
-                tmp_option.features |= QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_feat = QtWidgets.QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+                tmp_option.features |= tmp_feat
                 tmp_style = self.style()
                 if tmp_style is not None:
+                    tmp_sub = QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator
                     tmp_check_rect = tmp_style.subElementRect(
-                        QtWidgets.QStyle.SubElement.SE_ItemViewItemCheckIndicator,
+                        tmp_sub,
                         tmp_option,
                         self,
                     )
@@ -430,11 +436,11 @@ class ListViewWithSearch(QtWidgets.QWidget):
     """
 
     # <editor-fold desc="Class attributes">
-    item_activated = QtCore.pyqtSignal(object)
+    item_activated: QtCore.pyqtSignal = QtCore.pyqtSignal(object)
     """Emitted with the raw item object when the user activates a row."""
     # </editor-fold>
 
-    def __init__(self, parent: Optional[QtWidgets.QWidget] = None) -> None:
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         """Initialize the composite widget.
 
         Args:
@@ -442,7 +448,7 @@ class ListViewWithSearch(QtWidgets.QWidget):
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
-        self._model: Optional["list_model.ListModel"] = None
+        self._model: list_model.ListModel | None = None
         self.search_field = text_box.TextBox(placeholder_text="Search ...")
         self.select_all_checkbox = QtWidgets.QCheckBox("Select All")
         self.list_view = ListView()
