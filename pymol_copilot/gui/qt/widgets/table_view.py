@@ -64,6 +64,9 @@ from __future__ import annotations
 import contextlib
 import logging
 from typing import Any
+from typing import Generic
+from typing import Optional
+from typing import TypeVar
 
 from pymol_copilot.gui.qt import QtCore
 from pymol_copilot.gui.qt import QtGui
@@ -74,6 +77,8 @@ from pymol_copilot.gui.qt.model import table_model
 logger = logging.getLogger(__name__)
 
 __docformat__ = "google"
+
+RowType = TypeVar("RowType")
 
 
 class CheckableProxyModel(QtCore.QAbstractProxyModel):
@@ -518,7 +523,7 @@ class ExcelTableDelegate(QtWidgets.QStyledItemDelegate):
             painter.restore()
 
 
-class TableView(QtWidgets.QTableView):
+class TableView(QtWidgets.QTableView, Generic[RowType]):
     """A QTableView pre-configured for use with TableModel.
 
     Starts from a minimal-chrome baseline:
@@ -759,6 +764,147 @@ class TableView(QtWidgets.QTableView):
                     | QtCore.QItemSelectionModel.SelectionFlag.Rows,
                 )
 
+    # --- High-Level Filtering API (Simple Queries) ---
+
+    def filter_by_property(
+        self,
+        filter_id: str,
+        property_name: str,
+        value: object,
+    ) -> None:
+        """Filter rows where a property equals a target value.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            value: The target value to match.
+        """
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_filter = table_model.PropertyEqualsFilter[RowType](
+                property_name, value
+            )
+            tmp_proxy.set_filter(filter_id, tmp_filter)
+
+    def filter_by_text(
+        self,
+        filter_id: str,
+        property_name: str,
+        search_text: str,
+        case_sensitive: bool = False,
+    ) -> None:
+        """Filter rows where a property contains a search text.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            search_text: The substring to look for.
+            case_sensitive: Whether the comparison is case sensitive.
+        """
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_filter = table_model.PropertyTextFilter[RowType](
+                property_name,
+                search_text,
+                case_sensitive,
+            )
+            tmp_proxy.set_filter(filter_id, tmp_filter)
+
+    def filter_by_range(
+        self,
+        filter_id: str,
+        property_name: str,
+        min_val: table_model.Comparable,
+        max_val: table_model.Comparable,
+    ) -> None:
+        """Filter rows where a property is within a range.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            min_val: Minimum value (inclusive).
+            max_val: Maximum value (inclusive).
+        """
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_filter = table_model.PropertyRangeFilter[RowType](
+                property_name,
+                min_val,
+                max_val,
+            )
+            tmp_proxy.set_filter(filter_id, tmp_filter)
+
+    def filter_by_set(
+        self,
+        filter_id: str,
+        property_name: str,
+        values: set[object],
+    ) -> None:
+        """Filter rows where a property is inside a set of allowed values.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            values: A set of allowed values.
+        """
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_filter = table_model.PropertySetFilter[RowType](
+                property_name, values
+            )
+            tmp_proxy.set_filter(filter_id, tmp_filter)
+
+    # --- Low-Level Filtering API (Sophisticated Queries) ---
+
+    def set_custom_filter(
+        self,
+        filter_id: str,
+        filter_obj: table_model.TableFilter[RowType],
+    ) -> None:
+        """Register a sophisticated custom TableFilter object.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            filter_obj: A TableFilter subclass instance implementing accepts().
+        """
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_proxy.set_filter(filter_id, filter_obj)
+
+    def remove_filter(self, filter_id: str) -> None:
+        """Remove a named filter from the table.
+
+        Args:
+            filter_id: The ID of the filter to remove.
+        """
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_proxy.remove_filter(filter_id)
+
+    def clear_filters(self) -> None:
+        """Clear all active filters from the table."""
+        tmp_proxy = self._find_filter_proxy()
+        if tmp_proxy is not None:
+            tmp_proxy.clear_filters()
+
+    def _find_filter_proxy(
+        self,
+    ) -> Optional[table_model.SortFilterProxy[RowType]]:
+        """Traverse proxy models to locate the SortFilterProxy.
+
+        Returns:
+            The SortFilterProxy if found, otherwise None.
+        """
+        tmp_curr = self.model()
+        while tmp_curr is not None:
+            if isinstance(tmp_curr, table_model.SortFilterProxy):
+                return tmp_curr
+            if isinstance(tmp_curr, QtCore.QAbstractProxyModel):
+                tmp_curr = tmp_curr.sourceModel()
+            else:
+                break
+        return None
+
     # </editor-fold>
 
     # <editor-fold desc="Private methods">
@@ -921,7 +1067,7 @@ class TableView(QtWidgets.QTableView):
     # </editor-fold>
 
 
-class TableViewWithToolbar(QtWidgets.QWidget):
+class TableViewWithToolbar(QtWidgets.QWidget, Generic[RowType]):
     """A composite widget combining a toolbar with a TableView.
 
     The toolbar row contains a QLineEdit search field that filters displayed
@@ -968,13 +1114,13 @@ class TableViewWithToolbar(QtWidgets.QWidget):
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
         self._filter_column: int = filter_column
-        self._proxy: table_model.SortFilterProxy | None = None
+        self._proxy: table_model.SortFilterProxy[RowType] | None = None
         self.search_field: QtWidgets.QLineEdit = QtWidgets.QLineEdit()
         self.select_all_checkbox = QtWidgets.QCheckBox("Select All")
         self.toolbar_actions_layout: QtWidgets.QHBoxLayout = (
             QtWidgets.QHBoxLayout()
         )
-        self.table_view: TableView = TableView()
+        self.table_view: TableView[RowType] = TableView()
         # </editor-fold>
         self._init_widget()
         self._connect_signals()
@@ -1053,6 +1199,109 @@ class TableViewWithToolbar(QtWidgets.QWidget):
             items: A list of row items to select/check.
         """
         self.table_view.set_selected_items(items)
+
+    # --- High-Level Filtering API ---
+
+    def filter_by_property(
+        self,
+        filter_id: str,
+        property_name: str,
+        value: object,
+    ) -> None:
+        """Filter rows where a property equals a target value.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            value: The target value to match.
+        """
+        self.table_view.filter_by_property(filter_id, property_name, value)
+
+    def filter_by_text(
+        self,
+        filter_id: str,
+        property_name: str,
+        search_text: str,
+        case_sensitive: bool = False,
+    ) -> None:
+        """Filter rows where a property contains a search text.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            search_text: The substring to look for.
+            case_sensitive: Whether the comparison is case sensitive.
+        """
+        self.table_view.filter_by_text(
+            filter_id,
+            property_name,
+            search_text,
+            case_sensitive,
+        )
+
+    def filter_by_range(
+        self,
+        filter_id: str,
+        property_name: str,
+        min_val: table_model.Comparable,
+        max_val: table_model.Comparable,
+    ) -> None:
+        """Filter rows where a property is within a range.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            min_val: Minimum value (inclusive).
+            max_val: Maximum value (inclusive).
+        """
+        self.table_view.filter_by_range(
+            filter_id,
+            property_name,
+            min_val,
+            max_val,
+        )
+
+    def filter_by_set(
+        self,
+        filter_id: str,
+        property_name: str,
+        values: set[object],
+    ) -> None:
+        """Filter rows where a property is inside a set of allowed values.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            property_name: The attribute name on the row object.
+            values: A set of allowed values.
+        """
+        self.table_view.filter_by_set(filter_id, property_name, values)
+
+    # --- Low-Level Filtering API ---
+
+    def set_custom_filter(
+        self,
+        filter_id: str,
+        filter_obj: table_model.TableFilter[RowType],
+    ) -> None:
+        """Register a sophisticated custom TableFilter object.
+
+        Args:
+            filter_id: A unique identifier for this filter.
+            filter_obj: A TableFilter subclass instance implementing accepts().
+        """
+        self.table_view.set_custom_filter(filter_id, filter_obj)
+
+    def remove_filter(self, filter_id: str) -> None:
+        """Remove a named filter from the table.
+
+        Args:
+            filter_id: The ID of the filter to remove.
+        """
+        self.table_view.remove_filter(filter_id)
+
+    def clear_filters(self) -> None:
+        """Clear all active filters from the table."""
+        self.table_view.clear_filters()
 
     # </editor-fold>
 

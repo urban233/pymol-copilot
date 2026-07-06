@@ -36,11 +36,18 @@ and CompletedJobsProxyModel pair with a single, reusable class.
 
 from __future__ import annotations
 
+import abc
+import contextlib
+import logging
+import operator
 from typing import Any
 from typing import Callable
+from typing import Generic
 from typing import Optional
+from typing import Protocol
+from typing import TypeVar
+from typing import Union
 from typing import override
-import logging
 
 import numpy as np
 import numpy.typing as npt
@@ -51,8 +58,10 @@ logger = logging.getLogger(__name__)
 
 __docformat__ = "google"
 
+RowType = TypeVar("RowType")
 
-class TableModel(QtCore.QAbstractTableModel):
+
+class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
     """A column-aware table model for QTableView.
 
     Stores all rows in a plain Python list.  Each element represents one
@@ -91,7 +100,7 @@ class TableModel(QtCore.QAbstractTableModel):
     def __init__(
         self,
         column_headers: Optional[list[str]] = None,
-        sort_key: Optional[Callable[[object], Any]] = None,
+        sort_key: Optional[Callable[[RowType], Any]] = None,
         parent: Optional[QtCore.QObject] = None,
     ) -> None:
         """Initialize the table model.
@@ -107,14 +116,14 @@ class TableModel(QtCore.QAbstractTableModel):
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
-        self._items: list[object] = []
+        self._items: list[RowType] = []
         if column_headers:
             self._headers: list[str] = column_headers
         else:
             self._headers: list[str] = []
         # Any is used here to allow any comparable type returned by the
         # sort key.
-        self._sort_key: Optional[Callable[[object], Any]] = sort_key
+        self._sort_key: Optional[Callable[[RowType], Any]] = sort_key
         # </editor-fold>
 
     # <editor-fold desc="Public methods">
@@ -273,8 +282,8 @@ class TableModel(QtCore.QAbstractTableModel):
         self._headers = list(headers)
         self.endResetModel()
 
-    def add_row(self, item: object) -> int:
-        """Append a single row to the end of the model.
+    def add_row(self, item: RowType) -> int:
+        """Append a single item to the end of the model.
 
         Args:
             item: The row object.
@@ -295,7 +304,7 @@ class TableModel(QtCore.QAbstractTableModel):
         logger.debug("TableModel: row successfully appended at index %d.", row)
         return row
 
-    def add_rows(self, items: list[object]) -> None:
+    def add_rows(self, items: list[RowType]) -> None:
         """Append multiple rows in a single batched operation.
 
         Wraps the insertion in one beginInsertRows/endInsertRows pair
@@ -356,7 +365,7 @@ class TableModel(QtCore.QAbstractTableModel):
         self.endResetModel()
         logger.debug("TableModel: all rows successfully cleared.")
 
-    def row_item(self, row: int) -> object:
+    def row_item(self, row: int) -> RowType:
         """Return the raw item stored at row.
 
         Args:
@@ -374,7 +383,7 @@ class TableModel(QtCore.QAbstractTableModel):
             )
         return self._items[row]
 
-    def all_items(self) -> list[object]:
+    def all_items(self) -> list[RowType]:
         """Return a shallow copy of all stored row items.
 
         Returns:
@@ -899,26 +908,189 @@ def create_numpy_table_model(
     return model
 
 
-class SortFilterProxy(QtCore.QSortFilterProxyModel):
+Comparable = Union[int, float, str]
+
+
+class TableFilter(Generic[RowType], abc.ABC):
+    """Abstract base class for all generic table filters."""
+
+    @abc.abstractmethod
+    def accepts(self, item: RowType) -> bool:
+        """Evaluate if the raw domain item is accepted by this filter.
+
+        Args:
+            item: The raw row item/domain object.
+
+        Returns:
+            True if the item is accepted, False otherwise.
+
+        Raises:
+            NotImplementedError: Always raised in the base class.
+        """
+        raise NotImplementedError("Subclasses must implement accepts.")
+
+
+class PropertyEqualsFilter(Generic[RowType], TableFilter[RowType]):
+    """Filters rows where an attribute equals a target value."""
+
+    def __init__(self, property_name: str, target_value: object) -> None:
+        """Initialize the filter.
+
+        Args:
+            property_name: The attribute name on the row object.
+            target_value: The value to compare against.
+        """
+        self._getter: Callable[[RowType], object] = operator.attrgetter(
+            property_name
+        )
+        self._target_value: object = target_value
+
+    @override
+    def accepts(self, item: RowType) -> bool:
+        """Check if the item's property matches target_value.
+
+        Args:
+            item: The row item object.
+
+        Returns:
+            True if property matches target_value, False otherwise.
+        """
+        try:
+            tmp_val = self._getter(item)
+            return bool(tmp_val == self._target_value)
+        except AttributeError:
+            return False
+
+
+class PropertyTextFilter(Generic[RowType], TableFilter[RowType]):
+    """Filters rows where an attribute matches a substring."""
+
+    def __init__(
+        self,
+        property_name: str,
+        search_text: str,
+        case_sensitive: bool = False,
+    ) -> None:
+        """Initialize the filter.
+
+        Args:
+            property_name: The attribute name on the row object.
+            search_text: The substring to look for.
+            case_sensitive: Whether the comparison is case sensitive.
+        """
+        self._getter: Callable[[RowType], object] = operator.attrgetter(
+            property_name
+        )
+        self._search_text: str = search_text
+        self._case_sensitive: bool = case_sensitive
+
+    @override
+    def accepts(self, item: RowType) -> bool:
+        """Check if the item's property contains the search string.
+
+        Args:
+            item: The row item object.
+
+        Returns:
+            True if property contains search_text, False otherwise.
+        """
+        try:
+            tmp_val = self._getter(item)
+            if not isinstance(tmp_val, str):
+                tmp_val = str(tmp_val)
+            if self._case_sensitive:
+                return self._search_text in tmp_val
+            return self._search_text.lower() in tmp_val.lower()
+        except AttributeError:
+            return False
+
+
+class PropertyRangeFilter(Generic[RowType], TableFilter[RowType]):
+    """Filters rows where an attribute is within a range."""
+
+    def __init__(
+        self,
+        property_name: str,
+        min_val: Comparable,
+        max_val: Comparable,
+    ) -> None:
+        """Initialize the filter.
+
+        Args:
+            property_name: The attribute name on the row object.
+            min_val: Minimum acceptable value (inclusive).
+            max_val: Maximum acceptable value (inclusive).
+        """
+        self._getter: Callable[[RowType], Any] = operator.attrgetter(
+            property_name
+        )
+        self._min_val: Any = min_val
+        self._max_val: Any = max_val
+
+    @override
+    def accepts(self, item: RowType) -> bool:
+        """Check if the item's property lies within the range.
+
+        Args:
+            item: The row item object.
+
+        Returns:
+            True if within range, False otherwise.
+        """
+        try:
+            tmp_val = self._getter(item)
+            if tmp_val is None:
+                return False
+            return bool(self._min_val <= tmp_val <= self._max_val)
+        except (AttributeError, TypeError):
+            return False
+
+
+class PropertySetFilter(Generic[RowType], TableFilter[RowType]):
+    """Filters rows where an attribute is inside a set of allowed values."""
+
+    def __init__(self, property_name: str, values: set[object]) -> None:
+        """Initialize the filter.
+
+        Args:
+            property_name: The attribute name on the row object.
+            values: Set of allowed values.
+        """
+        self._getter: Callable[[RowType], object] = operator.attrgetter(
+            property_name
+        )
+        self._values: frozenset[object] = frozenset(values)
+
+    @override
+    def accepts(self, item: RowType) -> bool:
+        """Check if the item's property is inside the set.
+
+        Args:
+            item: The row item object.
+
+        Returns:
+            True if property is in values, False otherwise.
+        """
+        try:
+            tmp_val = self._getter(item)
+            return tmp_val in self._values
+        except AttributeError:
+            return False
+
+
+class SortFilterProxy(QtCore.QSortFilterProxyModel, Generic[RowType]):
     """A configurable filter proxy for TableModel.
 
     Filters rows by matching the display text of a configurable column
-    against a fixed set of accepted string values.  This replaces the
-    legacy ActiveJobsProxyModel / CompletedJobsProxyModel pattern
-    with a single, reusable class.
+    against a fixed set of accepted string values, or by applying registered
+    TableFilter objects on the raw row items.
 
     Attributes:
+        _filters: Registry of TableFilter objects.
+        _cached_mask: Cached boolean mask of accepted rows.
         _filter_column: The source column whose display text is compared.
         _accepted_values: The set of string values that pass through the
             filter.
-
-    Example:
-        proxy = SortFilterProxy()
-        proxy.setSourceModel(job_model)
-        # Set status column.
-        proxy.set_filter_column(3)
-        proxy.set_accepted_values({"Queued", "Running"})
-        active_table_view.setModel(proxy)
     """
 
     def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
@@ -930,11 +1102,44 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
         """
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
+        self._filters: dict[str, TableFilter[RowType]] = {}
+        self._cached_mask: Optional[np.ndarray] = None
         self._filter_column: int = 0
         self._accepted_values: frozenset[str] = frozenset()
         # </editor-fold>
 
     # <editor-fold desc="Public methods">
+    def set_filter(
+        self, filter_id: str, filter_obj: TableFilter[RowType]
+    ) -> None:
+        """Register or update a named filter object.
+
+        Args:
+            filter_id: A unique identifier for the filter.
+            filter_obj: An instance of a TableFilter subclass.
+        """
+        self._filters[filter_id] = filter_obj
+        self._invalidate_cache()
+        self.invalidateFilter()
+
+    def remove_filter(self, filter_id: str) -> None:
+        """Remove an active filter by its ID.
+
+        Args:
+            filter_id: The ID of the filter to remove.
+        """
+        if filter_id in self._filters:
+            del self._filters[filter_id]
+            self._invalidate_cache()
+            self.invalidateFilter()
+
+    def clear_filters(self) -> None:
+        """Remove all custom registered filters."""
+        if self._filters:
+            self._filters.clear()
+            self._invalidate_cache()
+            self.invalidateFilter()
+
     def set_filter_column(self, column: int) -> None:
         """Set the source column whose display text is used for filtering.
 
@@ -971,6 +1176,37 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
         self.invalidateFilter()
 
     @override
+    def setSourceModel(self, source_model: QtCore.QAbstractItemModel) -> None:
+        """Attach a source model and connect invalidation slots.
+
+        Args:
+            source_model: The source table model.
+        """
+        tmp_old = self.sourceModel()
+        if tmp_old is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.modelReset.disconnect(self._invalidate_cache)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.rowsInserted.disconnect(self._invalidate_cache)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.rowsRemoved.disconnect(self._invalidate_cache)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.dataChanged.disconnect(self._invalidate_cache)
+            with contextlib.suppress(TypeError, RuntimeError):
+                tmp_old.layoutChanged.disconnect(self._invalidate_cache)
+
+        super().setSourceModel(source_model)
+
+        if source_model is not None:
+            source_model.modelReset.connect(self._invalidate_cache)
+            source_model.rowsInserted.connect(self._invalidate_cache)
+            source_model.rowsRemoved.connect(self._invalidate_cache)
+            source_model.dataChanged.connect(self._invalidate_cache)
+            source_model.layoutChanged.connect(self._invalidate_cache)
+
+        self._invalidate_cache()
+
+    @override
     def filterAcceptsRow(
         self,
         source_row: int,
@@ -979,35 +1215,81 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel):
         """Decide whether a source row should be visible in the proxy.
 
         Retrieves the display text of the filter column for source_row and
-        checks whether it is contained in _accepted_values.
+        checks whether it is contained in _accepted_values, then checks all
+        registered filters.
 
         Args:
             source_row: Row index in the source model.
             source_parent: Parent index (always invalid for flat models).
 
         Returns:
-            True if the row's filter-column value is in
-            _accepted_values, or if no accepted values have been set
-            yet (show-all fallback).
+            True if the row is accepted by all active filters, False otherwise.
         """
-        if not self._accepted_values:
-            return super().filterAcceptsRow(source_row, source_parent)
-
-        source_model: Optional[QtCore.QAbstractItemModel] = self.sourceModel()
-        if source_model is None:
+        if not super().filterAcceptsRow(source_row, source_parent):
             return False
 
-        # Always use the public data() API so the request goes through Qt's
-        # index-validation layer.  The previous optimisation that accessed
-        # source_model._items and source_model._data directly bypassed that
-        # validation and was an out-of-bounds read risk when rows were
-        # inserted concurrently.
-        tmp_index: QtCore.QModelIndex = source_model.index(
-            source_row, self._filter_column, source_parent
-        )
-        tmp_value: Any = source_model.data(
-            tmp_index, QtCore.Qt.ItemDataRole.DisplayRole
-        )
-        return tmp_value in self._accepted_values
+        tmp_source_model = self.sourceModel()
+        if tmp_source_model is None:
+            return False
+
+        if self._accepted_values:
+            tmp_col_idx = tmp_source_model.index(
+                source_row, self._filter_column, source_parent
+            )
+            tmp_value = tmp_source_model.data(
+                tmp_col_idx, QtCore.Qt.ItemDataRole.DisplayRole
+            )
+            if tmp_value not in self._accepted_values:
+                return False
+
+        if self._cached_mask is None:
+            self._rebuild_filter_mask()
+
+        if self._cached_mask is not None and source_row < len(
+            self._cached_mask
+        ):
+            return bool(self._cached_mask[source_row])
+
+        return True
+
+    # </editor-fold>
+
+    # <editor-fold desc="Private methods">
+    def _invalidate_cache(self, *args: Any, **kwargs: Any) -> None:
+        """Clear the cached filter mask. Slot for source model signals.
+
+        Args:
+            *args: Positional signal args (ignored).
+            **kwargs: Keyword signal args (ignored).
+        """
+        _ = args
+        _ = kwargs
+        self._cached_mask = None
+
+    def _rebuild_filter_mask(self) -> None:
+        """Evaluate all custom filters and build the boolean mask."""
+        tmp_source = self.sourceModel()
+        if tmp_source is None:
+            self._cached_mask = None
+            return
+
+        tmp_row_count = tmp_source.rowCount()
+        if tmp_row_count == 0:
+            self._cached_mask = np.ones(0, dtype=np.bool_)
+            return
+
+        tmp_mask = np.ones(tmp_row_count, dtype=np.bool_)
+
+        if self._filters:
+            tmp_items = getattr(tmp_source, "_items", None)
+            if tmp_items is not None:
+                for tmp_filter in self._filters.values():
+                    tmp_mask &= np.fromiter(
+                        (tmp_filter.accepts(item) for item in tmp_items),
+                        dtype=np.bool_,
+                        count=tmp_row_count,
+                    )
+
+        self._cached_mask = tmp_mask
 
     # </editor-fold>

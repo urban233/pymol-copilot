@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import override
+
 from PyQt6 import QtCore
 from PyQt6 import QtWidgets
 import pytest
@@ -329,3 +331,160 @@ def test_table_view_excel_selection(q_app: QtWidgets.QApplication) -> None:
 
     for tmp_col in range(tmp_view_model.columnCount()):
         assert tmp_selection_model.isSelected(tmp_view_model.index(1, tmp_col))
+
+
+class DummyItem:
+    """Mock item for testing filtering."""
+
+    def __init__(self, name: str, value: int, category: str) -> None:
+        """Initialize the item.
+
+        Args:
+            name: Name of the item.
+            value: Numeric value.
+            category: Category string.
+        """
+        self.name = name
+        self.value = value
+        self.category = category
+
+
+class ComplexDummyFilter(table_model.TableFilter[DummyItem]):
+    """Sophisticated filter class for testing low-level API."""
+
+    def __init__(self, max_value: int, target_category: str) -> None:
+        """Initialize.
+
+        Args:
+            max_value: Max allowed value.
+            target_category: Target category string.
+        """
+        self.max_value = max_value
+        self.target_category = target_category
+
+    @override
+    def accepts(self, item: DummyItem) -> bool:
+        """Filter condition.
+
+        Args:
+            item: The dummy item.
+
+        Returns:
+            True if accepted.
+        """
+        return (
+            item.value <= self.max_value
+            and item.category == self.target_category
+        )
+
+
+def test_table_view_high_level_filtering(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Verify high-level filtering convenience APIs on TableView.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    # Arrange
+    tmp_items = [
+        DummyItem("Molecule A", 250, "small"),
+        DummyItem("Molecule B", 600, "large"),
+        DummyItem("Protein C", 50000, "macro"),
+        DummyItem("Molecule D", 350, "small"),
+    ]
+    tmp_model = DummyTableModel(column_headers=["Name", "Val", "Cat"])
+    tmp_model.add_rows(tmp_items)
+    tmp_proxy = table_model.SortFilterProxy[DummyItem]()
+    tmp_proxy.setSourceModel(tmp_model)
+    tmp_view = table_view.TableView[DummyItem]()
+    tmp_view.set_model(tmp_proxy)
+
+    # Initially, all items visible
+    tmp_view_model = tmp_view.model()
+    assert tmp_view_model is not None
+    assert tmp_view_model.rowCount() == 4
+
+    # Act 1 - Filter by property equality
+    tmp_view.filter_by_property("eq_cat", "category", "small")
+
+    # Assert 1 - Only small category items visible
+    tmp_proxy = tmp_view._find_filter_proxy()
+    assert tmp_proxy is not None
+    assert tmp_proxy.rowCount() == 2
+    tmp_res_0 = tmp_proxy.data(
+        tmp_proxy.index(0, 0), QtCore.Qt.ItemDataRole.UserRole
+    )
+    assert tmp_res_0 == tmp_items[0]
+    tmp_res_1 = tmp_proxy.data(
+        tmp_proxy.index(1, 0), QtCore.Qt.ItemDataRole.UserRole
+    )
+    assert tmp_res_1 == tmp_items[3]
+
+    # Act 2 - Filter by text search
+    tmp_view.filter_by_text("txt_name", "name", "Molecule A")
+
+    # Assert 2 - Only Molecule A (small category) visible
+    assert tmp_proxy.rowCount() == 1
+
+    # Act 3 - Clear all filters
+    tmp_view.clear_filters()
+
+    # Assert 3 - Restored all items
+    assert tmp_proxy.rowCount() == 4
+
+    # Act 4 - Filter by range
+    tmp_view.filter_by_range("rng_val", "value", 200, 400)
+
+    # Assert 4 - Value between 200 and 400 (Molecule A, Molecule D)
+    assert tmp_proxy.rowCount() == 2
+
+    # Act 5 - Filter by set
+    tmp_view.clear_filters()
+    tmp_view.filter_by_set("set_cat", "category", {"small", "macro"})
+
+    # Assert 5 - small or macro (Molecule A, Protein C, Molecule D)
+    assert tmp_proxy.rowCount() == 3
+
+
+def test_table_view_low_level_filtering(
+    q_app: QtWidgets.QApplication,
+) -> None:
+    """Verify custom TableFilter subclass registration via low-level API.
+
+    Args:
+        q_app: The QApplication fixture.
+    """
+    assert q_app is not None
+    # Arrange
+    tmp_items = [
+        DummyItem("Molecule A", 250, "small"),
+        DummyItem("Molecule B", 600, "large"),
+        DummyItem("Molecule D", 350, "small"),
+    ]
+    tmp_model = DummyTableModel(column_headers=["Name", "Val", "Cat"])
+    tmp_model.add_rows(tmp_items)
+    tmp_proxy = table_model.SortFilterProxy[DummyItem]()
+    tmp_proxy.setSourceModel(tmp_model)
+    tmp_view = table_view.TableView[DummyItem]()
+    tmp_view.set_model(tmp_proxy)
+
+    # Act
+    tmp_custom_filter = ComplexDummyFilter(300, "small")
+    tmp_view.set_custom_filter("complex_filter", tmp_custom_filter)
+
+    # Assert
+    tmp_proxy = tmp_view._find_filter_proxy()
+    assert tmp_proxy is not None
+    assert tmp_proxy.rowCount() == 1
+    tmp_res_0 = tmp_proxy.data(
+        tmp_proxy.index(0, 0), QtCore.Qt.ItemDataRole.UserRole
+    )
+    assert tmp_res_0 == tmp_items[0]
+
+    # Act 2 - Remove filter
+    tmp_view.remove_filter("complex_filter")
+
+    # Assert 2
+    assert tmp_proxy.rowCount() == 3
