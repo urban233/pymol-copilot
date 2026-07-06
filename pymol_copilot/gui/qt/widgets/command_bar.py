@@ -761,7 +761,7 @@ class CommandBarDropdownButton(CommandBarButton):
         self,
         icon: QtGui.QIcon | None,
         text: str = "",
-        style: CommandBarButtonType = CommandBarButtonStyle.TEXT_BESIDE,
+        style: CommandBarButtonType = CommandBarButtonStyle.ICON_ONLY,
         size: tuple[int, int] | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
