@@ -1,7 +1,9 @@
-# cBioMOL - open C++ and Python platform for BioMOLecular visualization and analysis
+# cBioMOL - open C++ and Python platform for BioMOLecular visualization and
+# analysis
 # -------------------------------------------------------------------
 # This file contains source code for the cBioMOL computer program
-# Copyright (C) 2026 Hannah Kullik, Martin Urban (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
+# Copyright (C) 2026 Hannah Kullik, Martin Urban
+# (hannah.kullik@studmail.w-hs.de, martin.urban@studmail.w-hs.de)
 # Source code is available at <https://github.com/urban233/cBioMOL>
 # -------------------------------------------------------------------
 # It is unlawful to modify or remove this copyright notice.
@@ -43,8 +45,6 @@ import operator
 from typing import Any
 from typing import Callable
 from typing import Generic
-from typing import Optional
-from typing import Protocol
 from typing import TypeVar
 from typing import Union
 from typing import override
@@ -99,9 +99,9 @@ class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
 
     def __init__(
         self,
-        column_headers: Optional[list[str]] = None,
-        sort_key: Optional[Callable[[RowType], Any]] = None,
-        parent: Optional[QtCore.QObject] = None,
+        column_headers: list[str] | None = None,
+        sort_key: Callable[[RowType], Any] | None = None,
+        parent: QtCore.QObject | None = None,
     ) -> None:
         """Initialize the table model.
 
@@ -123,7 +123,7 @@ class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
             self._headers: list[str] = []
         # Any is used here to allow any comparable type returned by the
         # sort key.
-        self._sort_key: Optional[Callable[[RowType], Any]] = sort_key
+        self._sort_key: Callable[[RowType], Any] | None = sort_key
         # </editor-fold>
 
     # <editor-fold desc="Public methods">
@@ -189,19 +189,19 @@ class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
         # Any is required to match QAbstractTableModel.data interface signature.
         if not index.isValid():
             return None
-        row: int = index.row()
-        column: int = index.column()
-        if not (0 <= row < len(self._items)):
+        tmp_row: int = index.row()
+        tmp_column: int = index.column()
+        if not (0 <= tmp_row < len(self._items)):
             return None
-        if not (0 <= column < len(self._headers)):
+        if not (0 <= tmp_column < len(self._headers)):
             return None
 
-        item: object = self._items[row]
+        tmp_item: object = self._items[tmp_row]
 
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
-            return self._cell_data(item, column)
+            return self._cell_data(tmp_item, tmp_column)
         if role == QtCore.Qt.ItemDataRole.UserRole:
-            return item
+            return tmp_item
 
         return None
 
@@ -297,12 +297,14 @@ class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
         if item is None:
             raise ValueError("Invalid parameter: item must not be None.")
 
-        row: int = len(self._items)
-        self.beginInsertRows(QtCore.QModelIndex(), row, row)
+        tmp_row: int = len(self._items)
+        self.beginInsertRows(QtCore.QModelIndex(), tmp_row, tmp_row)
         self._items.append(item)
         self.endInsertRows()
-        logger.debug("TableModel: row successfully appended at index %d.", row)
-        return row
+        logger.debug(
+            "TableModel: row successfully appended at index %d.", tmp_row
+        )
+        return tmp_row
 
     def add_rows(self, items: list[RowType]) -> None:
         """Append multiple rows in a single batched operation.
@@ -322,16 +324,16 @@ class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
         if not items:
             return
 
-        first_row: int = len(self._items)
-        last_row: int = first_row + len(items) - 1
-        self.beginInsertRows(QtCore.QModelIndex(), first_row, last_row)
+        tmp_first_row: int = len(self._items)
+        tmp_last_row: int = tmp_first_row + len(items) - 1
+        self.beginInsertRows(QtCore.QModelIndex(), tmp_first_row, tmp_last_row)
         self._items.extend(items)
         self.endInsertRows()
         logger.debug(
             "TableModel: %d rows successfully appended (rows %d-%d).",
             len(items),
-            first_row,
-            last_row,
+            tmp_first_row,
+            tmp_last_row,
         )
 
     def remove_row(self, row: int) -> None:
@@ -415,10 +417,14 @@ class TableModel(QtCore.QAbstractTableModel, Generic[RowType]):
             raise IndexError(
                 f"Row index {row} is out of range (0..{len(self._items) - 1})."
             )
-        first_index: QtCore.QModelIndex = self.index(row, 0)
-        last_index: QtCore.QModelIndex = self.index(row, len(self._headers) - 1)
+        tmp_first_index: QtCore.QModelIndex = self.index(row, 0)
+        tmp_last_index: QtCore.QModelIndex = self.index(
+            row, len(self._headers) - 1
+        )
         self.dataChanged.emit(
-            first_index, last_index, [QtCore.Qt.ItemDataRole.DisplayRole]
+            tmp_first_index,
+            tmp_last_index,
+            [QtCore.Qt.ItemDataRole.DisplayRole],
         )
 
     @property
@@ -472,10 +478,10 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
     def __init__(
         self,
-        column_headers: Optional[list[str]] = None,
-        dtype: Optional[npt.DTypeLike] = None,
-        sort_key: Optional[Callable[[object], Any]] = None,
-        parent: Optional[QtCore.QObject] = None,
+        column_headers: list[str] | None = None,
+        dtype: npt.DTypeLike | None = None,
+        sort_key: Callable[[object], Any] | None = None,
+        parent: QtCore.QObject | None = None,
     ) -> None:
         """Initialize the NumPy table model.
 
@@ -495,7 +501,7 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         )
         # Any is used here to allow any comparable type returned by the
         # sort key.
-        self._sort_key: Optional[Callable[[object], Any]] = sort_key
+        self._sort_key: Callable[[object], Any] | None = sort_key
         actual_dtype: npt.DTypeLike = dtype if dtype is not None else np.float64
         self._data: np.ndarray = np.empty(
             (0, len(self._headers)), dtype=actual_dtype
@@ -557,17 +563,17 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
         # Any is required to match QAbstractTableModel.data interface signature.
         if not index.isValid():
             return None
-        row: int = index.row()
-        column: int = index.column()
-        if not (0 <= row < self._data.shape[0]):
+        tmp_row: int = index.row()
+        tmp_column: int = index.column()
+        if not (0 <= tmp_row < self._data.shape[0]):
             return None
-        if not (0 <= column < len(self._headers)):
+        if not (0 <= tmp_column < len(self._headers)):
             return None
 
         if role == QtCore.Qt.ItemDataRole.DisplayRole:
-            return self._cell_data(self._data[row], column)
+            return self._cell_data(self._data[tmp_row], tmp_column)
         if role == QtCore.Qt.ItemDataRole.UserRole:
-            return self._data[row]
+            return self._data[tmp_row]
 
         return None
 
@@ -614,24 +620,24 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             return
 
         self.layoutAboutToBeChanged.emit()
-        reverse: bool = order == QtCore.Qt.SortOrder.DescendingOrder
+        tmp_reverse: bool = order == QtCore.Qt.SortOrder.DescendingOrder
 
         if self._sort_key is not None:
-            keys: list[Any] = [
-                self._sort_key(self._data[i])
-                for i in range(self._data.shape[0])
+            tmp_keys: list[Any] = [
+                self._sort_key(self._data[tmp_i])
+                for tmp_i in range(self._data.shape[0])
             ]
-            sorted_indices: list[int] = sorted(
-                range(len(keys)),
-                key=lambda i: keys[i],
-                reverse=reverse,
+            tmp_sorted_indices: list[int] = sorted(
+                range(len(tmp_keys)),
+                key=lambda tmp_i: tmp_keys[tmp_i],
+                reverse=tmp_reverse,
             )
-            self._data = self._data[sorted_indices]
+            self._data = self._data[tmp_sorted_indices]
         else:
-            argsort_indices: np.ndarray = np.argsort(self._data[:, column])
-            if reverse:
-                argsort_indices = argsort_indices[::-1]
-            self._data = self._data[argsort_indices]
+            tmp_argsort_indices: np.ndarray = np.argsort(self._data[:, column])
+            if tmp_reverse:
+                tmp_argsort_indices = tmp_argsort_indices[::-1]
+            self._data = self._data[tmp_argsort_indices]
 
         self.layoutChanged.emit()
 
@@ -666,34 +672,36 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             raise ValueError("Invalid parameter: item must not be None.")
 
         try:
-            row_data: np.ndarray = np.asarray(item, dtype=self._data.dtype)
-        except (ValueError, TypeError) as exception:
-            raise ValueError(f"Data type mismatch: {exception}") from exception
+            tmp_row_data: np.ndarray = np.asarray(item, dtype=self._data.dtype)
+        except (ValueError, TypeError) as tmp_exception:
+            raise ValueError(
+                f"Data type mismatch: {tmp_exception}"
+            ) from tmp_exception
 
-        if row_data.dtype != self._data.dtype:
+        if tmp_row_data.dtype != self._data.dtype:
             raise ValueError(
                 f"Data type mismatch: expected {self._data.dtype}, "
-                f"got {row_data.dtype}."
+                f"got {tmp_row_data.dtype}."
             )
 
-        row_data = row_data.reshape(1, -1)
-        if row_data.shape[1] != len(self._headers):
+        tmp_row_data = tmp_row_data.reshape(1, -1)
+        if tmp_row_data.shape[1] != len(self._headers):
             raise ValueError(
                 "Invalid parameter format: row length "
-                f"{row_data.shape[1]} does not match column count "
+                f"{tmp_row_data.shape[1]} does not match column count "
                 f"{len(self._headers)}."
             )
 
-        row: int = self._data.shape[0]
-        self.beginInsertRows(QtCore.QModelIndex(), row, row)
+        tmp_row: int = self._data.shape[0]
+        self.beginInsertRows(QtCore.QModelIndex(), tmp_row, tmp_row)
         # Directly extend _data so the model is consistent for the entire
         # duration of the beginInsertRows / endInsertRows pair.  Deferring
         # this into a pending buffer and flushing inside data() was unsafe:
         # the view's C++ delegate could call data() mid-paint and trigger a
         # np.vstack that moved the array in memory.
-        self._data = np.vstack([self._data, row_data])
+        self._data = np.vstack([self._data, tmp_row_data])
         self.endInsertRows()
-        return row
+        return tmp_row
 
     def add_rows(self, items: Any) -> None:
         """Append multiple rows in a single batched operation.
@@ -708,33 +716,37 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
             raise ValueError("Invalid parameter: items must not be None.")
 
         try:
-            rows_data: np.ndarray = np.asarray(items, dtype=self._data.dtype)
-        except (ValueError, TypeError) as exception:
-            raise ValueError(f"Data type mismatch: {exception}") from exception
+            tmp_rows_data: np.ndarray = np.asarray(
+                items, dtype=self._data.dtype
+            )
+        except (ValueError, TypeError) as tmp_exception:
+            raise ValueError(
+                f"Data type mismatch: {tmp_exception}"
+            ) from tmp_exception
 
-        if rows_data.dtype != self._data.dtype:
+        if tmp_rows_data.dtype != self._data.dtype:
             raise ValueError(
                 f"Data type mismatch: expected {self._data.dtype}, "
-                f"got {rows_data.dtype}."
+                f"got {tmp_rows_data.dtype}."
             )
 
-        if rows_data.ndim == 1:
-            rows_data = rows_data.reshape(1, -1)
+        if tmp_rows_data.ndim == 1:
+            tmp_rows_data = tmp_rows_data.reshape(1, -1)
 
-        if rows_data.shape[1] != len(self._headers):
+        if tmp_rows_data.shape[1] != len(self._headers):
             raise ValueError(
                 "Invalid parameter format: input column count "
-                f"{rows_data.shape[1]} does not match model columns "
+                f"{tmp_rows_data.shape[1]} does not match model columns "
                 f"{len(self._headers)}."
             )
 
-        if rows_data.shape[0] == 0:
+        if tmp_rows_data.shape[0] == 0:
             return
 
-        first_row: int = self._data.shape[0]
-        last_row: int = first_row + rows_data.shape[0] - 1
-        self.beginInsertRows(QtCore.QModelIndex(), first_row, last_row)
-        self._data = np.vstack([self._data, rows_data])
+        tmp_first_row: int = self._data.shape[0]
+        tmp_last_row: int = tmp_first_row + tmp_rows_data.shape[0] - 1
+        self.beginInsertRows(QtCore.QModelIndex(), tmp_first_row, tmp_last_row)
+        self._data = np.vstack([self._data, tmp_rows_data])
         self.endInsertRows()
 
     def remove_row(self, row: int) -> None:
@@ -852,11 +864,11 @@ class NumpyTableModel(QtCore.QAbstractTableModel):
 
 
 def create_list_table_model(
-    column_headers: Optional[list[str]] = None,
-    initial_data: Optional[list[object]] = None,
-    sort_key: Optional[Callable[[object], Any]] = None,
-    parent: Optional[QtCore.QObject] = None,
-) -> "TableModel":
+    column_headers: list[str] | None = None,
+    initial_data: list[object] | None = None,
+    sort_key: Callable[[object], Any] | None = None,
+    parent: QtCore.QObject | None = None,
+) -> TableModel:
     """Create a table model backed by a Python list.
 
     Args:
@@ -868,23 +880,23 @@ def create_list_table_model(
     Returns:
         An instance of TableModel.
     """
-    model: TableModel = TableModel(
+    tmp_model: TableModel = TableModel(
         column_headers=column_headers,
         sort_key=sort_key,
         parent=parent,
     )
     if initial_data is not None and len(initial_data) > 0:
-        model.add_rows(initial_data)
-    return model
+        tmp_model.add_rows(initial_data)
+    return tmp_model
 
 
 def create_numpy_table_model(
-    column_headers: Optional[list[str]] = None,
-    initial_data: Optional[np.ndarray] = None,
-    dtype: Optional[npt.DTypeLike] = None,
-    sort_key: Optional[Callable[[object], Any]] = None,
-    parent: Optional[QtCore.QObject] = None,
-) -> "NumpyTableModel":
+    column_headers: list[str] | None = None,
+    initial_data: np.ndarray | None = None,
+    dtype: npt.DTypeLike | None = None,
+    sort_key: Callable[[object], Any] | None = None,
+    parent: QtCore.QObject | None = None,
+) -> NumpyTableModel:
     """Create a table model backed by a NumPy array.
 
     Args:
@@ -897,15 +909,15 @@ def create_numpy_table_model(
     Returns:
         An instance of NumpyTableModel.
     """
-    model: NumpyTableModel = NumpyTableModel(
+    tmp_model: NumpyTableModel = NumpyTableModel(
         column_headers=column_headers,
         dtype=dtype,
         sort_key=sort_key,
         parent=parent,
     )
     if initial_data is not None and len(initial_data) > 0:
-        model.add_rows(initial_data)
-    return model
+        tmp_model.add_rows(initial_data)
+    return tmp_model
 
 
 Comparable = Union[int, float, str]
@@ -1093,7 +1105,7 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel, Generic[RowType]):
             filter.
     """
 
-    def __init__(self, parent: Optional[QtCore.QObject] = None) -> None:
+    def __init__(self, parent: QtCore.QObject | None = None) -> None:
         """Initialize the proxy with no filter applied (all rows visible).
 
         Args:
@@ -1103,7 +1115,7 @@ class SortFilterProxy(QtCore.QSortFilterProxyModel, Generic[RowType]):
         super().__init__(parent)
         # <editor-fold desc="Instance attributes">
         self._filters: dict[str, TableFilter[RowType]] = {}
-        self._cached_mask: Optional[np.ndarray] = None
+        self._cached_mask: np.ndarray | None = None
         self._filter_column: int = 0
         self._accepted_values: frozenset[str] = frozenset()
         # </editor-fold>
