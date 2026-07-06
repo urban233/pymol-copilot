@@ -50,6 +50,9 @@ from typing import Any
 from typing import Optional
 import logging
 
+import numpy as np
+import numpy.typing as npt
+
 from pymol_copilot.gui.qt import QtCore
 
 logger = logging.getLogger(__name__)
@@ -377,3 +380,293 @@ class ListModel(QtCore.QAbstractListModel):
         return None
 
     # </editor-fold>
+
+
+class NumpyListModel(QtCore.QAbstractListModel):
+    """A flat list model backed by a 1D NumPy array.
+
+    Stores all row elements in a contiguous 1D NumPy array. Ideal for
+    large datasets of homogeneous data types, such as coordinates, indexes,
+    or numeric values, where standard Python lists would incur high memory
+    overhead and heap fragmentation.
+
+    Attributes:
+        _data: The backing 1D NumPy array.
+    """
+
+    def __init__(
+        self,
+        initial_data: Optional[npt.ArrayLike] = None,
+        dtype: Optional[npt.DTypeLike] = None,
+        parent: Optional[QtCore.QObject] = None,
+    ) -> None:
+        """Initialize the NumPy list model with optional seed data.
+
+        Args:
+            initial_data: Optional NumPy array or array-like seed data to
+                populate the model.
+            dtype: Optional NumPy data type for the backing array. Defaults
+                to np.float64.
+            parent: Optional Qt parent object.
+        """
+        super().__init__(parent)
+        tmp_actual_dtype = dtype if dtype is not None else np.float64
+        if initial_data is not None:
+            self._data: np.ndarray = np.asarray(
+                initial_data, dtype=tmp_actual_dtype
+            )
+        else:
+            self._data = np.empty((0,), dtype=tmp_actual_dtype)
+
+    def rowCount(  # noqa: N802
+        self,
+        parent: QtCore.QModelIndex = QtCore.QModelIndex(),  # noqa: B008
+    ) -> int:
+        """Return the number of rows in the model.
+
+        Args:
+            parent: The parent index. A valid parent means we are inside a
+                sub-tree, which this model does not support.
+
+        Returns:
+            The total number of items in the model, or 0 when parent
+            is valid.
+        """
+        if parent.isValid():
+            return 0
+        return self._data.shape[0]
+
+    def data(
+        self,
+        index: QtCore.QModelIndex,
+        role: int = QtCore.Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        """Return the data stored for index under the given role.
+
+        Args:
+            index: The model index to query. Must be valid.
+            role: The data role requested by the view.
+
+        Returns:
+            A value for the requested role, or None.
+        """
+        if not index.isValid() or not (0 <= index.row() < self._data.shape[0]):
+            return None
+
+        tmp_val = self._data[index.row()]
+
+        if role == QtCore.Qt.ItemDataRole.DisplayRole:
+            return self._display_text(tmp_val)
+        if role == QtCore.Qt.ItemDataRole.UserRole:
+            return tmp_val
+        if role == QtCore.Qt.ItemDataRole.ToolTipRole:
+            return self._tooltip_for_item(tmp_val)
+
+        return None
+
+    def add_item(self, item: Any) -> int:
+        """Append a single item to the end of the model.
+
+        Args:
+            item: The value to append.
+
+        Returns:
+            The row index of the newly inserted item.
+
+        Raises:
+            ValueError: If item is None or cannot be coerced to the backing
+                array's data type.
+        """
+        if item is None:
+            raise ValueError("item must not be None")
+
+        try:
+            tmp_coerced = np.asarray([item], dtype=self._data.dtype)
+        except (ValueError, TypeError) as tmp_exc:
+            raise ValueError(f"Data type mismatch: {tmp_exc}") from tmp_exc
+
+        tmp_row = self._data.shape[0]
+        self.beginInsertRows(QtCore.QModelIndex(), tmp_row, tmp_row)
+        self._data = np.concatenate([self._data, tmp_coerced])
+        self.endInsertRows()
+        logger.debug("NumpyListModel: item appended at row %d.", tmp_row)
+        return tmp_row
+
+    def add_items(self, items: npt.ArrayLike) -> None:
+        """Append multiple items in a single batched operation.
+
+        Args:
+            items: The array-like sequence of objects to append.
+
+        Raises:
+            ValueError: If items is None or cannot be coerced.
+        """
+        if items is None:
+            raise ValueError("items must not be None")
+
+        try:
+            tmp_coerced = np.asarray(items, dtype=self._data.dtype)
+        except (ValueError, TypeError) as tmp_exc:
+            raise ValueError(f"Data type mismatch: {tmp_exc}") from tmp_exc
+
+        if tmp_coerced.size == 0:
+            return
+
+        tmp_first_row = self._data.shape[0]
+        tmp_last_row = tmp_first_row + tmp_coerced.size - 1
+        self.beginInsertRows(QtCore.QModelIndex(), tmp_first_row, tmp_last_row)
+        self._data = np.concatenate([self._data, tmp_coerced.reshape(-1)])
+        self.endInsertRows()
+        logger.debug(
+            "NumpyListModel: %d items appended (rows %d-%d).",
+            tmp_coerced.size,
+            tmp_first_row,
+            tmp_last_row,
+        )
+
+    def remove_item(self, row: int) -> None:
+        """Remove the item at the given row index.
+
+        Args:
+            row: Zero-based row index of the item to remove.
+
+        Raises:
+            IndexError: If row is out of bounds.
+        """
+        if not (0 <= row < self._data.shape[0]):
+            raise IndexError(
+                f"Row {row} is out of range (0..{self._data.shape[0] - 1})"
+            )
+
+        self.beginRemoveRows(QtCore.QModelIndex(), row, row)
+        self._data = np.delete(self._data, row)
+        self.endRemoveRows()
+        logger.debug("NumpyListModel: item at row %d removed.", row)
+
+    def remove_items(self, row: int, count: int) -> None:
+        """Remove a block of items from the model in a single batch.
+
+        Args:
+            row: The starting zero-based row index to remove.
+            count: The number of items to remove.
+
+        Raises:
+            ValueError: If count is negative.
+            IndexError: If the range [row, row + count) is out of bounds.
+        """
+        if count < 0:
+            raise ValueError("count must not be negative")
+        if count == 0:
+            return
+
+        tmp_last_row = row + count - 1
+        if not (0 <= row < self._data.shape[0]) or not (
+            0 <= tmp_last_row < self._data.shape[0]
+        ):
+            raise IndexError(
+                f"Range [{row}, {tmp_last_row}] is out of bounds "
+                f"(0..{self._data.shape[0] - 1})"
+            )
+
+        self.beginRemoveRows(QtCore.QModelIndex(), row, tmp_last_row)
+        self._data = np.delete(self._data, np.arange(row, row + count))
+        self.endRemoveRows()
+        logger.debug(
+            "NumpyListModel: %d items removed starting at row %d.",
+            count,
+            row,
+        )
+
+    def clear(self) -> None:
+        """Remove all items from the model."""
+        if self._data.shape[0] == 0:
+            return
+        self.beginResetModel()
+        self._data = np.empty((0,), dtype=self._data.dtype)
+        self.endResetModel()
+        logger.debug("NumpyListModel: all items cleared.")
+
+    def item(self, row: int) -> Any:
+        """Return the raw item value stored at row.
+
+        Args:
+            row: Zero-based row index.
+
+        Returns:
+            The value stored at the given row.
+
+        Raises:
+            IndexError: If row is out of bounds.
+        """
+        if not (0 <= row < self._data.shape[0]):
+            raise IndexError(
+                f"Row {row} is out of range (0..{self._data.shape[0] - 1})"
+            )
+        return self._data[row]
+
+    def items(self) -> np.ndarray:
+        """Return a copy of the backing NumPy array.
+
+        Returns:
+            A copy of the backing 1D NumPy array.
+        """
+        return np.copy(self._data)
+
+    def iter_items(self) -> Generator[Any, None, None]:
+        """Yield stored items lazily without memory allocation.
+
+        Returns:
+            A generator yielding each stored item in row order.
+        """
+        yield from self._data
+
+    def is_empty(self) -> bool:
+        """Return whether the model contains no items.
+
+        Returns:
+            True if the model has zero rows.
+        """
+        return self._data.shape[0] == 0
+
+    def notify_item_changed(self, row: int) -> None:
+        """Notify attached views that the item at row has changed.
+
+        Args:
+            row: Zero-based row index of the modified item.
+
+        Raises:
+            IndexError: If row is out of bounds.
+        """
+        if not (0 <= row < self._data.shape[0]):
+            raise IndexError(
+                f"Row {row} is out of range (0..{self._data.shape[0] - 1})"
+            )
+        tmp_index = self.index(row)
+        self.dataChanged.emit(
+            tmp_index,
+            tmp_index,
+            [QtCore.Qt.ItemDataRole.DisplayRole],
+        )
+
+    def _display_text(self, item: Any) -> str:
+        """Return the string shown in the view for item.
+
+        Args:
+            item: The raw item value stored in the model.
+
+        Returns:
+            A non-empty string to display in the view.
+        """
+        return str(item)
+
+    def _tooltip_for_item(self, item: Any) -> Optional[str]:
+        """Return an optional tooltip string for item.
+
+        Args:
+            item: The raw item value stored in the model.
+
+        Returns:
+            A tooltip string, or None to suppress the tooltip.
+        """
+        _ = item
+        return None
