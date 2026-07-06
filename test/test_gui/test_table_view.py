@@ -15,7 +15,7 @@
 #
 # ==============================================================================
 #
-"""Unit tests for the TableView and TableViewWithToolbar widgets."""
+"""Unit tests for the TableView and TableViewWithCommandBar widgets."""
 
 from __future__ import annotations
 
@@ -201,10 +201,10 @@ def test_table_view_select_all_apis(q_app: QtWidgets.QApplication) -> None:
     assert tmp_view.selected_items() == []
 
 
-def test_table_view_with_toolbar_integration(
+def test_table_view_with_command_bar_integration(
     q_app: QtWidgets.QApplication,
 ) -> None:
-    """Verify checkbox and selection APIs on TableViewWithToolbar.
+    """Verify checkbox and selection APIs on TableViewWithCommandBar.
 
     Args:
         q_app: The QApplication fixture.
@@ -217,7 +217,7 @@ def test_table_view_with_toolbar_integration(
     ]
     tmp_model = DummyTableModel(column_headers=["Name", "Val"])
     tmp_model.add_rows(tmp_items)
-    tmp_search_view = table_view.TableViewWithToolbar()
+    tmp_search_view = table_view.TableViewWithCommandBar()
     tmp_search_view.set_model(tmp_model)
 
     # Act & Assert
@@ -249,7 +249,7 @@ def test_table_view_select_all_checkbox_with_filter(
     ]
     tmp_model = DummyTableModel(column_headers=["Name", "Val"])
     tmp_model.add_rows(tmp_items)
-    tmp_search_view = table_view.TableViewWithToolbar(filter_column=0)
+    tmp_search_view = table_view.TableViewWithCommandBar(filter_column=0)
     tmp_search_view.set_model(tmp_model)
     tmp_search_view.set_checkboxes_enabled(True)
 

@@ -20,10 +20,10 @@
 """Provide table view widgets for table models.
 
 This module provides TableView (a QTableView pre-configured for use with
-table_model.TableModel and SortFilterProxy) and TableViewWithToolbar (a
-composite widget that places a configurable toolbar row above a TableView).
-The toolbar contains a search field that filters rows in real time via a
-SortFilterProxy and an optional area for custom action buttons.
+table_model.TableModel and SortFilterProxy) and TableViewWithCommandBar (a
+composite widget that places a configurable command bar above a TableView).
+The command bar contains a search field that filters rows in real time via a
+SortFilterProxy and a CommandBar slot for custom actions.
 
 Notes:
     Design rationale:
@@ -32,7 +32,7 @@ Notes:
     turn off one by one. TableView inverts this: it starts from
     a clean baseline and lets callers opt-in to extras.
 
-TableViewWithToolbar follows the same pattern used by
+TableViewWithCommandBar follows the same pattern used by
 ListViewWithSearchBlock: filtering happens via QSortFilterProxyModel rather
 than row-hiding because table data usually has enough columns that a proxy's
 index mapping is the correct abstraction.
@@ -54,8 +54,8 @@ Example:
     view = table_view.TableView()
     view.set_model(model)
 
-    # Table with toolbar search + proxy:
-    combo = table_view.TableViewWithToolbar(filter_column=1)
+    # Table with command bar search + proxy:
+    combo = table_view.TableViewWithCommandBar(filter_column=1)
     combo.set_model(model)
 """
 
@@ -73,6 +73,7 @@ from pymol_copilot.gui.qt import QtGui
 from pymol_copilot.gui.qt import QtWidgets
 from pymol_copilot.gui.qt import ui_defaults
 from pymol_copilot.gui.qt.model import table_model
+from pymol_copilot.gui.qt.widgets import command_bar
 
 logger = logging.getLogger(__name__)
 
@@ -1067,30 +1068,23 @@ class TableView(QtWidgets.QTableView, Generic[RowType]):
     # </editor-fold>
 
 
-class TableViewWithToolbar(QtWidgets.QWidget, Generic[RowType]):
-    """A composite widget combining a toolbar with a TableView.
+class TableViewWithCommandBar(QtWidgets.QWidget, Generic[RowType]):
+    """A composite widget combining a search/filter bar and a TableView.
 
-    The toolbar row contains a QLineEdit search field that filters displayed
-    rows in real time using a SortFilterProxy, and a right-aligned
-    QHBoxLayout slot (toolbar_actions_layout) where callers can insert custom
-    QPushButton or QAction widgets.
-
-    The search field filters by exact substring match (case-insensitive)
-    against the display text of the column specified by filter_column.
-    Set filter_column to -1 to disable the search field.
+    The toolbar row contains a QLineEdit search field on the left and a
+    CommandBar on the right.
 
     Attributes:
         search_field: The QLineEdit for live filtering.
+        command_bar: The inner CommandBar widget.
         table_view: The inner TableView.
-        toolbar_actions_layout: Right-aligned QHBoxLayout for custom buttons.
         row_activated: Forwarded from table_view.
 
     Example:
-        combo = TableViewWithToolbar(filter_column=2)
+        btn = command_bar.CommandBarActionButton(None, text="Refresh")
+        combo = TableViewWithCommandBar(filter_column=2)
         combo.set_model(my_table_model)
-
-        refresh_btn = QPushButton("Refresh")
-        combo.toolbar_actions_layout.addWidget(refresh_btn)
+        combo.add_command_button(btn)
     """
 
     # <editor-fold desc="Class attributes">
@@ -1117,9 +1111,7 @@ class TableViewWithToolbar(QtWidgets.QWidget, Generic[RowType]):
         self._proxy: table_model.SortFilterProxy[RowType] | None = None
         self.search_field: QtWidgets.QLineEdit = QtWidgets.QLineEdit()
         self.select_all_checkbox = QtWidgets.QCheckBox("Select All")
-        self.toolbar_actions_layout: QtWidgets.QHBoxLayout = (
-            QtWidgets.QHBoxLayout()
-        )
+        self.command_bar: command_bar.CommandBar = command_bar.CommandBar([])
         self.table_view: TableView[RowType] = TableView()
         # </editor-fold>
         self._init_widget()
@@ -1164,13 +1156,13 @@ class TableViewWithToolbar(QtWidgets.QWidget, Generic[RowType]):
         """
         return self.table_view.current_item()
 
-    def add_action_button(self, button: QtWidgets.QAbstractButton) -> None:
-        """Add a button to the right side of the toolbar.
+    def add_command_button(self, button: command_bar.CommandBarButton) -> None:
+        """Add a CommandBarButton to the right side of the command bar.
 
         Args:
-            button: The button widget to add.
+            button: The command bar button widget to add.
         """
-        self.toolbar_actions_layout.addWidget(button)
+        self.command_bar.append_command_button(button)
 
     def set_checkboxes_enabled(self, enabled: bool) -> None:
         """Enable or disable multi-select checkboxes on the inner table view.
@@ -1314,18 +1306,13 @@ class TableViewWithToolbar(QtWidgets.QWidget, Generic[RowType]):
         self.select_all_checkbox.setTristate(True)
         self.select_all_checkbox.setVisible(False)
 
-        self.toolbar_actions_layout.setContentsMargins(
-            *ui_defaults.EMPTY_CONTENTS_MARGINS
-        )
-        self.toolbar_actions_layout.setSpacing(ui_defaults.default_spacing())
-
         tmp_toolbar_layout: QtWidgets.QHBoxLayout = QtWidgets.QHBoxLayout()
         tmp_toolbar_layout.setContentsMargins(
             *ui_defaults.EMPTY_CONTENTS_MARGINS
         )
         tmp_toolbar_layout.setSpacing(ui_defaults.default_spacing() * 2)
         tmp_toolbar_layout.addWidget(self.search_field, stretch=1)
-        tmp_toolbar_layout.addLayout(self.toolbar_actions_layout)
+        tmp_toolbar_layout.addWidget(self.command_bar)
 
         tmp_root_layout: QtWidgets.QVBoxLayout = QtWidgets.QVBoxLayout(self)
         tmp_root_layout.setContentsMargins(*ui_defaults.EMPTY_CONTENTS_MARGINS)
