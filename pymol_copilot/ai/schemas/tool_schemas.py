@@ -28,7 +28,9 @@ The schema list is consumed by:
   - The system-prompt builder (injected at inference time, Phase 3).
   - The GBNF grammar generator (constrains model output, Phase 3).
   - ``explanations.py`` (JSON → human-readable prose, Phase 4).
-  - The synthetic training-data generator (Phase 2).
+  - The synthetic training-data generator (Phase 2): workflow.py samples
+    scenarios, build_conversations.py assembles + validates tool calls
+    against TOOL_SCHEMAS_BY_NAME below.
 
 Design invariant: every ``parameters.properties`` entry **must** contain a
 ``description`` field.  The model is a small quantized model; rich
@@ -783,3 +785,8 @@ TOOL_SCHEMAS: list[dict] = [
     _SAVE_SESSION,
     _EXPORT_COORDINATES,
 ]
+
+# Added for the dataset-factory pipeline (workflow.py / build_conversations.py):
+# a name -> schema lookup so tool calls can be validated with jsonschema without
+# every consumer re-implementing the same linear scan.
+TOOL_SCHEMAS_BY_NAME: dict[str, dict] = {t["name"]: t for t in TOOL_SCHEMAS}

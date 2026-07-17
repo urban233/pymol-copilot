@@ -262,13 +262,16 @@ def _build_seeds() -> dict[str, list[str]]:
         ],
         "positive_multi_step": [
             (
-                "Load lysozyme (2LZM), show as cartoon, color by secondary structure"
+                "Load lysozyme (2LZM), show as cartoon, "
+                "color by secondary structure"
             ),
             (
-                "Load trypsin (1TIM), set background white, save a high-resolution PNG"
+                "Load trypsin (1TIM), set background white, "
+                "save a high-resolution PNG"
             ),
             (
-                "Load hemoglobin (4HHB), color by chain, label each chain with its ID"
+                "Load hemoglobin (4HHB), color by chain, "
+                "label each chain with its ID"
             ),
             (
                 "Load calmodulin (1CLL), show as sticks, "
@@ -279,13 +282,17 @@ def _build_seeds() -> dict[str, list[str]]:
                 "show contacts to protein within 3.5 Å"
             ),
             (
-                "Load two forms of the same protein, "
-                "align them, color mobile red, target blue"
+                "Load two forms of the same protein, align them, "
+                "color mobile red, target blue"
             ),
             (
-                "Load insulin receptor (2HR7), select chain A, export it as a PDB file"
+                "Load insulin receptor (2HR7), select chain A, "
+                "export it as a PDB file"
             ),
-            ("Load a local structure file, color by chain, save the session"),
+            (
+                "Load a local structure file, color by chain, "
+                "save the session"
+            ),
             (
                 "Load streptavidin (1SWB), show surface, "
                 "color by secondary structure, set white background"
@@ -354,6 +361,264 @@ def _build_seeds() -> dict[str, list[str]]:
             (
                 "Load thrombin (2BXT), select the catalytic triad, "
                 "label residues, show contacts with the inhibitor"
+            ),
+        ],
+        # Deep-workflow seeds: 10–25 sequential tool calls expected.
+        # These represent complex, realistic multi-step requests that a
+        # structural biologist would write as a single prompt to the
+        # LangGraph agent planner.  The generating LLM must produce a
+        # correspondingly long tool_calls array — truncation is an error.
+        "positive_deep_workflow": [
+            (
+                "Load 6LU7, select the catalytic dyad (His41 and "
+                "Cys145), show those residues as sticks, label them "
+                "by residue name, select all HETATM within 5 Å "
+                "excluding water, show the ligand as sticks too, "
+                "measure the distance from Cys145 SG to the closest "
+                "ligand atom, show all contacts between the catalytic "
+                "residues and the ligand within 4.5 Å, set the "
+                "background to white, and save a ray-traced "
+                "publication PNG"
+            ),
+            (
+                "Load the open (4AKE) and closed (1AKE) forms of "
+                "adenylate kinase, align the closed onto the open, "
+                "select the LID domain (chain A residues 118-160) in "
+                "both structures, color the open form cyan and the "
+                "closed form orange, measure three inter-domain "
+                "distances in each conformation, export the LID domain "
+                "selection from each structure as separate PDB files, "
+                "and save the session"
+            ),
+            (
+                "Load the GroEL chaperonin (1AON), color each of the "
+                "seven chains in the ring a distinct color, show the "
+                "ring as surface, select all residues within 8 Å of "
+                "the central cavity aperture, show those as sticks, "
+                "label them by residue name, and save a ray-traced "
+                "figure with a black background"
+            ),
+            (
+                "Load antibody 6XC2, select all six CDR loops "
+                "(L1, L2, L3 on the light chain; H1, H2, H3 on the "
+                "heavy chain) individually, color each CDR a different "
+                "color, show contacts at the CDR-antigen interface "
+                "within 4 Å, label all CDR residues with their three- "
+                "letter codes, set white background, and export a "
+                "high-resolution ray-traced figure"
+            ),
+            (
+                "Load the thrombin–inhibitor complex (2BXT), select "
+                "the catalytic triad (His57, Asp102, Ser195), show it "
+                "as sticks, label by residue name, select the inhibitor "
+                "(HETATM excluding water), show it as sticks, measure "
+                "the Ser195 OG to inhibitor distance and the His57 "
+                "NE2 to inhibitor distance, show all contacts between "
+                "the triad and inhibitor within 3.5 Å, and save a "
+                "session plus a ray-traced figure"
+            ),
+            (
+                "Load wild-type and mutant EGFR kinase structures "
+                "(1IEP for WT and 2GS7 for the T790M mutant), align "
+                "the mutant onto the WT, select the ATP-binding pocket "
+                "in each (residues within 6 Å of the co-crystallized "
+                "ATP analog), measure three key distances in each "
+                "pocket, color the WT blue and the mutant red, export "
+                "both pocket selections as PDB files, and save the "
+                "comparison session"
+            ),
+            (
+                "Load the beta-2 adrenergic receptor (2RH1), show as "
+                "cartoon, color by secondary structure, select the "
+                "transmembrane helices individually (seven chains or "
+                "helix regions), color each helix a distinct color, "
+                "select the ligand (carazolol) and show it as sticks, "
+                "select all residues within 5 Å of the ligand, show "
+                "contacts at 4 Å, label the binding-site residues by "
+                "name, set white background, and save a ray-traced PNG"
+            ),
+            (
+                "Load the hemoglobin tetramer (1HHO), select each of "
+                "the four chains (two alpha, two beta) individually, "
+                "color each chain differently, select the heme groups "
+                "(HETATM), show them as sticks and color them orange, "
+                "measure the iron–iron distance between the two alpha "
+                "chains, show contacts between each heme and its "
+                "surrounding protein residues within 4 Å, label the "
+                "proximal histidines by residue name, and save a "
+                "session and a ray-traced figure"
+            ),
+            (
+                "Load the ribosome subunit (4V9D), show RNA as cartoon "
+                "in blue, show all protein chains as cartoon in grey, "
+                "select the decoding center (residues within 8 Å of "
+                "the A-site tRNA position), show contacts between the "
+                "mRNA and ribosomal RNA within 3.5 Å, label key "
+                "ribosomal RNA residues by name, set black background, "
+                "and export a high-resolution ray-traced preview PNG"
+            ),
+            (
+                "Load calmodulin bound to a peptide (1CLL), add "
+                "hydrogens, select the four calcium-binding EF-hand "
+                "loops individually, color each loop a distinct color, "
+                "measure the Ca–Ca distances between EF hands 1-2 and "
+                "3-4, show contacts between the calcium ions and their "
+                "coordinating oxygens within 2.5 Å, label all "
+                "coordinating residues by name, and save the session"
+            ),
+            (
+                "Load the GroES co-chaperonin cap (1AON), then load "
+                "the GroEL ring (1AON) separately, align GroES onto "
+                "the apical domain of GroEL, show contacts at the "
+                "GroEL–GroES interface within 5 Å, color GroEL marine "
+                "and GroES orange, select mobile loop residues (GGIVLTGSAA "
+                "region) and label by name, measure three interface "
+                "distances, and save a ray-traced figure of the complex"
+            ),
+            (
+                "Load the proteasome 20S core (1YAL), list all chains, "
+                "select the catalytic beta subunits by chain, show them "
+                "as surface, color each beta subunit a distinct color, "
+                "select the active-site threonine residues (Thr1 in "
+                "each beta subunit), show them as sticks, measure the "
+                "inter-subunit distances between active sites, label "
+                "all Thr1 residues by name, and save the session plus "
+                "a ray-traced figure"
+            ),
+            (
+                "Load P450cam in the substrate-bound form (2CPP), add "
+                "hydrogens, select the heme iron and its axial "
+                "cysteine ligand (Cys357), show them as sticks, select "
+                "the substrate (camphor, HETATM), show it as sticks, "
+                "measure the Fe–substrate carbon distance, show all "
+                "contacts between the substrate and active-site "
+                "residues within 4 Å, label active-site residues by "
+                "name, set white background, and export a ray-traced PNG"
+            ),
+            (
+                "Load the HIV protease dimer with inhibitor (1HVR), "
+                "select chain A and chain B separately and color them "
+                "differently, select the inhibitor (HETATM excluding "
+                "water), show it as sticks in yellow, select all "
+                "residues from both chains within 5 Å of the inhibitor, "
+                "show contacts at 4 Å, label binding-site residues by "
+                "name, measure two key dimer-interface distances, and "
+                "save a session and a ray-traced publication figure"
+            ),
+            (
+                "Load myosin S1 fragment (1MND), show as cartoon, "
+                "select the nucleotide-binding P-loop (residues 175-185 "
+                "in chain A), show it as sticks, select the ATP "
+                "analog (HETATM), show it as sticks, measure the Lys185 "
+                "NZ to ATP gamma-phosphate distance, measure the Gly457 "
+                "CA to ATP distance, show contacts within 3.5 Å, label "
+                "all P-loop residues by name, and save the session"
+            ),
+            (
+                "Load the ion channel KcsA (1BL8) in its closed state, "
+                "select each of the four identical subunits individually, "
+                "color each subunit a distinct color, select the "
+                "selectivity filter (residues TVGYG, approximately "
+                "residues 74-78 in each chain), show them as sticks, "
+                "select the potassium ions (HETATM), show them as "
+                "spheres, measure ion–ion distances along the pore, "
+                "show contacts between ions and filter residues within "
+                "3 Å, and save a ray-traced figure"
+            ),
+            (
+                "Load the insulin hexamer (4INS), list all loaded "
+                "objects, select all six insulin chains and color each "
+                "a distinct color, select the zinc ions (HETATM), show "
+                "them as spheres in grey, select all residues within "
+                "4 Å of any zinc ion, show those as sticks, measure "
+                "two Zn–His coordination distances, label all zinc- "
+                "coordinating histidines by residue name, and save a "
+                "session and a ray-traced publication figure"
+            ),
+            (
+                "Load the triosephosphate isomerase dimer (1TIM), "
+                "align the two subunits on each other, select the "
+                "active-site residues in both subunits (His95 and "
+                "Glu165 and their neighbors), show them as sticks, "
+                "label them by residue name, measure the His95 NE2 "
+                "to Glu165 OE1 distance in each subunit, show contacts "
+                "between active-site residues within 4 Å, set white "
+                "background, and export both active-site selections as "
+                "PDB files, then save the session"
+            ),
+            (
+                "Load the voltage-gated potassium channel (2A79), "
+                "show as cartoon, select the voltage sensor domain "
+                "(S1-S4 helices, approximately residues 1-145 in each "
+                "chain), color the voltage sensor orange and the pore "
+                "domain blue, select the gating charge residues "
+                "(arginines in S4), show them as sticks, label by "
+                "residue name and number, measure three S4-arginine "
+                "to S2-glutamate distances, and save a ray-traced figure"
+            ),
+            (
+                "Load the ubiquitin-proteasome degradation signal "
+                "complex (1UBQ plus 1YAL), align the structures, select "
+                "the C-terminus of ubiquitin (last 5 residues), select "
+                "the 26S proteasome receptor site, show contacts "
+                "between them at 5 Å, color ubiquitin yellow and the "
+                "receptor marine, label all interface residues by "
+                "residue name, export the interface as a PDB, and save "
+                "a ray-traced comparison figure"
+            ),
+            (
+                "Load the whole antibody–antigen complex (1IGT), show "
+                "as cartoon, color Fc region grey, color Fab1 marine, "
+                "color Fab2 orange, select the antigen chain and color "
+                "it red, select all residues at the Fab1-antigen "
+                "interface within 5 Å, show contacts at 4 Å, label "
+                "interface residues by name, measure three epitope "
+                "distances, export the epitope as PDB, and save a "
+                "session plus a ray-traced publication figure"
+            ),
+            (
+                "Load the ABC transporter (1OYA), list all chains, "
+                "select the two NBD (nucleotide-binding domain) "
+                "subunits, color NBD1 teal and NBD2 salmon, select the "
+                "ATP-binding sites in each NBD (HETATM within 6 Å), "
+                "show ATP analogs as sticks, measure the Walker-A "
+                "lysine to ATP gamma-phosphate distances in both NBDs, "
+                "show contacts between each ATP and its NBD within "
+                "4 Å, label key Walker-A residues by name, and save a "
+                "ray-traced figure plus session"
+            ),
+            (
+                "Load the PCNA sliding clamp trimer (1AXC), select "
+                "each of the three identical subunits and color them "
+                "differently, select the inter-subunit interfaces, "
+                "show contacts at each interface within 4 Å, measure "
+                "three inter-subunit distances, label key interface "
+                "residues by name, show the inner DNA-binding surface "
+                "as surface representation, set black background, and "
+                "save a ray-traced figure"
+            ),
+            (
+                "Load the caspase-3 homodimer (2XYZ), add hydrogens, "
+                "select the two active sites (Cys163 and His121 in "
+                "each chain), show them as sticks, select the "
+                "substrate peptide analog (HETATM), show it as sticks, "
+                "measure Cys163 SG to substrate P1 carbonyl distances "
+                "in both active sites, show contacts between each "
+                "active site and the substrate within 4 Å, label all "
+                "key residues by name, and export both active sites "
+                "as PDB files plus save a session"
+            ),
+            (
+                "Load three structures of the same kinase in different "
+                "states: apo (1ATP), ADP-bound (2PHK), and ATP-analog- "
+                "bound (1CDK), align all three onto the apo structure, "
+                "color each a distinct color, select the activation "
+                "loop in all three (chain A, residues 150-172), measure "
+                "the DFG-motif Phe to C-helix Glu distances in each "
+                "state, show contacts between the activation loop and "
+                "the nucleotide in each bound state, label key residues "
+                "by name in each structure, and save the comparative "
+                "session plus a ray-traced figure"
             ),
         ],
         "negative_viewport": [
@@ -433,12 +698,27 @@ def _build_seeds() -> dict[str, list[str]]:
 # batched together.  Mixing them lets the LLM "bleed" tool-call patterns
 # into negative seeds when it sees both types in the same context window.
 
+# IMPORTANT: deep-workflow seeds (category positive_deep_workflow) require
+# 10–25 sequential tool calls.  The generating LLM MUST produce the full
+# sequence without truncating.  A 5-call answer for a 15-call seed is wrong.
 _SYSTEM_PROMPT_POSITIVE = (
-    "You are generating training data for a PyMOL AI assistant.\n"
-    "The assistant helps structural biologists automate protein visualization\n"
-    "using natural language.\n\n"
+    "You are generating training data for a PyMOL AI assistant that acts\n"
+    "as a LangGraph agent planner.  Given one user prompt it produces the\n"
+    "complete sequential plan of ALL required tool calls.  It is NOT a\n"
+    "chatbot — it never asks follow-up questions.\n\n"
     "AVAILABLE TOOLS (JSON):\n"
     "{tools_json}\n\n"
+    "PYMOL SELECTION ALGEBRA (used in reference_selection, selection1,\n"
+    "selection2, and target string arguments):\n"
+    "  object_name                   — all atoms in a named object\n"
+    "  chain A                       — chain A of any object\n"
+    "  object and chain A            — chain A of a specific object\n"
+    "  object and hetatm             — all HETATM in object\n"
+    "  object and hetatm and not resn HOH+HOH2  — ligand, no water\n"
+    "  byres (object and chain A and resi 48+52+61)  — full residues\n"
+    "  byres (object and chain A and resn HIS+ASP+SER) — by residue name\n"
+    "  byres (object and polymer within 5.0 of (ligand)) — pocket\n"
+    "  object and chain A or object and chain B  — two chains\n\n"
     "YOUR TASK:\n"
     "For each scenario seed below, produce one complete training example.\n"
     "Output a single JSON array with one object per seed.\n"
@@ -447,12 +727,15 @@ _SYSTEM_PROMPT_POSITIVE = (
     '  "tool_calls": A JSON array of objects, each with:\n'
     '    "name": (string) - must be one of the tool names above\n'
     '    "arguments": (object) - must match the tool\'s parameter schema\n\n'
-    "RULES:\n"
+    "CRITICAL RULES:\n"
+    "- Deep-workflow seeds (marked [deep_workflow]) REQUIRE 10-25 calls.\n"
+    "  A short answer for a deep seed is WRONG.  Include every step.\n"
     "- Use only tool names from the list above.\n"
     "- Use realistic PDB IDs: start with a digit, 4 chars (e.g. 1TIM, 4HHB).\n"
     "- Chain identifiers must be a single letter (A, B, C, ...).\n"
     "- Residue IDs must be integers.\n"
-    "- Every seed below REQUIRES at least one tool call.\n"
+    "- reference_selection, selection1, selection2 MAY be selection-algebra\n"
+    "  strings (e.g. 'byres (1ubq and chain A and resn HIS+ASP)').\n"
     "- Do NOT invent tool names. Do NOT add fields not in the schema.\n"
     "- Output ONLY the JSON array. No markdown fences, no extra text.\n\n"
     "SCENARIO SEEDS TO EXPAND:\n"
@@ -491,36 +774,49 @@ def _generate_prompts(
     n_positive: int,
     n_negative: int,
     n_context: int,
+    n_deep: int,
     output_dir: pathlib.Path,
     tool_schemas: list[dict],
 ) -> None:
     """Write categorised prompt batch files to ``output_dir/prompts/``.
 
-    Positive and negative seeds are written to SEPARATE batch files:
+    Four batch-file types are produced:
 
-    - ``batch_pos_NNN.txt``: positive + context-aware seeds only.
-      Every example in the response MUST have non-empty ``tool_calls``.
+    - ``batch_pos_NNN.txt``: positive + context-aware seeds.
+      Every example MUST have non-empty ``tool_calls``.
+    - ``batch_deep_NNN.txt``: deep-workflow seeds (10-25 calls each).
+      The generating LLM must NOT truncate the tool-call sequence.
     - ``batch_neg_NNN.txt``: negative seeds only.
-      Every example in the response MUST have ``tool_calls: []``.
+      Every example MUST have ``tool_calls: []``.
 
-    Separating the categories prevents the LLM from "bleeding" tool-call
+    Separating categories prevents the LLM from bleeding tool-call
     patterns into negative seeds when both appear in the same batch.
+
+    Scaling to 100 k examples
+    -------------------------
+    Set n_positive=60000, n_deep=30000, n_negative=10000 and run on
+    a machine with multiple GPUs and a Dask cluster.  The NeMo Data
+    Designer backend will distribute LLM inference across parallel
+    workers.  Increase max_parallel_requests in workflow.py accordingly
+    (e.g. 32 for a 4-GPU box).  The NeMo Curator dedup step should be
+    run with a multi-GPU LocalCUDACluster to handle the larger dataset.
 
     Args:
       seeds_by_category: Dict of category -> list of seed strings.
       n_positive: Total positive (tool-calling) examples to request.
       n_negative: Total negative (empty tool_calls) examples to request.
       n_context: Total context-aware examples to request.
+      n_deep: Total deep-workflow (10-25 tool calls) examples.
       output_dir: Root output directory; prompt files go in ``prompts/``.
       tool_schemas: Tool schema dicts to embed in each prompt file.
     """
-    prompts_dir = output_dir / "prompts"
-    prompts_dir.mkdir(parents=True, exist_ok=True)
+    tmp_prompts_dir = output_dir / "prompts"
+    tmp_prompts_dir.mkdir(parents=True, exist_ok=True)
 
-    n_single = n_positive // 4
-    n_multi = n_positive - n_single
-    n_neg_vp = n_negative // 2
-    n_neg_oos = n_negative - n_neg_vp
+    tmp_n_single = n_positive // 4
+    tmp_n_multi = n_positive - tmp_n_single
+    tmp_n_neg_vp = n_negative // 2
+    tmp_n_neg_oos = n_negative - tmp_n_neg_vp
 
     def _sample(category: str, count: int) -> list[str]:
         """Sample ``count`` seeds from ``category`` with replacement.
@@ -532,66 +828,110 @@ def _generate_prompts(
         Returns:
           A list of sampled seed strings.
         """
-        pool = seeds_by_category[category]
-        rng = random.Random(42)
-        return [rng.choice(pool) for _ in range(count)]
+        tmp_pool = seeds_by_category[category]
+        tmp_rng = random.Random(42)
+        return [tmp_rng.choice(tmp_pool) for _ in range(count)]
 
-    # --------------- positive pool (single + multi + context) ---------------
-    pos_seeds: list[tuple[str, str]] = []
-    for seed in _sample("positive_single_tool", n_single):
-        pos_seeds.append(("positive_single_tool", seed))
-    for seed in _sample("positive_multi_step", n_multi):
-        pos_seeds.append(("positive_multi_step", seed))
-    for seed in _sample("positive_context_aware", n_context):
-        pos_seeds.append(("positive_context_aware", seed))
-    random.Random(99).shuffle(pos_seeds)
+    # -------- positive pool (single + multi + context) --------
+    tmp_pos_seeds: list[tuple[str, str]] = []
+    for tmp_seed in _sample("positive_single_tool", tmp_n_single):
+        tmp_pos_seeds.append(("positive_single_tool", tmp_seed))
+    for tmp_seed in _sample("positive_multi_step", tmp_n_multi):
+        tmp_pos_seeds.append(("positive_multi_step", tmp_seed))
+    for tmp_seed in _sample("positive_context_aware", n_context):
+        tmp_pos_seeds.append(("positive_context_aware", tmp_seed))
+    random.Random(99).shuffle(tmp_pos_seeds)
 
-    # --------------- negative pool (viewport + out_of_scope) ----------------
-    neg_seeds: list[str] = []
-    neg_seeds.extend(_sample("negative_viewport", n_neg_vp))
-    neg_seeds.extend(_sample("negative_out_of_scope", n_neg_oos))
-    random.Random(77).shuffle(neg_seeds)
+    # -------- deep-workflow pool --------
+    tmp_deep_seeds: list[tuple[str, str]] = []
+    for tmp_seed in _sample("positive_deep_workflow", n_deep):
+        tmp_deep_seeds.append(("positive_deep_workflow", tmp_seed))
+    random.Random(77).shuffle(tmp_deep_seeds)
 
-    tools_json = json.dumps(tool_schemas, indent=2)
-    batch_size = training_config.BATCH_SIZE_PER_PROMPT_FILE
+    # -------- negative pool (viewport + out_of_scope) --------
+    tmp_neg_seeds: list[str] = []
+    tmp_neg_seeds.extend(_sample("negative_viewport", tmp_n_neg_vp))
+    tmp_neg_seeds.extend(
+        _sample("negative_out_of_scope", tmp_n_neg_oos)
+    )
+    random.Random(55).shuffle(tmp_neg_seeds)
+
+    tmp_tools_json = json.dumps(tool_schemas, indent=2)
+    tmp_batch_size = training_config.BATCH_SIZE_PER_PROMPT_FILE
 
     # Write positive batch files
-    pos_batch_idx = 0
-    for start in range(0, len(pos_seeds), batch_size):
-        batch = pos_seeds[start : start + batch_size]
-        pos_batch_idx += 1
-        seed_block = "\n".join(
-            f"{i + 1}. [{cat}] {seed}" for i, (cat, seed) in enumerate(batch)
+    tmp_pos_batch_idx = 0
+    for tmp_start in range(0, len(tmp_pos_seeds), tmp_batch_size):
+        tmp_batch = tmp_pos_seeds[
+            tmp_start: tmp_start + tmp_batch_size
+        ]
+        tmp_pos_batch_idx += 1
+        tmp_seed_block = "\n".join(
+            f"{tmp_i + 1}. [{tmp_cat}] {tmp_seed}"
+            for tmp_i, (tmp_cat, tmp_seed) in enumerate(tmp_batch)
         )
-        content = (
-            _SYSTEM_PROMPT_POSITIVE.format(tools_json=tools_json) + seed_block
+        tmp_content = (
+            _SYSTEM_PROMPT_POSITIVE.format(tools_json=tmp_tools_json)
+            + tmp_seed_block
         )
-        out_file = prompts_dir / f"batch_pos_{pos_batch_idx:03d}.txt"
-        with open(out_file, "w", encoding="utf-8") as fh:
-            fh.write(content)
+        tmp_out = (
+            tmp_prompts_dir / f"batch_pos_{tmp_pos_batch_idx:03d}.txt"
+        )
+        with open(tmp_out, "w", encoding="utf-8") as tmp_fh:
+            tmp_fh.write(tmp_content)
+
+    # Write deep-workflow batch files (higher expected output length).
+    tmp_deep_batch_idx = 0
+    for tmp_start in range(0, len(tmp_deep_seeds), tmp_batch_size):
+        tmp_batch = tmp_deep_seeds[
+            tmp_start: tmp_start + tmp_batch_size
+        ]
+        tmp_deep_batch_idx += 1
+        tmp_seed_block = "\n".join(
+            f"{tmp_i + 1}. [deep_workflow] {tmp_seed}"
+            for tmp_i, (_cat, tmp_seed) in enumerate(tmp_batch)
+        )
+        tmp_content = (
+            _SYSTEM_PROMPT_POSITIVE.format(tools_json=tmp_tools_json)
+            + tmp_seed_block
+        )
+        tmp_out = (
+            tmp_prompts_dir
+            / f"batch_deep_{tmp_deep_batch_idx:03d}.txt"
+        )
+        with open(tmp_out, "w", encoding="utf-8") as tmp_fh:
+            tmp_fh.write(tmp_content)
 
     # Write negative batch files
-    neg_batch_idx = 0
-    for start in range(0, len(neg_seeds), batch_size):
-        batch = neg_seeds[start : start + batch_size]
-        neg_batch_idx += 1
-        seed_block = "\n".join(
-            f"{i + 1}. {seed}" for i, seed in enumerate(batch)
+    tmp_neg_batch_idx = 0
+    for tmp_start in range(0, len(tmp_neg_seeds), tmp_batch_size):
+        tmp_batch = tmp_neg_seeds[
+            tmp_start: tmp_start + tmp_batch_size
+        ]
+        tmp_neg_batch_idx += 1
+        tmp_seed_block = "\n".join(
+            f"{tmp_i + 1}. {tmp_seed}"
+            for tmp_i, tmp_seed in enumerate(tmp_batch)
         )
-        content = (
-            _SYSTEM_PROMPT_NEGATIVE.format(tools_json=tools_json) + seed_block
+        tmp_content = (
+            _SYSTEM_PROMPT_NEGATIVE.format(tools_json=tmp_tools_json)
+            + tmp_seed_block
         )
-        out_file = prompts_dir / f"batch_neg_{neg_batch_idx:03d}.txt"
-        with open(out_file, "w", encoding="utf-8") as fh:
-            fh.write(content)
+        tmp_out = (
+            tmp_prompts_dir / f"batch_neg_{tmp_neg_batch_idx:03d}.txt"
+        )
+        with open(tmp_out, "w", encoding="utf-8") as tmp_fh:
+            tmp_fh.write(tmp_content)
 
     print(
-        f"[generate_prompts] Wrote {pos_batch_idx} positive batch files and "
-        f"{neg_batch_idx} negative batch files to {prompts_dir}/"
+        f"[generate_prompts] Wrote {tmp_pos_batch_idx} positive, "
+        f"{tmp_deep_batch_idx} deep-workflow, and "
+        f"{tmp_neg_batch_idx} negative batch files to "
+        f"{tmp_prompts_dir}/"
     )
     print(
-        "Next step: submit each .txt to your LLM and save the response as "
-        "the matching .response.txt file."
+        "Next step: submit each .txt to your LLM and save the "
+        "response as the matching .response.txt file."
     )
 
 
@@ -624,6 +964,7 @@ def _collect_responses(
     # and legacy mixed files (batch_NNN) from earlier pipeline runs.
     response_files = sorted(
         list(input_dir.glob("batch_pos_*.response.txt"))
+        + list(input_dir.glob("batch_deep_*.response.txt"))
         + list(input_dir.glob("batch_neg_*.response.txt"))
         + list(input_dir.glob("batch_[0-9]*.response.txt")),
         key=lambda p: p.name,
@@ -641,10 +982,12 @@ def _collect_responses(
     rejected_examples: list[dict] = []
 
     for resp_file in response_files:
-        # Detect category from filename.  Only "batch_neg_*" files are
-        # required to have tool_calls: [].  Positive and legacy files use
-        # the existing schema-only validation.
-        is_negative_batch = resp_file.name.startswith("batch_neg_")
+        # Detect category from filename.
+        # Only "batch_neg_*" must have tool_calls: [].
+        # "batch_deep_*" must have at least 10 tool calls.
+        # Positive and legacy files use schema-only validation.
+        tmp_is_negative_batch = resp_file.name.startswith("batch_neg_")
+        tmp_is_deep_batch = resp_file.name.startswith("batch_deep_")
 
         try:
             raw = _read_text(resp_file).strip()
@@ -684,35 +1027,50 @@ def _collect_responses(
             continue
 
         for ex in parsed:
-            # Category-level gate: negative batches must have empty tool_calls.
-            # This catches contamination where the LLM generated a valid tool
-            # call for a negative seed, which would pass schema validation but
-            # poison the boundary-learning signal.
-            if is_negative_batch and ex.get("tool_calls"):
+            # Negative batches must have empty tool_calls.
+            if tmp_is_negative_batch and ex.get("tool_calls"):
                 rejected_examples.append(
                     {
                         "source": resp_file.name,
                         "reason": (
-                            "negative batch example must have tool_calls: [] — "
-                            f"got {len(ex['tool_calls'])} call(s)"
+                            "negative batch example must have "
+                            "tool_calls: [] — got "
+                            f"{len(ex['tool_calls'])} call(s)"
                         ),
                         "example": ex,
                     }
                 )
                 continue
 
-            reason = _validate_example(ex, tool_schemas)
-            if reason:
+            # Deep-workflow batches must have >= 10 tool calls.
+            if tmp_is_deep_batch:
+                tmp_n_calls = len(ex.get("tool_calls") or [])
+                if tmp_n_calls < 10:
+                    rejected_examples.append(
+                        {
+                            "source": resp_file.name,
+                            "reason": (
+                                "deep-workflow batch example must "
+                                f"have >= 10 tool calls — got "
+                                f"{tmp_n_calls}"
+                            ),
+                            "example": ex,
+                        }
+                    )
+                    continue
+
+            tmp_reason = _validate_example(ex, tool_schemas)
+            if tmp_reason:
                 rejected_examples.append(
                     {
                         "source": resp_file.name,
-                        "reason": reason,
+                        "reason": tmp_reason,
                         "example": ex,
                     }
                 )
             else:
-                msg = _build_messages(ex, system_content)
-                valid_examples.append({"messages": msg})
+                tmp_msg = _build_messages(ex, system_content)
+                valid_examples.append({"messages": tmp_msg})
 
     # Shuffle and split
     rng = random.Random(2026)
@@ -932,6 +1290,15 @@ def _parse_args() -> argparse.Namespace:
         default=400,
         help="Total context-aware examples.",
     )
+    parser.add_argument(
+        "--n_deep",
+        type=int,
+        default=600,
+        help=(
+            "Total deep-workflow (10-25 tool calls) examples. "
+            "Set to 30000 when scaling to 100 k total examples."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -941,12 +1308,13 @@ def main() -> None:
     tool_schemas = _load_tool_schemas(args.schemas_file)
 
     if args.mode == "generate_prompts":
-        seeds = _build_seeds()
+        tmp_seeds = _build_seeds()
         _generate_prompts(
-            seeds,
+            tmp_seeds,
             args.n_positive,
             args.n_negative,
             args.n_context,
+            args.n_deep,
             args.output_dir,
             tool_schemas,
         )

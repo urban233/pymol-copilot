@@ -276,8 +276,11 @@ EVAL_STEPS: int = 100
 SAVE_STEPS: int = 200
 # Keep only best + 1 backup to conserve disk.
 SAVE_TOTAL_LIMIT: int = 2
-# 2048 tokens fits multi-step tool-call sequences with headroom.
-MAX_SEQ_LENGTH: int = 2048
+# 4096 tokens accommodates deep multi-step tool-call sequences
+# (up to 25 sequential calls) produced by the LangGraph agent planner.
+# Peak VRAM increases from ~3.5 GB to ~5.5 GB on RTX 4060, which
+# remains within the 8 GB budget.
+MAX_SEQ_LENGTH: int = 4096
 # 0 avoids multiprocessing issues on Windows and some Linux setups.
 DATALOADER_NUM_WORKERS: int = 0
 

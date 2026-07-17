@@ -1,0 +1,50 @@
+# requirements_unsloth.txt
+# -----------------------------------------------------------------------
+# Unsloth fine-tuning stack for the cBioMOL PyMOL AI assistant.
+# Install INSTEAD OF (or alongside) requirements.txt — not on top of it,
+# because Unsloth pins its own compatible PyTorch / TRL / PEFT versions.
+#
+# Usage:
+#   pip install -r requirements_unsloth.txt
+#
+# Platform: CUDA 12.1+ (RTX 4060 / Ada Lovelace tested)
+# Python: 3.11
+# -----------------------------------------------------------------------
+
+# Unsloth — installs TRL, PEFT, accelerate, xformers, and bitsandbytes
+# as compatible transitive dependencies automatically.
+# The [cu121-torch240] tag selects the CUDA 12.1 + PyTorch 2.4.0 wheel.
+# Change to [cu121-torch230] for PyTorch 2.3, or [cu118-torch240] for CUDA 11.8.
+unsloth[cu121-torch240] @ git+https://github.com/unslothai/unsloth.git
+
+# Triton is required for Unsloth's custom attention kernels.
+# On Windows, install the pre-built wheel from the triton-windows project:
+#   pip install triton-windows
+# On Linux (training server), the triton wheel installs automatically.
+triton; sys_platform != "win32"
+
+# Flash-Attention 2 (optional but recommended for Ada/Ampere+ GPUs)
+# Provides additional memory savings on top of Unsloth's own kernels.
+# Build from source if a pre-built wheel isn't available for your CUDA:
+#   pip install flash-attn --no-build-isolation
+flash-attn; sys_platform != "win32"
+
+# Standard HuggingFace stack (pinned for compatibility with Unsloth)
+# Unsloth may override these; let pip resolve if versions conflict.
+datasets==3.1.0
+huggingface-hub==0.26.2
+sentencepiece==0.2.0
+protobuf==5.28.3
+
+# Data + curation pipeline (shared with requirements.txt)
+data-designer
+nemo-curator[text_cuda12]
+--extra-index-url https://pypi.nvidia.com
+
+# JSON schema validation (used by build_conversations.py)
+jsonschema
+
+# GGUF inference validation
+# llama-cpp-python is only needed if you still run validate_gguf.py.
+# Unsloth's built-in GGUF export does NOT require llama-cpp-python.
+# llama-cpp-python==0.3.2

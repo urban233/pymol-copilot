@@ -18,3 +18,8 @@ huggingface-hub==0.26.2
 # Reinstall with CUDA if the default wheel lacks GPU support:
 #   CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python==0.3.2 --force-reinstall
 llama-cpp-python==0.3.2
+
+data-designer
+nemo-curator[text_cuda12]
+--extra-index-url https://pypi.nvidia.com
+jsonschema
