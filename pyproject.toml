@@ -7,7 +7,7 @@ name = "pymol-copilot"
 version = "0.1.0"
 description = "PyMOL Copilot - open-source AI assistant for the PyMOL computer program"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = {file = "LICENSE"}
 authors = [
   { name = "Hannah Kullik", email = "hannah.kullik@studmail.w-hs.de" },

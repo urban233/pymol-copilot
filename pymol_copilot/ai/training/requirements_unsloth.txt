@@ -10,6 +10,10 @@
 # Platform: CUDA 12.1+ (RTX 4060 / Ada Lovelace tested)
 # Python: 3.11
 # -----------------------------------------------------------------------
+torch==2.4.0+cu121
+torchvision==0.19.0+cu121
+torchaudio==2.4.0+cu121
+--extra-index-url https://download.pytorch.org/whl/cu121
 
 # Unsloth — installs TRL, PEFT, accelerate, xformers, and bitsandbytes
 # as compatible transitive dependencies automatically.
@@ -31,8 +35,8 @@ flash-attn; sys_platform != "win32"
 
 # Standard HuggingFace stack (pinned for compatibility with Unsloth)
 # Unsloth may override these; let pip resolve if versions conflict.
-datasets==3.1.0
-huggingface-hub==0.26.2
+datasets>=3.1.0
+huggingface-hub>=0.26.2
 sentencepiece==0.2.0
 protobuf==5.28.3
 
