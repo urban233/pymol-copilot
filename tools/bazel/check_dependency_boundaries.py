@@ -18,7 +18,14 @@ RUNTIME_NAMES = ("langgraph", "lemonade")
 
 
 def closure(label: str) -> set[str]:
-    """Return a Bazel target's transitive labels."""
+    """Return a Bazel target's transitive labels.
+
+    Args:
+        label: Bazel label whose dependency closure should be queried.
+
+    Returns:
+        The labels in the target's transitive dependency closure.
+    """
     result = subprocess.run(
         ["bazel", "query", "--output=label", f"deps({label})"],
         check=False,
@@ -33,7 +40,12 @@ def closure(label: str) -> set[str]:
 
 
 def main() -> int:
-    """Check core and agent closures and report their contents."""
+    """Check core and agent closures and report their contents.
+
+    Returns:
+        Zero when both closures satisfy the dependency policy, or one when a
+        forbidden dependency is found.
+    """
     for label in ("//src/pmc_core:pmc_core", "//src/pmc_agent:pmc_agent"):
         labels = closure(label)
         print(f"{label} closure:")

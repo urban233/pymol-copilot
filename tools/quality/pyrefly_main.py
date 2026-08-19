@@ -10,7 +10,11 @@ from pathlib import Path
 
 
 def main() -> int:
-    """Extract and execute Pyrefly without using a host installation."""
+    """Extract and execute Pyrefly without using a host installation.
+
+    Returns:
+        The exit status returned by the Pyrefly executable.
+    """
     runfiles = next(
         parent
         for parent in Path(__file__).parents
