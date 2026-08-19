@@ -2,6 +2,7 @@
 """Smoke tests for package boundaries and the authoritative interpreter."""
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -12,7 +13,11 @@ def test_subsystems_import_from_repository() -> None:
     for package_name in ("pmc_core", "pmc_agent", "pmc_data", "pmc_train"):
         module = __import__(package_name)
         assert module.__file__ is not None
-        assert module.__file__.endswith(f"src/{package_name}/__init__.py")
+        assert Path(module.__file__).parts[-3:] == (
+            "src",
+            package_name,
+            "__init__.py",
+        )
 
 
 if __name__ == "__main__":
