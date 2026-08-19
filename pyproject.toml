@@ -17,6 +17,7 @@ markers = [
 ]
 filterwarnings = ["error"]
 
+# Ruff configuration
 [tool.ruff]
 # For more info, see: https://docs.astral.sh/ruff/configuration/
 
