@@ -206,6 +206,17 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Bazel outputs and generated project artifacts
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-pymol-copilot
+/pymol_copilot
+/data/*
+!/data/README.md
+/results/*
+!/results/README.md
+
 # PyPI configuration file
 .pypirc
 
@@ -223,3 +234,6 @@ __marimo__/
 # CoDev local escalation log (ADR-0003) -- not shared or committed.
 .codev/task/escalations.jsonl
 # codev:end
+
+# Custom codev
+.codev/task/*

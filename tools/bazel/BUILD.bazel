@@ -1,0 +1,6 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+py_binary(
+    name = "check_dependency_boundaries",
+    srcs = ["check_dependency_boundaries.py"],
+)

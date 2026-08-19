@@ -13,13 +13,21 @@
 
 ![Status: Experimental](https://img.shields.io/badge/status-experimental-orange.svg)
 [![License: BSD-3 Clause](https://img.shields.io/badge/License-BSD%203%20Clause-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
-[![Python: 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
+[![Python: 3.13.13](https://img.shields.io/badge/python-3.13.13-blue.svg)](https://www.python.org)
 
 PyMOL Copilot is a local AI companion designed for structural biologists. 
 It translates natural language instructions into safe, reproducible PyMOL commands, 
 turning complex visualization scripting into a simple conversation.
 
 ---
+
+## Development
+
+The pinned development baseline is CPython 3.13.13 with Bazel 9.2.0 and
+Bazelisk 1.29.0. Windows, macOS, and Linux are candidate build environments,
+not yet qualified product support. See the
+[development setup guide](docs/development_setup.md) for the authoritative
+commands.
 
 ## 👁️‍🗨️ The Vision
 

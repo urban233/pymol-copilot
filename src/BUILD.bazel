@@ -1,0 +1,2 @@
+package_group(name = "subsystems", packages = ["//src/..."])
+package_group(name = "tests", packages = ["//tests/..."])

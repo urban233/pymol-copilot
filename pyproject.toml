@@ -1,19 +1,47 @@
+[project]
+name = "pymol-copilot"
+version = "0.0.0"
+requires-python = "==3.13.13"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config --tb=short"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Isolated unit tests",
+    "integration: Integration tests involving external dependencies or filesystems",
+    "slow: Tests that take a significant amount of time to execute",
+]
+filterwarnings = ["error"]
+
 # Ruff configuration
+[tool.ruff]
 # For more info, see: https://docs.astral.sh/ruff/configuration/
 
 # Set the target Python version
 target-version = "py313"
 
 # Exclude a variety of commonly ignored directories.
-exclude = [
-    "tmp"
-]
+exclude = ["tmp"]
+extend-exclude = [".agents"]
 
 # Same as Black.
 line-length = 80
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = [
+    "D208",  # Docstring is over-indented
+    "PTH110",  # os.path.exists() should be replaced by Path.exists()
+    "W",  # Warning (W)
+]
+unfixable = []
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-[lint]
-# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
 select = [
     # Rule classes
     "W",  # Warning (W)
@@ -27,7 +55,7 @@ select = [
     # "S",  # flake8-bandit (S)
     # pycodestyle rules
     "E",  # pycodestyle (E)
-    "W",  # pycodestyle (W)
+    # "W",  # pycodestyle (W)
     # Pylint rules
     "PLE",  # Error (PLE)
     "PLW",  # Warning (PLW)
@@ -65,19 +93,9 @@ ignore = [
     "D104",  # Ignore missing docstring in public package
 ]
 
-# Allow fix for all enabled rules (when `--fix`) is provided.
 # Full list of rules: https://docs.astral.sh/ruff/rules/
-fixable = [
-    "D208",  # Docstring is over-indented
-    "PTH110",  # os.path.exists() should be replaced by Path.exists()
-    "W"  # Warning (W)
-]
-unfixable = []
 
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[format]
+[tool.ruff.format]
 # Like Black, use double quotes for strings.
 quote-style = "double"
 
@@ -89,3 +107,24 @@ skip-magic-trailing-comma = false
 
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
+
+[tool.pyrefly]
+project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_train", "tests"]
+python-version = "3.13"
+preset = "strict"
+check-unannotated-defs = true
+
+[tool.pyrefly.errors]
+# --- Target PyQt6 Framework Gaps ---
+# Softens warnings for packages lacking a 'py.typed' file marker
+untyped-import = "warn"
+# Stops errors when replacing placeholder parameters (e.g., using 'event' instead of 'a0')
+bad-override = "ignore"
+# Permits working with custom internal hooks across adjacent GUI layout modules
+no-access = "ignore"
+# Silences errors on dynamic boundaries like Qt Signals (.connect())
+implicit-any = "ignore"
+# Keeps missing architectural imports guarded as hard failures
+missing-import = "error"
+# Disable the requirement to add @override to every single Qt event/method lifecycle hook
+missing-override-decorator = "ignore"
