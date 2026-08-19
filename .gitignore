@@ -218,3 +218,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 .env_path
+
+# codev:start
+# CoDev local escalation log (ADR-0003) -- not shared or committed.
+.codev/task/escalations.jsonl
+# codev:end
