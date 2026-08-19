@@ -7,11 +7,13 @@ import sys
 
 
 FORBIDDEN = {
-    "//src/pmc_core:pmc_agent",
-    "//src/pmc_core:pmc_data",
-    "//src/pmc_core:pmc_train",
-    "//src/pmc_agent:pmc_data",
-    "//src/pmc_agent:pmc_train",
+    "//src/pmc_agent:pmc_agent",
+    "//src/pmc_data:pmc_data",
+    "//src/pmc_train:pmc_train",
+}
+FORBIDDEN_BY_ROOT = {
+    "//src/pmc_core:pmc_core": FORBIDDEN,
+    "//src/pmc_agent:pmc_agent": FORBIDDEN - {"//src/pmc_agent:pmc_agent"},
 }
 TRAINING_NAMES = ("torch", "transformers", "peft", "trl", "unsloth")
 RUNTIME_NAMES = ("langgraph", "lemonade")
@@ -50,7 +52,7 @@ def main() -> int:
         labels = closure(label)
         print(f"{label} closure:")
         print("\n".join(sorted(labels)))
-        forbidden = labels & FORBIDDEN
+        forbidden = labels & FORBIDDEN_BY_ROOT[label]
         lowered = "\n".join(labels).lower()
         forbidden |= {
             name for name in TRAINING_NAMES + RUNTIME_NAMES if name in lowered
