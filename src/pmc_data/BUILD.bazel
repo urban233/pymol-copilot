@@ -1,0 +1,9 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+py_library(
+    name = "pmc_data",
+    srcs = ["__init__.py"],
+    imports = [".."],
+    deps = ["//src/pmc_core:pmc_core"],
+    visibility = ["//src/pmc_data:__pkg__", "//src/pmc_train:__pkg__", "//src:tests"],
+)

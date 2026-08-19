@@ -1,0 +1,51 @@
+[project]
+name = "pymol-copilot"
+version = "0.0.0"
+requires-python = "==3.13.13"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config --tb=short"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Isolated unit tests",
+    "integration: Integration tests involving external dependencies or filesystems",
+    "slow: Tests that take a significant amount of time to execute",
+]
+filterwarnings = ["error"]
+
+[tool.ruff]
+target-version = "py313"
+exclude = ["tmp"]
+extend-exclude = [".agents"]
+line-length = 80
+fixable = ["D208", "PTH110", "W"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint]
+select = ["W", "ARG", "B", "SIM", "FA", "G", "LOG", "E", "PLE", "PLW", "DOC", "D", "F", "RUF", "ANN001", "ANN201", "ANN204", "ANN205", "ANN206", "D212", "A003", "PTH110", "Q000", "CPY001", "N801", "N802", "N803", "N804", "N805", "N806", "N807"]
+ignore = ["D301", "D401", "D413", "S101", "E501", "B904", "D104"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pyrefly]
+project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_train", "tests"]
+python-version = "3.13"
+preset = "strict"
+check-unannotated-defs = true
+
+[tool.pyrefly.errors]
+untyped-import = "warn"
+bad-override = "ignore"
+no-access = "ignore"
+implicit-any = "ignore"
+missing-import = "error"
+missing-override-decorator = "ignore"

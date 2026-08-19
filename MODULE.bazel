@@ -1,0 +1,28 @@
+module(name = "pymol_copilot")
+
+bazel_dep(name = "rules_python", version = "2.3.1")
+
+rules_python_config = use_extension(
+    "@rules_python//python/extensions:config.bzl",
+    "config",
+)
+rules_python_config.explicit_init_py(default = True)
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(pyproject_toml = "//:pyproject.toml")
+python.toolchain(python_version = "3.13.13")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pypi",
+    pyproject_toml = "//:pyproject.toml",
+    python_version = "3.13.13",
+    requirements_lock = "//:requirements_lock.txt",
+    target_platforms = [
+        "linux_x86_64",
+        "osx_x86_64",
+        "osx_aarch64",
+        "windows_x86_64",
+    ],
+)
+use_repo(pip, "pypi")

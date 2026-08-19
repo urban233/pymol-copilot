@@ -1,0 +1,14 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "subsystem_imports",
+    srcs = ["test_subsystem_imports.py"],
+    main = "test_subsystem_imports.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_train:pmc_train",
+    ],
+)

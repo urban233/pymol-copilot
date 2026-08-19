@@ -206,6 +206,17 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Bazel outputs and generated project artifacts
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-pymol-copilot
+/pymol_copilot
+/data/*
+!/data/README.md
+/results/*
+!/results/README.md
+
 # PyPI configuration file
 .pypirc
 

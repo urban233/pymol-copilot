@@ -1,0 +1,16 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+py_binary(
+    name = "ruff",
+    srcs = ["ruff_main.py"],
+    main = "ruff_main.py",
+    deps = ["@pypi//ruff"],
+    data = ["@pypi//ruff:whl"],
+)
+py_binary(
+    name = "pyrefly",
+    srcs = ["pyrefly_main.py"],
+    main = "pyrefly_main.py",
+    deps = ["@pypi//pyrefly", "@pypi//pytest"],
+    data = ["@pypi//pyrefly:whl"],
+)
