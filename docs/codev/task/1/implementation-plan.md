@@ -242,9 +242,9 @@ Expected evidence:
 
 - **Delivered:** Bzlmod-only Bazel workspace, locked CPython/tooling, four package boundaries, smoke tests, dependency checker, quality entry points, CI workflow, layout placeholders, and setup documentation.
 - **Changed:** Root Bazel/Python/dependency metadata and locks; `.github/workflows/bazel.yml`; four `src/pmc_*` packages; `tests/`, `tools/`, config/data/results placeholders; setup docs; and the Python-tool configuration migration described in the Expected file map.
-- **Head commit/snapshot:** Builder base `a802c10ce29b66377c69283b41c574d06d7837aa`; implementation snapshot is recorded by the task commit that includes this artifact.
+- **Head commit/snapshot:** `eb3999cbab9284afc46995903734ecfaef99e846` (the fully implemented code snapshot after the documentation/style cleanup); the following metadata-only commit corrects this completion record.
 - **Validation actually run:** Bazelisk `1.29.0`; Bazel `9.2.0`; module graph, build, tests, dependency queries, boundary checker, Ruff check/format check, Pyrefly (0 errors), `git diff --check`, and a clean rebuild/test after `bazel clean` all passed locally.
 - **Acceptance evidence:** `rules_python@2.3.1` and lockfile error mode resolve; the smoke test verifies CPython `3.13.13`; visibility, queries, and the checker enforce package direction; and the pinned three-OS CI workflow runs the required build, test, boundary, and quality commands.
-- **Scope deviations:** None.
+- **Scope deviations:** Locked Ruff/Pyrefly wheels lack `entry_points.txt`, so their minimal Bazel wrappers execute bundled native binaries rather than console-script metadata; this preserves the same locked tool behavior without adding dependencies.
 - **Known limitations:** Three-OS CI is pending remote execution; Open-Source PyMOL compatibility and product platform qualification intentionally remain outside issue #1. Ruff/Pyrefly wheels lack `entry_points.txt`, so their minimal Bazel wrappers execute bundled native binaries rather than console-script metadata.
 - **Review state:** AWAITING INDEPENDENT REVIEW.
