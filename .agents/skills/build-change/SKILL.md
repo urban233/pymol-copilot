@@ -1,6 +1,7 @@
 ---
 name: build-change
 description: Pair with a developer to investigate, plan, implement, test, and prepare one bounded code change, bug fix, refactor, or delivery-plan task. Use when the user wants hands-on AI-assisted coding with frequent checkpoints and human control rather than a long autonomous implementation loop. Ground every plan in the current repository and keep changes small and reviewable.
+license: BSD-3-Clause
 ---
 
 # Build Change
@@ -60,7 +61,10 @@ exceeds roughly 400 non-generated changed lines or eight files; generated code,
 mechanical migrations, and tightly coupled tests may justify more. Split only
 when each part remains buildable and useful.
 
-Reuse repository patterns. Add or update tests with the behavior. Do not weaken
+Reuse repository patterns. Read
+`.agents/skills/testing-craft/references/writing-tests.md` before adding or
+updating tests -- it covers naming, structure, and the test-doubles
+priority ladder. Add or update tests with the behavior. Do not weaken
 tests, invent missing APIs, silently expand scope, or edit accepted product and
 design decisions to make implementation easier.
 

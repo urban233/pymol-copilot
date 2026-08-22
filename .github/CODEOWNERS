@@ -1,0 +1,29 @@
+# Source package ownership
+/src/pmc_core/ @kullik01
+/src/pmc_agent/ @kullik01
+/src/pmc_data/ @urban233
+/src/pmc_train/ @urban233
+
+# Non-build project areas
+/.github/ @urban233 @kullik01
+/tests/ @urban233 @kullik01
+/docs/ @urban233 @kullik01
+/configs/ @urban233 @kullik01
+/data/ @urban233 @kullik01
+/results/ @urban233 @kullik01
+
+# Build and dependency infrastructure
+/BUILD.bazel @urban233
+**/BUILD.bazel @urban233
+/.bazelignore @urban233
+/.bazelrc @urban233
+/.bazelversion @urban233
+/MODULE.bazel @urban233
+/MODULE.bazel.lock @urban233
+/pyproject.toml @urban233
+/requirements.in @urban233
+/requirements_lock.txt @urban233
+/tools/bazel/ @urban233
+/tools/quality/ @urban233
+/.github/workflows/ @urban233
+/docs/development_setup.md @urban233
