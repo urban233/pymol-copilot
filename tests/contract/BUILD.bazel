@@ -1,0 +1,26 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "plan",
+    srcs = ["test_plan.py"],
+    main = "test_plan.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "policy",
+    srcs = ["test_policy.py"],
+    main = "test_policy.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+test_suite(
+    name = "all",
+    tests = [":plan", ":policy"],
+)

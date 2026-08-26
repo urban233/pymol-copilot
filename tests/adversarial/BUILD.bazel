@@ -1,0 +1,16 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "parser_rejections",
+    srcs = ["test_parser_rejections.py"],
+    main = "test_parser_rejections.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+test_suite(
+    name = "all",
+    tests = [":parser_rejections"],
+)

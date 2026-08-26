@@ -121,9 +121,13 @@ applies one color to that selection. No other verb, label form, setting,
 expression capability, or implicit execution behavior is part of this fixture.
 The parser and policy reject every form outside the recorded fixture.
 
-The exact selection-expression and color-value grammars remain open until
-Martin and Hannah record the smallest accepted examples and rejection cases.
-This boundary does not expand the accepted V1 command scope.
+For the initial implementation, a dedicated restricted tokenizer and parser
+owns this boundary; it does not delegate untrusted text to PyMOL parsing
+facilities. It accepts only the exact selection expression `chain A` and
+color value `red` recorded below, for the selection name
+`copilot_selection`. Case variation, comments, quoting, continuations,
+alternate whitespace forms, and all other expression or color syntax are
+rejected. Any expansion requires accepted fixtures and security evidence.
 
 The first accepted positive fixture is:
 
