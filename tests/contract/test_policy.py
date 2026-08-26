@@ -2,7 +2,7 @@
 """Contract tests for the typed default-deny policy.
 
 These tests cover the deterministic policy decision over typed
-`ActionPlan` operations only -- never raw `.pml` text. They demonstrate
+ActionPlan operations only -- never raw .pml text. They demonstrate
 that the exact parser-produced positive fixture is allowed, and that every
 other typed operation or plan shape is denied with a stable reason code,
 without any dispatcher boundary being reached.
@@ -11,23 +11,19 @@ without any dispatcher boundary being reached.
 import pytest
 
 from pmc_core.parser import parse_pml
-from pmc_core.plan import (
-    ActionPlan,
-    ColorOperation,
-    SelectOperation,
-    initial_fixture_plan,
-)
-from pmc_core.policy import (
-    REASON_ALLOWED_FIXTURE_OPERATION,
-    REASON_UNSUPPORTED_COLOR_ARGUMENTS,
-    REASON_UNSUPPORTED_OPERATION_TYPE,
-    REASON_UNSUPPORTED_PLAN_SHAPE,
-    REASON_UNSUPPORTED_SELECT_ARGUMENTS,
-    PlanDecision,
-    PolicyDecision,
-    evaluate_operation,
-    evaluate_plan,
-)
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import initial_fixture_plan
+from pmc_core.policy import REASON_ALLOWED_FIXTURE_OPERATION
+from pmc_core.policy import REASON_UNSUPPORTED_COLOR_ARGUMENTS
+from pmc_core.policy import REASON_UNSUPPORTED_OPERATION_TYPE
+from pmc_core.policy import REASON_UNSUPPORTED_PLAN_SHAPE
+from pmc_core.policy import REASON_UNSUPPORTED_SELECT_ARGUMENTS
+from pmc_core.policy import PlanDecision
+from pmc_core.policy import PolicyDecision
+from pmc_core.policy import evaluate_operation
+from pmc_core.policy import evaluate_plan
 
 FIXTURE_PML = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
@@ -71,7 +67,7 @@ def test_evaluate_plan_is_deterministic() -> None:
 
 
 def test_select_operation_matching_fixture_is_allowed() -> None:
-    """A standalone `select` operation matching the fixture is allowed."""
+    """A standalone select operation matching the fixture is allowed."""
     select_op = SelectOperation(
         selection_name="copilot_selection", expression="chain A"
     )
@@ -86,7 +82,7 @@ def test_select_operation_matching_fixture_is_allowed() -> None:
 
 
 def test_color_operation_matching_fixture_is_allowed() -> None:
-    """A standalone `color` operation matching the fixture is allowed."""
+    """A standalone color operation matching the fixture is allowed."""
     color_op = ColorOperation(color="red", selection_name="copilot_selection")
 
     decision = evaluate_operation(color_op, operation_index=1)
@@ -105,7 +101,7 @@ class _NotAnOperation:
 def test_non_operation_value_is_denied_by_default() -> None:
     """A value that is not a recorded operation type is denied by default."""
     decision = evaluate_operation(
-        _NotAnOperation(),  # type: ignore[arg-type]
+        _NotAnOperation(),  # pyrefly: ignore.
         operation_index=0,
     )
 
@@ -119,7 +115,7 @@ def test_non_operation_value_is_denied_by_default() -> None:
 def test_string_value_is_denied_by_default() -> None:
     """A raw string, rather than a typed operation, is denied by default."""
     decision = evaluate_operation(
-        "select copilot_selection, chain A",  # type: ignore[arg-type]
+        "select copilot_selection, chain A",  # pyrefly: ignore.
         operation_index=0,
     )
 
@@ -128,7 +124,7 @@ def test_string_value_is_denied_by_default() -> None:
 
 
 def test_select_operation_with_unrecorded_arguments_is_denied() -> None:
-    """A `select` operation outside the fixture value is denied."""
+    """A select operation outside the fixture value is denied."""
     select_op = object.__new__(SelectOperation)
     object.__setattr__(select_op, "selection_name", "other_selection")
     object.__setattr__(select_op, "expression", "chain A")
@@ -143,7 +139,7 @@ def test_select_operation_with_unrecorded_arguments_is_denied() -> None:
 
 
 def test_color_operation_with_unrecorded_arguments_is_denied() -> None:
-    """A `color` operation outside the fixture value is denied."""
+    """A color operation outside the fixture value is denied."""
     color_op = object.__new__(ColorOperation)
     object.__setattr__(color_op, "color", "blue")
     object.__setattr__(color_op, "selection_name", "copilot_selection")
@@ -158,7 +154,7 @@ def test_color_operation_with_unrecorded_arguments_is_denied() -> None:
 
 
 def test_plan_with_wrong_operation_order_is_denied() -> None:
-    """A plan beginning with `color` and ending with `select` is denied."""
+    """A plan beginning with color and ending with select is denied."""
     color_op = ColorOperation(color="red", selection_name="copilot_selection")
     select_op = SelectOperation(
         selection_name="copilot_selection", expression="chain A"

@@ -3,8 +3,8 @@
 
 These tests run without any grammar or generator: every input is a literal
 adversarial string. They cover the parser's total contract -- every input
-either returns the exact accepted `ActionPlan` fixture or a typed indexed
-`ParseRejection`, and no input reaches Open-Source PyMOL. Categories match
+either returns the exact accepted ActionPlan fixture or a typed indexed
+ParseRejection, and no input reaches Open-Source PyMOL. Categories match
 the shared adversarial corpus called for by the plan-and-execution design:
 unknown verbs, comments, quoting, continuations, case variation,
 expression-like content, truncation, and extra commands.
@@ -12,8 +12,10 @@ expression-like content, truncation, and extra commands.
 
 import pytest
 
-from pmc_core.parser import ParseRejection, parse_pml
-from pmc_core.plan import ActionPlan, initial_fixture_plan
+from pmc_core.parser import ParseRejection
+from pmc_core.parser import parse_pml
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import initial_fixture_plan
 
 FIXTURE_PML = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
@@ -21,7 +23,7 @@ FIXTURE_PML = (
 
 
 def test_exact_positive_fixture_parses_to_the_accepted_plan() -> None:
-    """The exact accepted fixture text parses to the accepted `ActionPlan`."""
+    """The exact accepted fixture text parses to the accepted ActionPlan."""
     result = parse_pml(FIXTURE_PML)
 
     assert result == initial_fixture_plan()
@@ -38,7 +40,11 @@ def test_exact_positive_fixture_parses_to_the_accepted_plan() -> None:
     ids=["unknown_first_verb", "unknown_second_verb", "unrelated_verb"],
 )
 def test_unknown_verbs_are_rejected(text: str) -> None:
-    """A verb outside `select`/`color` is rejected, never partially run."""
+    """A verb outside select/color is rejected, never partially run.
+
+    Args:
+        text: Command text containing an unknown verb.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -58,7 +64,11 @@ def test_unknown_verbs_are_rejected(text: str) -> None:
     ids=["leading_comment", "inline_comment_first", "inline_comment_second"],
 )
 def test_comments_are_rejected(text: str) -> None:
-    """Comments are rejected outright, never stripped or normalized."""
+    """Comments are rejected outright, never stripped or normalized.
+
+    Args:
+        text: Command text containing a comment.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -81,7 +91,11 @@ def test_comments_are_rejected(text: str) -> None:
     ],
 )
 def test_quoting_is_rejected(text: str) -> None:
-    """Quoted values are rejected rather than unquoted before matching."""
+    """Quoted values are rejected rather than unquoted before matching.
+
+    Args:
+        text: Command text containing a quoted value.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -97,7 +111,11 @@ def test_quoting_is_rejected(text: str) -> None:
     ids=["continuation_within_command", "continuation_between_commands"],
 )
 def test_line_continuations_are_rejected(text: str) -> None:
-    """Line continuations are rejected rather than joined before parsing."""
+    """Line continuations are rejected rather than joined before parsing.
+
+    Args:
+        text: Command text containing a line continuation.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -120,7 +138,11 @@ def test_line_continuations_are_rejected(text: str) -> None:
     ],
 )
 def test_case_variation_is_rejected(text: str) -> None:
-    """Case variation anywhere in the command is rejected, never folded."""
+    """Case variation anywhere in the command is rejected, never folded.
+
+    Args:
+        text: Command text containing case variation.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -143,7 +165,11 @@ def test_case_variation_is_rejected(text: str) -> None:
     ],
 )
 def test_expression_like_content_is_rejected(text: str) -> None:
-    """Any expression beyond the exact fixture value is rejected."""
+    """Any expression beyond the exact fixture value is rejected.
+
+    Args:
+        text: Command text containing an unsupported expression.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -165,7 +191,11 @@ def test_expression_like_content_is_rejected(text: str) -> None:
     ],
 )
 def test_truncated_input_is_rejected(text: str) -> None:
-    """Truncated input never yields a partial plan."""
+    """Truncated input never yields a partial plan.
+
+    Args:
+        text: Incomplete command text.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -188,7 +218,11 @@ def test_truncated_input_is_rejected(text: str) -> None:
     ],
 )
 def test_extra_commands_are_rejected(text: str) -> None:
-    """Extra commands beyond the exact two-command fixture are rejected."""
+    """Extra commands beyond the exact two-command fixture are rejected.
+
+    Args:
+        text: Command text containing extra commands.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)
@@ -215,7 +249,11 @@ def test_extra_commands_are_rejected(text: str) -> None:
     ],
 )
 def test_alternate_whitespace_forms_are_rejected(text: str) -> None:
-    """Alternate whitespace forms are rejected, never normalized away."""
+    """Alternate whitespace forms are rejected, never normalized away.
+
+    Args:
+        text: Command text using unsupported whitespace.
+    """
     result = parse_pml(text)
 
     assert isinstance(result, ParseRejection)

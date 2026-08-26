@@ -1,14 +1,14 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Total dedicated tokenizer and parser for the initial restricted plan.
 
-This module owns the boundary between untrusted native `.pml` text and the
-immutable typed plan defined in `pmc_core.plan`. It is a dedicated restricted
+This module owns the boundary between untrusted native .pml text and the
+immutable typed plan defined in pmc_core.plan. It is a dedicated restricted
 tokenizer and parser; it never delegates untrusted text to Open-Source PyMOL
 parsing facilities and never dispatches partial output.
 
-The parser is total over arbitrary text: `parse_pml` never raises for any
-input. It returns either the complete `ActionPlan` for the exact accepted
-fixture or a typed, indexed `ParseRejection` describing why the input was
+The parser is total over arbitrary text: parse_pml never raises for any
+input. It returns either the complete ActionPlan for the exact accepted
+fixture or a typed, indexed ParseRejection describing why the input was
 rejected. Case variation, comments, quoting, line continuations, and
 alternate whitespace forms are all rejected -- none of them are normalized.
 Expanding the accepted syntax requires accepted fixtures and security
@@ -19,7 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pmc_core.plan import ActionPlan, ColorOperation, SelectOperation
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import SelectOperation
 
 #: The only verb accepted on the first command line.
 _SELECT_VERB = "select"
@@ -36,11 +38,11 @@ _EXPECTED_COMMA_COUNT: int = 1
 
 @dataclass(frozen=True)
 class ParseRejection:
-    """A typed, indexed rejection of native `.pml` text.
+    """A typed, indexed rejection of native .pml text.
 
     Attributes:
         command_index: The zero-based index of the command line that
-            triggered the rejection, or `None` when the rejection describes
+            triggered the rejection, or None when the rejection describes
             the input as a whole rather than one command line.
         category: A stable, machine-readable rejection category.
         message: A human-readable explanation of the rejection.
@@ -52,23 +54,25 @@ class ParseRejection:
 
 
 #: The result of parsing: either a complete plan or a typed rejection.
-type ParseResult = ActionPlan | ParseRejection
+type PARSE_RESULT = ActionPlan | ParseRejection
+# Preserve the original runtime name for callers importing this type alias.
+globals()["ParseResult"] = PARSE_RESULT
 
 
-def parse_pml(text: str) -> ParseResult:
-    """Parse restricted native `.pml` text into an immutable typed plan.
+def parse_pml(text: str) -> PARSE_RESULT:
+    """Parse restricted native .pml text into an immutable typed plan.
 
     This function is total: it never raises and never returns a partial
-    plan. It accepts only the exact recorded fixture -- one `select`
-    command line followed by one `color` command line, each in the exact
+    plan. It accepts only the exact recorded fixture -- one select command
+    line followed by one color command line, each in the exact
     accepted canonical form -- and rejects every other input.
 
     Args:
-        text: The native `.pml` source text to parse.
+        text: The native .pml source text to parse.
 
     Returns:
-        The immutable `ActionPlan` when `text` is exactly the accepted
-        fixture, or a `ParseRejection` describing why it was rejected.
+        The immutable ActionPlan when text is exactly the accepted fixture,
+        or a ParseRejection describing why it was rejected.
     """
     lines = _split_lines(text)
     match lines:
@@ -134,15 +138,14 @@ def parse_pml(text: str) -> ParseResult:
 
 
 def _split_lines(text: str) -> list[str] | ParseRejection:
-    """Split `text` into command lines, rejecting alternate line forms.
+    """Split text into command lines, rejecting alternate line forms.
 
     Args:
-        text: The raw native `.pml` source text.
+        text: The raw native .pml source text.
 
     Returns:
-        The ordered command lines, or a `ParseRejection` when `text` is
-        empty or uses a line-ending or blank-line form outside the
-        accepted fixture.
+        The ordered command lines, or a ParseRejection when text is empty or
+        uses a line-ending or blank-line form outside the accepted fixture.
     """
     if text == "":
         return ParseRejection(
@@ -193,12 +196,12 @@ def _tokenize_command(
 
     Args:
         line: The command line text, without a trailing newline.
-        command_index: The zero-based index of `line` within the input.
+        command_index: The zero-based index of line within the input.
 
     Returns:
-        A `(verb, (first_argument, second_argument))` pair when `line`
-        matches the accepted `"<verb> <argument>, <argument>"` shape, or a
-        `ParseRejection` describing why it does not.
+        A (verb, (first_argument, second_argument)) pair when line matches
+        the accepted command shape, or a ParseRejection describing why it
+        does not.
     """
     if line != line.strip():
         return ParseRejection(

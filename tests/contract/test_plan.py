@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Contract tests for the immutable plan and canonical rendering.
 
-These tests cover the accepted positive fixture -- `select
-copilot_selection, chain A` followed by `color red, copilot_selection` --
+These tests cover the accepted positive fixture -- select
+copilot_selection, chain A followed by color red, copilot_selection --
 and the plan-level guarantees achievable without a parser: canonical
 rendering, idempotent rendering, immutability, and rejection of any
 operation or sequence outside the recorded fixture.
@@ -10,12 +10,10 @@ operation or sequence outside the recorded fixture.
 
 import pytest
 
-from pmc_core.plan import (
-    ActionPlan,
-    ColorOperation,
-    SelectOperation,
-    initial_fixture_plan,
-)
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import initial_fixture_plan
 
 FIXTURE_PML = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
@@ -23,7 +21,7 @@ FIXTURE_PML = (
 
 
 def test_initial_fixture_plan_renders_canonical_pml() -> None:
-    """The accepted fixture renders as the exact canonical `.pml` text."""
+    """The accepted fixture renders as the exact canonical .pml text."""
     plan = initial_fixture_plan()
 
     assert plan.render_pml() == FIXTURE_PML
@@ -57,14 +55,14 @@ def test_equivalent_plans_render_identically() -> None:
 
 
 def test_action_plan_is_immutable() -> None:
-    """An `ActionPlan` and its operations cannot be mutated after creation."""
+    """An ActionPlan and its operations cannot be mutated after creation."""
     plan = initial_fixture_plan()
     select_op, _color_op = plan.operations
 
     with pytest.raises(AttributeError):
-        plan.operations = ()  # type: ignore[misc]
+        plan.operations = ()  # pyrefly: ignore.
     with pytest.raises(AttributeError):
-        select_op.selection_name = "other"  # type: ignore[misc]
+        select_op.selection_name = "other"  # pyrefly: ignore.
 
 
 def test_select_operation_rejects_unsupported_selection_name() -> None:
@@ -88,13 +86,13 @@ def test_color_operation_rejects_unsupported_color() -> None:
 
 
 def test_color_operation_rejects_unsupported_selection_name() -> None:
-    """A selection name outside the fixture is rejected for `color`."""
+    """A selection name outside the fixture is rejected for color."""
     with pytest.raises(ValueError, match="unsupported selection name"):
         ColorOperation(color="red", selection_name="other_selection")
 
 
 def test_action_plan_rejects_wrong_operation_order() -> None:
-    """A plan cannot begin with `color` and end with `select`."""
+    """A plan cannot begin with color and end with select."""
     color_op = ColorOperation(color="red", selection_name="copilot_selection")
     select_op = SelectOperation(
         selection_name="copilot_selection", expression="chain A"
