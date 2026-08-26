@@ -137,6 +137,144 @@ fixtures are the architectural contracts.
 - Test/fixture: both-side contract suite plus wrong-token and
   version-mismatch probes.
 
+### Initial bridge-companion fixture
+
+The initial protocol fixture defines the request and validated response for the
+non-mutating `select`/`color` slice. HTTP paths remain private. The ephemeral
+loopback credential is an HTTP header, not a JSON field.
+
+The schemas use JSON Schema 2020-12. The V1 schemas reject unrecognized
+fields. A protocol change publishes a new schema version and its bidirectional
+fixture. `requestId`, `sessionId`, and `planId` are UUIDv4 identifiers for
+correlation, not authorization. The client's `createdAt` is diagnostic; the
+server's `receivedAt` and `validatedAt` record authoritative server times.
+All timestamps use RFC 3339 UTC format.
+
+**`PlanRequestV1` — client to server**
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pymol-copilot:protocol:PlanRequestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "requestId",
+    "sessionId",
+    "createdAt",
+    "contractManifest",
+    "intent",
+    "snapshot"
+  ],
+  "properties": {
+    "protocolVersion": {"const": "1"},
+    "requestId": {"type": "string", "format": "uuid"},
+    "sessionId": {"type": "string", "format": "uuid"},
+    "createdAt": {"type": "string", "format": "date-time"},
+    "contractManifest": {"$ref": "ContractManifestV1.schema.json"},
+    "intent": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "snapshot": {"$ref": "StructureSnapshotV1.schema.json"}
+  }
+}
+```
+
+The contract fixture supplies this request. Its `snapshot` value is a local
+test instance of `StructureSnapshotV1`; production messages carry the complete
+canonical snapshot rather than a fixture identifier.
+
+```json
+{
+  "protocolVersion": "1",
+  "requestId": "11111111-1111-4111-8111-111111111111",
+  "sessionId": "22222222-2222-4222-8222-222222222222",
+  "createdAt": "2026-08-26T14:22:03.123Z",
+  "contractManifest": {
+    "planVersion": "1",
+    "policyVersion": "1",
+    "snapshotVersion": "1"
+  },
+  "intent": "Select chain A and color it red.",
+  "snapshot": {
+    "schemaVersion": "1",
+    "digest": "sha256:example-chain-a-digest",
+    "fixtureId": "one-object-chain-a-v1"
+  }
+}
+```
+
+**`ValidatedPlanResponseV1` — server to client**
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pymol-copilot:protocol:ValidatedPlanResponseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "requestId",
+    "sessionId",
+    "receivedAt",
+    "validatedAt",
+    "status",
+    "actionPlan",
+    "validation"
+  ],
+  "properties": {
+    "protocolVersion": {"const": "1"},
+    "requestId": {"type": "string", "format": "uuid"},
+    "sessionId": {"type": "string", "format": "uuid"},
+    "receivedAt": {"type": "string", "format": "date-time"},
+    "validatedAt": {"type": "string", "format": "date-time"},
+    "status": {"const": "validated"},
+    "actionPlan": {"$ref": "ActionPlanV1.schema.json"},
+    "validation": {"$ref": "ValidationReportV1.schema.json"}
+  }
+}
+```
+
+The contract fixture expects this response. `actionPlan.commands` is the only
+plan representation on the wire; the client renders canonical `.pml` through
+the shared-core serializer.
+
+```json
+{
+  "protocolVersion": "1",
+  "requestId": "11111111-1111-4111-8111-111111111111",
+  "sessionId": "22222222-2222-4222-8222-222222222222",
+  "receivedAt": "2026-08-26T14:22:03.124Z",
+  "validatedAt": "2026-08-26T14:22:03.220Z",
+  "status": "validated",
+  "actionPlan": {
+    "planId": "33333333-3333-4333-8333-333333333333",
+    "planVersion": "1",
+    "snapshotDigest": "sha256:example-chain-a-digest",
+    "commands": [
+      {
+        "verb": "select",
+        "name": "copilot_selection",
+        "expression": "chain A"
+      },
+      {
+        "verb": "color",
+        "color": "red",
+        "target": "copilot_selection"
+      }
+    ]
+  },
+  "validation": {
+    "status": "passed",
+    "snapshotDigest": "sha256:example-chain-a-digest",
+    "warnings": []
+  }
+}
+```
+
+The server returns a separate typed failure response for invalid input or an
+unsuccessful validation. It returns neither a partial action plan nor raw
+model `.pml` text.
+
 **Session registration**
 - Guarantees: one bridge identity and one companion per PyMOL process.
 - Errors: a duplicate or stale session is rejected; there is no automatic

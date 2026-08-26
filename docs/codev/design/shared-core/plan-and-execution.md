@@ -113,6 +113,29 @@ to reproduce command-indexed errors.
 Canonical serialization is idempotent. A truncated or partially valid plan is
 rejected rather than partly executed.
 
+#### Initial implementation fixture
+
+The initial implementation accepts native PyMOL `.pml` command syntax and
+permits only `select` and `color`. A plan creates one named selection and then
+applies one color to that selection. No other verb, label form, setting,
+expression capability, or implicit execution behavior is part of this fixture.
+The parser and policy reject every form outside the recorded fixture.
+
+The exact selection-expression and color-value grammars remain open until
+Martin and Hannah record the smallest accepted examples and rejection cases.
+This boundary does not expand the accepted V1 command scope.
+
+The first accepted positive fixture is:
+
+```pml
+select copilot_selection, chain A
+color red, copilot_selection
+```
+
+The parser canonicalizes this sequence, and the policy permits it. Any
+additional command or argument form remains denied until it is added through
+the ordinary contract process.
+
 ### Command policy
 
 Policy is evaluated on typed operations, never raw substrings. The V1 policy
@@ -233,6 +256,7 @@ below.
 | Question | Evidence needed | Blocking? |
 |---|---|---|
 | Which Open-Source PyMOL tokenization and parsing facilities are safe to reuse, and where is a dedicated tokenizer required? | Spike against the accepted positive and adversarial syntax corpus | Yes, before parser design acceptance |
+| Which additional selection-expression and color-value forms belong in the initial `select`/`color` fixture? | Accepted positive and rejection examples in native `.pml` syntax | No; the first positive fixture is accepted |
 | What exact constrained-label forms avoid PyMOL expression evaluation while serving V1 workflows? | Real PyMOL behavior probes plus security evidence | Yes, before command-policy acceptance |
 
 ## Acceptance

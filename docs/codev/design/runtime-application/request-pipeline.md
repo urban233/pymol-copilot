@@ -99,6 +99,20 @@ happen first, in
 
 The live session remains unchanged throughout every step in this sequence.
 
+#### Initial implementation fixture
+
+The first non-mutating runtime slice consumes and renders only the shared
+core's `select` and `color` `.pml` fixture:
+
+```pml
+select copilot_selection, chain A
+color red, copilot_selection
+```
+
+It may use a deterministic local completion fixture while model integration
+remains unplanned. The bridge does not apply the resulting plan to the live
+session.
+
 ### LangGraph state model
 
 LangGraph contains only decisions that branch, terminate, or retry. Pure
@@ -141,7 +155,8 @@ Hannah owns every contract below.
   and limits.
 - Errors: an invalid snapshot, manifest, or size fails before inference.
 - Test/fixture: golden loaded-object, ambiguity, no-object, and oversized
-  requests.
+  requests. The first bridge-companion message shapes are defined in
+  [Initial bridge-companion fixture](process-architecture.md#initial-bridge-companion-fixture).
 
 **Inference abstraction**
 - Guarantees: local bounded completion, grammar capability, cancellation, and

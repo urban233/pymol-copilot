@@ -1,110 +1,110 @@
-# Design readiness delivery plan
+# Initial runtime delivery plan
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../SPECIFICATION.md)
-**Design:** [shared core](../design/shared-core/design.md), [runtime application](../design/runtime-application/design.md), and [model development](../design/model-development/design.md) (all Draft)
+**Design:** [shared core](../design/shared-core/design.md) and [runtime application](../design/runtime-application/design.md)
 **Project tracker:** Not used
 **Supersedes:** Not applicable
 **Last reviewed:** 2026-08-24
 
 ## Changes since last review
 
-- New plan. It defines only the evidence needed to make the first design
-  decisions ready for acceptance.
+- Replaced the discovery lanes with a direct two-task start. Existing
+  cross-project runtime evidence is accepted as applicable to this project.
 
 ## Current milestone
 
-**Outcome:** The team has reproducible reference-environment and
-restricted-plan evidence to decide the first shared contracts without blocking
-either developer on the other’s implementation.
+**Outcome:** A structural biologist can submit an intent in PyMOL and inspect a
+locally produced, validated plan without changing the live session.
 
-**Evidence:** Two bounded discovery reports, their versioned fixtures, and an
-integration decision that records which contract questions are resolved or
-remain open.
+**Evidence:** A headless end-to-end fixture proves that the command bridge,
+companion, typed-plan boundary, and plan rendering complete without a live
+session mutation.
 
 **Target:** Not committed.
 
+## Before implementation
+
+The first fixture uses native PyMOL `.pml` command syntax and permits only
+`select` followed by `color`:
+
+```pml
+select copilot_selection, chain A
+color red, copilot_selection
+```
+
+Labels and every other command are out of scope. The typed-plan and
+bridge-companion request/response shapes are accepted in the runtime
+[Initial bridge-companion fixture](../design/runtime-application/process-architecture.md#initial-bridge-companion-fixture).
+The prior project evidence is sufficient for loopback startup, command
+responsiveness, sidecar fidelity, and recovery feasibility; no separate probe
+or evidence-adoption task is required.
+
 ## Current work
 
-Hannah and Martin each have one discovery-work slot and independently review
-the other developer's work. The lanes below are ready for assignment, but they
-remain discovery work rather than product implementation tasks.
+Both tasks are high risk because they establish the safety boundary. Hannah and
+Martin each have one work-in-progress slot and independently review the other
+developer's work.
 
-| ID | Capability lane | Risk | Status | Blocked by |
+| ID | Task | Issue | Status | Blocked by |
 |---|---|---|---|---|
-| D-01 | Runtime reference-environment evidence | High | Ready | None |
-| D-02 | Restricted-plan evidence | High | Ready | None |
+| T-01 | Restricted-plan core | [#4](https://github.com/urban233/pymol-copilot/issues/4) | Ready | None |
+| T-02 | Non-mutating runtime path | [#3](https://github.com/urban233/pymol-copilot/issues/3) | Ready | None |
 
-### D-01: Runtime reference-environment evidence
-
-- **Owner and reviewer:** Hannah Kullik (`kullik01`); Martin Urban
-  (`urban233`) reviews independently.
-- **Outcome and acceptance:** Pin one Open-Source PyMOL reference environment
-  and report loopback companion startup, `cmd.extend()` responsiveness,
-  relevant-state reconstruction in a fresh sidecar, and `.pse` recovery after
-  deliberate partial application. Include modified, multi-state, and
-  alternate-location fixtures. Every probe records its environment identity,
-  procedure, result, and unsupported behavior. The work does not claim
-  platform qualification or enable live apply.
-- **Integrates with:** The snapshot, sidecar, process, and recovery contracts
-  in the runtime and shared-core designs.
-- **Validation:** Reproducible probe run, fixture comparison, and deliberate
-  failure-and-recovery evidence.
-
-### D-02: Restricted-plan evidence
+### T-01: Restricted-plan core
 
 - **Owner and reviewer:** Martin Urban (`urban233`); Hannah Kullik
   (`kullik01`) reviews independently.
-- **Outcome and acceptance:** Build the smallest positive and adversarial
-  native-plan corpus needed to decide tokenizer reuse, safe constrained-label
-  forms, and default-deny policy boundaries. Each corpus case has an expected
-  parse or rejection result from the pinned reference environment. The work
-  does not freeze a parser API, policy version, dataset generation, or model
-  training.
-- **Integrates with:** The plan-language design and later structure-card,
-  grammar, dataset, and oracle work through fixtures only.
-- **Validation:** Corpus replay, rejection coverage with grammar disabled, and
-  recorded PyMOL behavior probes.
+- **Outcome and acceptance:** Implement the agreed typed-plan representation,
+  canonical rendering, and default-deny parser and policy for native `.pml`
+  `select` and `color` commands only. Unknown input is rejected and never
+  reaches a PyMOL dispatcher.
+- **Integrates with:** T-02 only through the recorded typed-plan and
+  bridge-companion fixtures.
+- **Validation:** Positive and adversarial corpus tests, including grammar-free
+  rejection tests.
+- **Non-goals:** Broader command coverage, grammar generation, model training,
+  labels, and live execution.
 
-## Integration checkpoints
+### T-02: Non-mutating runtime path
 
-The team uses one checkpoint to turn the two independent discovery results
-into a shared fixture decision.
+- **Owner and reviewer:** Hannah Kullik (`kullik01`); Martin Urban
+  (`urban233`) reviews independently.
+- **Outcome and acceptance:** Implement the agreed command bridge and local
+  companion path for one intent. It produces and renders a typed native `.pml`
+  `select`/`color` plan and validation result without applying commands to the
+  live PyMOL session.
+- **Integrates with:** T-01 through the recorded fixtures. It may use a local
+  deterministic completion fixture until a model adapter is planned.
+- **Validation:** A headless end-to-end fixture verifies command input, local
+  request handling, plan rendering, and zero live-session mutation.
+- **Non-goals:** Apply, rollback, controlled fetch, model lifecycle, and
+  platform qualification.
 
-### I-01: Decide the first shared fixture set
+## Integration checkpoint
 
-- **Participating work and owner:** D-01 and D-02; Martin Urban (`urban233`)
-  coordinates the checkpoint.
-- **Entry evidence:** Both lanes provide versioned inputs, exact
-  reference-environment identities, and unresolved findings.
-- **Completion evidence:** The team records the initial fixture set and decides
-  whether the snapshot, plan-language, process, and recovery questions have
-  enough evidence for design acceptance. No implementation task starts from an
-  unresolved contract.
+After both tasks pass their local validation, Martin and Hannah run the
+headless end-to-end fixture together. They confirm that the rendered plan uses
+the same canonical typed-plan representation and that no live-session mutation
+occurred. Any contract disagreement returns to the two design documents before
+the next build task is planned.
 
 ## Risks and discovery
 
 | Risk or unknown | Impact | Evidence-producing action | Owner | Decision point |
 |---|---|---|---|---|
-| The current design documents are Draft and have unresolved contract questions. | Product implementation could encode incompatible or unsafe assumptions. | Complete D-01 and D-02, then use I-01 to update and accept only the designs supported by evidence. | Unassigned | I-01 |
-| The working tree contains uncommitted specification and design changes. | A discovery result could be evaluated against a moving planning baseline. | Confirm the intended planning baseline before either lane begins. | Human | Before D-01 or D-02 starts |
-| The two discovery lanes exchange fixture inputs at I-01. | An undocumented fixture change could invalidate the other lane's evidence. | Record the fixture identities and reference environment at the checkpoint. | Martin | I-01 |
+| The first contract discussion leaves a command or protocol detail unresolved. | Parallel work could diverge. | Record the smallest explicit fixture before either task begins. | Martin and Hannah | Before T-01 and T-02 |
+| Existing external evidence does not match the intended environment. | A runtime assumption could be invalid for this project. | Stop the affected task and document the mismatch before changing the design. | Hannah | During T-02 |
 
 ## Later milestones
 
-- **Accepted first-contract design:** Use I-01 evidence to accept the smallest
-  shared-core and runtime decisions, then plan one thin vertical slice that
-  renders a validated plan without enabling apply.
+- **Safe apply:** Plan approval, sidecar validation, recovery, and controlled
+  fetch only after the non-mutating vertical slice provides integration evidence.
 
 ## Team agreements
 
-- Default implementation WIP: one item per developer.
+- Default WIP: one item per developer.
 - Owners do not approve their own changes.
-- Hannah owns D-01 and independently reviews D-02. Martin owns D-02 and
-  independently reviews D-01.
-- The two discovery lanes may proceed concurrently because they share no
-  implementation interface. They exchange only the reference-environment
-  identity and fixture inputs at I-01.
-- Status and availability live in this plan or a linked tracker, not in
-  architecture documents.
+- Hannah owns T-02 and independently reviews T-01. Martin owns T-01 and
+  independently reviews T-02.
