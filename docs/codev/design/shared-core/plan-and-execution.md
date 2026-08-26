@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`)
-**Reviewers:** model-execution security reviewer (required); Hannah Kullik (`kullik01`)
+**Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Shared Core and Contracts Design](design.md)
 **Last reviewed:** 2026-08-22
@@ -67,8 +67,7 @@ depend on.
 ### Components and ownership
 
 Martin owns every component below, and every one of them is new. Expanding
-the command policy additionally requires the named model-execution security
-reviewer.
+the command policy requires accepted security evidence.
 
 | Component | Responsibility |
 |---|---|
@@ -153,8 +152,8 @@ Martin owns every contract below.
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| `parse(native_plan)` and canonical serialization | Companion, dataset filter, executor | Additive syntax only after fixtures and policy review |
-| `evaluate_policy(plan)` | Companion, sidecar, dataset filter | Expansion requires security review and new model evaluation |
+| `parse(native_plan)` and canonical serialization | Companion, dataset filter, executor | Additive syntax only after fixtures and accepted policy evidence |
+| `evaluate_policy(plan)` | Companion, sidecar, dataset filter | Expansion requires security evidence and new model evaluation |
 | `ErrorEnvelopeV1` | Runtime repair, repair-data generator | A major change requires repair-data regeneration or a proved adapter |
 | Hermetic execution protocol | Dataset and oracle system, runtime sidecar | Protocol version in manifest; report changes are additive only when safe |
 
@@ -198,7 +197,7 @@ Martin owns every contract below.
 - **Security/privacy:** All model and teacher output is untrusted. The parser
   is total, policy is default deny, and contract fixtures run without
   grammar. Error fixtures must not retain unpublished user structures.
-  Command expansion requires security review.
+  Command expansion requires security evidence.
 - **Reliability/concurrency:** The executor protocol requires a fresh process
   per attempt and owns termination evidence. Retries are orchestration
   decisions outside the core.
@@ -228,17 +227,16 @@ rest.
 
 ## Open questions
 
-Each question below is specific to this design. The question of who reviews
-it is recorded in the parent design's
-[Open questions](design.md#open-questions). Martin owns every question below.
+Each question below is specific to this design. Martin owns every question
+below.
 
 | Question | Evidence needed | Blocking? |
 |---|---|---|
 | Which Open-Source PyMOL tokenization and parsing facilities are safe to reuse, and where is a dedicated tokenizer required? | Spike against the accepted positive and adversarial syntax corpus | Yes, before parser design acceptance |
-| What exact constrained-label forms avoid PyMOL expression evaluation while serving V1 workflows? | Real PyMOL behavior probes plus security review | Yes, before command-policy acceptance |
+| What exact constrained-label forms avoid PyMOL expression evaluation while serving V1 workflows? | Real PyMOL behavior probes plus security evidence | Yes, before command-policy acceptance |
 
 ## Acceptance
 
 - [ ] Material decisions resolved.
-- [ ] Model-execution security review complete.
+- [ ] Command-policy safety evidence accepted.
 - [ ] Accountable human accepts planning against this design.

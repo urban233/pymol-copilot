@@ -1,12 +1,12 @@
 # PyMOL-Copilot Specification
 
-**Status:** Accepted
-**Product frame:** Accepted
-**Technical design:** Accepted
-**Product owner:** Martin Urban (`urban233`)
-**Technical owner:** Martin Urban (`urban233`)
-**Required reviewers:** Hannah Kullik (`kullik01`, specification accepted 2026-08-19); structural-biology, model-execution security, ML data/evaluation, and licensing reviews are delivery/release gates
-**Last reviewed:** 2026-08-19
+**Status:** Accepted<br>
+**Product frame:** Accepted<br>
+**Technical design:** Accepted<br>
+**Product owner:** Martin Urban (`urban233`)<br>
+**Technical owner:** Martin Urban (`urban233`)<br>
+**Required reviewers:** Hannah Kullik (`kullik01`, specification accepted 2026-08-19); structural-biology, model-execution security, ML data/evaluation, and licensing reviews are delivery/release gates<br>
+**Last reviewed:** 2026-08-19<br>
 
 ## Executive summary
 

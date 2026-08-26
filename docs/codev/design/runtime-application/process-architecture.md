@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`)
-**Reviewers:** Martin Urban (`urban233`); model-execution security reviewer for the credential and bind rules
+**Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Runtime Application and PyMOL Integration Design](design.md)
 **Last reviewed:** 2026-08-22

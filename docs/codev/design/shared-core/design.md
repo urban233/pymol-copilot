@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`), accountable; shared with Hannah Kullik (`kullik01`)
-**Reviewers:** Hannah Kullik; model-execution security reviewer to be named
+**Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Last reviewed:** 2026-08-22
 
@@ -21,8 +21,7 @@ own design document:
 
 1. [Plan language, policy, and execution](plan-and-execution.md) -- turns
    untrusted model text into an authorized typed plan, executes that plan
-   under hermetic limits, and normalizes every failure. Needs the
-   model-execution security reviewer.
+   under hermetic limits, and normalizes every failure.
 2. [Structure context](structure-context.md) -- turns live PyMOL state into
    the deterministic model context and the generation grammar. Needs
    Hannah's PyMOL-fidelity evidence.
@@ -110,10 +109,10 @@ fixture corpus.
 
 The child designs contribute the remaining eight components:
 
-| Design | Components | Primary reviewer |
+| Design | Components | Required evidence |
 |---|---|---|
-| [Plan language, policy, and execution](plan-and-execution.md) | Restricted plan language, parser and serializer, command policy, error envelope, execution protocol | Model-execution security |
-| [Structure context](structure-context.md) | Structure snapshot contract, structure card, grammar generator | Hannah Kullik |
+| [Plan language, policy, and execution](plan-and-execution.md) | Restricted plan language, parser and serializer, command policy, error envelope, execution protocol | Command-policy safety evidence |
+| [Structure context](structure-context.md) | Structure snapshot contract, structure card, grammar generator | PyMOL-fidelity evidence |
 
 Ownership of a component means responsibility for its semantics and
 compatibility evidence, not permission to approve one's own change. The other
@@ -219,7 +218,7 @@ area-specific test list.
 No prior production contract exists to migrate. Initial contract versions
 remain Draft until both consuming subsystems pass their fixtures. A contract
 may be frozen for model-data production only after Martin and Hannah accept
-the exact fixture corpus and the security reviewer accepts command policy.
+the exact fixture corpus and command-policy safety evidence.
 
 Model-development and runtime consumers first integrate against fixtures,
 then against the same package artifact. No duplicated stub namespace may
@@ -232,16 +231,6 @@ application, dataset, and model manifests. Obsolete adapters and fixtures are
 removed only after no supported artifact references them. Test snapshots and
 captured errors are deleted or minimized according to their provenance and
 privacy classification.
-
-## Open questions
-
-The question below blocks both child designs, so it stays here. A question
-specific to one contract area is recorded in that child design instead.
-Martin owns the question below.
-
-| Question | Evidence needed | Blocking? |
-|---|---|---|
-| Who is the independent model-execution security reviewer? | Named reviewer and recorded availability | Yes, before either child design is `Accepted` |
 
 ## Acceptance
 

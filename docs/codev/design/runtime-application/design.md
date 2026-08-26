@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`)
-**Reviewers:** Martin Urban (`urban233`); model-execution security reviewer to be named
+**Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Last reviewed:** 2026-08-22
 
@@ -27,7 +27,7 @@ design document:
    attempt. Needs real-engine conformance evidence.
 3. [Approval and recovery](approval-and-recovery.md) -- pending actions,
    controlled PDB (Protein Data Bank) fetch, apply, automatic restore, and
-   manual rollback. Needs the model-execution security reviewer.
+   manual rollback.
 
 This parent design owns what binds the three together: the process and trust
 boundary, the no-live-mutation invariant, local diagnostics, and the
@@ -99,10 +99,9 @@ and how a request crosses them.
 
 ### Components and ownership
 
-Hannah owns every runtime component, and every one of them is new. Only the
-apply and recovery controller in
-[Approval and recovery](approval-and-recovery.md) additionally requires
-security review.
+Hannah owns every runtime component, and every one of them is new. The apply
+and recovery controller in [Approval and recovery](approval-and-recovery.md)
+requires accepted safety evidence.
 
 The cross-cutting component below belongs to no single child:
 
@@ -217,8 +216,6 @@ area-specific test list.
   fetch rejection, cancellation, expiry, user rejection, and companion
   failure paths.
 - Sabotage tests proving the no-mutation suite detects live writes.
-- Per-stage p50 and p95 (median and 95th-percentile) latency and peak memory
-  on every supported platform entry.
 
 ## Migration, rollout, rollback, and cleanup
 
@@ -246,13 +243,12 @@ checks.
 
 ## Open questions
 
-Each question below blocks more than one child design; a question specific to
+The question below blocks more than one child design. A question specific to
 one area is recorded in that child design instead.
 
 | Question | Owner | Evidence needed | Blocking? |
 |---|---|---|---|
 | What finite request, inference, sidecar, fetch, pending-action, and shutdown deadlines fit the measured laboratory-hardware envelope? | Hannah | Per-stage latency distribution and failure tests | No; values freeze before runtime release |
-| Who is the independent model-execution security reviewer? | Martin | Named reviewer and recorded availability | Yes, before [Approval and recovery](approval-and-recovery.md) is `Accepted` |
 
 ## Acceptance
 

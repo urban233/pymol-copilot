@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`)
-**Reviewers:** Hannah Kullik (`kullik01`); structural-biology, ML-evaluation, and licensing reviewers to be named
+**Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Last reviewed:** 2026-08-20
 
@@ -19,14 +19,13 @@ This subsystem covers three independently reviewable stages, each with its
 own design document:
 
 1. [Dataset and oracle](dataset-and-oracle.md) -- generates and curates the
-   training data, and builds the independent oracle that grades it. Needs
-   structural-biology review.
+   training data, and builds the independent oracle that grades it.
 2. [Training and evaluation](training-and-evaluation.md) -- fine-tunes the
    model on that dataset and measures whether it beats non-fine-tuned
-   baselines. Needs ML-evaluation review.
+   baselines.
 3. [Quantization and packaging](quantization-and-packaging.md) -- exports,
    re-evaluates, and benchmarks the deployable artifact, and packages it
-   with its compatibility and license manifest. Needs licensing review.
+   with its compatibility and license manifest.
 
 [Training and evaluation](training-and-evaluation.md) covers exactly which
 improvements beyond supervised fine-tuning are mandatory versus
@@ -99,14 +98,13 @@ This section covers only how the three fit together.
 
 ### Components and ownership
 
-Martin owns all three child designs below; each also names its own required
-independent reviewer.
+Martin owns all three child designs below.
 
-| Design | Scope | Primary reviewer |
+| Design | Scope | Required evidence |
 |---|---|---|
-| [Dataset and oracle](dataset-and-oracle.md) | Structure snapshot, gold suite, oracle, program-first and human-intent generation, curation | Structural-biology |
-| [Training and evaluation](training-and-evaluation.md) | Baselines, supervised fine-tuning, optional rejection sampling and gated RL | ML-evaluation |
-| [Quantization and packaging](quantization-and-packaging.md) | Quantized candidate evaluation, hardware benchmarking, model artifact manifest | Licensing |
+| [Dataset and oracle](dataset-and-oracle.md) | Structure snapshot, gold suite, oracle, program-first and human-intent generation, curation | Gold-suite and oracle evidence |
+| [Training and evaluation](training-and-evaluation.md) | Baselines, supervised fine-tuning, optional rejection sampling and gated RL | Evaluation evidence |
+| [Quantization and packaging](quantization-and-packaging.md) | Quantized candidate evaluation, hardware benchmarking, model artifact manifest | License and compatibility evidence |
 
 ### Data and control flow
 
@@ -196,15 +194,13 @@ data/model decision.
 
 ## Open questions
 
-Each question below blocks more than one child design; a question specific
-to one stage is recorded in that child design instead. Martin owns every
-question below.
+The question below blocks more than one child design. A question specific to
+one stage is recorded in that child design instead. Martin owns the question
+below.
 
 | Question | Evidence needed | Blocking? |
 |---|---|---|
-| Which base-model families and licenses satisfy restricted-plan quality, fine-tuning feasibility, Lemonade support, and redistribution goals? | Candidate license review plus B1/B2 quality and Lemonade compatibility probes | Yes, before training configuration acceptance and packaging |
-| What teacher, training, and storage budget is available for coverage and learning-curve decisions? | Cost pilot and explicit budget | No; required before bulk generation and training |
-| Who are the independent structural-biology, ML-evaluation, and licensing reviewers? | Named reviewers and recorded availability | Yes, before any child design is `Accepted` |
+| Which base-model families and licenses satisfy restricted-plan quality, fine-tuning feasibility, Lemonade support, and redistribution goals? | License compatibility evidence plus B1/B2 quality and Lemonade compatibility probes | Yes, before training configuration acceptance and packaging |
 
 ## Acceptance
 

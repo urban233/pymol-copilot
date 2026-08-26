@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`)
-**Reviewers:** licensing reviewer (required); Hannah Kullik (`kullik01`)
+**Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Dataset, Model Training, and Evaluation Design](design.md)
 **Last reviewed:** 2026-08-20
@@ -121,7 +121,7 @@ schema defined in
 
 ## Quality and risk
 
-- **Security/privacy:** Published artifacts require license review.
+- **Security/privacy:** Published artifacts require license verification.
 - **Observability/capacity/cost:** Reports record latency and memory per
   candidate and hardware profile.
 
@@ -151,5 +151,5 @@ Martin owns the question below.
 ## Acceptance
 
 - [ ] Material decisions resolved.
-- [ ] Licensing review complete.
+- [ ] License verification accepted.
 - [ ] Accountable human accepts planning against this design.

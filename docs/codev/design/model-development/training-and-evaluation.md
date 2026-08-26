@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`)
-**Reviewers:** ML-evaluation reviewer (required); Hannah Kullik (`kullik01`)
+**Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Dataset, Model Training, and Evaluation Design](design.md)
 **Last reviewed:** 2026-08-20
@@ -66,14 +66,13 @@ and the one contract other designs depend on.
 
 ### Components and ownership
 
-Martin owns every component below; the independent review column names
-where review is also required beyond the parent's ML-evaluation reviewer.
+Martin owns every component below.
 
-| Component | Responsibility | Independent review |
-|---|---|---|
-| Baseline and evaluation harness | Run B0-B3, full metrics, canaries, ablations, and integrated-agent comparison | -- |
-| Supervised fine-tuning pipeline | Train reproducibly with assistant-only loss and select checkpoints on validation TaskSuccess | -- |
-| Optional improvement pipeline | Run rejection sampling and, only behind accepted gates, verifiable-reward optimization | ML |
+| Component | Responsibility |
+|---|---|
+| Baseline and evaluation harness | Run B0-B3, full metrics, canaries, ablations, and integrated-agent comparison |
+| Supervised fine-tuning pipeline | Train reproducibly with assistant-only loss and select checkpoints on validation TaskSuccess |
+| Optional improvement pipeline | Run rejection sampling and, only behind accepted gates, verifiable-reward optimization |
 
 Every component in this table is new; none of it exists in the repository
 today.
@@ -136,8 +135,7 @@ Reinforcement learning is permitted only when all accepted gates pass:
 - a scalar reward preserves assertion information and explicitly penalizes
   known degeneracy (repetitive or reward-gaming outputs that score well
   without being useful);
-- independent ML review accepts reward tests and a per-round reward-audit
-  protocol.
+- accepted reward-test and per-round reward-audit evidence is available.
 
 Rising reward with flat assertion quality, increased degeneracy, or failed
 manual audits invalidates the run. Skipping RL is a valid recorded result.
@@ -205,5 +203,5 @@ Martin owns the question below.
 ## Acceptance
 
 - [ ] Material decisions resolved.
-- [ ] ML-evaluation review complete.
+- [ ] Evaluation evidence accepted.
 - [ ] Accountable human accepts planning against this design.

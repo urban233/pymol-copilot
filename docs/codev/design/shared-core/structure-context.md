@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`) for the snapshot and grammar; Martin Urban (`urban233`) for the structure card
-**Reviewers:** Hannah Kullik; Martin Urban; model-execution security reviewer for grammar-versus-policy boundaries
+**Reviewers:** Hannah Kullik (`kullik01`); Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Shared Core and Contracts Design](design.md)
 **Last reviewed:** 2026-08-22

@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`)
-**Reviewers:** model-execution security reviewer (required); Martin Urban (`urban233`)
+**Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Runtime Application and PyMOL Integration Design](design.md)
 **Last reviewed:** 2026-08-22
@@ -69,9 +69,8 @@ flows they implement, and the four contracts other designs depend on.
 ### Components and ownership
 
 Hannah owns every component below, and every one of them is new. The apply
-and recovery controller additionally requires the named model-execution
-security reviewer, because it is the only component that writes to the live
-session.
+and recovery controller requires accepted safety evidence because it is the
+only component that writes to the live session.
 
 | Component | Responsibility |
 |---|---|
@@ -145,7 +144,7 @@ Hannah owns every contract below.
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
 | Pending action | Companion, bridge | A major change invalidates all outstanding actions |
-| Controlled fetch action | Companion, bridge | Source-policy changes require privacy and security review |
+| Controlled fetch action | Companion, bridge | Source-policy changes require an explicit privacy and security decision |
 | Apply result | Bridge, companion | Must match the pending-plan and execution contract versions |
 | Recovery point | Bridge, user | PyMOL, version, and platform-specific qualification required |
 
@@ -213,8 +212,6 @@ the rest of the runtime.
 
 ## Open questions
 
-The question below is specific to this design. The question of who reviews it
-is recorded in the parent design's [Open questions](design.md#open-questions).
 Hannah owns the question below.
 
 | Question | Evidence needed | Blocking? |
@@ -224,5 +221,5 @@ Hannah owns the question below.
 ## Acceptance
 
 - [ ] Material decisions resolved.
-- [ ] Model-execution security review complete.
+- [ ] Apply and recovery safety evidence accepted.
 - [ ] Accountable human accepts planning against this design.

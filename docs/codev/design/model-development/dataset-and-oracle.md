@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Martin Urban (`urban233`)
-**Reviewers:** structural-biology reviewer (required); Hannah Kullik (`kullik01`)
+**Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Dataset, Model Training, and Evaluation Design](design.md)
 **Last reviewed:** 2026-08-20
@@ -67,21 +67,19 @@ contracts other designs depend on.
 
 ### Components and ownership
 
-Martin owns every component below; the independent review column names
-where domain or ML review is also required beyond the parent's structural-
-biology reviewer.
+Martin owns every component below.
 
-| Component | Responsibility | Independent review |
-|---|---|---|
-| V1 taxonomy and gold suite | Define representative intents, command coverage, difficulty, and independently reviewed assertions | Structural-biology |
-| Public structure snapshot | Provide content-addressed, versioned Open-Source PyMOL inputs and sequence-cluster metadata without generation-time network drift | -- |
-| Hermetic generation executor | Execute typed plans through the shared protocol and capture real errors and state evidence | -- (owned by shared core; this design consumes it) |
-| Oracle registry | Compute independent ground truth for supported semantic categories and report unsupported ones | ML/domain |
-| Assertion evaluator | Compare execution outcomes with selection, visual, numeric, and absence assertions | -- |
-| Program-first generator | Instantiate compatible correct plans from templates and back-translate them into natural intents | -- |
-| Human-intent distillation | Expand domain phrasing from reviewed human seeds and oracle-gate generated candidate plans | -- |
-| Recovery and abstention generator | Build real-error repair trajectories, clarification, refusal, and no-op examples | -- |
-| Curation pipeline | Deduplicate behavior, split by structure/task axes, decontaminate, balance, audit, and package data | -- |
+| Component | Responsibility |
+|---|---|
+| V1 taxonomy and gold suite | Define representative intents, command coverage, difficulty, and documented assertions |
+| Public structure snapshot | Provide content-addressed, versioned Open-Source PyMOL inputs and sequence-cluster metadata without generation-time network drift |
+| Hermetic generation executor | Execute typed plans through the shared protocol and capture real errors and state evidence |
+| Oracle registry | Compute independent ground truth for supported semantic categories and report unsupported ones |
+| Assertion evaluator | Compare execution outcomes with selection, visual, numeric, and absence assertions |
+| Program-first generator | Instantiate compatible correct plans from templates and back-translate them into natural intents |
+| Human-intent distillation | Expand domain phrasing from reviewed human seeds and oracle-gate generated candidate plans |
+| Recovery and abstention generator | Build real-error repair trajectories, clarification, refusal, and no-op examples |
+| Curation pipeline | Deduplicate behavior, split by structure/task axes, decontaminate, balance, audit, and package data |
 
 Every component in this table is new; none of it exists in the repository
 today.
@@ -328,8 +326,7 @@ Martin owns every contract below.
 
 - Unit and property tests for schemas, provenance, templates, samplers, and
   manifest identity.
-- Gold-suite review by a structural-biology reviewer before it calibrates
-  model claims.
+- Gold-suite acceptance before it calibrates model claims.
 - Oracle semantic mutation tests and randomized differential conformance
   against pinned Open-Source PyMOL.
 - Template construction checks that raise on assertion disagreement rather
@@ -358,11 +355,11 @@ Martin owns every question below.
 | Question | Evidence needed | Blocking? |
 |---|---|---|
 | Which teacher service and terms permit the intended use, caching, provenance, and possible artifact publication? | Cost/quality pilot and licensing decision | Yes, before bulk teacher generation |
-| Which V1 intents and scientifically meaningful categories belong in the reviewed gold suite? | Martin-authored workflows plus independent structural-biology review | Yes, before taxonomy and oracle acceptance |
+| Which V1 intents and scientifically meaningful categories belong in the reviewed gold suite? | Martin-authored workflows and documented domain evidence | Yes, before taxonomy and oracle acceptance |
 | Which oracle categories can reach at least 99% exact conformance without circularly testing the same PyMOL path? | Category-level randomized conformance report | Yes, before those categories label training data |
 
 ## Acceptance
 
 - [ ] Material decisions resolved.
-- [ ] Structural-biology review complete.
+- [ ] Gold-suite and oracle evidence accepted.
 - [ ] Accountable human accepts planning against this design.

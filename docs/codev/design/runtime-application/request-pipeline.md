@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`)
-**Reviewers:** Martin Urban (`urban233`) for shared-core consumption; ML-runtime reviewer for engine conformance
+**Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Runtime Application and PyMOL Integration Design](design.md)
 **Last reviewed:** 2026-08-22
