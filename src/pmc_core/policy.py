@@ -94,8 +94,8 @@ def evaluate_operation(
         exactly the recorded fixture value for its operation type, and
         denies it with a stable reason code otherwise.
     """
-    if isinstance(operation, SelectOperation):
-        if (
+    match operation:
+        case SelectOperation() if (
             operation.selection_name == FIXTURE_SELECTION_NAME
             and operation.expression == FIXTURE_SELECTION_EXPRESSION
         ):
@@ -104,13 +104,13 @@ def evaluate_operation(
                 allowed=True,
                 reason=REASON_ALLOWED_FIXTURE_OPERATION,
             )
-        return PolicyDecision(
-            operation_index=operation_index,
-            allowed=False,
-            reason=REASON_UNSUPPORTED_SELECT_ARGUMENTS,
-        )
-    if isinstance(operation, ColorOperation):
-        if (
+        case SelectOperation():
+            return PolicyDecision(
+                operation_index=operation_index,
+                allowed=False,
+                reason=REASON_UNSUPPORTED_SELECT_ARGUMENTS,
+            )
+        case ColorOperation() if (
             operation.color == FIXTURE_COLOR_VALUE
             and operation.selection_name == FIXTURE_SELECTION_NAME
         ):
@@ -119,16 +119,18 @@ def evaluate_operation(
                 allowed=True,
                 reason=REASON_ALLOWED_FIXTURE_OPERATION,
             )
-        return PolicyDecision(
-            operation_index=operation_index,
-            allowed=False,
-            reason=REASON_UNSUPPORTED_COLOR_ARGUMENTS,
-        )
-    return PolicyDecision(
-        operation_index=operation_index,
-        allowed=False,
-        reason=REASON_UNSUPPORTED_OPERATION_TYPE,
-    )
+        case ColorOperation():
+            return PolicyDecision(
+                operation_index=operation_index,
+                allowed=False,
+                reason=REASON_UNSUPPORTED_COLOR_ARGUMENTS,
+            )
+        case _:
+            return PolicyDecision(
+                operation_index=operation_index,
+                allowed=False,
+                reason=REASON_UNSUPPORTED_OPERATION_TYPE,
+            )
 
 
 def evaluate_plan(plan: ActionPlan) -> PlanDecision:

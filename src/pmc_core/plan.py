@@ -100,7 +100,7 @@ class ColorOperation:
 
 
 #: The ordered operation types accepted in an `ActionPlan`.
-Operation = SelectOperation | ColorOperation
+type Operation = SelectOperation | ColorOperation
 
 
 @dataclass(frozen=True)

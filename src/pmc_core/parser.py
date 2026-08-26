@@ -28,7 +28,10 @@ _SELECT_VERB = "select"
 _COLOR_VERB = "color"
 
 #: The exact number of commands accepted by the initial fixture.
-_EXPECTED_COMMAND_COUNT = 2
+_EXPECTED_COMMAND_COUNT: int = 2
+
+#: The exact number of commas accepted in a command line.
+_EXPECTED_COMMA_COUNT: int = 1
 
 
 @dataclass(frozen=True)
@@ -49,7 +52,7 @@ class ParseRejection:
 
 
 #: The result of parsing: either a complete plan or a typed rejection.
-ParseResult = ActionPlan | ParseRejection
+type ParseResult = ActionPlan | ParseRejection
 
 
 def parse_pml(text: str) -> ParseResult:
@@ -68,8 +71,9 @@ def parse_pml(text: str) -> ParseResult:
         fixture, or a `ParseRejection` describing why it was rejected.
     """
     lines = _split_lines(text)
-    if isinstance(lines, ParseRejection):
-        return lines
+    match lines:
+        case ParseRejection():
+            return lines
 
     if len(lines) != _EXPECTED_COMMAND_COUNT:
         return ParseRejection(
@@ -82,8 +86,9 @@ def parse_pml(text: str) -> ParseResult:
         )
 
     select_command = _tokenize_command(lines[0], command_index=0)
-    if isinstance(select_command, ParseRejection):
-        return select_command
+    match select_command:
+        case ParseRejection():
+            return select_command
     verb, arguments = select_command
     if verb != _SELECT_VERB:
         return ParseRejection(
@@ -101,8 +106,9 @@ def parse_pml(text: str) -> ParseResult:
         )
 
     color_command = _tokenize_command(lines[1], command_index=1)
-    if isinstance(color_command, ParseRejection):
-        return color_command
+    match color_command:
+        case ParseRejection():
+            return color_command
     verb, arguments = color_command
     if verb != _COLOR_VERB:
         return ParseRejection(
@@ -224,7 +230,7 @@ def _tokenize_command(
             category="alternate_whitespace",
             message="repeated whitespace is not accepted",
         )
-    if line.count(",") != 1:
+    if line.count(",") != _EXPECTED_COMMA_COUNT:
         return ParseRejection(
             command_index=command_index,
             category="invalid_syntax",
