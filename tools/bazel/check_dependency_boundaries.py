@@ -27,6 +27,9 @@ def closure(label: str) -> set[str]:
 
     Returns:
         The labels in the target's transitive dependency closure.
+
+    Raises:
+        SystemExit: If the Bazel dependency query fails.
     """
     result = subprocess.run(
         ["bazel", "query", "--output=label", f"deps({label})"],

@@ -238,3 +238,4 @@ __marimo__/
 
 # Custom codev
 .codev/task/*
+.DS_Store
