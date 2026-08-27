@@ -20,7 +20,17 @@ py_test(
     ],
 )
 
+py_test(
+    name = "policy_sabotage",
+    srcs = ["test_policy.py", "test_policy_sabotage.py"],
+    main = "test_policy_sabotage.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
 test_suite(
     name = "all",
-    tests = [":plan", ":policy"],
+    tests = [":plan", ":policy", ":policy_sabotage"],
 )

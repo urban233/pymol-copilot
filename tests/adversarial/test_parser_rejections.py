@@ -259,8 +259,8 @@ def test_alternate_whitespace_forms_are_rejected(text: str) -> None:
     assert isinstance(result, ParseRejection)
 
 
-def test_rejection_never_calls_pymol() -> None:
-    """Rejected input never imports or calls into Open-Source PyMOL."""
+def test_parser_rejection_does_not_import_pymol() -> None:
+    """Rejected input does not import Open-Source PyMOL."""
     import sys
 
     assert "pymol" not in sys.modules

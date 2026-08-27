@@ -209,8 +209,8 @@ def test_plan_with_single_operation_is_denied() -> None:
     )
 
 
-def test_denial_never_reaches_a_dispatcher() -> None:
-    """Evaluating a denied plan never imports or calls into PyMOL."""
+def test_policy_evaluation_does_not_import_pymol() -> None:
+    """Evaluating a denied plan does not import Open-Source PyMOL."""
     import sys
 
     assert "pymol" not in sys.modules
