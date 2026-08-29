@@ -2,7 +2,12 @@ load("@rules_python//python:py_library.bzl", "py_library")
 
 py_library(
     name = "pmc_core",
-    srcs = ["__init__.py"],
+    srcs = [
+        "__init__.py",
+        "parser.py",
+        "plan.py",
+        "policy.py",
+    ],
     imports = [".."],
     visibility = ["//src:subsystems", "//src:tests"],
 )
