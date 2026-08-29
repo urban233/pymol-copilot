@@ -18,8 +18,8 @@
 **Outcome:** A structural biologist can submit an intent in PyMOL and inspect a
 locally produced, validated plan without changing the live session.
 
-**Evidence:** A headless end-to-end fixture proves that the command bridge,
-companion, typed-plan boundary, and plan rendering complete without a live
+**Evidence:** A headless end-to-end fixture proves that the PyMOL client,
+server, typed-plan boundary, and plan rendering complete without a live
 session mutation.
 
 **Target:** Not committed.
@@ -35,8 +35,8 @@ color red, copilot_selection
 ```
 
 Labels and every other command are out of scope. The typed-plan and
-bridge-companion request/response shapes are accepted in the runtime
-[Initial bridge-companion fixture](../design/runtime-application/process-architecture.md#initial-bridge-companion-fixture).
+client-server request/response shapes are accepted in the runtime
+[Initial client-server fixture](../design/runtime-application/process-architecture.md#initial-client-server-fixture).
 The prior project evidence is sufficient for loopback startup, command
 responsiveness, sidecar fidelity, and recovery feasibility; no separate probe
 or evidence-adoption task is required.
@@ -61,7 +61,7 @@ developer's work.
   `select` and `color` commands only. Unknown input is rejected and never
   reaches a PyMOL dispatcher.
 - **Integrates with:** T-02 only through the recorded typed-plan and
-  bridge-companion fixtures.
+  client-server fixtures.
 - **Validation:** Positive and adversarial corpus tests, including grammar-free
   rejection tests.
 - **Non-goals:** Broader command coverage, grammar generation, model training,
@@ -71,8 +71,8 @@ developer's work.
 
 - **Owner and reviewer:** Hannah Kullik (`kullik01`); Martin Urban
   (`urban233`) reviews independently.
-- **Outcome and acceptance:** Implement the agreed command bridge and local
-  companion path for one intent. It produces and renders a typed native `.pml`
+- **Outcome and acceptance:** Implement the agreed PyMOL client and local
+  server path for one intent. It produces and renders a typed native `.pml`
   `select`/`color` plan and validation result without applying commands to the
   live PyMOL session.
 - **Integrates with:** T-01 through the recorded fixtures. It may use a local

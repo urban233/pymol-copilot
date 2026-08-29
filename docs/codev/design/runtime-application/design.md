@@ -8,18 +8,18 @@
 
 ## Summary
 
-The V1 runtime is a local companion application, not a monolithic PyMOL
-plugin. A thin bridge loaded into Open-Source PyMOL exposes the command
+The V1 runtime is a local server application, not a monolithic PyMOL
+plugin. A thin client loaded into Open-Source PyMOL exposes the command
 interface and is the only component allowed to read or mutate the live
-session. A separately managed companion process owns LangGraph, request
+session. A separately managed server process owns LangGraph, request
 state, shared-core clients, local inference orchestration, sidecar
 validation, and diagnostics.
 
 The runtime covers three independently reviewable areas, each with its own
 design document:
 
-1. [Process architecture](process-architecture.md) -- the bridge, the
-   companion lifecycle, the authenticated loopback transport between them,
+1. [Process architecture](process-architecture.md) -- the client, the
+   server lifecycle, the authenticated loopback transport between them,
    and the session and request registry. Needs cross-platform startup and
    isolation evidence.
 2. [Request pipeline](request-pipeline.md) -- the LangGraph graph, local
@@ -35,8 +35,8 @@ platform-qualification and rollout sequence.
 
 The single safety invariant behind all three is that no model output reaches
 the live session before parser, policy, sidecar, session-freshness, and
-user-approval checks all pass. The bridge is the sole live-session mutation
-boundary, and it rechecks that invariant independently of the companion.
+user-approval checks all pass. The client is the sole live-session mutation
+boundary, and it rechecks that invariant independently of the server.
 
 This design consumes the contracts in
 [`Shared Core and Contracts Design`](../shared-core/design.md) and does not
@@ -71,7 +71,7 @@ non-goals specific to its own area.
 No runtime product code or test environment currently exists in the
 repository. The accepted specification fixes these runtime decisions:
 
-- a separate companion process with a thin PyMOL bridge;
+- a separate server process with a thin PyMOL client;
 - LangGraph from V1;
 - Lemonade as the first inference adapter;
 - Open-Source PyMOL only;
@@ -113,7 +113,7 @@ The child designs contribute the remaining twelve components:
 
 | Design | Components |
 |---|---|
-| [Process architecture](process-architecture.md) | PyMOL bridge, companion lifecycle manager, loopback protocol, session and request registry |
+| [Process architecture](process-architecture.md) | PyMOL client, server lifecycle manager, loopback protocol, session and request registry |
 | [Request pipeline](request-pipeline.md) | LangGraph request graph, inference abstraction, Lemonade adapter, snapshot exporter, sidecar manager |
 | [Approval and recovery](approval-and-recovery.md) | Pending-action renderer, controlled fetch controller, apply and recovery controller |
 
@@ -124,8 +124,8 @@ session. The detailed flow inside each area is in the linked child design.
 
 ```mermaid
 flowchart LR
-    U[User] -->|PyMOL commands| B[Thin bridge in Open-Source PyMOL]
-    B <-->|HTTP JSON + ephemeral credential on loopback| C[Companion]
+    U[User] -->|PyMOL commands| B[Thin client in Open-Source PyMOL]
+    B <-->|HTTP JSON + ephemeral credential on loopback| C[Server]
     C --> G[LangGraph request graph]
     G --> K[Shared core]
     G --> I[Inference abstraction]
@@ -139,14 +139,14 @@ flowchart LR
     B -->|approved accession only| F[PDB source]
 ```
 
-The bridge trusts only version-compatible, authenticated companion responses
-and shared-core typed artifacts. The companion treats user intent, model
+The client trusts only version-compatible, authenticated server responses
+and shared-core typed artifacts. The server treats user intent, model
 output, engine output, snapshots, and sidecar output as untrusted until their
 respective schemas and contracts pass. Lemonade never receives authority to
-call tools or the bridge.
+call tools or the client.
 
-The bridge is the sole live-session mutation boundary. The companion can
-request that a typed approved operation be performed, but the bridge
+The client is the sole live-session mutation boundary. The server can
+request that a typed approved operation be performed, but the client
 independently rechecks session, plan, policy, manifest, and approval state.
 
 ### Data and control flow
@@ -162,8 +162,8 @@ flowchart TD
     AP -->|result transitions| RQ
 ```
 
-Apply and rollback are bridge-owned consequential operations outside the
-model loop; their results are recorded back into companion request state.
+Apply and rollback are client-owned consequential operations outside the
+model loop; their results are recorded back into server request state.
 
 ### APIs and contracts
 
@@ -171,7 +171,7 @@ The runtime defines ten contracts, all owned by Hannah, and each is
 documented in the child design that owns it:
 
 - [Process architecture](process-architecture.md#apis-and-contracts) --
-  PyMOL command surface, bridge-companion protocol, session registration.
+   PyMOL command surface, client-server protocol, session registration.
 - [Request pipeline](request-pipeline.md#apis-and-contracts) -- Copilot
   request, inference abstraction, sidecar invocation.
 - [Approval and recovery](approval-and-recovery.md#apis-and-contracts) --
@@ -213,7 +213,7 @@ These suites span all three child areas. Each child design also has its own
 area-specific test list.
 
 - No-live-mutation property tests across parse, policy, model, sidecar,
-  fetch rejection, cancellation, expiry, user rejection, and companion
+  fetch rejection, cancellation, expiry, user rejection, and server
   failure paths.
 - Sabotage tests proving the no-mutation suite detects live writes.
 
@@ -226,13 +226,13 @@ evidence is accepted.
 
 Runtime qualification proceeds per exact combination of operating system,
 Open-Source PyMOL, Python, Lemonade, and model. Failure on one candidate does
-not weaken another and may remove that platform from V1. The companion and
+not weaken another and may remove that platform from V1. The server and
 model artifact are promoted as a compatible pair with their shared-core
 manifest.
 
-Application rollback restores the prior compatible bridge, companion, shared
+Application rollback restores the prior compatible client, server, shared
 core, Lemonade configuration, and model set. Request rollback restores only
-the one retained `.pse` recovery point. Companion exit removes ephemeral
+the one retained `.pse` recovery point. Server exit removes ephemeral
 credentials, pending actions, sidecars, and scratch snapshots. Recovery files
 are deleted when consumed, replaced, explicitly discarded, or the owning
 PyMOL session ends.

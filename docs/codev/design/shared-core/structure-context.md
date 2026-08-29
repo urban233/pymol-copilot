@@ -135,7 +135,7 @@ Hannah owns the snapshot and grammar contracts; Martin owns the card.
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| `StructureSnapshotV1` and digest | Card, grammar, sidecar, bridge | Additive fields require canonical defaults; a semantic field change requires a major version |
+| `StructureSnapshotV1` and digest | Card, grammar, sidecar, client | Additive fields require canonical defaults; a semantic field change requires a major version |
 | `structure_card(snapshot)` | Prompt builder, dataset generator | A format change requires a version and a model impact decision |
 | `grammar_for(snapshot, policy)` | Lemonade adapter, baseline runner | Version recorded in the model and evaluation manifest |
 
