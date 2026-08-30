@@ -6,7 +6,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import json
-from typing import ClassVar
 import uuid
 
 from pmc_core.plan import ActionPlan
@@ -145,12 +144,12 @@ class PlanRequestV1:
     contract_manifest: ContractManifestV1
     intent: str
     snapshot: StructureSnapshotV1
-    protocol_version: ClassVar[str] = PROTOCOL_VERSION
+    protocol_version: str
 
     def to_dict(self) -> dict[str, object]:
         """Encode the request using its V1 wire-field names."""
         return {
-            "protocolVersion": PROTOCOL_VERSION,
+            "protocolVersion": self.protocol_version,
             "requestId": self.request_id,
             "sessionId": self.session_id,
             "createdAt": self.created_at,
@@ -316,12 +315,12 @@ class ValidatedPlanResponseV1:
     validation: ValidationReportV1
     plan_id: str
     snapshot_digest: str
-    protocol_version: ClassVar[str] = PROTOCOL_VERSION
+    protocol_version: str
 
     def to_dict(self) -> dict[str, object]:
         """Encode the validated response using its V1 wire shape."""
         return {
-            "protocolVersion": PROTOCOL_VERSION,
+            "protocolVersion": self.protocol_version,
             "requestId": self.request_id,
             "sessionId": self.session_id,
             "receivedAt": self.received_at,
@@ -329,7 +328,7 @@ class ValidatedPlanResponseV1:
             "status": "validated",
             "actionPlan": {
                 "planId": self.plan_id,
-                "planVersion": PROTOCOL_VERSION,
+                "planVersion": self.protocol_version,
                 "snapshotDigest": self.snapshot_digest,
                 "commands": _plan_commands(self.action_plan),
             },
@@ -416,12 +415,12 @@ class FailedPlanResponseV1:
     request_id: str
     session_id: str
     failure: FailureEnvelopeV1
-    protocol_version: ClassVar[str] = PROTOCOL_VERSION
+    protocol_version: str
 
     def to_dict(self) -> dict[str, object]:
         """Encode the failed response without an action plan."""
         return {
-            "protocolVersion": PROTOCOL_VERSION,
+            "protocolVersion": self.protocol_version,
             "requestId": self.request_id,
             "sessionId": self.session_id,
             "status": "failed",
