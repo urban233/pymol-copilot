@@ -16,8 +16,11 @@ versioned dataset produced by
 [Dataset and oracle](dataset-and-oracle.md) and hands its selected
 checkpoint to [Quantization and packaging](quantization-and-packaging.md).
 
-Supervised fine-tuning and grammar-backed evaluation are mandatory.
-Rejection-sampling and reinforcement learning are conditional improvements:
+Supervised fine-tuning is attempted; see the parent design's 2026-09-01
+course-scope note for which evaluation rigor is mandatory versus best-effort.
+Grammar-backed evaluation runs only if a grammar is built (see
+`SPECIFICATION.md`'s V1 scope). Rejection-sampling and reinforcement learning
+are conditional improvements:
 they run only when accepted evidence shows verifier coverage and search
 headroom.
 

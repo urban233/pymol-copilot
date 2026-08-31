@@ -1,10 +1,17 @@
 # Shared Core and Contracts Design
 
-**Status:** Accepted
+**Status:** Draft — course-scope reconciliation pending re-acceptance
 **Owner:** Martin Urban (`urban233`), accountable; shared with Hannah Kullik (`kullik01`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-09-01
+
+**Course-scope note (2026-09-01):** `SPECIFICATION.md`'s 2026-09-01 revision
+rescoped V1 for a five-week, two-developer course deliverable. The contracts
+below are unaffected; only the platform and review framing changed (no
+formal multi-platform matrix, no external specialist review). This document
+returns to Draft per its own conflict rule until re-accepted against that
+revision.
 
 ## Summary
 
@@ -66,9 +73,10 @@ non-goals specific to its own contract area.
 
 ## Current system and evidence
 
-The repository has no current product implementation, tests, package
-manifest, or production compatibility burden. The accepted specification
-establishes:
+`pmc_core` (typed plan, canonical rendering, default-deny parser and policy
+for `select`/`color`) is implemented, tested, and merged to `main` (issue
+#4). The structure-context, grammar, and error-envelope contracts are not
+yet implemented. The accepted specification establishes:
 
 - native restricted `.pml` plus deterministic typed parsing;
 - one shared core independent of runtime and training frameworks;
@@ -79,8 +87,9 @@ establishes:
 - exact relevant-state fidelity as a precondition for apply;
 - a normalized error envelope instead of unversioned raw exception strings;
 - Open-Source PyMOL as the only PyMOL target; and
-- Windows, macOS, and Linux as candidate, not automatically supported,
-  environments.
+- whichever operating system(s) Martin and Hannah actually develop and demo
+  on, with no formal multi-platform qualification matrix for this
+  deliverable.
 
 Each child design cites the subset of these decisions it must satisfy.
 

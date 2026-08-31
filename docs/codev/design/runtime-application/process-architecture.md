@@ -310,8 +310,9 @@ model `.pml` text.
   and version-mismatch security tests.
 - Headless Open-Source PyMOL command tests for `copilot`, apply, reject, and
   rollback behavior.
-- GUI-console smoke tests on each candidate platform, including command
-  responsiveness during representative inference.
+- GUI-console smoke tests on whichever platform(s) are actually used for
+  development and the demo, including command responsiveness during
+  representative inference.
 
 ## Migration, rollout, rollback, and cleanup
 

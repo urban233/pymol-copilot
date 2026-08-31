@@ -1,10 +1,18 @@
 # Dataset, Model Training, and Evaluation Design
 
-**Status:** Accepted
+**Status:** Draft — course-scope reconciliation pending re-acceptance
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
-**Last reviewed:** 2026-08-20
+**Last reviewed:** 2026-09-01
+
+**Course-scope note (2026-09-01):** `SPECIFICATION.md`'s 2026-09-01 revision
+rescoped V1 for a five-week, two-developer course deliverable and downgraded
+full research-grade ML rigor (multi-seed variance, a full ablation suite,
+decontaminated splits at scale, post-quantization re-evaluation) from
+mandatory to best-effort, reported honestly if incomplete. The architecture
+below is unaffected; only the rigor bar changed. This document returns to
+Draft per its own conflict rule until re-accepted against that revision.
 
 ## Summary
 
@@ -76,8 +84,10 @@ implementation. The accepted specification fixes the following decisions:
 - runtime data never enters teacher or training systems;
 - program-first generation, a validated oracle, and behavioral deduplication
   are required;
-- sequence-cluster splits, blind label audit, strong baselines, multiple
-  seeds, required ablations, and post-quantization evaluation are required;
+- sequence-cluster splits, a blind label audit, and a base-model baseline are
+  attempted; multiple seeds, a full ablation suite, and post-quantization
+  evaluation are attempted only as time allows and reported honestly either
+  way (see `SPECIFICATION.md`'s 2026-09-01 revision);
 - `test_new_both` is the headline generalization split;
 - Open-Source PyMOL is the semantic target;
 - a model must materially exceed the strongest deployable baseline, with the

@@ -1,12 +1,35 @@
 # PyMOL-Copilot Specification
 
-**Status:** Accepted<br>
-**Product frame:** Accepted<br>
-**Technical design:** Accepted<br>
+**Status:** Draft — V1 scope revised for a course deliverable<br>
+**Product frame:** Draft (2026-09-01 revision; supersedes the 2026-08-19 commercial-grade frame, pending re-acceptance)<br>
+**Technical design:** Draft (2026-09-01 reconciliation of the same revision; supersedes the 2026-08-19 acceptance, pending re-acceptance)<br>
 **Product owner:** Martin Urban (`urban233`)<br>
 **Technical owner:** Martin Urban (`urban233`)<br>
-**Required reviewers:** Hannah Kullik (`kullik01`, specification accepted 2026-08-19); structural-biology, model-execution security, ML data/evaluation, and licensing reviews are delivery/release gates<br>
-**Last reviewed:** 2026-08-19<br>
+**Required reviewers:** Hannah Kullik (`kullik01`) reviews Martin's half and Martin reviews Hannah's; no external specialist review is required for this course deliverable<br>
+**Last reviewed:** 2026-09-01<br>
+
+## Scope-revision note (2026-09-01)
+
+This V1 scope was rewritten for its real context: a two-developer master's
+degree course project due five weeks out, ending in a Jupyter Notebook and a
+40-minute PowerPoint presentation split into a twenty-minute segment each for
+Martin and Hannah. It targets a professor's expectations for a rigorous,
+honest piece of work, not a commercial release. The 2026-08-19 frame's
+release-gated, multi-platform, externally-reviewed bar was correct for a
+product this system could later become, but wrong for what is actually being
+delivered in five weeks. This revision keeps the accepted technical
+architecture and safety mechanics and removes or downgrades the process
+weight that was purely product/enterprise shaped, end to end through this
+document, the eleven design documents, and the wave plan.
+
+Restricted-plan core (`pmc_core`: typed plan, parser, policy for
+`select`/`color`) is implemented, tested, and merged — issue #4/T-01 is done.
+The command bridge, companion, and LangGraph runtime path (issue #3/T-02) are
+not yet implemented. The prior delivery plans
+[`design-readiness.md`](docs/codev/delivery/design-readiness.md) and
+[`test-quality-gaps.md`](docs/codev/delivery/test-quality-gaps.md) recorded
+that work and its evidence; their content carries forward into the current
+wave plan rather than being discarded.
 
 ## Executive summary
 
@@ -33,11 +56,24 @@ permission, executability, and non-degenerate behavior; it does not establish
 that the plan matches the user's scientific intent. The user remains the
 authority for that judgment.
 
-V1 includes a mandatory professional fine-tuning and evaluation pipeline.
-Correctness-by-construction, a PyMOL-conformant oracle, decontaminated evaluation
-splits, reproducible artifacts, strong baselines, measured variance, constrained
-decoding, and post-quantization evaluation are product requirements rather than
-optional research polish.
+V1 attempts fine-tuning and a real evaluation, because that is the point of
+the course project, but treats full research-grade rigor as an honest
+best effort rather than a release gate. Correctness-by-construction, an
+independent PyMOL-conformant oracle, a held-out evaluation split, and a
+comparison against un-tuned baselines are real, reported parts of the
+Notebook. Multi-seed variance, a full ablation suite, decontaminated splits
+at scale, and post-quantization re-evaluation are attempted only as time in
+the five-week window allows, and are reported honestly, including as a
+negative or incomplete result, rather than silently dropped.
+
+V1's deliverable is a Jupyter Notebook covering dataset generation, the
+oracle, fine-tuning, and evaluation, plus a live demo of the PyMOL harness,
+presented by Martin and Hannah in a twenty-minute segment each within one
+40-minute PowerPoint presentation. Its audience and accountable success
+measure is the course: a professor's expectations for a rigorous, honestly
+evaluated piece of work. Structural biologists remain the motivating design
+target and the reason the safety mechanics below are real rather than
+decorative, but broad field adoption is explicitly not a V1 goal.
 
 ## Problem, users, and evidence
 
@@ -56,13 +92,19 @@ of representative workflows. Evidence for broader user frequency, usability,
 and willingness to approve generated plans remains to be gathered before a
 broad public-release claim is made.
 
+This is a two-developer master's-degree course project due five weeks out.
+Martin owns the data-generation, oracle, and fine-tuning half; Hannah owns
+the PyMOL bridge and runtime-harness half. Both are named authors of the
+final Notebook and co-presenters; there is no separate product organization
+or external stakeholder to satisfy before the course deadline.
+
 Affected stakeholders include:
 
-- structural biologists using the application;
-- users whose proprietary or unpublished structures are loaded in PyMOL;
-- maintainers of the PyMOL bridge, companion application, model, and datasets;
-- reviewers responsible for command-execution security, scientific workflow
-  validity, evaluation integrity, and licensing.
+- structural biologists, as the motivating design target for the harness
+  and safety mechanics, even though none are course participants;
+- Martin and Hannah, who each own, build, and cross-review one half of the
+  system and jointly present it;
+- the course instructor evaluating the Notebook and the presentation.
 
 ## Product vision and desired outcomes
 
@@ -75,28 +117,30 @@ PyMOL syntax to reviewing a locally generated, validated, and recoverable plan.
 It should reduce syntax effort without encouraging users to treat executable
 model output as scientifically verified.
 
-The long-term product may provide a richer application panel and controlled
-conversation, but V1 establishes the safe local execution, model, evaluation,
-and recovery foundations first.
+A richer application panel or controlled conversation is a plausible future
+direction and is not part of this course deliverable. V1 is scoped to end
+when the course does: the Notebook and the demoed harness are the complete,
+final artifact, not a foundation for a committed V2.
 
 ## Success measures and guardrails
 
 | Measure | Baseline or baseline plan | Target/decision rule | Window | Source | Owner |
 |---|---|---|---|---|---|
-| Unapproved live-session mutation | Exercise every denial, failure, cancellation, expiry, and rejection path | Zero mutations outside an approved apply or rollback operation | Every release candidate | Session fingerprints and end-to-end tests | Hannah |
-| Denied command execution | Adversarial command corpus with grammar disabled | Zero denied commands reach sidecar or live execution | Every release candidate | Parser/policy contract suite | Joint |
-| Sidecar fidelity | Differential hashes over representative live objects and exported snapshots | Full validation is offered only for an exact relevant-state match; otherwise apply is unavailable | Every release candidate | Fidelity suite | Hannah |
-| Oracle conformance | Random differential evaluation against pinned Open-Source PyMOL | At least 99% exact agreement overall and per material category; every disagreement explained | Before any oracle-labelled dataset release | Oracle conformance report | Martin |
-| Fine-tuned model value | B0 template, B1 base, B2 retrieval-plus-grammar, and teacher baselines | Fine-tuned model materially exceeds the strongest deployable local baseline on the hardest uncontaminated split; the minimum margin is fixed after baseline uncertainty is known and before fine-tuning results are inspected | Model release | Offline evaluation report | Martin |
-| Generalization | Two-axis held-out evaluation by structure family and task/template | `test_new_both` is the headline result, with per-category results and uncertainty; no aggregate may hide a material category collapse | Model release | Versioned evaluation suite | Martin |
-| Label quality | Blind audit protocol fixed before sampling | Published error estimate and interval; an observed error rate above 5% blocks training until root causes are corrected | Dataset release | Dataset audit | Martin |
-| Grammar benefit | Unconstrained, syntax-only, and structure-conditioned comparison | Shipping grammar lowers invalid or nonexistent-entity outputs without a material TaskSuccess regression | Model release | Grammar ablation | Martin |
-| Runtime latency | Measure every stage on representative laboratory computers | A CPU/iGPU latency budget is fixed before deployment model selection; a platform is not supported if the approved budget cannot be met | Platform qualification and model release | Compatibility and latency reports | Hannah |
-| Recovery fidelity | Save, mutate, restore, and compare complete sessions | Failed apply restores the pre-apply session; manual one-level rollback restores the same snapshot | Every supported platform and PyMOL version | Recovery suite | Hannah |
-| User comprehension | Initial lead-user use, followed by representative-user sessions | Users can distinguish “runs safely” from “does what I scientifically meant” and can identify what will change before approval | Before broader V1 release | Usability protocol | Martin |
+| Unapproved live-session mutation | Exercise every denial, failure, cancellation, expiry, and rejection path | Zero mutations outside an approved apply or rollback operation | Before the demo | Session fingerprints and end-to-end tests | Hannah |
+| Denied command execution | Adversarial command corpus with grammar disabled | Zero denied commands reach sidecar or live execution | Before the demo | Parser/policy contract suite | Joint |
+| Sidecar fidelity | Differential hashes over representative live objects and exported snapshots | Full validation is offered only for an exact relevant-state match on the accepted fixture set; otherwise apply is unavailable | Before the demo | Fidelity suite | Hannah |
+| Oracle conformance | Random differential evaluation against pinned Open-Source PyMOL | Measured and reported with an honest error analysis; disagreement is investigated, not averaged away | In the Notebook | Oracle conformance report | Martin |
+| Fine-tuned model value | Un-tuned base-model baseline, measured before fine-tuning conclusions | Report the comparison honestly, including a null or negative result if that is what the data shows | In the Notebook | Offline evaluation report | Martin |
+| Generalization | A held-out split by structure or task, whatever is feasible in five weeks | Report per-category results; call out any category that collapses rather than hiding it in an aggregate | In the Notebook | Evaluation split report | Martin |
+| Label quality | A spot-check of a small labeled sample | Report the observed error rate; no fixed pass/fail threshold | In the Notebook | Spot-check note | Martin |
+| Runtime latency | Measure on the two developers' own laboratory/dev computers | Report p50 stage latency; no fixed pass/fail budget | Before the demo | Informal latency note | Hannah |
+| Recovery fidelity | Save, mutate, restore, and compare complete sessions | Failed apply restores the pre-apply session; manual one-level rollback restores the same snapshot | Before the demo | Recovery suite | Hannah |
+| Presentation clarity | First run-through with the other developer as the audience | A watcher can tell what is about to change before apply is confirmed | Before the demo | Informal dry run | Joint |
 
-Training loss, syntax-only pass rate, and non-empty selection rate are diagnostic
-signals, not product success measures.
+Training loss, syntax-only pass rate, and non-empty selection rate remain
+diagnostic signals, not success measures. Grammar benefit, multi-seed
+variance, a full ablation suite, rejection-sampling/RL, and post-quantization
+re-evaluation are Next, not measured for this deliverable — see V1 scope.
 
 ## Essential scenarios
 
@@ -126,13 +170,19 @@ signals, not product success measures.
 - When Lemonade or the model is unavailable, the application fails locally with
   actionable diagnostics. It does not fall back to a remote or unconstrained
   model.
-- A candidate operating system becomes supported only after its complete
-  command bridge, inference, validation, recovery, and latency suites pass.
+- The demo runs on the developers' own machines; there is no multi-platform
+  qualification claim for this deliverable.
 
 ## V1 scope
 
 ### Included
 
+- A Jupyter Notebook that runs dataset generation, the oracle, fine-tuning,
+  and evaluation end to end and is readable on its own by the course
+  instructor.
+- A live demo script covering one intent through apply and one deliberate
+  failure through automatic recovery, sized for a twenty-minute segment per
+  developer within one 40-minute PowerPoint presentation.
 - A local companion application deployed alongside Open-Source PyMOL and a
   local model.
 - A thin PyMOL bridge exposing command entry through `cmd.extend()`.
@@ -154,9 +204,8 @@ signals, not product success measures.
 - A fine-tuned and quantized local model selected for CPU/iGPU deployment.
 - Structure-conditioned grammar where measurements show that it helps.
 - Reproducible dataset generation, curation, fine-tuning, and evaluation.
-- Windows, macOS, and Linux as initial candidate operating-system families.
-  Support may be removed when a documented showstopper prevents the complete
-  qualification suite from passing.
+- Development and the demo run on whatever operating system(s) Martin and
+  Hannah actually use; no formal multi-platform qualification matrix.
 - Open-Source PyMOL only. Schrödinger Incentive PyMOL is not a V1 target.
 
 ### Later possibilities
@@ -168,7 +217,16 @@ signals, not product success measures.
   command coverage after separate safety review.
 - Multiple rollback points or richer session-history management.
 - Additional local inference engines.
-- Broader Open-Source PyMOL and operating-system version coverage.
+- Broader Open-Source PyMOL and operating-system version coverage, and a
+  formal multi-platform qualification matrix.
+- A full ablation suite, multi-seed variance reporting, decontaminated
+  splits at scale, rejection-sampling/RL, and complete post-quantization
+  re-evaluation, if the Notebook's initial results suggest they would
+  change a conclusion.
+- Structure-conditioned grammar, if the ungrammared baseline shows a clear
+  need for it.
+- An external or specialist review process, if the project continues past
+  the course.
 
 ## Non-goals
 
@@ -189,6 +247,12 @@ signals, not product success measures.
 - No support commitment for Incentive PyMOL.
 - No general-purpose structural-biology reasoning or replacement for scientific
   judgment.
+- No commitment to multi-OS platform support or a formal qualification
+  matrix for this deliverable.
+- No external specialist review process; Martin and Hannah cross-review
+  each other's work.
+- No claim of production reliability or a formal release process — this is
+  a graded course deliverable, not a shipped product.
 
 ## Constraints
 
@@ -200,14 +264,17 @@ signals, not product success measures.
 - The companion process and inference process bind only to the local machine.
 - The user must approve the exact immutable plan that is later applied.
 - A recovery snapshot must be created before every apply.
-- Fine-tuning, grammar integration, and professional evaluation are mandatory
-  V1 outcomes even if a base-model baseline is strong.
+- Fine-tuning and a real evaluation against baselines are attempted and
+  reported honestly even if a baseline turns out to be strong; grammar
+  integration and full professional-grade evaluation are attempted only as
+  time allows.
 - Development-time teacher services are separate from deployment. Runtime user
   data must never become training or teacher input.
-- Platform support is evidence-based; cross-platform intent does not justify
-  silently weakening safety or evaluation requirements.
+- No platform-support commitment is made for this deliverable; the safety
+  and evaluation mechanics below still hold on whichever machine is used.
 - Dataset, model, teacher-output, PDB-derived-artifact, Lemonade, and PyMOL
-  licensing must permit the intended distribution before public release.
+  licensing should be recorded honestly in the Notebook; no public release
+  is planned, so this is a documentation practice, not a release gate.
 
 ## Assumptions and unresolved questions
 
@@ -220,8 +287,6 @@ signals, not product success measures.
 | Representative laboratory hardware can satisfy an interactive local-model budget | Open | No | Martin | Name a hardware sample and publish per-stage p50/p95 measurements | Before selecting deployment model size |
 | Base model family, quantization, and license | Open | No | Martin | Evaluate candidate families for task quality, CPU/iGPU latency, distribution terms, and Lemonade compatibility | Before dataset-format freeze and model training |
 | Teacher-output and generated-dataset distribution terms | Open | No | Martin | Licensing review with retained provenance | Before external dataset or model publication |
-| Named independent specialist reviewers | Open | No | Martin | Fill structural-biology, security, ML evaluation, and licensing reviewer roles | Before document and release acceptance |
-| Candidate OS and Open-Source PyMOL version entries | Open | No | Hannah | Establish reference configurations and execute the qualification matrix | Before claiming platform support |
 | Final latency and memory thresholds | Open | No | Martin | Measure representative hardware and freeze thresholds before model selection | Before deployment model selection |
 
 No item above blocks delivery planning. Each blocks the specific support,
@@ -229,11 +294,13 @@ training, publication, or release decision named in its decision point.
 
 ## Architectural context
 
-The repository currently contains product framing and CoDev workflow material
-but no product implementation, tests, or active build manifest. This
-specification therefore defines a greenfield system rather than a migration of
-existing product code. A hidden interface prototype may inform V2 but is not a
-V1 dependency or source of truth.
+Restricted-plan core (`pmc_core`: typed plan, canonical rendering, default-deny
+parser and policy for `select`/`color`) is implemented, tested, and merged to
+`main` (issue #4). The command bridge, companion, and LangGraph runtime path
+(issue #3) are not yet implemented; `pmc_agent` is still an empty package. This
+specification defines the target system for the remaining work, not a
+migration of existing product code. A hidden interface prototype may inform V2
+but is not a V1 dependency or source of truth.
 
 External actors and systems are:
 
@@ -381,9 +448,9 @@ a plan; the plan identifier denotes exact immutable commands.
 - Test splits are immutable after inspection begins. Training data overlapping
   test structure clusters, behavior fingerprints, or near-duplicate intents is
   removed.
-- Publication, retention, and deletion rules for generated artifacts follow the
-  completed licensing review. Private or uncontrolled production data is never
-  used for testing.
+- Retention and deletion rules for generated artifacts are recorded in the
+  Notebook. No publication is planned for this deliverable. Private or
+  uncontrolled production data is never used for testing.
 
 ## APIs, protocols, and contracts
 
@@ -529,7 +596,7 @@ review.
 | Automatic restore fails | Session state is uncertain | Restore exception or fingerprint mismatch | Halt Copilot operations and preserve recovery file | Give explicit manual recovery instructions; require investigation | Hannah |
 | Manual rollback requested after later session change | Later changes would be lost | Current digest differs from post-apply digest | Warn and require exact rollback command; no silent restore | Replace whole session from retained snapshot | Hannah |
 | Sidecar or inference timeout | Request fails or repairs stop | Managed deadlines | Kill child process; no live mutation | Retry as a new request after diagnosis | Hannah |
-| Unsupported platform behavior | Platform cannot meet V1 contract | Qualification suite | Do not claim support; do not weaken invariants | Fix and requalify or document dropped support | Joint |
+| The developers' platform cannot meet V1 contract | A dev/demo machine cannot satisfy the safety mechanics | Local test suite on that machine | Do not claim the mechanic works there; do not weaken invariants | Fix and retest, or document what does not work on that machine | Joint |
 | Error-envelope skew | Repair rate collapses silently | Contract parity test and repair canaries | Block model/runtime pairing | Restore compatible artifacts or regenerate repair data | Martin |
 | Structure-card or grammar skew | Accuracy silently degrades | Symbol/byte identity and integration-loss tests | Block model/runtime pairing | Restore compatible contracts and re-evaluate | Joint |
 
@@ -576,12 +643,11 @@ validated user configuration, then versioned application defaults. Environment
 variables may supply secrets or development overrides but cannot disable
 approval, policy, artifact verification, fidelity checks, or recovery.
 
-Candidate operating-system families are Windows, macOS, and Linux. Only
-Open-Source PyMOL is considered. Each supported matrix entry names exact OS,
-architecture, Open-Source PyMOL, Python, Lemonade, model, and core-contract
-versions plus representative CPU/iGPU and memory. A candidate is promoted to
-supported only after all qualification evidence passes; a showstopper may remove
-it from V1 with an explicit report.
+V1 runs on whichever operating system(s) Martin and Hannah actually develop
+and demo on, with Open-Source PyMOL. There is no formal multi-platform
+qualification matrix for this deliverable; the exact OS, architecture,
+Open-Source PyMOL, Python, Lemonade, model, and core-contract versions used
+for the demo are recorded in the Notebook so the result is reproducible.
 
 The companion owns inference-process startup, readiness, shutdown, and version
 checks. It never silently connects to an arbitrary server. Model installation or
@@ -609,9 +675,10 @@ product analytics.
 - There is no remote telemetry, centralized on-call promise, or cloud service in
   V1. Repository maintainers own issue triage and dependency maintenance.
 
-Offline model-development reports record baselines, label audit, conformance,
-split integrity, training seeds, ablations, TaskSuccess, IoU, abstention,
-degeneracy, repair success, latency, quantization deltas, and negative results.
+The Notebook records whatever of baselines, label audit, conformance, split
+integrity, training seeds, ablations, TaskSuccess, IoU, abstention,
+degeneracy, repair success, latency, and quantization deltas was actually
+attempted, including negative results.
 
 ## Test and evaluation strategy
 
@@ -631,14 +698,14 @@ Deterministic and runtime evidence includes:
   session comparison;
 - end-to-end loaded-object, controlled-fetch, clarification, approval, stale
   plan, apply, automatic recovery, and manual rollback scenarios;
-- the same full suite for every supported platform matrix entry;
+- the same suite on whichever machine(s) the demo runs on;
 - latency and memory tests on representative CPU/iGPU laboratory hardware.
 
-Model and data evidence includes:
+Model and data evidence includes, all reported honestly in the Notebook even
+when incomplete:
 
 - a hand-authored gold set spanning the accepted V1 taxonomy;
-- template, base model, retrieval-plus-grammar, and teacher baselines measured
-  before fine-tuning conclusions;
+- an un-tuned base-model baseline measured before fine-tuning conclusions;
 - program-first data generation where scripts and independent assertions are
   mechanically computable;
 - a separately validated oracle compared differentially with pinned
@@ -647,28 +714,25 @@ Model and data evidence includes:
   concepts the oracle cannot derive;
 - real captured and normalized error trajectories, clarification, refusal, and
   no-op examples;
-- behavioral deduplication and train/test separation by 30% sequence-identity
-  clusters and task/template families;
-- cross-split behavior and near-intent decontamination;
-- a blind label audit with a protocol fixed before viewing results;
+- a held-out split by structure or task, attempted at whatever scale five
+  weeks allows;
+- a spot-check label audit;
 - completion-only supervised fine-tuning with tensor-level masking tests;
-- a size and quantization Pareto comparison on deployment hardware;
-- at least three seeds for material model comparisons, with mean and uncertainty
-  reported;
-- per-category results on all evaluation splits, with `test_new_both` as the
-  headline;
-- mandatory structure-card, grammar, model-size, and self-correction ablations;
-- full post-quantization evaluation;
-- integrated-agent TaskSuccess comparison against the standalone model to
-  detect train/serve integration loss;
-- a fixed canary and retention suite run throughout training;
-- optional rejection-sampling or reinforcement learning only behind explicit
-  verifier-coverage, headroom, anti-hacking, and negative-result gates.
+- per-category results on the evaluation split.
 
-Independent review is required for oracle conformance, split integrity,
-decontamination, command security, recovery, and any reinforcement-learning
-reward. Tests that enforce these properties must include mutation or sabotage
-checks proving that the tests themselves can fail.
+Attempted only as time allows, and reported as a negative or incomplete
+result rather than dropped silently: retrieval-plus-grammar and teacher
+baselines beyond the base model, a size/quantization Pareto comparison,
+multiple seeds with uncertainty, structure-card/grammar/model-size ablations,
+full post-quantization re-evaluation, an integrated-agent TaskSuccess
+comparison, and rejection-sampling or reinforcement learning behind explicit
+verifier-coverage and anti-hacking gates.
+
+Martin and Hannah cross-review each other's evidence for oracle conformance,
+split integrity, decontamination, command security, and recovery, and for
+any reinforcement-learning reward if one is attempted. Tests that enforce
+these properties should include a mutation or sabotage check proving the
+test itself can fail.
 
 ## Compatibility and migration
 
@@ -693,34 +757,30 @@ envelope, dataset schema, model prompt format, tokenizer, and model artifact.
 - Candidate platform entries are independent. Passing on one OS does not imply
   support on another.
 
-## Rollout, rollback, and cleanup
+## Demo readiness, rollback, and cleanup
 
-Safe release states are:
+Readiness states for this deliverable are:
 
 1. **Development only:** model and runtime tested against fixed fixtures; no
    claim of session safety.
-2. **Reference-environment qualified:** all safety, recovery, model, and latency
-   gates pass on one named Open-Source PyMOL environment.
-3. **Candidate-platform qualified:** the same evidence passes independently for
-   each advertised OS entry.
-4. **Lead-user use:** Martin exercises representative real workflows with local
-   diagnostics and explicit stop conditions.
-5. **Limited external use:** required specialist reviews are complete, known
-   limitations are documented, and users understand the approval claim.
-6. **V1 supported release:** only qualified platform entries and compatible
-   model/application artifacts are advertised.
+2. **Locally qualified:** all safety, recovery, model, and latency measures
+   pass on the developer's own machine.
+3. **Cross-reviewed:** the other developer has independently exercised the
+   same evidence on their own machine.
+4. **Demo-ready:** both halves pass their integration checkpoint together and
+   the failure-then-recovery beat has been dry-run at least once.
 
-Rollout stops on unapproved mutation, command-policy escape, incorrect or failed
-restore, unexplained integration loss, contaminated evaluation, invalid model
-license, unsupported external network behavior, or failure to meet the frozen
-hardware budget.
+Demo prep stops on unapproved mutation, a command-policy escape, an incorrect
+or failed restore, or unexplained integration loss — these get fixed, not
+worked around, since they are the safety story the presentation depends on.
+A weak evaluation number or an incomplete ablation is not a stop condition;
+it is reported honestly instead.
 
 Application/model rollback restores the last compatible content-addressed
-pairing. Per-request rollback restores the one retained `.pse` recovery point.
-Temporary sidecars and snapshots are deleted at request completion; obsolete
-model artifacts, compatibility adapters, and recovery files have explicit local
-cleanup actions. No exposure expansion or publication occurs without human
-authorization.
+pairing. Per-request rollback restores the one retained `.pse` recovery
+point. Temporary sidecars and snapshots are deleted at request completion.
+No publication occurs without human authorization; none is planned for this
+deliverable.
 
 ## Alternatives and trade-offs
 
@@ -746,8 +806,8 @@ authorization.
 
 | Risk/decision | Impact | Blocking | Owner | Mitigation/evidence | Due/decision point |
 |---|---|---|---|---|---|
-| Lemonade lacks required grammar or candidate-platform capability | A platform or engine cannot meet V1 behavior | No | Hannah | Startup capability probe; real compatibility suite; preserve engine abstraction | Before platform qualification |
-| Cross-platform Open-Source PyMOL semantics or packaging diverge | Silent plan differences or unsupported installs | No | Hannah | Named support matrix and differential contract suite | Before advertising each platform |
+| Lemonade lacks required grammar or capability on the dev machine used | The harness cannot meet V1 behavior there | No | Hannah | Startup capability probe; preserve engine abstraction | Before the demo |
+| Open-Source PyMOL semantics or packaging diverge between Martin's and Hannah's machines | Silent plan differences at the integration checkpoint | No | Hannah | Differential contract suite run on both machines | Before the integration checkpoint |
 | Sidecar snapshot omits relevant live state | Validation gives evidence about the wrong session | No | Hannah | Define relevant-state contract conservatively; mutation and differential tests; fail closed | Before enabling apply |
 | `.pse` restore is incomplete or fails after partial apply | User session may remain uncertain | No | Hannah | Recovery sabotage suite, manual recovery runbook, release-blocking restore gate | Before enabling apply |
 | Local model cannot meet quality and CPU/iGPU latency together | V1 is not useful on laboratory hardware | No | Martin | Model-size/quantization Pareto sweep; structure grammar; fixed hardware budget | Before model selection |
@@ -756,8 +816,7 @@ authorization.
 | Error, card, parser, or grammar train/serve skew | Silent runtime quality loss | No | Joint | Shared core, version manifests, byte/symbol parity, integrated-agent comparison | Before model/runtime pairing |
 | Approval becomes a reflex | Human correctness authority becomes ineffective | No | Martin | Specific plan rendering, warnings, “not checked” statement, usability evidence | Before external release |
 | Controlled fetch exposes accession or network metadata | Local-only expectation is misunderstood | No | Hannah | Explicit approval, configured PDB source, clear network indicator and documentation | Before enabling fetch |
-| Model, teacher, PDB-derived data, or PyMOL license prevents distribution | Public release or artifact publication is blocked | No | Martin | Required licensing review before publication | Before external publication |
-| Required specialist reviewers remain unfilled | Independent acceptance evidence is absent | No | Martin | Name reviewers and record exact artifact review | Before specification and release acceptance |
+| Model, teacher, PDB-derived data, or PyMOL license terms are unclear | The Notebook could misstate what it is built from | No | Martin | Record terms honestly in the Notebook; no publication is planned | Before the Notebook is finalized |
 | Exact latency and memory thresholds remain unset | Model selection can be biased post hoc | No | Martin | Measure representative lab hardware and freeze thresholds before model comparison | Before deployment model selection |
 
 ## Source references
@@ -787,9 +846,9 @@ authorization.
 
 ## Acceptance
 
-- [x] Product frame accepted by the accountable product owner.
-- [x] Material technical decisions resolved.
-- [x] Required specification review complete; specialist delivery/release gates recorded.
-- [x] No blocking unknown or decision remains for delivery planning.
-- [x] Acceptance scenarios trace to contracts, tests, and rollout evidence.
-- [x] Accountable human accepts delivery planning against this exact specification.
+- [ ] Product frame re-accepted by the accountable product owner (this revision).
+- [x] Material technical decisions resolved (unchanged by this revision).
+- [x] No external specialist review gate applies to this course deliverable.
+- [x] No blocking unknown remains for planning the current wave.
+- [x] Essential scenarios trace to contracts, tests, and the demo script.
+- [ ] Accountable human accepts this exact revised specification.
