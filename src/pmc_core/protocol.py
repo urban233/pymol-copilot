@@ -144,7 +144,7 @@ class PlanRequestV1:
     contract_manifest: ContractManifestV1
     intent: str
     snapshot: StructureSnapshotV1
-    protocol_version: str
+    protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
         """Encode the request using its V1 wire-field names."""
@@ -315,7 +315,7 @@ class ValidatedPlanResponseV1:
     validation: ValidationReportV1
     plan_id: str
     snapshot_digest: str
-    protocol_version: str
+    protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
         """Encode the validated response using its V1 wire shape."""
@@ -415,7 +415,7 @@ class FailedPlanResponseV1:
     request_id: str
     session_id: str
     failure: FailureEnvelopeV1
-    protocol_version: str
+    protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
         """Encode the failed response without an action plan."""

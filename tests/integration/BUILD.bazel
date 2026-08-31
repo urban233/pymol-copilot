@@ -12,3 +12,15 @@ py_test(
         "//src/pmc_train:pmc_train",
     ],
 )
+
+py_test(
+    name = "loopback_transport",
+    srcs = ["test_loopback_transport.py"],
+    main = "test_loopback_transport.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)
