@@ -1,6 +1,16 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "command",
+    srcs = ["test_command.py"],
+    main = "test_command.py",
+    deps = [
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "subsystem_imports",
     srcs = ["test_subsystem_imports.py"],
     main = "test_subsystem_imports.py",
