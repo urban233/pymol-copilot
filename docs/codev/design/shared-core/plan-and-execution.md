@@ -1,6 +1,6 @@
 # Plan Language, Policy, and Execution Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -265,6 +265,6 @@ below.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] Command-policy safety evidence accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] Command-policy safety evidence accepted.
+- [x] Accountable human accepts planning against this design.

@@ -1,6 +1,6 @@
 # Shared Core and Contracts Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Martin Urban (`urban233`), accountable; shared with Hannah Kullik (`kullik01`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -234,7 +234,7 @@ privacy classification.
 
 ## Acceptance
 
-- [ ] Material cross-cutting decisions resolved.
-- [ ] [Plan language, policy, and execution](plan-and-execution.md) is `Accepted`.
-- [ ] [Structure context](structure-context.md) is `Accepted`.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material cross-cutting decisions resolved.
+- [x] [Plan language, policy, and execution](plan-and-execution.md) is `Accepted`.
+- [x] [Structure context](structure-context.md) is `Accepted`.
+- [x] Accountable human accepts planning against this design.

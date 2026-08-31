@@ -1,6 +1,6 @@
 # Dataset, Model Training, and Evaluation Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -204,8 +204,8 @@ below.
 
 ## Acceptance
 
-- [ ] Material cross-cutting decisions resolved.
-- [ ] [Dataset and oracle](dataset-and-oracle.md) is `Accepted`.
-- [ ] [Training and evaluation](training-and-evaluation.md) is `Accepted`.
-- [ ] [Quantization and packaging](quantization-and-packaging.md) is `Accepted`.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material cross-cutting decisions resolved.
+- [x] [Dataset and oracle](dataset-and-oracle.md) is `Accepted`.
+- [x] [Training and evaluation](training-and-evaluation.md) is `Accepted`.
+- [x] [Quantization and packaging](quantization-and-packaging.md) is `Accepted`.
+- [x] Accountable human accepts planning against this design.

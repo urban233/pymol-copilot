@@ -1,6 +1,6 @@
 # Runtime Application and PyMOL Integration Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -252,8 +252,8 @@ one area is recorded in that child design instead.
 
 ## Acceptance
 
-- [ ] Material cross-cutting decisions resolved.
-- [ ] [Process architecture](process-architecture.md) is `Accepted`.
-- [ ] [Request pipeline](request-pipeline.md) is `Accepted`.
-- [ ] [Approval and recovery](approval-and-recovery.md) is `Accepted`.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material cross-cutting decisions resolved.
+- [x] [Process architecture](process-architecture.md) is `Accepted`.
+- [x] [Request pipeline](request-pipeline.md) is `Accepted`.
+- [x] [Approval and recovery](approval-and-recovery.md) is `Accepted`.
+- [x] Accountable human accepts planning against this design.

@@ -1,6 +1,6 @@
 # Process Architecture Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -331,6 +331,6 @@ Each question below is specific to this design. Hannah owns both.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] Cross-platform startup, bind, and teardown evidence accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] Cross-platform startup, bind, and teardown evidence accepted.
+- [x] Accountable human accepts planning against this design.
