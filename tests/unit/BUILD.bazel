@@ -1,0 +1,13 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "server_lifecycle",
+    size = "small",
+    srcs = ["test_server_lifecycle.py"],
+    main = "test_server_lifecycle.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)
