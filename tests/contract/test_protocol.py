@@ -84,6 +84,24 @@ def test_request_rejects_non_utc_timestamp() -> None:
         PlanRequestV1.from_dict(payload)
 
 
+def test_request_rejects_timestamp_with_space_separator() -> None:
+    """Requests reject timestamps with a space instead of uppercase T."""
+    payload = request().to_dict()
+    payload["createdAt"] = "2026-08-26 14:22:03.123Z"
+
+    with pytest.raises(ProtocolDecodeError, match="RFC 3339 UTC"):
+        PlanRequestV1.from_dict(payload)
+
+
+def test_request_rejects_timestamp_without_seconds() -> None:
+    """Requests reject timestamps that omit seconds precision."""
+    payload = request().to_dict()
+    payload["createdAt"] = "2026-08-26T14:22Z"
+
+    with pytest.raises(ProtocolDecodeError, match="RFC 3339 UTC"):
+        PlanRequestV1.from_dict(payload)
+
+
 def test_request_rejects_unsupported_protocol_version() -> None:
     """Requests for unsupported protocol versions are rejected."""
     payload = request().to_dict()
@@ -147,6 +165,15 @@ def test_validated_response_rejects_missing_action_plan() -> None:
 
     with pytest.raises(ProtocolDecodeError):
         ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validation_rejects_unknown_status() -> None:
+    """Validation reports accept only the successful passed status."""
+    payload = response().validation.to_dict()
+    payload["status"] = "unknown"
+
+    with pytest.raises(ProtocolDecodeError, match="status is not passed"):
+        ValidationReportV1.from_dict(payload)
 
 
 def test_failure_response_has_no_partial_action_plan() -> None:

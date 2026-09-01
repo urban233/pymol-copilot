@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import re
 import uuid
 
 from pmc_core.plan import ActionPlan
@@ -57,7 +58,12 @@ def _uuid4(value: object, *, name: str) -> str:
 
 def _timestamp(value: object, *, name: str) -> str:
     text = _string(value, name=name)
-    if not text.endswith("Z"):
+    # fromisoformat() accepts variants such as a space separator or omitted
+    # seconds, so enforce the V1 wire shape before checking calendar validity.
+    if (
+        re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", text)
+        is None
+    ):
         raise ProtocolDecodeError(f"{name} must be an RFC 3339 UTC timestamp")
     try:
         parsed = datetime.fromisoformat(text[:-1] + "+00:00")
@@ -294,8 +300,11 @@ class ValidationReportV1:
                 )
             case _:
                 raise ProtocolDecodeError("validation.warnings must be strings")
+        status = _string(data["status"], name="status")
+        if status != "passed":
+            raise ProtocolDecodeError("validation status is not passed")
         return cls(
-            status=_string(data["status"], name="status"),
+            status=status,
             snapshot_digest=_string(
                 data["snapshotDigest"], name="snapshotDigest"
             ),
