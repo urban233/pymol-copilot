@@ -8,6 +8,8 @@ other typed operation or plan shape is denied with a stable reason code,
 without any dispatcher boundary being reached.
 """
 
+import sys
+
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.parser import parse_pml
@@ -211,8 +213,6 @@ def test_plan_with_single_operation_is_denied() -> None:
 
 def test_policy_evaluation_does_not_import_pymol() -> None:
     """Evaluating a denied plan does not import Open-Source PyMOL."""
-    import sys
-
     assert "pymol" not in sys.modules
 
     select_op = SelectOperation(

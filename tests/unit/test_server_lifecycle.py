@@ -3,6 +3,8 @@
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import pytest
+
 from pmc_core.plan import initial_fixture_plan
 from pmc_core.policy import PlanDecision
 from pmc_core.protocol import ContractManifestV1
@@ -96,6 +98,4 @@ def test_policy_denial_returns_typed_failure_without_plan() -> None:
 
 
 if __name__ == "__main__":
-    import pytest
-
     raise SystemExit(pytest.main([__file__]))

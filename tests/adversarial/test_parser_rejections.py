@@ -10,6 +10,8 @@ unknown verbs, comments, quoting, continuations, case variation,
 expression-like content, truncation, and extra commands.
 """
 
+import sys
+
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.parser import ParseRejection
@@ -261,8 +263,6 @@ def test_alternate_whitespace_forms_are_rejected(text: str) -> None:
 
 def test_parser_rejection_does_not_import_pymol() -> None:
     """Rejected input does not import Open-Source PyMOL."""
-    import sys
-
     assert "pymol" not in sys.modules
 
     result = parse_pml("delete everything\n")
