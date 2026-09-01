@@ -99,12 +99,11 @@ class LoopbackPlanServer:
 
     def __exit__(
         self,
-        exception_type: type[BaseException] | None,
-        exception: BaseException | None,
-        traceback: object | None,
+        _exception_type: type[BaseException] | None,
+        _exception: BaseException | None,
+        _traceback: object | None,
     ) -> None:
         """Stop the server when a context-managed fixture exits."""
-        del exception_type, exception, traceback
         self.close()
 
     def _make_request_handler(self) -> type[BaseHTTPRequestHandler]:

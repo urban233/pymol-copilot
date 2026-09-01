@@ -7,6 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 import uuid
 
+import pytest
+
 from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import CopilotCommandClient
 from pmc_core.plan import initial_fixture_plan
@@ -201,6 +203,4 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
 
 
 if __name__ == "__main__":
-    import pytest
-
     raise SystemExit(pytest.main([__file__]))
