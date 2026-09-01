@@ -1,6 +1,6 @@
 # Training and Evaluation Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -16,8 +16,11 @@ versioned dataset produced by
 [Dataset and oracle](dataset-and-oracle.md) and hands its selected
 checkpoint to [Quantization and packaging](quantization-and-packaging.md).
 
-Supervised fine-tuning and grammar-backed evaluation are mandatory.
-Rejection-sampling and reinforcement learning are conditional improvements:
+Supervised fine-tuning is attempted; see the parent design's 2026-09-01
+course-scope note for which evaluation rigor is mandatory versus best-effort.
+Grammar-backed evaluation runs only if a grammar is built (see
+`SPECIFICATION.md`'s V1 scope). Rejection-sampling and reinforcement learning
+are conditional improvements:
 they run only when accepted evidence shows verifier coverage and search
 headroom.
 
@@ -202,6 +205,6 @@ Martin owns the question below.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] Evaluation evidence accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] Evaluation evidence accepted.
+- [x] Accountable human accepts planning against this design.

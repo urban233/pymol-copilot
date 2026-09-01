@@ -1,6 +1,6 @@
 # Quantization and Packaging Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -150,6 +150,6 @@ Martin owns the question below.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] License verification accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] License verification accepted.
+- [x] Accountable human accepts planning against this design.

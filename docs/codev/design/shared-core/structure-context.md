@@ -1,6 +1,6 @@
 # Structure Context Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Hannah Kullik (`kullik01`) for the snapshot and grammar; Martin Urban (`urban233`) for the structure card
 **Reviewers:** Hannah Kullik (`kullik01`); Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -197,6 +197,6 @@ Each question below is specific to this design. Hannah owns both.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] PyMOL-fidelity evidence accepted for snapshot, card, and grammar.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] PyMOL-fidelity evidence accepted for snapshot, card, and grammar.
+- [x] Accountable human accepts planning against this design.

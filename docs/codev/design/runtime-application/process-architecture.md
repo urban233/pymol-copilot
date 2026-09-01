@@ -1,6 +1,6 @@
 # Process Architecture Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -310,8 +310,9 @@ model `.pml` text.
   and version-mismatch security tests.
 - Headless Open-Source PyMOL command tests for `copilot`, apply, reject, and
   rollback behavior.
-- GUI-console smoke tests on each candidate platform, including command
-  responsiveness during representative inference.
+- GUI-console smoke tests on whichever platform(s) are actually used for
+  development and the demo, including command responsiveness during
+  representative inference.
 
 ## Migration, rollout, rollback, and cleanup
 
@@ -331,6 +332,6 @@ Each question below is specific to this design. Hannah owns both.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] Cross-platform startup, bind, and teardown evidence accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] Cross-platform startup, bind, and teardown evidence accepted.
+- [x] Accountable human accepts planning against this design.

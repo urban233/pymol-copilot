@@ -1,6 +1,6 @@
 # Dataset and Oracle Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -360,6 +360,6 @@ Martin owns every question below.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] Gold-suite and oracle evidence accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] Gold-suite and oracle evidence accepted.
+- [x] Accountable human accepts planning against this design.

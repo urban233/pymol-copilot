@@ -1,6 +1,6 @@
 # Approval and Recovery Design
 
-**Status:** Draft
+**Status:** Accepted
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
@@ -220,6 +220,6 @@ Hannah owns the question below.
 
 ## Acceptance
 
-- [ ] Material decisions resolved.
-- [ ] Apply and recovery safety evidence accepted.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material decisions resolved.
+- [x] Apply and recovery safety evidence accepted.
+- [x] Accountable human accepts planning against this design.

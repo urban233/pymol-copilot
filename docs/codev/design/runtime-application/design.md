@@ -1,10 +1,18 @@
 # Runtime Application and PyMOL Integration Design
 
-**Status:** Draft
+**Status:** Draft — course-scope reconciliation pending re-acceptance
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-09-01
+
+**Course-scope note (2026-09-01):** `SPECIFICATION.md`'s 2026-09-01 revision
+rescoped V1 for a five-week, two-developer course deliverable: no formal
+multi-platform qualification matrix (V1 runs on whichever machine(s) Martin
+and Hannah use) and no external specialist review. The architecture below —
+bridge, companion, LangGraph, sidecar isolation, recovery — is unaffected;
+only the qualification and review process changed. This document returns to
+Draft until re-accepted against that revision.
 
 ## Summary
 
@@ -30,8 +38,8 @@ design document:
    manual rollback.
 
 This parent design owns what binds the three together: the process and trust
-boundary, the no-live-mutation invariant, local diagnostics, and the
-platform-qualification and rollout sequence.
+boundary, the no-live-mutation invariant, local diagnostics, and demo
+readiness (see `SPECIFICATION.md`'s Demo readiness, rollback, and cleanup).
 
 The single safety invariant behind all three is that no model output reaches
 the live session before parser, policy, sidecar, session-freshness, and
@@ -224,6 +232,12 @@ ends at plan rendering without apply. Controlled fetch, apply, and rollback
 remain unreachable until shared-core, sidecar-fidelity, and `.pse` recovery
 evidence is accepted.
 
+Runtime evidence is recorded per exact combination of operating system,
+Open-Source PyMOL, Python, Lemonade, and model actually used for development
+and the demo; there is no formal qualification matrix for this deliverable.
+Failure on one developer's machine does not invalidate the other's. The
+companion and model artifact are promoted as a compatible pair with their
+shared-core manifest.
 Runtime qualification proceeds per exact combination of operating system,
 Open-Source PyMOL, Python, Lemonade, and model. Failure on one candidate does
 not weaken another and may remove that platform from V1. The server and
@@ -252,8 +266,8 @@ one area is recorded in that child design instead.
 
 ## Acceptance
 
-- [ ] Material cross-cutting decisions resolved.
-- [ ] [Process architecture](process-architecture.md) is `Accepted`.
-- [ ] [Request pipeline](request-pipeline.md) is `Accepted`.
-- [ ] [Approval and recovery](approval-and-recovery.md) is `Accepted`.
-- [ ] Accountable human accepts planning against this design.
+- [x] Material cross-cutting decisions resolved.
+- [x] [Process architecture](process-architecture.md) is `Accepted`.
+- [x] [Request pipeline](request-pipeline.md) is `Accepted`.
+- [x] [Approval and recovery](approval-and-recovery.md) is `Accepted`.
+- [x] Accountable human accepts planning against this design.

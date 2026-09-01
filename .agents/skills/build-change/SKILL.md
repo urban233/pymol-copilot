@@ -9,14 +9,18 @@ license: BSD-3-Clause
 Work as an interactive pair engineer. The human owns intent and acceptance; the
 AI investigates, proposes, edits, validates, and explains. Use
 `assets/implementation-plan.template.md` only when work spans sessions, affects
-several components, or needs a reviewed written plan. When it is written,
-persist it at `docs/codev/task/<task-id>/implementation-plan.md`, keyed
-by the same id passed to `codev task start --id`, unless the project already
-has an established equivalent location. Its Approach and risk points are
-also what an orchestrating session carries into `codev task start
---description` — the eventual pull request body renders that text verbatim
-and nothing else about the plan, so keep those sections readable on their
-own.
+several components, or needs a reviewed written plan. When an orchestrating
+session provided a task id (via `codev task start --id`), persist the plan at
+`docs/codev/task/<task-id>/implementation-plan.md`, keyed by that same id,
+unless the project already has an established equivalent location. Its
+Approach and risk points are also what that orchestrating session carries
+into `codev task start --description` — the eventual pull request body
+renders that text verbatim and nothing else about the plan, so keep those
+sections readable on their own. When invoked directly by a developer with no
+orchestrating session and no task id (e.g. a single bounded edit), skip the
+task-lifecycle step entirely: write the plan file, if one is warranted, at
+whatever location the developer names, or keep it inline per the next
+section.
 
 ## 1. Frame the change
 
@@ -58,8 +62,18 @@ the plan and proceed interactively.
 
 Prefer one review purpose. As a soft warning, reconsider the slice when it
 exceeds roughly 400 non-generated changed lines or eight files; generated code,
-mechanical migrations, and tightly coupled tests may justify more. Split only
-when each part remains buildable and useful.
+mechanical migrations, and tightly coupled tests may justify more. Split by
+default only when each part remains buildable and useful on its own.
+
+When the project's `git.workflow` configuration resolves to `trunk` (the
+default; check with `codev config get git.workflow`), a part may instead
+split at a real engineering-dependency boundary — a schema change ahead of
+the logic that uses it, an isolated component before it is wired in —
+provided it stays safe to merge alone: tested, non-breaking, and, if it
+changes behavior before the larger change is complete, contained behind a
+flag, config toggle, or other guard named explicitly in the plan's
+containment field. Under `feature-branch`, keep every part independently
+useful; do not assume containment is available.
 
 Reuse repository patterns. Read
 `.agents/skills/testing-craft/references/writing-tests.md` before adding or
