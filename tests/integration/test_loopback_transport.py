@@ -177,6 +177,29 @@ def test_client_rejects_response_with_mismatched_correlation() -> None:
         LoopbackPlanClient(server.port, "secret").submit(plan_request())
 
 
+def test_client_rejects_response_with_mismatched_session() -> None:
+    """The client does not accept a typed plan from another session."""
+
+    def mismatched_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        response = validated_response(request)
+        return ValidatedPlanResponseV1(
+            request_id=response.request_id,
+            session_id="44444444-4444-4444-8444-444444444444",
+            received_at=response.received_at,
+            validated_at=response.validated_at,
+            action_plan=response.action_plan,
+            validation=response.validation,
+            plan_id=response.plan_id,
+            snapshot_digest=response.snapshot_digest,
+        )
+
+    with (
+        LoopbackPlanServer("secret", mismatched_response) as server,
+        pytest.raises(TransportError, match="correlation"),
+    ):
+        LoopbackPlanClient(server.port, "secret").submit(plan_request())
+
+
 def test_client_rejects_response_for_a_different_snapshot() -> None:
     """The client does not accept a typed plan for a different snapshot."""
 
@@ -198,3 +221,7 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
         pytest.raises(TransportError, match="snapshot identity"),
     ):
         LoopbackPlanClient(server.port, "secret").submit(plan_request())
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

@@ -104,6 +104,51 @@ def test_validated_response_round_trips_typed_action_plan() -> None:
     )
 
 
+def test_validated_response_rejects_unknown_fields() -> None:
+    """Validated responses with unknown fields are rejected."""
+    payload = response().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validated_response_rejects_malformed_identifier() -> None:
+    """Validated responses require UUIDv4 correlation identifiers."""
+    payload = response().to_dict()
+    payload["requestId"] = "not-a-uuid"
+
+    with pytest.raises(ProtocolDecodeError, match="UUIDv4"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validated_response_rejects_malformed_timestamp() -> None:
+    """Validated responses require RFC 3339 UTC timestamps."""
+    payload = response().to_dict()
+    payload["validatedAt"] = "yesterday"
+
+    with pytest.raises(ProtocolDecodeError, match="RFC 3339 UTC"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validated_response_rejects_unsupported_protocol_version() -> None:
+    """Validated responses for unsupported protocol versions are rejected."""
+    payload = response().to_dict()
+    payload["protocolVersion"] = "2"
+
+    with pytest.raises(ProtocolDecodeError, match="unsupported protocol"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validated_response_rejects_missing_action_plan() -> None:
+    """A malformed validated response without its typed plan is rejected."""
+    payload = response().to_dict()
+    del payload["actionPlan"]
+
+    with pytest.raises(ProtocolDecodeError):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
 def test_failure_response_has_no_partial_action_plan() -> None:
     """A failure response cannot carry a partial action plan."""
     failure = FailedPlanResponseV1(
@@ -115,6 +160,20 @@ def test_failure_response_has_no_partial_action_plan() -> None:
     payload = failure.to_dict()
     assert "actionPlan" not in payload
     assert decode_json(encode_json(failure), response=True) == failure
+
+
+def test_failure_response_rejects_partial_action_plan() -> None:
+    """A failed response containing a partial action plan is rejected."""
+    failure = FailedPlanResponseV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
+        failure=FailureEnvelopeV1("invalid_request", "bad request", False),
+    )
+    payload = failure.to_dict()
+    payload["actionPlan"] = response().to_dict()["actionPlan"]
+
+    with pytest.raises(ProtocolDecodeError):
+        FailedPlanResponseV1.from_dict(payload)
 
 
 if __name__ == "__main__":

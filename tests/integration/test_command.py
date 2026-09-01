@@ -71,7 +71,7 @@ def uuid_factory() -> Callable[[], uuid.UUID]:
     """Return a deterministic sequence of UUIDv4 values."""
     values = iter(
         (
-            uuid.UUID("11111111-1111-4111-8111-111111111111"),
+            uuid.UUID(SESSION_ID),
             uuid.UUID("33333333-3333-4333-8333-333333333333"),
             uuid.UUID("44444444-4444-4444-8444-444444444444"),
         )
@@ -198,3 +198,9 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
         "copilot validation failed: "
         "status=failed; snapshot=sha256:example-chain-a-digest"
     ]
+
+
+if __name__ == "__main__":
+    import pytest
+
+    raise SystemExit(pytest.main([__file__]))
