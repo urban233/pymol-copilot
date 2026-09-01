@@ -24,8 +24,9 @@ document, the eleven design documents, and the wave plan.
 
 Restricted-plan core (`pmc_core`: typed plan, parser, policy for
 `select`/`color`) is implemented, tested, and merged — issue #4/T-01 is done.
-The command bridge, companion, and LangGraph runtime path (issue #3/T-02) are
-not yet implemented. The prior delivery plans
+The bounded PyMOL client/server runtime path for issue #3/T-02 is implemented
+and tested; the broader LangGraph runtime path remains unimplemented. The prior
+delivery plans
 [`design-readiness.md`](docs/codev/delivery/design-readiness.md) and
 [`test-quality-gaps.md`](docs/codev/delivery/test-quality-gaps.md) recorded
 that work and its evidence; their content carries forward into the current
@@ -94,7 +95,7 @@ broad public-release claim is made.
 
 This is a two-developer master's-degree course project due five weeks out.
 Martin owns the data-generation, oracle, and fine-tuning half; Hannah owns
-the PyMOL bridge and runtime-harness half. Both are named authors of the
+the PyMOL client/server and runtime-harness half. Both are named authors of the
 final Notebook and co-presenters; there is no separate product organization
 or external stakeholder to satisfy before the course deadline.
 
@@ -184,15 +185,14 @@ re-evaluation are Next, not measured for this deliverable — see V1 scope.
 
 ### Included
 
-- A local server application deployed alongside Open-Source PyMOL and a
+- A local server application deployed alongside Open-Source PyMOL and a local
+  model.
 - A Jupyter Notebook that runs dataset generation, the oracle, fine-tuning,
   and evaluation end to end and is readable on its own by the course
   instructor.
 - A live demo script covering one intent through apply and one deliberate
   failure through automatic recovery, sized for a twenty-minute segment per
   developer within one 40-minute PowerPoint presentation.
-- A local companion application deployed alongside Open-Source PyMOL and a
-  local model.
 - A thin PyMOL client exposing command entry through `cmd.extend()`.
 - Explicit two-command approval using `copilot <intent>` followed by
   `copilot_apply <plan-id>`.
@@ -304,11 +304,11 @@ training, publication, or release decision named in its decision point.
 
 Restricted-plan core (`pmc_core`: typed plan, canonical rendering, default-deny
 parser and policy for `select`/`color`) is implemented, tested, and merged to
-`main` (issue #4). The command bridge, companion, and LangGraph runtime path
-(issue #3) are not yet implemented; `pmc_agent` is still an empty package. This
-specification defines the target system for the remaining work, not a
-migration of existing product code. A hidden interface prototype may inform V2
-but is not a V1 dependency or source of truth.
+`main` (issue #4). The bounded client/server runtime path for issue #3 is
+implemented and tested; `pmc_agent` and the broader LangGraph runtime remain
+unimplemented. This specification defines the target system for the remaining
+work, not a migration of existing product code. A hidden interface prototype
+may inform V2 but is not a V1 dependency or source of truth.
 
 External actors and systems are:
 

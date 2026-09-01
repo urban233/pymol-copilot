@@ -1,6 +1,6 @@
 # Non-mutating PyMOL Client-Server Path Implementation Plan
 
-**Status:** Draft
+**Status:** Implemented; ready for human approval
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** High
@@ -135,13 +135,41 @@ and [plan and execution](../../docs/codev/design/shared-core/plan-and-execution.
 
 ## Completion evidence
 
-- **Delivered:** Pending implementation.
-- **Changed:** Pending implementation.
-- **Head commit/snapshot:** Pending implementation.
-- **Validation actually run:** Planning-only artifact; no product validation
-  has run.
-- **Acceptance evidence:** Pending implementation.
+- **Delivered:** An authenticated loopback client-server path accepts the fixed
+  `select`/`color` intent, returns a correlated typed plan and passing validation
+  report, renders canonical `.pml` in the client, and records no live-session
+  mutation.
+- **Changed:** Added `pmc_client` command and transport components,
+  `pmc_server` lifecycle and transport components, strict protocol codecs in
+  `pmc_core`, Bazel targets, contract/unit/integration coverage, and consistent
+  client/server terminology in the product and design documents.
+- **Head commit/snapshot:** `bd2895efe7becba61b38605a2cf717ab93ccb0a0`
+  plus this working-tree completion-evidence update.
+- **Validation actually run:** `bazel build //... --lockfile_mode=error` passed;
+  `bazel test //tests/contract:protocol --lockfile_mode=error
+  --nocache_test_results` passed;
+  `bazel test //... --lockfile_mode=error --nocache_test_results` executed and
+  passed all 10 tests; `bazel run //tools/bazel:check_dependency_boundaries
+  --lockfile_mode=error` passed; `bazel run //tools/quality:ruff
+  --lockfile_mode=error -- check .` passed; `bazel run //tools/quality:ruff
+  --lockfile_mode=error -- format --check .` reported all 75 files formatted;
+  `bazel run //tools/quality:pyrefly --lockfile_mode=error -- check` reported 0
+  errors; `git diff --check` passed; and a tracked-file scan found no
+  runtime-role uses of `bridge` or `companion` outside the migration plan.
+- **Acceptance evidence:** `//tests/integration:client_server_command` proves
+  canonical rendering, request/session correlation, and zero mutation through
+  the public command path; `//tests/integration:loopback_transport` proves the
+  authenticated bounded loopback exchange; `//tests/contract:protocol` proves
+  strict codecs and typed failures; the dependency-boundary check proves
+  `pmc_core` remains independent of client and server runtime concerns.
 - **Scope deviations:** None.
-- **Known limitations:** The real PyMOL adapter and transport implementation do
-  not yet exist in the repository.
-- **Review state:** Not reviewed.
+- **Known limitations:** This bounded fixture supports only the accepted
+  `select`/`color` intent and does not implement apply, rollback, controlled
+  fetch, model lifecycle, or broader command coverage. The shared response
+  codec does not independently reject mismatched plan/validation snapshot
+  digests, and command-level transport failures can still propagate instead of
+  rendering a bounded diagnostic.
+- **Review state:** Independent lightweight review returned `READY FOR OUTER
+  LOOP`; no correctness or intent-match findings remain. Real PyMOL
+  integration and broader runtime behavior remain unvalidated. No release or
+  rollout is authorized by this implementation.

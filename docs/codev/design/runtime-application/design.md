@@ -10,7 +10,7 @@
 rescoped V1 for a five-week, two-developer course deliverable: no formal
 multi-platform qualification matrix (V1 runs on whichever machine(s) Martin
 and Hannah use) and no external specialist review. The architecture below —
-bridge, companion, LangGraph, sidecar isolation, recovery — is unaffected;
+client, server, LangGraph, sidecar isolation, recovery — is unaffected;
 only the qualification and review process changed. This document returns to
 Draft until re-accepted against that revision.
 
@@ -236,7 +236,7 @@ Runtime evidence is recorded per exact combination of operating system,
 Open-Source PyMOL, Python, Lemonade, and model actually used for development
 and the demo; there is no formal qualification matrix for this deliverable.
 Failure on one developer's machine does not invalidate the other's. The
-companion and model artifact are promoted as a compatible pair with their
+  server and model artifact are promoted as a compatible pair with their
 shared-core manifest.
 Runtime qualification proceeds per exact combination of operating system,
 Open-Source PyMOL, Python, Lemonade, and model. Failure on one candidate does

@@ -49,8 +49,8 @@ adds:
 
 ## Current system and evidence
 
-The repository has no active client, server, or transport implementation.
-See the parent design's
+The repository has an active client, server, and loopback transport
+implementation for the bounded non-mutating fixture. See the parent design's
 [Current system and evidence](design.md#current-system-and-evidence) for the
 accepted specification decisions this design must satisfy -- most directly, a
 separate server process with a thin PyMOL client, command-only V1
