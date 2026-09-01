@@ -8,7 +8,7 @@ other typed operation or plan shape is denied with a stable reason code,
 without any dispatcher boundary being reached.
 """
 
-import pytest
+import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan

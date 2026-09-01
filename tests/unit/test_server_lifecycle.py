@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Behavior tests for the callable server request lifecycle."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.plan import initial_fixture_plan
 from pmc_core.policy import PlanDecision
@@ -17,7 +17,11 @@ SESSION_ID = "22222222-2222-4222-8222-222222222222"
 
 
 def request() -> PlanRequestV1:
-    """Build the accepted V1 request fixture."""
+    """Build the accepted V1 request fixture.
+
+    Returns:
+        The accepted plan request.
+    """
     return PlanRequestV1(
         request_id=REQUEST_ID,
         session_id=SESSION_ID,

@@ -1,12 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Headless client-server test for the public non-mutating command path."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import pytest
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
-import uuid
 
 from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import register_copilot
@@ -36,21 +37,40 @@ class DisposablePyMOLAdapter:
     )
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
-        """Register a command callback without changing molecular state."""
+        """Register a command callback without changing molecular state.
+
+        Args:
+            name: Command name to register.
+            callback: Function invoked for the registered command.
+        """
         self.commands[name] = callback
 
     def select(self, name: str, expression: str) -> None:
-        """Record a selection mutation if the client attempts one."""
+        """Record a selection mutation if the client attempts one.
+
+        Args:
+            name: Selection name supplied by the attempted command.
+            expression: Selection expression supplied by the attempted command.
+        """
         self.mutations.append(("select", (name, expression)))
         self.selections[name] = expression
 
     def color(self, color: str, target: str) -> None:
-        """Record a color mutation if the client attempts one."""
+        """Record a color mutation if the client attempts one.
+
+        Args:
+            color: Color supplied by the attempted command.
+            target: Selection target supplied by the attempted command.
+        """
         self.mutations.append(("color", (color, target)))
         self.colors[target] = color
 
     def do(self, command: str) -> None:
-        """Record rendered PML execution if the client attempts it."""
+        """Record rendered PML execution if the client attempts it.
+
+        Args:
+            command: Rendered command text supplied for execution.
+        """
         self.mutations.append(("do", (command,)))
 
 
@@ -68,6 +88,14 @@ def test_public_command_round_trip_renders_without_session_mutation() -> None:
     def record_lifecycle(
         request: PlanRequestV1,
     ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+        """Record a request and return its lifecycle response.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            The typed response produced by the lifecycle.
+        """
         requests.append(request)
         response = lifecycle(request)
         responses.append(response)
@@ -100,6 +128,4 @@ def test_public_command_round_trip_renders_without_session_mutation() -> None:
 
 
 if __name__ == "__main__":
-    import pytest
-
     raise SystemExit(pytest.main([__file__]))

@@ -10,7 +10,7 @@ unknown verbs, comments, quoting, continuations, case variation,
 expression-like content, truncation, and extra commands.
 """
 
-import pytest
+import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_pml

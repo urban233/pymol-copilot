@@ -1,26 +1,26 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Integration tests for the authenticated local plan transport."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import logging
 from http import HTTPStatus
 from http.client import HTTPConnection
-import logging
 
 import pytest
 
 from pmc_client.transport import CREDENTIAL_HEADER
 from pmc_client.transport import LOOPBACK_HOST
-from pmc_client.transport import LoopbackPlanClient
 from pmc_client.transport import MAX_MESSAGE_BYTES
 from pmc_client.transport import PLAN_PATH
+from pmc_client.transport import LoopbackPlanClient
 from pmc_client.transport import TransportError
 from pmc_core.plan import initial_fixture_plan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
-from pmc_core.protocol import ValidationReportV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import ValidationReportV1
 from pmc_server.transport import LoopbackPlanServer
 
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
@@ -28,7 +28,11 @@ SESSION_ID = "22222222-2222-4222-8222-222222222222"
 
 
 def plan_request() -> PlanRequestV1:
-    """Build the accepted V1 request fixture."""
+    """Build the accepted V1 request fixture.
+
+    Returns:
+        The accepted plan request.
+    """
     return PlanRequestV1(
         request_id=REQUEST_ID,
         session_id=SESSION_ID,
@@ -42,7 +46,14 @@ def plan_request() -> PlanRequestV1:
 
 
 def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
-    """Build the response matching a request's correlation values."""
+    """Build the response matching a request's correlation values.
+
+    Args:
+        request: Request whose correlation values are copied.
+
+    Returns:
+        A successful typed response.
+    """
     return ValidatedPlanResponseV1(
         request_id=request.request_id,
         session_id=request.session_id,
@@ -74,6 +85,14 @@ def test_server_rejects_wrong_credential_without_parsing_request() -> None:
     requests: list[PlanRequestV1] = []
 
     def record_request(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        """Record and respond to one decoded request.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            A successful typed response.
+        """
         requests.append(request)
         return validated_response(request)
 
@@ -103,6 +122,14 @@ def test_server_rejects_payload_larger_than_transport_limit() -> None:
     payload = b"x" * (MAX_MESSAGE_BYTES + 1)
 
     def record_request(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        """Record and respond to one decoded request.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            A successful typed response.
+        """
         requests.append(request)
         return validated_response(request)
 
@@ -139,7 +166,11 @@ def test_server_cannot_restart_after_its_socket_is_closed() -> None:
 def test_server_logs_response_metadata_without_request_target(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An untrusted request target is excluded from transport logging."""
+    """An untrusted request target is excluded from transport logging.
+
+    Args:
+        caplog: Pytest log-capture fixture.
+    """
     request_target = f"{PLAN_PATH}?intent=private-intent"
     caplog.set_level(logging.INFO, logger="pmc_server.transport")
     with LoopbackPlanServer("secret", validated_response) as server:
@@ -158,6 +189,14 @@ def test_client_rejects_response_with_mismatched_correlation() -> None:
     """The client does not accept a typed plan for another request."""
 
     def mismatched_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        """Return a response with a different request identifier.
+
+        Args:
+            request: Request whose response should be modified.
+
+        Returns:
+            A response with mismatched request correlation.
+        """
         response = validated_response(request)
         return ValidatedPlanResponseV1(
             request_id="44444444-4444-4444-8444-444444444444",
@@ -181,6 +220,14 @@ def test_client_rejects_response_with_mismatched_session() -> None:
     """The client does not accept a typed plan from another session."""
 
     def mismatched_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        """Return a response with a different session identifier.
+
+        Args:
+            request: Request whose response should be modified.
+
+        Returns:
+            A response with mismatched session correlation.
+        """
         response = validated_response(request)
         return ValidatedPlanResponseV1(
             request_id=response.request_id,
@@ -204,6 +251,14 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
     """The client does not accept a typed plan for a different snapshot."""
 
     def mismatched_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        """Return a response with a different snapshot identifier.
+
+        Args:
+            request: Request whose response should be modified.
+
+        Returns:
+            A response with a mismatched snapshot identity.
+        """
         response = validated_response(request)
         return ValidatedPlanResponseV1(
             request_id=response.request_id,

@@ -1,13 +1,12 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Integration tests for the non-mutating client command seam."""
 
-from __future__ import annotations
-
-from collections.abc import Callable
-from dataclasses import dataclass
-import uuid
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import pytest
+import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import CopilotCommandClient
@@ -15,8 +14,8 @@ from pmc_core.plan import initial_fixture_plan
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
-from pmc_core.protocol import ValidationReportV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import ValidationReportV1
 
 SESSION_ID = "22222222-2222-4222-8222-222222222222"
 CREATED_AT = "2026-08-26T14:22:03.123Z"
@@ -37,7 +36,14 @@ class RecordingTransport:
     def submit(
         self, request: PlanRequestV1
     ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
-        """Record and handle one request."""
+        """Record and handle one request.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            The typed response produced by the response factory.
+        """
         self.requests.append(request)
         return self.response_factory(request)
 
@@ -50,13 +56,25 @@ class RecordingCmd:
     callback: Callable[[str], None] | None = None
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
-        """Record the registered command."""
+        """Record the registered command.
+
+        Args:
+            name: Command name to record.
+            callback: Command callback to record.
+        """
         self.name = name
         self.callback = callback
 
 
 def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
-    """Build a successful response correlated to a request."""
+    """Build a successful response correlated to a request.
+
+    Args:
+        request: Request whose correlation and snapshot values are copied.
+
+    Returns:
+        A successful typed response.
+    """
     return ValidatedPlanResponseV1(
         request_id=request.request_id,
         session_id=request.session_id,
@@ -70,7 +88,11 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
 
 
 def uuid_factory() -> Callable[[], uuid.UUID]:
-    """Return a deterministic sequence of UUIDv4 values."""
+    """Return a deterministic sequence of UUIDv4 values.
+
+    Returns:
+        A callable that returns the next deterministic UUIDv4 value.
+    """
     values = iter(
         (
             uuid.UUID(SESSION_ID),
@@ -151,7 +173,14 @@ def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
     """A typed failure reports a diagnostic without a plan."""
 
     def failed_response(request: PlanRequestV1) -> FailedPlanResponseV1:
-        """Build a correlated typed policy failure."""
+        """Build a correlated typed policy failure.
+
+        Args:
+            request: Request whose correlation values are copied.
+
+        Returns:
+            A typed policy failure response.
+        """
         return FailedPlanResponseV1(
             request_id=request.request_id,
             session_id=request.session_id,
@@ -174,7 +203,14 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
     def failed_validation(
         request: PlanRequestV1,
     ) -> ValidatedPlanResponseV1:
-        """Build a correlated response with failed validation."""
+        """Build a correlated response with failed validation.
+
+        Args:
+            request: Request whose response should be modified.
+
+        Returns:
+            A response with a failed validation status.
+        """
         response = validated_response(request)
         return ValidatedPlanResponseV1(
             request_id=response.request_id,

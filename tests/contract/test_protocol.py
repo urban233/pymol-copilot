@@ -1,19 +1,19 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Contract tests for strict V1 client-server protocol codecs."""
 
-import pytest
+import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+from pmc_core.plan import initial_fixture_plan
 from pmc_core.protocol import ContractManifestV1
-from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import StructureSnapshotV1
-from pmc_core.protocol import ValidationReportV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import ValidationReportV1
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import encode_json
-from pmc_core.plan import initial_fixture_plan
 
 REQUEST_IDS = {
     "requestId": "11111111-1111-4111-8111-111111111111",
@@ -22,7 +22,11 @@ REQUEST_IDS = {
 
 
 def request() -> PlanRequestV1:
-    """Build the accepted request fixture."""
+    """Build the accepted request fixture.
+
+    Returns:
+        The accepted plan request.
+    """
     return PlanRequestV1(
         request_id=REQUEST_IDS["requestId"],
         session_id=REQUEST_IDS["sessionId"],
@@ -36,7 +40,11 @@ def request() -> PlanRequestV1:
 
 
 def response() -> ValidatedPlanResponseV1:
-    """Build the accepted validated response fixture."""
+    """Build the accepted validated response fixture.
+
+    Returns:
+        The accepted validated plan response.
+    """
     return ValidatedPlanResponseV1(
         request_id=REQUEST_IDS["requestId"],
         session_id=REQUEST_IDS["sessionId"],
@@ -67,7 +75,11 @@ def test_request_rejects_unknown_fields() -> None:
 
 @pytest.mark.parametrize("field", ["requestId", "sessionId"])
 def test_request_rejects_non_v4_identifiers(field: str) -> None:
-    """Requests with non-v4 identifiers are rejected."""
+    """Requests with non-v4 identifiers are rejected.
+
+    Args:
+        field: Identifier field to replace with an invalid value.
+    """
     payload = request().to_dict()
     payload[field] = "11111111-1111-3111-8111-111111111111"
 

@@ -15,7 +15,7 @@ Expanding the accepted syntax requires accepted fixtures and security
 evidence in the owning design.
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from dataclasses import dataclass
 

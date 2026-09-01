@@ -1,20 +1,20 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Non-mutating ``copilot`` command seam for the initial V1 fixture."""
+"""Non-mutating copilot command seam for the initial V1 fixture."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-from collections.abc import Callable
-from datetime import datetime
-from datetime import timezone
 import uuid
+from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
 from typing import Protocol
 
+from pmc_client.transport import LoopbackPlanClient
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
-from pmc_client.transport import LoopbackPlanClient
 
 FIXTURE_INTENT = "Select chain A and color it red."
 FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
@@ -27,7 +27,12 @@ class CmdExtension(Protocol):
     """Small subset of the PyMOL command API required for registration."""
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
-        """Register a command callback."""
+        """Register a command callback.
+
+        Args:
+            name: Command name to register.
+            callback: Function invoked for the registered command.
+        """
 
 
 class PlanTransport(Protocol):
@@ -36,13 +41,24 @@ class PlanTransport(Protocol):
     def submit(
         self, request: PlanRequestV1
     ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
-        """Submit one typed plan request."""
+        """Submit one typed plan request.
+
+        Args:
+            request: Typed request to send to the server.
+
+        Returns:
+            The validated plan or typed failure returned by the server.
+        """
 
 
 def _utc_timestamp() -> str:
-    """Return the current time in the protocol's RFC3339 UTC form."""
+    """Return the current time in the protocol's RFC3339 UTC form.
+
+    Returns:
+        The current timestamp in the protocol wire format.
+    """
     return (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
         .isoformat(timespec="milliseconds")
         .replace("+00:00", "Z")
     )
@@ -75,15 +91,27 @@ class CopilotCommandClient:
 
     @property
     def session_id(self) -> str:
-        """Return the UUIDv4 session identity reused by this client."""
+        """Return the UUIDv4 session identity reused by this client.
+
+        Returns:
+            The session identifier shared by this client's requests.
+        """
         return self._session_id
 
     def register(self, cmd: CmdExtension) -> None:
-        """Register the non-mutating command with a PyMOL-like object."""
+        """Register the non-mutating command with a PyMOL-like object.
+
+        Args:
+            cmd: PyMOL-like command registry receiving the callback.
+        """
         cmd.extend("copilot", self.copilot)
 
     def copilot(self, intent: str) -> None:
-        """Submit one intent and report its typed result without execution."""
+        """Submit one intent and report its typed result without execution.
+
+        Args:
+            intent: Natural-language intent to submit for planning.
+        """
         request = PlanRequestV1(
             request_id=str(self._uuid_factory()),
             session_id=self._session_id,
@@ -100,7 +128,11 @@ class CopilotCommandClient:
                 self._report_validated(response)
 
     def _report_failure(self, response: FailedPlanResponseV1) -> None:
-        """Report a typed failure without attempting to render a plan."""
+        """Report a typed failure without attempting to render a plan.
+
+        Args:
+            response: Typed failure response to report.
+        """
         failure = response.failure
         retryability = "retryable" if failure.retryable else "not retryable"
         self._output(
@@ -109,7 +141,11 @@ class CopilotCommandClient:
         )
 
     def _report_validated(self, response: ValidatedPlanResponseV1) -> None:
-        """Report only a passing typed plan and its canonical PML text."""
+        """Report only a passing typed plan and its canonical PML text.
+
+        Args:
+            response: Typed response containing the validated plan.
+        """
         if response.validation.status != "passed":
             self._output(
                 "copilot validation failed: "
@@ -126,7 +162,16 @@ def register_copilot(
     transport: LoopbackPlanClient,
     output: Callable[[str], None],
 ) -> CopilotCommandClient:
-    """Register ``copilot`` and return its client for the owning session."""
+    """Register copilot and return its client for the owning session.
+
+    Args:
+        cmd: PyMOL-like command registry receiving the callback.
+        transport: Authenticated transport used to submit plan requests.
+        output: Callable receiving command-console text.
+
+    Returns:
+        The registered command client.
+    """
     client = CopilotCommandClient(transport, output)
     client.register(cmd)
     return client

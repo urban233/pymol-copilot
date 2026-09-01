@@ -1,13 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Strict codecs for the initial client-server protocol fixture."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-from dataclasses import dataclass
-from datetime import datetime
 import json
 import re
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
 
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import ColorOperation
@@ -21,6 +21,18 @@ class ProtocolDecodeError(ValueError):
 
 
 def _object(value: object, *, name: str) -> dict[str, object]:
+    """Require a protocol value to be a JSON object.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to a JSON object.
+
+    Raises:
+        ProtocolDecodeError: If value is not a JSON object.
+    """
     match value:
         case dict() as result:
             return result
@@ -31,6 +43,19 @@ def _object(value: object, *, name: str) -> dict[str, object]:
 def _strict_object(
     value: object, *, name: str, required: set[str]
 ) -> dict[str, object]:
+    """Require a JSON object to contain exactly the required fields.
+
+    Args:
+        value: Value to validate.
+        name: Object name used in the error message.
+        required: Exact set of accepted field names.
+
+    Returns:
+        The validated JSON object.
+
+    Raises:
+        ProtocolDecodeError: If the value or its fields are invalid.
+    """
     result = _object(value, name=name)
     if set(result) != required:
         raise ProtocolDecodeError(f"{name} fields do not match V1 schema")
@@ -38,6 +63,18 @@ def _strict_object(
 
 
 def _string(value: object, *, name: str) -> str:
+    """Require a protocol value to be a string.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to a string.
+
+    Raises:
+        ProtocolDecodeError: If value is not a string.
+    """
     match value:
         case str() as result:
             return result
@@ -46,6 +83,18 @@ def _string(value: object, *, name: str) -> str:
 
 
 def _uuid4(value: object, *, name: str) -> str:
+    """Require a protocol value to be a canonical UUIDv4 string.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The validated UUIDv4 string.
+
+    Raises:
+        ProtocolDecodeError: If value is not a canonical UUIDv4 string.
+    """
     text = _string(value, name=name)
     try:
         parsed = uuid.UUID(text)
@@ -57,8 +106,20 @@ def _uuid4(value: object, *, name: str) -> str:
 
 
 def _timestamp(value: object, *, name: str) -> str:
+    """Require a protocol value to be an RFC3339 UTC timestamp.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The validated timestamp string.
+
+    Raises:
+        ProtocolDecodeError: If value is not a valid UTC timestamp.
+    """
     text = _string(value, name=name)
-    # fromisoformat() accepts variants such as a space separator or omitted
+    # fromisoformat() accepts variants such as a space separator or omitted.
     # seconds, so enforce the V1 wire shape before checking calendar validity.
     if (
         re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", text)
@@ -85,7 +146,11 @@ class ContractManifestV1:
     snapshot_version: str
 
     def to_dict(self) -> dict[str, str]:
-        """Encode the manifest using its V1 wire-field names."""
+        """Encode the manifest using its V1 wire-field names.
+
+        Returns:
+            The manifest represented with wire-field names.
+        """
         return {
             "planVersion": self.plan_version,
             "policyVersion": self.policy_version,
@@ -94,7 +159,17 @@ class ContractManifestV1:
 
     @classmethod
     def from_dict(cls, value: object) -> ContractManifestV1:
-        """Decode and validate a V1 contract manifest."""
+        """Decode and validate a V1 contract manifest.
+
+        Args:
+            value: JSON-like value containing a contract manifest.
+
+        Returns:
+            The validated contract manifest.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the manifest schema.
+        """
         data = _strict_object(
             value,
             name="contractManifest",
@@ -118,7 +193,11 @@ class StructureSnapshotV1:
     fixture_id: str
 
     def to_dict(self) -> dict[str, str]:
-        """Encode the snapshot identity using its V1 wire-field names."""
+        """Encode the snapshot identity using its V1 wire-field names.
+
+        Returns:
+            The snapshot represented with wire-field names.
+        """
         return {
             "schemaVersion": self.schema_version,
             "digest": self.digest,
@@ -127,7 +206,17 @@ class StructureSnapshotV1:
 
     @classmethod
     def from_dict(cls, value: object) -> StructureSnapshotV1:
-        """Decode and validate a V1 structure snapshot identity."""
+        """Decode and validate a V1 structure snapshot identity.
+
+        Args:
+            value: JSON-like value containing a structure snapshot.
+
+        Returns:
+            The validated structure snapshot.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the snapshot schema.
+        """
         data = _strict_object(
             value,
             name="snapshot",
@@ -153,7 +242,11 @@ class PlanRequestV1:
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
-        """Encode the request using its V1 wire-field names."""
+        """Encode the request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
         return {
             "protocolVersion": self.protocol_version,
             "requestId": self.request_id,
@@ -166,7 +259,17 @@ class PlanRequestV1:
 
     @classmethod
     def from_dict(cls, value: object) -> PlanRequestV1:
-        """Decode and validate a V1 plan request."""
+        """Decode and validate a V1 plan request.
+
+        Args:
+            value: JSON-like value containing a plan request.
+
+        Returns:
+            The validated plan request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
         data = _strict_object(
             value,
             name="PlanRequestV1",
@@ -198,6 +301,17 @@ class PlanRequestV1:
 
 
 def _plan_commands(plan: ActionPlan) -> list[dict[str, str]]:
+    """Convert a typed action plan to its wire command objects.
+
+    Args:
+        plan: Action plan to encode.
+
+    Returns:
+        The command objects for the plan.
+
+    Raises:
+        ProtocolDecodeError: If the plan contains an unsupported operation.
+    """
     commands: list[dict[str, str]] = []
     for operation in plan.operations:
         match operation:
@@ -223,6 +337,17 @@ def _plan_commands(plan: ActionPlan) -> list[dict[str, str]]:
 
 
 def _decode_plan(value: object) -> ActionPlan:
+    """Decode a strictly shaped action plan.
+
+    Args:
+        value: JSON-like value containing an action plan.
+
+    Returns:
+        The decoded action plan.
+
+    Raises:
+        ProtocolDecodeError: If value does not match the action-plan schema.
+    """
     data = _strict_object(
         value,
         name="actionPlan",
@@ -249,7 +374,17 @@ def _decode_plan(value: object) -> ActionPlan:
 
 
 def _decode_command(value: object) -> SelectOperation | ColorOperation:
-    """Decode one strictly shaped action-plan command."""
+    """Decode one strictly shaped action-plan command.
+
+    Args:
+        value: JSON-like value containing an action-plan command.
+
+    Returns:
+        The decoded select or color operation.
+
+    Raises:
+        ProtocolDecodeError: If value does not match a supported command shape.
+    """
     item = _object(value, name="actionPlan command")
     verb = item.get("verb")
     if verb == "select":
@@ -278,7 +413,11 @@ class ValidationReportV1:
     warnings: tuple[str, ...]
 
     def to_dict(self) -> dict[str, object]:
-        """Encode the validation report using its V1 wire-field names."""
+        """Encode the validation report using its V1 wire-field names.
+
+        Returns:
+            The validation report represented with wire-field names.
+        """
         return {
             "status": self.status,
             "snapshotDigest": self.snapshot_digest,
@@ -287,7 +426,17 @@ class ValidationReportV1:
 
     @classmethod
     def from_dict(cls, value: object) -> ValidationReportV1:
-        """Decode and validate a V1 validation report."""
+        """Decode and validate a V1 validation report.
+
+        Args:
+            value: JSON-like value containing a validation report.
+
+        Returns:
+            The validated validation report.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the report schema.
+        """
         data = _strict_object(
             value,
             name="validation",
@@ -327,7 +476,11 @@ class ValidatedPlanResponseV1:
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
-        """Encode the validated response using its V1 wire shape."""
+        """Encode the validated response using its V1 wire shape.
+
+        Returns:
+            The response represented with wire-field names.
+        """
         return {
             "protocolVersion": self.protocol_version,
             "requestId": self.request_id,
@@ -346,7 +499,17 @@ class ValidatedPlanResponseV1:
 
     @classmethod
     def from_dict(cls, value: object) -> ValidatedPlanResponseV1:
-        """Decode and validate a successful V1 response."""
+        """Decode and validate a successful V1 response.
+
+        Args:
+            value: JSON-like value containing a validated response.
+
+        Returns:
+            The validated response.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the response schema.
+        """
         data = _strict_object(
             value,
             name="ValidatedPlanResponseV1",
@@ -390,7 +553,11 @@ class FailureEnvelopeV1:
     retryable: bool
 
     def to_dict(self) -> dict[str, object]:
-        """Encode the bounded failure envelope."""
+        """Encode the bounded failure envelope.
+
+        Returns:
+            The failure envelope represented with wire-field names.
+        """
         return {
             "category": self.category,
             "message": self.message,
@@ -399,7 +566,17 @@ class FailureEnvelopeV1:
 
     @classmethod
     def from_dict(cls, value: object) -> FailureEnvelopeV1:
-        """Decode and validate a bounded failure envelope."""
+        """Decode and validate a bounded failure envelope.
+
+        Args:
+            value: JSON-like value containing a failure envelope.
+
+        Returns:
+            The validated failure envelope.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the envelope schema.
+        """
         data = _strict_object(
             value,
             name="failure",
@@ -427,7 +604,11 @@ class FailedPlanResponseV1:
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
-        """Encode the failed response without an action plan."""
+        """Encode the failed response without an action plan.
+
+        Returns:
+            The response represented with wire-field names.
+        """
         return {
             "protocolVersion": self.protocol_version,
             "requestId": self.request_id,
@@ -438,7 +619,17 @@ class FailedPlanResponseV1:
 
     @classmethod
     def from_dict(cls, value: object) -> FailedPlanResponseV1:
-        """Decode and validate a failed V1 response."""
+        """Decode and validate a failed V1 response.
+
+        Args:
+            value: JSON-like value containing a failed response.
+
+        Returns:
+            The validated failed response.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the response schema.
+        """
         data = _strict_object(
             value,
             name="FailedPlanResponseV1",
@@ -464,14 +655,32 @@ class FailedPlanResponseV1:
 def encode_json(
     value: PlanRequestV1 | ValidatedPlanResponseV1 | FailedPlanResponseV1,
 ) -> str:
-    """Encode a supported protocol value as compact JSON."""
+    """Encode a supported protocol value as compact JSON.
+
+    Args:
+        value: Supported protocol value to encode.
+
+    Returns:
+        The compact JSON representation.
+    """
     return json.dumps(value.to_dict(), separators=(",", ":"))
 
 
 def decode_json(
     value: str, *, response: bool = False
 ) -> PlanRequestV1 | ValidatedPlanResponseV1 | FailedPlanResponseV1:
-    """Decode JSON strictly as a V1 request or validated response."""
+    """Decode JSON strictly as a V1 request or validated response.
+
+    Args:
+        value: JSON text to decode.
+        response: Whether to decode a response instead of a request.
+
+    Returns:
+        The decoded typed protocol value.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
     try:
         decoded = json.loads(value)
     except json.JSONDecodeError as error:

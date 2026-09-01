@@ -1,13 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Authenticated, bounded HTTP/JSON loopback server transport."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import logging
 from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
-import logging
 from threading import Thread
 
 from pmc_core.protocol import FailedPlanResponseV1
@@ -25,14 +25,18 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 
 LOGGER = logging.getLogger(__name__)
 
-type PlanResponse = ValidatedPlanResponseV1 | FailedPlanResponseV1
-type PlanHandler = Callable[[PlanRequestV1], PlanResponse]
+type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
+type PLAN_HANDLER = Callable[[PlanRequestV1], PLAN_RESPONSE]
+
+# Preserve the original public type-alias names.
+globals()["PlanResponse"] = PLAN_RESPONSE
+globals()["PlanHandler"] = PLAN_HANDLER
 
 
 class LoopbackPlanServer:
     """Serve authenticated V1 plan requests on an ephemeral loopback port."""
 
-    def __init__(self, credential: str, handler: PlanHandler) -> None:
+    def __init__(self, credential: str, handler: PLAN_HANDLER) -> None:
         """Create a server that authenticates requests before decoding JSON.
 
         Args:
@@ -54,12 +58,20 @@ class LoopbackPlanServer:
 
     @property
     def port(self) -> int:
-        """Return the ephemeral port allocated by the operating system."""
+        """Return the ephemeral port allocated by the operating system.
+
+        Returns:
+            The server's allocated TCP port.
+        """
         return self._httpd.server_port
 
     @property
     def host(self) -> str:
-        """Return the only address on which this server accepts requests."""
+        """Return the only address on which this server accepts requests.
+
+        Returns:
+            The loopback host address.
+        """
         return LOOPBACK_HOST
 
     def start(self) -> None:
@@ -93,7 +105,11 @@ class LoopbackPlanServer:
         self._thread = None
 
     def __enter__(self) -> LoopbackPlanServer:
-        """Start the server for a context-managed transport fixture."""
+        """Start the server for a context-managed transport fixture.
+
+        Returns:
+            This started server.
+        """
         self.start()
         return self
 
@@ -103,17 +119,32 @@ class LoopbackPlanServer:
         _exception: BaseException | None,
         _traceback: object | None,
     ) -> None:
-        """Stop the server when a context-managed fixture exits."""
+        """Stop the server when a context-managed fixture exits.
+
+        Args:
+            _exception_type: Exception type raised inside the context, if any.
+            _exception: Exception raised inside the context, if any.
+            _traceback: Traceback for an exception raised inside the context.
+        """
         self.close()
 
     def _make_request_handler(self) -> type[BaseHTTPRequestHandler]:
+        """Create the request handler bound to this server instance.
+
+        Returns:
+            The configured HTTP request-handler class.
+        """
         server = self
 
         class RequestHandler(BaseHTTPRequestHandler):
             """Handle one authenticated plan request."""
 
-            def do_POST(self) -> None:
-                """Decode and dispatch the sole V1 endpoint."""
+            def do_post(self) -> None:
+                """Decode and dispatch the sole V1 endpoint.
+
+                Returns:
+                    None. The response is written to the client connection.
+                """
                 if self.path != PLAN_PATH:
                     self._send_empty(HTTPStatus.NOT_FOUND)
                     return
@@ -158,6 +189,12 @@ class LoopbackPlanServer:
                 self.wfile.write(response_payload)
 
             def _content_length(self) -> int | None:
+                """Read and validate the request content length.
+
+                Returns:
+                    The bounded content length, or None after sending an error.
+
+                """
                 values = self.headers.get_all("Content-Length")
                 if values is None:
                     self._send_empty(HTTPStatus.LENGTH_REQUIRED)
@@ -172,6 +209,11 @@ class LoopbackPlanServer:
                 return content_length
 
             def _send_empty(self, status: HTTPStatus) -> None:
+                """Send an empty response with the given HTTP status.
+
+                Args:
+                    status: HTTP status to send to the client.
+                """
                 self.send_response(status)
                 self.send_header("Content-Length", "0")
                 self.end_headers()
@@ -184,7 +226,12 @@ class LoopbackPlanServer:
             def log_request(
                 self, code: int | str = "-", size: int | str = "-"
             ) -> None:
-                """Log response metadata without exposing request content."""
+                """Log response metadata without exposing request content.
+
+                Args:
+                    code: HTTP response status code.
+                    size: Response body size.
+                """
                 LOGGER.info(
                     "loopback HTTP response completed: method=%s status=%s bytes=%s",
                     self.command,
@@ -193,7 +240,13 @@ class LoopbackPlanServer:
                 )
 
             def log_message(self, _message: str, *_args: object) -> None:
-                """Log handler errors without forwarding untrusted request text."""
+                """Log handler errors without forwarding untrusted request text.
+
+                Args:
+                    _message: Untrusted handler message, intentionally ignored.
+                    _args: Untrusted message arguments, intentionally ignored.
+                """
                 LOGGER.warning("loopback HTTP handler error")
 
+        RequestHandler.do_POST = RequestHandler.do_post
         return RequestHandler

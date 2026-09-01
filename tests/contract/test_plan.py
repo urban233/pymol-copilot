@@ -8,7 +8,7 @@ rendering, idempotent rendering, immutability, and rejection of any
 operation or sequence outside the recorded fixture.
 """
 
-import pytest
+import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import ColorOperation

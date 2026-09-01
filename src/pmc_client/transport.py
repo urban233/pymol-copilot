@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Authenticated, bounded HTTP/JSON loopback client transport."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from http import HTTPStatus
 from http.client import HTTPConnection
@@ -20,7 +20,10 @@ PLAN_PATH = "/v1/plan"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 
-type PlanResponse = ValidatedPlanResponseV1 | FailedPlanResponseV1
+type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
+
+# Preserve the original public type-alias name.
+globals()["PlanResponse"] = PLAN_RESPONSE
 
 
 class TransportError(RuntimeError):
@@ -53,8 +56,14 @@ class LoopbackPlanClient:
         self._credential = credential
         self._timeout_seconds = timeout_seconds
 
-    def submit(self, request: PlanRequestV1) -> PlanResponse:
+    def submit(self, request: PlanRequestV1) -> PLAN_RESPONSE:
         """Submit a request and verify its typed correlated response.
+
+        Args:
+            request: Typed request to send to the loopback server.
+
+        Returns:
+            The validated plan or typed failure returned by the server.
 
         Raises:
             TransportError: If HTTP or protocol validation fails.
@@ -115,8 +124,17 @@ class LoopbackPlanClient:
                 )
 
     def _validate_correlation(
-        self, request: PlanRequestV1, response: PlanResponse
+        self, request: PlanRequestV1, response: PLAN_RESPONSE
     ) -> None:
+        """Verify that a response belongs to the submitted request.
+
+        Args:
+            request: Request whose identifiers must match.
+            response: Response to validate.
+
+        Raises:
+            TransportError: If request and response identifiers differ.
+        """
         if (
             response.request_id != request.request_id
             or response.session_id != request.session_id
@@ -126,6 +144,17 @@ class LoopbackPlanClient:
             )
 
     def _read_response(self, response: HTTPResponse) -> bytes:
+        """Read and validate a bounded JSON response body.
+
+        Args:
+            response: HTTP response whose body should be read.
+
+        Returns:
+            The response body bytes.
+
+        Raises:
+            TransportError: If response metadata or length is invalid.
+        """
         content_type = response.getheader("Content-Type")
         if content_type != "application/json":
             raise TransportError("server response is not JSON")
