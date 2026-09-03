@@ -176,7 +176,7 @@ contracts for its own area.
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| `ContractManifest` | Companion, model packager, dataset tooling | Same-major only where fixtures prove it; otherwise exact version |
+| `ContractManifest` | Server, model packager, dataset tooling | Same-major only where fixtures prove it; otherwise exact version |
 
 **`ContractManifest`**
 - Guarantees: one deterministic compatibility verdict before use.
@@ -206,7 +206,7 @@ and [Structure context](structure-context.md#alternatives-and-trade-offs).
   of shared mutable request state. Version checks happen before requests.
 - **Observability/capacity/cost:** Results expose bounded typed reasons,
   timings, and contract versions without raw sensitive payloads by default.
-  Core import cost must remain appropriate for PyMOL and companion
+  Core import cost must remain appropriate for PyMOL and server
   environments.
 - **Accessibility/internationalization:** Covered in
   [Plan language, policy, and execution](plan-and-execution.md#quality-and-risk),

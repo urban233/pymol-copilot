@@ -9,17 +9,21 @@ must fail, proving that its assertions detect this realistic safety regression.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 import pmc_core
 
 
 def test_policy_suite_rejects_allowing_unsupported_operations() -> None:
-    """The policy suite fails when default deny is deliberately disabled."""
+    """The policy suite fails when default deny is deliberately disabled.
+
+    Raises:
+        AssertionError: If the expected default-deny branch is absent.
+    """
     source_package = Path(pmc_core.__file__).parent
     source_test = Path(__file__).with_name("test_policy.py")
 

@@ -96,7 +96,7 @@ schema defined in
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| Model artifact manifest | Lemonade adapter, companion readiness, release process | Explicit compatible version ranges only after fixtures |
+| Model artifact manifest | Lemonade adapter, server readiness, release process | Explicit compatible version ranges only after fixtures |
 | Full-agent evaluation adapter | Model evaluation and runtime integration | Runtime/model manifests recorded together |
 
 **Model artifact manifest**

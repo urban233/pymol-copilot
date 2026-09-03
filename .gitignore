@@ -241,3 +241,6 @@ __marimo__/
 # Custom codev
 .codev/task/*
 .DS_Store
+
+# Code Review
+code_review

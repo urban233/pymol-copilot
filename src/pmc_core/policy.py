@@ -17,7 +17,7 @@ so that broadening the typed contract in the future cannot silently bypass
 default-deny enforcement here.
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from dataclasses import dataclass
 

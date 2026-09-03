@@ -1,6 +1,18 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "command",
+    size = "small",
+    srcs = ["test_command.py"],
+    main = "test_command.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "subsystem_imports",
     srcs = ["test_subsystem_imports.py"],
     main = "test_subsystem_imports.py",
@@ -10,5 +22,32 @@ py_test(
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
         "//src/pmc_train:pmc_train",
+    ],
+)
+
+py_test(
+    name = "loopback_transport",
+    size = "small",
+    srcs = ["test_loopback_transport.py"],
+    main = "test_loopback_transport.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)
+
+py_test(
+    name = "client_server_command",
+    size = "medium",
+    timeout = "short",
+    srcs = ["test_client_server_command.py"],
+    main = "test_client_server_command.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
     ],
 )

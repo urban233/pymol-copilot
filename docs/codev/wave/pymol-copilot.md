@@ -36,14 +36,14 @@
 
 **Outcome:** A structural biologist can submit an intent in PyMOL and
 inspect a locally produced, validated `select`/`color` plan, with the
-bridge and companion communicating over loopback and making no live-session
+  client and server communicating over loopback and making no live-session
 change. In parallel, the first independently asserted gold/oracle case
 shows that a dataset label can be graded correctly without trusting model
 output to grade itself, and initial program-first data generation begins
 for the same small taxonomy.
 
-**Evidence:** A headless end-to-end fixture proves the command bridge,
-companion, and typed-plan boundary complete for one intent without a
+**Evidence:** A headless end-to-end fixture proves the client/server and
+typed-plan boundary complete for one intent without a
 live-session mutation. One gold case, whose expected atom set and color are
 derived from the structure independently of any plan output, passes its
 assertions and fails under a deliberate semantic mutation (wrong chain or
@@ -56,13 +56,13 @@ presentation).
 ### Current uncertainty
 
 - **Requirements-shaped:** None. The accepted runtime-application and
-  shared-core designs already fix the bridge-companion protocol, the
+  shared-core designs already fix the client-server protocol, the
   typed-plan boundary, and the `select`/`color` fixture.
 - **Architecture-shaped:** None within this wave's scope. Both tasks
   implement already-accepted designs; neither requires a new
   cross-component decision.
-- **Risk tracks:** The bridge-companion loopback protocol has only been
-  designed on paper, not run; W-01 is its first real integration. Oracle
+- **Risk tracks:** The client-server loopback protocol has now been exercised
+  by W-01. Oracle
   correctness is unproved beyond the design's reasoning; W-02 is the first
   case that could reveal it is circular or wrong.
 
@@ -70,14 +70,14 @@ presentation).
 
 | ID | Task and acceptance | Owner | Reviewer | Risk | Status | Blocked by | Integrates with |
 |---|---|---|---|---|---|---|---|
-| W-01 | Non-mutating runtime path (= T-02) — bridge + companion produce and render a typed `select`/`color` plan and validation result without touching the live PyMOL session | Hannah | Martin | High | Ready — issue [#3](https://github.com/urban233/pymol-copilot/issues/3) (open) | — | W-02, via the shared typed-plan and contract fixtures from T-01 |
+| W-01 | Non-mutating runtime path (= T-02) — client + server produce and render a typed `select`/`color` plan and validation result without touching the live PyMOL session | Hannah | Martin | High | Implemented — issue [#3](https://github.com/urban233/pymol-copilot/issues/3) (open) | — | W-02, via the shared typed-plan and contract fixtures from T-01 |
 | W-02 | First gold/oracle case + initial program-first generation for the accepted fixture | Martin | Hannah | High | Ready — issue not yet created | — | W-01, via the shared typed-plan and contract fixtures from T-01 |
 
 ### W-01 — Non-mutating runtime path
 
 **Acceptance** (carried forward from `design-readiness.md`'s T-02, unchanged in substance):
 
-- Implements the agreed command bridge and local companion path for one
+- Implements the agreed client and local server path for one
   intent. It produces and renders a typed native `.pml` `select`/`color`
   plan and validation result without applying commands to the live PyMOL
   session.
@@ -85,7 +85,7 @@ presentation).
   handling, plan rendering, and zero live-session mutation.
 - Includes the client-server contract and no-mutation test from
   `test-quality-gaps.md`'s Q-02: exercises the real local client and
-  companion processes against the accepted `PlanRequestV1` and
+  client/server processes against the accepted `PlanRequestV1` and
   `ValidatedPlanResponseV1` fixtures, confirms request/session correlation,
   schema rejection, canonical rendering, and zero live-session mutation, and
   includes one malformed-message or version-mismatch case that returns a
@@ -185,7 +185,7 @@ not required here — see `SPECIFICATION.md`'s V1 scope.
 
 - Default implementation work in progress is one item per developer.
 - Martin owns dataset, oracle, training, and evaluation. Hannah owns the
-  bridge, companion, and runtime path. Each reviews the other's
+  client, server, and runtime path. Each reviews the other's
   integration with shared contracts; neither approves their own work.
 - No external reviewers for this deliverable; Martin/Hannah cross-review is
   the complete review process (see `SPECIFICATION.md`'s Non-goals).

@@ -99,7 +99,7 @@ and the model never chooses its destination.
    valid PDB accession, preparation returns a pending fetch action containing
    only the accession and the configured source identity.
 2. `copilot_apply <fetch-id>` rechecks the pending action and displays that a
-   network operation will occur. The bridge performs the fetch through the
+    network operation will occur. The client performs the fetch through the
    reviewed PyMOL API.
 3. Fetch failure is terminal and produces no plan. Fetch success resumes the
    original request from target resolution with the loaded object.
@@ -112,14 +112,14 @@ Apply is the only path that mutates the live session, and it rechecks
 everything before it writes.
 
 1. `copilot_apply <plan-id>` looks up exactly one immutable pending plan.
-2. The bridge recomputes the relevant live digest and verifies session
+2. The client recomputes the relevant live digest and verifies session
    identity, expiry, model identity, contract manifest, and command policy.
    Any mismatch invalidates the plan without mutation.
-3. The bridge writes a private, plan-associated `.pse` snapshot and verifies
+3. The client writes a private, plan-associated `.pse` snapshot and verifies
    that the file exists and is readable before mutation begins.
 4. The exact canonical typed plan is executed through the same shared
    dispatcher semantics used by the sidecar. No regeneration occurs.
-5. On the first command failure, the bridge halts apply and restores the
+5. On the first command failure, the client halts apply and restores the
    `.pse`. Copilot remains halted if restore or differential verification
    fails.
 6. On success, the snapshot becomes the one manual recovery point. A
@@ -130,7 +130,7 @@ everything before it writes.
 - `copilot_reject <id>` consumes a matching pending action without mutation.
 - A new `copilot` request cancels or supersedes prior pre-apply work and
   consumes the prior pending action.
-- Companion restart, protocol change, model change, session change, or expiry
+- Server restart, protocol change, model change, session change, or expiry
   invalidates pending actions.
 - `copilot_rollback <plan-id>` is accepted only for the retained recovery
   point. It warns that the whole current session will be replaced, then
@@ -143,10 +143,10 @@ Hannah owns every contract below.
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| Pending action | Companion, bridge | A major change invalidates all outstanding actions |
-| Controlled fetch action | Companion, bridge | Source-policy changes require an explicit privacy and security decision |
-| Apply result | Bridge, companion | Must match the pending-plan and execution contract versions |
-| Recovery point | Bridge, user | PyMOL, version, and platform-specific qualification required |
+| Pending action | Server, client | A major change invalidates all outstanding actions |
+| Controlled fetch action | Server, client | Source-policy changes require an explicit privacy and security decision |
+| Apply result | Client, server | Must match the pending-plan and execution contract versions |
+| Recovery point | Client, user | PyMOL, version, and platform-specific qualification required |
 
 **Pending action**
 - Guarantees: the opaque identifier binds the exact action, session digest,

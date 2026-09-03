@@ -15,7 +15,7 @@
 [![License: BSD-3 Clause](https://img.shields.io/badge/License-BSD%203%20Clause-blue.svg)](http://www.gnu.org/licenses/gpl-3.0)
 [![Python: 3.13.13](https://img.shields.io/badge/python-3.13.13-blue.svg)](https://www.python.org)
 
-PyMOL Copilot is a local AI companion designed for structural biologists. 
+PyMOL Copilot is a local AI server designed for structural biologists.
 It translates natural language instructions into safe, reproducible PyMOL commands, 
 turning complex visualization scripting into a simple conversation.
 

@@ -24,8 +24,9 @@ document, the eleven design documents, and the wave plan.
 
 Restricted-plan core (`pmc_core`: typed plan, parser, policy for
 `select`/`color`) is implemented, tested, and merged — issue #4/T-01 is done.
-The command bridge, companion, and LangGraph runtime path (issue #3/T-02) are
-not yet implemented. The prior delivery plans
+The bounded PyMOL client/server runtime path for issue #3/T-02 is implemented
+and tested; the broader LangGraph runtime path remains unimplemented. The prior
+delivery plans
 [`design-readiness.md`](docs/codev/delivery/design-readiness.md) and
 [`test-quality-gaps.md`](docs/codev/delivery/test-quality-gaps.md) recorded
 that work and its evidence; their content carries forward into the current
@@ -33,7 +34,7 @@ wave plan rather than being discarded.
 
 ## Executive summary
 
-PyMOL-Copilot is a local companion application for structural biologists who
+PyMOL-Copilot is a local server application for structural biologists who
 know the scientific operation they want to perform but do not reliably know the
 corresponding PyMOL syntax or selection algebra. A user states an intent through
 a PyMOL command. PyMOL-Copilot converts that intent into a bounded native PyMOL
@@ -43,8 +44,8 @@ approval command.
 
 V1 is deployed alongside Open-Source PyMOL and a local fine-tuned model. The
 deployed application does not call a teacher model or transmit the user's
-structure, intent, or plan. A thin bridge loaded into PyMOL communicates over
-loopback with a separate companion process. The companion owns the LangGraph
+structure, intent, or plan. A thin client loaded into PyMOL communicates over
+loopback with a separate server process. The server owns the LangGraph
 state machine, shared safety contracts, and an abstraction over local inference;
 Lemonade is the first inference engine. Runtime inference must work primarily on
 laboratory computers using CPU and, where available, integrated GPU acceleration.
@@ -94,7 +95,7 @@ broad public-release claim is made.
 
 This is a two-developer master's-degree course project due five weeks out.
 Martin owns the data-generation, oracle, and fine-tuning half; Hannah owns
-the PyMOL bridge and runtime-harness half. Both are named authors of the
+the PyMOL client/server and runtime-harness half. Both are named authors of the
 final Notebook and co-presenters; there is no separate product organization
 or external stakeholder to satisfy before the course deadline.
 
@@ -105,6 +106,11 @@ Affected stakeholders include:
 - Martin and Hannah, who each own, build, and cross-review one half of the
   system and jointly present it;
 - the course instructor evaluating the Notebook and the presentation.
+- structural biologists using the application;
+- users whose proprietary or unpublished structures are loaded in PyMOL;
+- maintainers of the PyMOL client, server application, model, and datasets;
+- reviewers responsible for command-execution security, scientific workflow
+  validity, evaluation integrity, and licensing.
 
 ## Product vision and desired outcomes
 
@@ -148,10 +154,10 @@ re-evaluation are Next, not measured for this deliverable — see V1 scope.
   application snapshots relevant structure state, generates and validates a
   plan, prints numbered commands and warnings with a plan identifier, and makes
   no live-session change.
-- The user runs `copilot_apply <plan-id>`. The bridge rejects stale or mismatched
+- The user runs `copilot_apply <plan-id>`. The client rejects stale or mismatched
   plans, creates a `.pse` recovery snapshot, and applies the exact approved plan.
 - With no suitable object loaded and a PDB accession stated in the intent, the
-  application proposes a controlled fetch. After explicit approval, the bridge
+  application proposes a controlled fetch. After explicit approval, the client
   fetches that accession, then prepares structure context and generates the
   remaining plan against the fetched object.
 - When the request is ambiguous, the application emits a bounded clarification
@@ -162,7 +168,7 @@ re-evaluation are Next, not measured for this deliverable — see V1 scope.
   that nothing was applied.
 - When exact sidecar fidelity cannot be established, the user may inspect or
   copy the plan, but cannot apply it through PyMOL-Copilot.
-- When apply fails after one or more commands, execution stops and the bridge
+- When apply fails after one or more commands, execution stops and the client
   automatically restores the pre-apply `.pse` snapshot.
 - After a successful apply, the user may run `copilot_rollback <plan-id>` to
   restore the one retained recovery point. The application warns that this
@@ -170,6 +176,8 @@ re-evaluation are Next, not measured for this deliverable — see V1 scope.
 - When Lemonade or the model is unavailable, the application fails locally with
   actionable diagnostics. It does not fall back to a remote or unconstrained
   model.
+- A candidate operating system becomes supported only after its complete
+  command client, inference, validation, recovery, and latency suites pass.
 - The demo runs on the developers' own machines; there is no multi-platform
   qualification claim for this deliverable.
 
@@ -177,15 +185,15 @@ re-evaluation are Next, not measured for this deliverable — see V1 scope.
 
 ### Included
 
+- A local server application deployed alongside Open-Source PyMOL and a local
+  model.
 - A Jupyter Notebook that runs dataset generation, the oracle, fine-tuning,
   and evaluation end to end and is readable on its own by the course
   instructor.
 - A live demo script covering one intent through apply and one deliberate
   failure through automatic recovery, sized for a twenty-minute segment per
   developer within one 40-minute PowerPoint presentation.
-- A local companion application deployed alongside Open-Source PyMOL and a
-  local model.
-- A thin PyMOL bridge exposing command entry through `cmd.extend()`.
+- A thin PyMOL client exposing command entry through `cmd.extend()`.
 - Explicit two-command approval using `copilot <intent>` followed by
   `copilot_apply <plan-id>`.
 - Explicit rejection and one-level rollback commands.
@@ -261,7 +269,7 @@ re-evaluation are Next, not measured for this deliverable — see V1 scope.
 - V1 must run primarily on CPU and may use an iGPU when Lemonade supports it.
 - Runtime dependencies must coexist with Open-Source PyMOL without importing the
   ML training stack into PyMOL's Python process.
-- The companion process and inference process bind only to the local machine.
+- The server process and inference process bind only to the local machine.
 - The user must approve the exact immutable plan that is later applied.
 - A recovery snapshot must be created before every apply.
 - Fine-tuning and a real evaluation against baselines are attempted and
@@ -296,17 +304,17 @@ training, publication, or release decision named in its decision point.
 
 Restricted-plan core (`pmc_core`: typed plan, canonical rendering, default-deny
 parser and policy for `select`/`color`) is implemented, tested, and merged to
-`main` (issue #4). The command bridge, companion, and LangGraph runtime path
-(issue #3) are not yet implemented; `pmc_agent` is still an empty package. This
-specification defines the target system for the remaining work, not a
-migration of existing product code. A hidden interface prototype may inform V2
-but is not a V1 dependency or source of truth.
+`main` (issue #4). The bounded client/server runtime path for issue #3 is
+implemented and tested; `pmc_agent` and the broader LangGraph runtime remain
+unimplemented. This specification defines the target system for the remaining
+work, not a migration of existing product code. A hidden interface prototype
+may inform V2 but is not a V1 dependency or source of truth.
 
 External actors and systems are:
 
 - the structural biologist using Open-Source PyMOL;
 - the local Open-Source PyMOL process and its active session;
-- the local PyMOL-Copilot companion process;
+- the local PyMOL-Copilot server process;
 - the local Lemonade inference process and model artifact;
 - fresh local Open-Source PyMOL sidecars used for validation;
 - an approved PDB source used only by the controlled fetch flow;
@@ -317,8 +325,8 @@ External actors and systems are:
 
 ```mermaid
 flowchart LR
-    U[Structural biologist] -->|copilot intent and approval commands| B[Thin PyMOL bridge]
-    B <-->|authenticated loopback protocol| A[PyMOL-Copilot companion]
+    U[Structural biologist] -->|copilot intent and approval commands| B[Thin PyMOL client]
+    B <-->|authenticated loopback protocol| A[PyMOL-Copilot server]
     A --> G[LangGraph bounded request graph]
     G --> C[Shared core contracts]
     G --> I[Inference abstraction]
@@ -335,11 +343,11 @@ flowchart LR
     D --> C
 ```
 
-The PyMOL process contains only the bridge and the minimum code requiring direct
+The PyMOL process contains only the client and the minimum code requiring direct
 session access. LangGraph, model interaction, orchestration, and most validation
-logic run in the companion process so their dependencies and failures do not
+logic run in the server process so their dependencies and failures do not
 share PyMOL's Python process. The inference engine is another managed local
-process behind an abstraction owned by the companion.
+process behind an abstraction owned by the server.
 
 The shared core is deliberately independent of runtime UI, orchestration,
 training frameworks, and inference vendors. It owns the contracts whose
@@ -353,14 +361,14 @@ evidence. It never participates in deployed user requests.
 
 | Component | Responsibility | Owner | Inputs | Outputs | Dependencies |
 |---|---|---|---|---|---|
-| PyMOL command bridge | Register V1 commands, read session state, perform controlled fetch, render plans, collect explicit command approval, save/restore sessions, and execute approved plans | Hannah | User commands, active PyMOL session, companion responses | Session snapshots, approvals, apply/rollback outcomes | Open-Source PyMOL, shared core protocol |
-| Companion application | Own local lifecycle, request identity, configuration, diagnostics, and coordination outside PyMOL | Hannah | Bridge requests, local configuration, model metadata | Pending plans, errors, state transitions | LangGraph, shared core, inference abstraction |
-| LangGraph request graph | Enforce bounded prepare, generate, validate, approval, apply-result, and terminal transitions | Hannah | Request state and deterministic node results | Auditable terminal or pending state | Companion, shared core |
+| PyMOL client | Register V1 commands, read session state, perform controlled fetch, render plans, collect explicit command approval, save/restore sessions, and execute approved plans | Hannah | User commands, active PyMOL session, server responses | Session snapshots, approvals, apply/rollback outcomes | Open-Source PyMOL, shared core protocol |
+| Server application | Own local lifecycle, request identity, configuration, diagnostics, and coordination outside PyMOL | Hannah | Client requests, local configuration, model metadata | Pending plans, errors, state transitions | LangGraph, shared core, inference abstraction |
+| LangGraph request graph | Enforce bounded prepare, generate, validate, approval, apply-result, and terminal transitions | Hannah | Request state and deterministic node results | Auditable terminal or pending state | Server, shared core |
 | Shared core | Own structure-card, plan, parser, command policy, grammar, error, and executor contracts | Joint; Martin accountable | Structure metadata, model text, PyMOL outcomes | Versioned typed contracts and fixtures | Open-Source PyMOL semantics only where required |
 | Inference abstraction | Manage engine capability discovery, bounded completion, cancellation, and errors | Hannah | Prompt, grammar, limits, model identity | Model text or typed engine failure | Lemonade adapter initially |
 | Lemonade process | Perform local CPU/iGPU model inference | External; Hannah owns integration | Prompt, grammar, model | Completion or engine error | Local model artifact and supported hardware |
 | Validation sidecar | Reconstruct exact relevant session state and execute a plan without touching the live session | Hannah | Session snapshot and typed plan | Validation report and resulting state evidence | Fresh Open-Source PyMOL process |
-| Controlled fetch service | Resolve and load an explicitly approved PDB accession before planning | Hannah | Approved accession and configured source | Loaded object or fetch failure | PyMOL bridge and network policy |
+| Controlled fetch service | Resolve and load an explicitly approved PDB accession before planning | Hannah | Approved accession and configured source | Loaded object or fetch failure | PyMOL client and network policy |
 | Dataset and oracle system | Create, verify, curate, version, and audit training/evaluation data | Martin | Public structure snapshot, templates, teacher outputs, core contracts | Versioned dataset and datasheet | Development-only teacher and PyMOL environments |
 | Training and model evaluation | Fine-tune, evaluate, quantize, compare, and package the local model | Martin | Versioned dataset, model candidates, eval suite | Versioned model and evidence report | Development compute; deployment hardware benchmark |
 
@@ -407,7 +415,7 @@ after the object is loaded. Fetch rejection or failure is terminal and produces
 no generated plan.
 
 A pending plan becomes invalid when the session digest changes, its contracts or
-model identity no longer match, the companion restarts, its expiry is reached,
+model identity no longer match, the server restarts, its expiry is reached,
 or another request supersedes it. Approval never reuses or silently regenerates
 a plan; the plan identifier denotes exact immutable commands.
 
@@ -417,8 +425,8 @@ a plan; the plan identifier denotes exact immutable commands.
 
 - Intent text, structure cards, plans, validation reports, session digests, and
   engine exchanges remain local.
-- The bridge sends only the minimum session representation needed by the local
-  companion and sidecar. It does not send session data to Lemonade beyond the
+- The client sends only the minimum session representation needed by the local
+  server and sidecar. It does not send session data to Lemonade beyond the
   prompt context required for inference.
 - The local loopback protocol uses an ephemeral per-session credential and
   rejects requests from other origins.
@@ -457,11 +465,11 @@ a plan; the plan identifier denotes exact immutable commands.
 | Contract | Owner | Consumers | Shape/reference | Guarantees | Validation/errors/timeouts | Compatibility | Test/fixture |
 |---|---|---|---|---|---|---|---|
 | PyMOL command surface | Hannah | User | `copilot`, controlled fetch approval, `copilot_apply`, `copilot_reject`, `copilot_rollback` with plan identifiers | No implicit approval; exact plan identity; actionable terminal output | Invalid, stale, unknown, or mismatched identifiers fail without mutation | Additive commands within V1; behavior changes require release notes | Headless command fixtures and GUI-console smoke tests |
-| Bridge-companion protocol | Hannah | Bridge and companion | Versioned local request/response messages over authenticated loopback | Local-only, bounded payloads, correlation by session/request/plan identity | Schema validation, cancellation, finite deadlines, closed on credential mismatch | Same-major compatibility; fail closed on unsupported version | Contract fixtures exercised from both processes |
-| Structure snapshot and digest | Shared core | Bridge, sidecar, structure card | Versioned canonical relevant-state export plus digest | Equal digest means equality for all state defined as relevant to V1 validation | Export or comparison failure disables apply | Format changes require new version and model/eval impact review | Differential fixtures including moved atoms, altlocs, and multiple states |
+| Client-server protocol | Hannah | Client and server | Versioned local request/response messages over authenticated loopback | Local-only, bounded payloads, correlation by session/request/plan identity | Schema validation, cancellation, finite deadlines, closed on credential mismatch | Same-major compatibility; fail closed on unsupported version | Contract fixtures exercised from both processes |
+| Structure snapshot and digest | Shared core | Client, sidecar, structure card | Versioned canonical relevant-state export plus digest | Equal digest means equality for all state defined as relevant to V1 validation | Export or comparison failure disables apply | Format changes require new version and model/eval impact review | Differential fixtures including moved atoms, altlocs, and multiple states |
 | Structure card | Shared core | Dataset system, prompt builder, grammar | Versioned deterministic compact text/schema | Same implementation and bytes for equivalent snapshots | Unsupported structures produce explicit preparation failure or bounded omission marker | Version change requires dataset/model compatibility decision | Symbol identity plus byte-equality fixtures |
-| Native plan and parser | Shared core | Model pipeline, companion, sidecar, bridge | Restricted `.pml` to typed `ActionPlan` and canonical serialization | Total default-deny parse; no raw-text execution; immutable canonical plan | Parse errors are versioned and repairable only within retry limits | Additive syntax only within a major version | Corpus round-trip, grammar-generation, fuzz, and adversarial fixtures |
-| Command policy | Shared core | Dataset filter, grammar, companion, bridge | Versioned allowed verbs and argument-specific constraints | Default deny at all three generation/execution boundaries | Denial identifies rule and command index without exposing execution | Expansion requires security review, new probes, and model impact review | Shared adversarial corpus with grammar disabled |
+| Native plan and parser | Shared core | Model pipeline, server, sidecar, client | Restricted `.pml` to typed `ActionPlan` and canonical serialization | Total default-deny parse; no raw-text execution; immutable canonical plan | Parse errors are versioned and repairable only within retry limits | Additive syntax only within a major version | Corpus round-trip, grammar-generation, fuzz, and adversarial fixtures |
+| Command policy | Shared core | Dataset filter, grammar, server, client | Versioned allowed verbs and argument-specific constraints | Default deny at all three generation/execution boundaries | Denial identifies rule and command index without exposing execution | Expansion requires security review, new probes, and model impact review | Shared adversarial corpus with grammar disabled |
 | Grammar | Shared core | Dataset baselines and inference adapters | Syntax grammar plus measured structure-conditioned terminals | Never substitutes for parser/policy; current structure entities only where sound | Capability probe at engine startup; ignored grammar is a hard engine failure | Grammar version recorded with model/evaluation artifact | Accept/reject corpus and with/without ablation |
 | Error envelope | Shared core | Executor, repair trajectories, runtime repair | Version, command index, verb, normalized category, normalized PyMOL message | Same normalization and placement in development and runtime | Unknown errors preserve bounded normalized text and category `unknown` | New major version requires regeneration/re-evaluation of repair data | Byte-equality fixtures from captured error corpus |
 | Inference interface | Hannah | LangGraph and engine adapters | Bounded local completion with prompt, grammar, token/time limits, cancellation, model identity | No remote fallback; deterministic shipping configuration | Capability discovery, finite timeout, cancellation, typed engine errors | Adapters may vary; semantic contract remains stable | Fake adapter plus real Lemonade capability suite |
@@ -475,7 +483,7 @@ evidence before release. They are not left unbounded or delegated to the model.
 
 V1's human interface is the Open-Source PyMOL command surface registered through
 `cmd.extend()`. It is part of the PyMOL-Copilot application integration, but the
-product is the complete companion application rather than a standalone “plugin.”
+product is the complete server application rather than a standalone “plugin.”
 
 `copilot <intent>` never applies commands. It prints:
 
@@ -491,20 +499,20 @@ Approval uses a second command so it is reliable in GUI and headless PyMOL
 without blocking on stdin. V1 does not permit plan editing. A new request
 supersedes the old pending plan.
 
-The V2 panel is a later client over the same companion and core contracts. It
+The V2 panel is a later client over the same server and core contracts. It
 must not require weakening the V1 approval protocol.
 
 ## Component orchestration rules
 
-1. The bridge establishes a session with the companion and authenticates every
+1. The client establishes a session with the server and authenticates every
    local request with an ephemeral credential.
-2. The companion accepts at most one active request per PyMOL session. A new
+2. The server accepts at most one active request per PyMOL session. A new
    request cancels or supersedes prior pre-apply work.
 3. Preparation resolves one target object. If none exists and the user supplied
    a valid PDB accession, preparation creates a controlled fetch proposal rather
    than calling the model.
 4. After approved fetch, preparation restarts against the newly loaded object.
-5. The bridge exports relevant live state. The structure card and grammar are
+5. The client exports relevant live state. The structure card and grammar are
    computed once and remain immutable for the request.
 6. LangGraph calls local inference and classifies clarification or no-op output
    before plan parsing.
@@ -517,10 +525,10 @@ must not require weakening the V1 approval protocol.
    validation may produce an inspectable plan but never an applicable plan.
 10. Approval verifies plan identity, expiry, session identity, current digest,
     model identity, and contract versions again.
-11. The bridge saves a plan-associated `.pse` recovery point before applying the
+11. The client saves a plan-associated `.pse` recovery point before applying the
     immutable canonical plan through the same command dispatcher used by the
     sidecar.
-12. Apply stops at the first failure. The bridge immediately restores the saved
+12. Apply stops at the first failure. The client immediately restores the saved
     session and reports whether restoration itself passed differential checks.
 13. A successful apply retains one recovery point. Manual rollback replaces the
     whole active session with that snapshot and then consumes it.
@@ -539,7 +547,7 @@ Controls include:
 
 - **Process isolation:** orchestration and inference run outside PyMOL; each
   validation attempt runs in a fresh sidecar.
-- **Local authentication:** bridge-companion traffic is loopback-only and bound
+- **Local authentication:** client-server traffic is loopback-only and bound
   to an ephemeral session credential. Listening on non-loopback interfaces is a
   configuration error.
 - **Default-deny parsing:** only typed plans produced by the canonical parser may
@@ -582,8 +590,8 @@ review.
 
 | Failure | User/system effect | Detection | Containment/fallback | Recovery | Owner |
 |---|---|---|---|---|---|
-| Companion unavailable | Request cannot start | Bridge readiness check | No model or remote fallback; no mutation | Restart managed companion and retry request | Hannah |
-| Lemonade unavailable or incompatible | Generation cannot start | Engine health and capability probe | Companion remains available for diagnostics; no unconstrained fallback | Restart engine, install compatible version, or reject platform | Hannah |
+| Server unavailable | Request cannot start | Client readiness check | No model or remote fallback; no mutation | Restart managed server and retry request | Hannah |
+| Lemonade unavailable or incompatible | Generation cannot start | Engine health and capability probe | Server remains available for diagnostics; no unconstrained fallback | Restart engine, install compatible version, or reject platform | Hannah |
 | Model artifact invalid or incompatible | Application not ready | Hash and manifest checks | Refuse model load | Install a compatible verified artifact | Martin |
 | Controlled fetch rejected or fails | No object is loaded by Copilot | Approval outcome, network/PyMOL error | No generation and no partial plan | User retries or loads a structure independently | Hannah |
 | Ambiguous target or intent | No plan is applied | Deterministic target resolution or model `ASK` | Show bounded alternatives | User submits clarified intent | Joint |
@@ -605,7 +613,7 @@ review.
 V1 is a single-user, local application. It does not need internet-scale
 concurrency, queues, tenancy, or horizontal scaling.
 
-- One companion instance serves one PyMOL process by default.
+- One server instance serves one PyMOL process by default.
 - Each session has at most one active request, one pending plan, one apply, and
   one recovery point.
 - A new request supersedes prior pre-apply work; apply and rollback are mutually
@@ -630,8 +638,8 @@ concurrency, queues, tenancy, or horizontal scaling.
 
 V1 consists of three local runtime processes or process roles:
 
-1. Open-Source PyMOL with the thin command bridge;
-2. the managed PyMOL-Copilot companion containing LangGraph and core clients;
+1. Open-Source PyMOL with the thin command client;
+2. the managed PyMOL-Copilot server containing LangGraph and core clients;
 3. the managed Lemonade inference process with the verified local model.
 
 Validation starts additional short-lived Open-Source PyMOL sidecars. Training,
@@ -649,7 +657,7 @@ qualification matrix for this deliverable; the exact OS, architecture,
 Open-Source PyMOL, Python, Lemonade, model, and core-contract versions used
 for the demo are recorded in the Notebook so the result is reproducible.
 
-The companion owns inference-process startup, readiness, shutdown, and version
+The server owns inference-process startup, readiness, shutdown, and version
 checks. It never silently connects to an arbitrary server. Model installation or
 updates are explicit, content-verified operations. Runtime networking is denied
 except authenticated loopback and an explicitly approved controlled fetch.
@@ -669,7 +677,7 @@ product analytics.
 - Dangerous failures—restore mismatch, denied-command escape, unexpected
   network binding, artifact mismatch, or live mutation on a non-approved path—
   halt Copilot operations and preserve local evidence.
-- Runbooks cover companion/engine startup, model mismatch, failed snapshot,
+- Runbooks cover server/engine startup, model mismatch, failed snapshot,
   failed restore, unsupported platform, and safe deletion of local scratch and
   recovery data.
 - There is no remote telemetry, centralized on-call promise, or cloud service in
@@ -686,7 +694,7 @@ Deterministic and runtime evidence includes:
 
 - unit tests for state transitions, identifiers, expiry, normalization, policy,
   and configuration invariants;
-- bidirectional contract fixtures for the bridge-companion protocol;
+- bidirectional contract fixtures for the client-server protocol;
 - parser round-trip, property, fuzz, mutation, and adversarial tests;
 - grammar-to-parser generated examples and capability probes;
 - differential structure-card, snapshot, and error-envelope tests;
@@ -739,11 +747,11 @@ test itself can fail.
 There is no existing production installation or persistent application schema to
 migrate.
 
-Compatibility is governed by explicit versions for the bridge protocol,
+Compatibility is governed by explicit versions for the client-server protocol,
 structure snapshot, structure card, action plan, command policy, grammar, error
 envelope, dataset schema, model prompt format, tokenizer, and model artifact.
 
-- Same-major bridge and companion versions may interoperate only when contract
+- Same-major client and server versions may interoperate only when contract
   fixtures pass.
 - A model loads only with compatible card, grammar, error, prompt, tokenizer,
   and policy versions.
@@ -788,7 +796,7 @@ deliverable.
 |---|---|---|---|
 | PyMOL panel in V1 | Better plan-review ergonomics | Adds GUI compatibility and accessibility scope before the runtime contract is proven | Deferred to V2; command surface selected for V1 |
 | Blocking stdin approval | Simple interaction in a terminal | Unreliable inside GUI PyMOL and difficult to test cross-platform | Rejected; explicit plan-ID approval command selected |
-| Run LangGraph in PyMOL | Fewer processes and no bridge protocol | Couples dependencies and failures to PyMOL's Python process | Rejected; thin bridge plus companion selected |
+| Run LangGraph in PyMOL | Fewer processes and no client-server protocol | Couples dependencies and failures to PyMOL's Python process | Rejected; thin client plus server selected |
 | Framework-neutral state machine | Smaller dependency surface | Does not establish the requested base for a future PyMOL agent | Rejected; LangGraph required from V1 |
 | Training package owns runtime contracts | Direct reuse by data pipeline | Reverses dependency direction and risks training dependencies entering runtime | Rejected; independent shared core selected |
 | Reload original structure file for validation | Cheap and simple | Does not represent in-memory coordinate or state changes | Rejected; exact live-state snapshot selected |

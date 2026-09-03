@@ -23,7 +23,7 @@ executor.
 
 This design consumes the structure context produced by
 [Structure context](structure-context.md) and does not define it. Its
-consumers are the runtime companion, the runtime sidecar, and the
+consumers are the runtime server, the runtime sidecar, and the
 model-development dataset and oracle pipeline.
 
 ## Goals and non-goals
@@ -179,8 +179,8 @@ Martin owns every contract below.
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| `parse(native_plan)` and canonical serialization | Companion, dataset filter, executor | Additive syntax only after fixtures and accepted policy evidence |
-| `evaluate_policy(plan)` | Companion, sidecar, dataset filter | Expansion requires security evidence and new model evaluation |
+| `parse(native_plan)` and canonical serialization | Server, dataset filter, executor | Additive syntax only after fixtures and accepted policy evidence |
+| `evaluate_policy(plan)` | Server, sidecar, dataset filter | Expansion requires security evidence and new model evaluation |
 | `ErrorEnvelopeV1` | Runtime repair, repair-data generator | A major change requires repair-data regeneration or a proved adapter |
 | Hermetic execution protocol | Dataset and oracle system, runtime sidecar | Protocol version in manifest; report changes are additive only when safe |
 

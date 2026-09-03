@@ -60,7 +60,7 @@ exercise.
 
 - **Owner and reviewer:** Hannah Kullik (`kullik01`); Martin Urban
   (`urban233`) reviews independently.
-- **Outcome and acceptance:** Exercise the real local client and companion
+- **Outcome and acceptance:** Exercise the real local client and server
   processes against the accepted `PlanRequestV1` and `ValidatedPlanResponseV1`
   fixtures. Confirm request/session correlation, schema rejection, canonical
   rendering from typed commands, and zero live-session mutation.

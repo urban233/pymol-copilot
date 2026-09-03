@@ -82,9 +82,9 @@ happen first, in
    returns a non-mutating clarification. If no suitable object is loaded, the
    request instead enters the controlled fetch flow in
    [Approval and recovery](approval-and-recovery.md#controlled-fetch-request).
-2. The bridge exports the shared relevant-state snapshot and digest on the
+2. The client exports the shared relevant-state snapshot and digest on the
    live PyMOL thread.
-3. The companion creates immutable request state. LangGraph computes the card
+3. The server creates immutable request state. LangGraph computes the card
    and grammar exactly once.
 4. Inference produces restricted native plan text. Clarification and no-op
    forms are classified before parsing.
@@ -110,7 +110,7 @@ color red, copilot_selection
 ```
 
 It may use a deterministic local completion fixture while model integration
-remains unplanned. The bridge does not apply the resulting plan to the live
+remains unplanned. The client does not apply the resulting plan to the live
 session.
 
 ### LangGraph state model
@@ -138,7 +138,7 @@ class, a path or network escape, an invalid manifest, or a fidelity failure
 receives none.
 
 Apply and rollback happen outside this graph, and their result transitions
-are recorded back into companion request state.
+are recorded back into server request state.
 
 ### APIs and contracts
 
@@ -146,7 +146,7 @@ Hannah owns every contract below.
 
 | Contract | Consumers | Compatibility policy |
 |---|---|---|
-| Copilot request | Bridge, LangGraph | Additive optional fields only, with deterministic defaults |
+| Copilot request | Client, LangGraph | Additive optional fields only, with deterministic defaults |
 | Inference abstraction | LangGraph, Lemonade adapter | Engine adapters may vary behind one semantic contract |
 | Sidecar invocation | LangGraph, sidecar manager | The shared snapshot and execution manifest must match |
 
@@ -155,8 +155,8 @@ Hannah owns every contract below.
   and limits.
 - Errors: an invalid snapshot, manifest, or size fails before inference.
 - Test/fixture: golden loaded-object, ambiguity, no-object, and oversized
-  requests. The first bridge-companion message shapes are defined in
-  [Initial bridge-companion fixture](process-architecture.md#initial-bridge-companion-fixture).
+  requests. The first client-server message shapes are defined in
+  [Initial client-server fixture](process-architecture.md#initial-client-server-fixture).
 
 **Inference abstraction**
 - Guarantees: local bounded completion, grammar capability, cancellation, and
@@ -177,13 +177,13 @@ Hannah owns every contract below.
 
 | Option | Benefits | Costs/risks | Decision |
 |---|---|---|---|
-| User-managed model server | Less process-management code | Poor installation experience and uncontrolled endpoint and security properties | Rejected; the companion manages Lemonade |
+| User-managed model server | Less process-management code | Poor installation experience and uncontrolled endpoint and security properties | Rejected; the server manages Lemonade |
 | Validate by reloading the original file | Low serialization cost | Wrong for modified live objects | Rejected; exact live-state snapshot |
 | Produce a pending plan after static or degraded validation | Higher availability | Can act against untested state | Rejected; fail closed |
 
 ## Quality and risk
 
-- **Security/privacy:** The companion never exposes a remote model fallback.
+- **Security/privacy:** The server never exposes a remote model fallback.
   Lemonade output is untrusted until the shared parser and policy accept it.
 - **Reliability/concurrency:** Retries are bounded in LangGraph and never
   cross apply.
@@ -201,7 +201,7 @@ Hannah owns every contract below.
 
 Covered by the parent design's
 [Migration, rollout, rollback, and cleanup](design.md#migration-rollout-rollback-and-cleanup),
-since the companion and model artifact are qualified and rolled back as one
+since the server and model artifact are qualified and rolled back as one
 compatible pair with the rest of the runtime.
 
 ## Open questions
