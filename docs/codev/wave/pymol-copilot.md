@@ -1,6 +1,6 @@
 # PyMOL-Copilot wave plan
 
-**Status:** Draft
+**Status:** Accepted — accepted by Hannah Kullik (`kullik01`) for her H-01 workstream, 2026-09-05
 **Owner:** Martin Urban (`urban233`)
 **Brief:** [Specification and accepted planning baseline](../../../SPECIFICATION.md#current-wave-planning-authority-2026-09-05)
 **Design:** [Dataset and oracle](../design/model-development/dataset-and-oracle.md), [plan and execution](../design/shared-core/plan-and-execution.md), and [runtime application](../design/runtime-application/design.md)
