@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Protocol
 
 from pmc_client.transport import LoopbackPlanClient
+from pmc_client.transport import TransportError
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
@@ -120,7 +121,11 @@ class CopilotCommandClient:
             intent=intent,
             snapshot=FIXTURE_SNAPSHOT,
         )
-        response = self._transport.submit(request)
+        try:
+            response = self._transport.submit(request)
+        except TransportError as error:
+            self._output(f"copilot unavailable: {error}")
+            return
         match response:
             case FailedPlanResponseV1():
                 self._report_failure(response)
@@ -155,6 +160,13 @@ class CopilotCommandClient:
             return
         self._output(f"copilot validation: {response.validation.status}")
         self._output(response.action_plan.render_pml())
+        self._output(
+            "copilot preview: this is a fixed, policy-checked plan preview. "
+            "Loaded-state fidelity, execution, and scientific intent were "
+            "not validated, and nothing was applied to this session. The "
+            "snapshot value above is a fixture placeholder, not a computed "
+            "structure checksum."
+        )
 
 
 def register_copilot(
