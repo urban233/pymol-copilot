@@ -26,7 +26,7 @@ target-version = "py313"
 
 # Exclude a variety of commonly ignored directories.
 exclude = ["tmp"]
-extend-exclude = [".agents"]
+extend-exclude = [".agents", ".claude"]
 
 # Same as Black.
 line-length = 80
