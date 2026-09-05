@@ -59,6 +59,16 @@ py_test(
     srcs = ["test_real_pymol_command.py"],
     main = "test_real_pymol_command.py",
     data = ["testdata/two_chain_fixture.pdb"],
+    # pymol-open-source-whl's Windows wheel bundles delvewheel-repaired DLLs
+    # with long hash-suffixed names; combined with Bazel's generated
+    # repository name for this dependency, the resulting path exceeds
+    # Windows' MAX_PATH (260 chars) when the compiled _cmd extension loads
+    # its bundled dependencies. Tracked in issue #12; not fixed by a short
+    # Bazel output-base or unsandboxed test execution (both tried).
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",

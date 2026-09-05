@@ -28,6 +28,15 @@ reports the pin as unsatisfiable against the wheel's own declared
 `cmd.iterate`/`cmd.get_color_index` all work normally in this same sandbox,
 so this substitutes one real PyMOL query API for another to capture the same
 observable (per-atom coordinates) without touching production code.
+
+This target is excluded on Windows (see its `target_compatible_with` in
+`BUILD.bazel`): the wheel's Windows build bundles delvewheel-repaired DLLs
+with long hash-suffixed names, and combined with Bazel's generated
+repository name for this dependency the resulting path exceeds Windows'
+MAX_PATH when the compiled `_cmd` extension loads its bundled dependencies.
+A short Bazel output-base and unsandboxed test execution were both tried
+against real Windows CI and neither changed the error. Tracked in
+[issue #12](https://github.com/urban233/pymol-copilot/issues/12).
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
