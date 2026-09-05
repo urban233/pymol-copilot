@@ -1,11 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "orchestrator",
   "agent": {
-    "orchestrator": {
-      "model": "openai/gpt-5.6-luna",
-      "description": "Human-controlled workflow and task orchestrator"
-    },
     "code-audit": {
       "model": "openai/gpt-5.6-luna",
       "description": "Standalone primary code audit agent",
@@ -13,7 +8,7 @@
     },
     "code-audit-gate": {
       "model": "openai/gpt-5.6-luna",
-      "description": "Autonomous pre-PR cleanup subagent -- fixes style and documentation issues only, dispatched by orchestrator"
+      "description": "Autonomous pre-PR cleanup subagent -- fixes style and documentation issues only, dispatched during Build execution"
     },
     "builder": {
       "model": "openai/gpt-5.6-luna",
@@ -26,11 +21,6 @@
     "lightweight-reviewer": {
       "model": "openai/gpt-5.6-luna",
       "description": "Narrow, fast independent check that the inner loop's change matches the task and passes local QA"
-    },
-    "outer-loop-runner": {
-      "model": "openai/gpt-5.6-luna",
-      "description": "Human-triggered outer-loop coordinator -- fetches a PR, gates on CI, dispatches five specialist reviewers, and drives human-triaged correction to a landed pull request",
-      "mode": "primary"
     },
     "correctness-tests-specialist": {
       "model": "openai/gpt-5.6-luna",
@@ -51,11 +41,6 @@
     "rollout-specialist": {
       "model": "openai/gpt-5.6-luna",
       "description": "Outer-loop specialist for rollout, monitoring, migration, and rollback -- one of five parallel specialist reviewers"
-    },
-    "planner": {
-      "model": "openai/gpt-5.6-luna",
-      "description": "Human-controlled entry point for Specify, Understand, Design, and Plan work -- decoupled from execution",
-      "mode": "primary"
     }
   }
 }

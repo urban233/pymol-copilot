@@ -61,7 +61,7 @@ the plan and proceed interactively.
 ## 3. Implement a small change
 
 Prefer one review purpose. As a soft warning, reconsider the slice when it
-exceeds roughly 400 non-generated changed lines or eight files; generated code,
+exceeds roughly 600 non-generated changed lines or twelve files; generated code,
 mechanical migrations, and tightly coupled tests may justify more. Split by
 default only when each part remains buildable and useful on its own.
 
@@ -74,6 +74,22 @@ changes behavior before the larger change is complete, contained behind a
 flag, config toggle, or other guard named explicitly in the plan's
 containment field. Under `feature-branch`, keep every part independently
 useful; do not assume containment is available.
+
+When a split is needed, choose the boundary from one of four decomposition
+strategies, and name which one in the plan's Slices field:
+
+- **Preparatory refactor:** restructure existing code with no behavior
+  change, ahead of the change that actually needs the cleaner shape --
+  reviewers only check for regressions, so it merges fast.
+- **Contract-first:** land the data model, schema, or API signature first,
+  with no execution logic behind it yet.
+- **Behavior-vertical:** build one small, end-to-end sub-feature at a time,
+  thin but complete top to bottom, rather than one layer of the whole
+  system at once.
+- **Wiring-behind-a-guard:** land the public interface or route first,
+  inert (a stub, a not-implemented response, or off behind a flag), then
+  implement and finally expose it in a later slice -- this is what the
+  containment field above describes.
 
 Reuse repository patterns. Read
 `.agents/skills/testing-craft/references/writing-tests.md` before adding or

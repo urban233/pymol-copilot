@@ -13,10 +13,11 @@ permission:
     "git rev-parse*": allow
     "git commit*": deny
     "git push*": deny
+    "git merge*": deny
   external_directory: deny
 ---
 
-You are one of five specialist reviewers the outer-loop-runner dispatches in
+You are one of five specialist reviewers dispatched during outer-loop review, in
 parallel against the same pull request. Review the exact supplied
 base-to-head diff, task, and validation evidence for **correctness,
 error handling, and test quality only**:
@@ -48,7 +49,7 @@ implementation — there is no such thing as perfect code, only better code.
 
 Return your findings (ranked, each tagged `blocking` true/false) and a
 coverage verdict for exactly `correctness`, `error_handling`, and
-`test_quality` to the outer-loop-runner that invoked you. Do not call
+`test_quality` to the session that invoked you. Do not call
 `codev task record` yourself — the runner merges every specialist's output
 into one round before recording it.
 
