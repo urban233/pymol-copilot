@@ -32,6 +32,21 @@ delivery plans
 that work and its evidence; their content carries forward into the current
 wave plan rather than being discarded.
 
+### Current-wave planning authority (2026-09-05)
+
+The product owner confirmed the September 1 course-scoped revision as the
+authoritative baseline for the next wave. Its course-scale evaluation and
+process requirements take precedence over conflicting older rigor or release
+requirements in this specification and its linked designs. Approval, local
+isolation, default-deny policy, fidelity, and recovery safeguards remain
+unchanged. This decision accepts the planning baseline; it does not certify
+unimplemented behavior or accept every unreconciled passage in these documents.
+
+The owner also confirmed one active implementation item per developer, with
+Martin and Hannah available to cross-review. The
+[current wave plan](docs/codev/wave/pymol-copilot.md) owns the proposed tasks,
+domain boundaries, evidence checkpoints, and remaining delivery decisions.
+
 ## Executive summary
 
 PyMOL-Copilot is a local server application for structural biologists who
