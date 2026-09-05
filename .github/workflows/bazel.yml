@@ -24,10 +24,16 @@ jobs:
           repository-cache: true
           cache-version: ${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'requirements_lock.txt') }}
           disk-cache: ${{ github.workflow }}-${{ matrix.os }}
+          output-base: ${{ matrix.os == 'windows-2025' && 'D:/b' || '' }}
       - run: bazel version
       - run: bazel mod graph --lockfile_mode=error
       - run: bazel build //... --lockfile_mode=error
-      - run: bazel test //... --lockfile_mode=error
+      # Windows only: the real-PyMOL test's dependency wheel bundles
+      # delvewheel-repaired DLLs with long hash-suffixed names; Bazel's
+      # default sandboxed test execution nests those under an additional
+      # temp directory layer and can exceed Windows' MAX_PATH (260 chars).
+      # Running tests unsandboxed on Windows avoids that extra nesting.
+      - run: bazel test //... --lockfile_mode=error ${{ matrix.os == 'windows-2025' && '--spawn_strategy=local' || '' }}
       - run: bazel run //tools/bazel:check_dependency_boundaries --lockfile_mode=error
       - run: bazel run //tools/quality:ruff --lockfile_mode=error -- check .
       - run: bazel run //tools/quality:ruff --lockfile_mode=error -- format --check .
