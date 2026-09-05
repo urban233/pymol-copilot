@@ -161,10 +161,10 @@ class SessionSnapshot:
     Attributes:
         object_names: The sorted names of every loaded object.
         atom_count: The total atom count across the whole session.
-        chain_a_atom_count: The atom count selected by ``chain A``.
-        chain_b_atom_count: The atom count selected by ``chain B``.
-        coordinates: Per-atom ``(index, x, y, z)`` tuples, state 1 only.
-        colors: Per-atom ``(index, color_index)`` tuples.
+        chain_a_atom_count: The atom count selected by chain A.
+        chain_b_atom_count: The atom count selected by chain B.
+        coordinates: Per-atom (index, x, y, z) tuples, state 1 only.
+        colors: Per-atom (index, color_index) tuples.
     """
 
     object_names: tuple[str, ...]
@@ -179,7 +179,7 @@ def capture_session_state(cmd: PyMOLCmd) -> SessionSnapshot:
     """Capture a comparable snapshot of the current real PyMOL session.
 
     Args:
-        cmd: The real PyMOL ``cmd`` module.
+        cmd: The real PyMOL cmd module.
 
     Returns:
         A snapshot of the observable state compared by this test module.
@@ -238,10 +238,10 @@ class RealPyMOLCmdExtension:
     """Adapter registering commands through PyMOL's own command system."""
 
     def __init__(self, cmd: PyMOLCmd) -> None:
-        """Wrap a real PyMOL ``cmd`` module for command registration.
+        """Wrap a real PyMOL cmd module for command registration.
 
         Args:
-            cmd: The real PyMOL ``cmd`` module.
+            cmd: The real PyMOL cmd module.
         """
         self._cmd = cmd
 
@@ -260,7 +260,7 @@ def real_pymol() -> Iterator[PyMOLCmd]:
     """Launch real headless PyMOL exactly once for this test module.
 
     Yields:
-        The real PyMOL ``cmd`` module.
+        The real PyMOL cmd module.
     """
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
@@ -277,10 +277,10 @@ def loaded_fixture(real_pymol: PyMOLCmd) -> Iterator[PyMOLCmd]:
     """Load the two-chain fixture fresh for one test and delete it after.
 
     Args:
-        real_pymol: The real PyMOL ``cmd`` module.
+        real_pymol: The real PyMOL cmd module.
 
     Yields:
-        The real PyMOL ``cmd`` module with the fixture object loaded.
+        The real PyMOL cmd module with the fixture object loaded.
     """
     real_pymol.load(str(FIXTURE_PATH), OBJECT_NAME)
     try:
