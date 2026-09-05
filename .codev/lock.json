@@ -2,7 +2,6 @@
   "schema_version": 2,
   "bundle_version": "0.7.0",
   "platforms": [
-    "junie",
     "opencode"
   ],
   "programming_language": "python",
@@ -75,7 +74,6 @@
     ".codev/for-ai/ai-agent-guidelines.md": "b2043d1715df9c352ca85682a219511a83deccc863251266068cb4745a546452",
     ".github/ISSUE_TEMPLATE/task.md": "2a0b18404470f146dd180200314118eea3876e8652c23a9c33a63c4928e2bca6",
     ".github/pull_request_template.md": "fdebf20e5404f1143365aa32cc489d4bb2f6bc2f18faa84dec95fa6dc4690896",
-    ".junie/agents/assistant.md": "9fcb4ceefb179011483436a65e0b929361876e8595bc9a435a0036a98fcb38f6",
     ".opencode/agents/architecture-maintainability-specialist.md": "ea8dfcdd77a5ae53256b4e197110c9c912e2049082c00f0febe9ab8a0f267c91",
     ".opencode/agents/builder.md": "abc6ed3e3a28649e796bb5c75628ca1693b75a32728ef0286c26c654a2c21977",
     ".opencode/agents/code-audit-gate.md": "7de9ee4c4ef0eb3bdf4c60b09813f29636e0e9b33533295a77622a7ee09d239f",
