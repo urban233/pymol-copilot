@@ -1,0 +1,41 @@
+{
+  "case_id": "chain_a_red_gold_case",
+  "intent": "Select chain A and color it red.",
+  "category": "selection_and_color",
+  "difficulty": "basic",
+  "provenance": {
+    "source": "Self-authored synthetic development structure created for this repository; not derived from any external or copyrighted source.",
+    "license": "Public domain (CC0-equivalent); original synthetic content, same convention as tests/integration/testdata/two_chain_fixture.pdb.",
+    "structure_relpath": "tests/data/testdata/chain_a_gold_fixture.pdb",
+    "structure_sha256": "0f2cd04ed9d52ce106dee4a2e5b3384b8d755dd7b818e4930d9e6778e52fc5dd"
+  },
+  "contract_versions": {
+    "plan_version": "1",
+    "pymol_version": "3.2.0.2"
+  },
+  "canonical_plan_pml": "select copilot_selection, chain A\ncolor red, copilot_selection\n",
+  "target_chain": "A",
+  "non_target_chains": ["B"],
+  "assertions": [
+    {
+      "kind": "chain_membership",
+      "params": {
+        "selection_name": "copilot_selection",
+        "chain_id": "A"
+      }
+    },
+    {
+      "kind": "color_state",
+      "params": {
+        "selection_name": "copilot_selection",
+        "color": "red"
+      }
+    },
+    {
+      "kind": "no_unintended_change",
+      "params": {
+        "chain_id": "B"
+      }
+    }
+  ]
+}

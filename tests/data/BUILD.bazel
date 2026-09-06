@@ -1,0 +1,60 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "gold_case",
+    size = "small",
+    srcs = ["test_gold_case.py"],
+    main = "test_gold_case.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "oracle",
+    size = "small",
+    srcs = ["test_oracle.py"],
+    main = "test_oracle.py",
+    data = ["testdata/chain_a_gold_fixture.pdb"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "oracle_sabotage",
+    size = "small",
+    srcs = ["test_oracle_sabotage.py"],
+    main = "test_oracle_sabotage.py",
+    data = ["test_oracle.py", "testdata/chain_a_gold_fixture.pdb"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "gold_case_verifier",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_gold_case_verifier.py"],
+    main = "test_gold_case_verifier.py",
+    data = ["testdata/chain_a_gold_fixture.pdb"],
+    # See tests/integration/BUILD.bazel's real_pymol_command target and
+    # issue #12: pymol-open-source-whl's Windows wheel bundles
+    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
+    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
