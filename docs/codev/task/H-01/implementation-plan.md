@@ -1,6 +1,6 @@
 # H-01: Hardened PyMOL Preview Implementation Plan
 
-**Status:** Draft
+**Status:** Accepted — done, merged via [PR #11](https://github.com/urban233/pymol-copilot/pull/11)
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** Normal
@@ -185,11 +185,40 @@ existing V1 payloads keep decoding successfully.
 
 ## Completion evidence
 
-- **Delivered:** TBD
-- **Changed:** TBD
-- **Head commit/snapshot:** TBD
-- **Validation actually run:** TBD
-- **Acceptance evidence:** TBD
-- **Scope deviations:** TBD
-- **Known limitations:** TBD
+- **Delivered:** Hardened `copilot` codec/command failure boundaries
+  (digest cross-check, typed decode errors, bounded transport diagnostics,
+  honest success wording) and a real-PyMOL integration harness proving
+  non-mutation across success/rejection/unavailable-server cases, plus a
+  sabotage self-check. Full detail in
+  [docs/codev/wave/evidence/H-01.md](../../wave/evidence/H-01.md).
+- **Changed:** `src/pmc_core/protocol.py`, `src/pmc_client/command.py`,
+  four existing test files, one new test file plus fixture, Bazel/CI/
+  dependency wiring (`requirements.in`, `requirements_lock.txt`,
+  `MODULE.bazel(.lock)`, `tests/integration/BUILD.bazel`, `pyproject.toml`).
+- **Head commit/snapshot:** Merged via
+  [PR #11](https://github.com/urban233/pymol-copilot/pull/11) at
+  `221767903d60554c23b5293a435ddad4138f8bfb`
+  (merge commit `1a188ec` on `main`).
+- **Validation actually run:** All repository-wide checks (build, test,
+  lint, format, type-check, dependency boundaries) plus the real-PyMOL
+  Bazel target, on Linux and macOS CI and locally; see the evidence doc's
+  Commands and results table.
+- **Acceptance evidence:** H-A1 through H-A8 all checked in
+  `docs/codev/wave/evidence/H-01.md`; H-R1 satisfied by Martin's PR
+  approval and merge.
+- **Scope deviations:** Root dependency/lock/CI files (normally
+  Martin-owned) were edited in this task per explicit human direction,
+  disclosed in Repository evidence above; the `.claude/` ruff-exclusion fix
+  for a pre-existing, unrelated `main` CI break also rode along, flagged to
+  outer-loop review as separable.
+- **Known limitations:** `//tests/integration:real_pymol_command` is
+  `target_compatible_with`-excluded on Windows (Bazel/Windows MAX_PATH
+  loading the pinned wheel's bundled DLLs; three independent mitigations
+  ruled out) — tracked in
+  [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
+  Outer-loop review (five specialists, zero blocking findings) also
+  recorded 21 non-blocking findings for optional follow-up.
+- **Review state:** Independently reviewed by all five outer-loop
+  specialists (`READY_FOR_HUMAN_APPROVAL`, zero blocking findings) and by
+  Martin (approved, "This looks good to me."). Merged.
 - **Review state:** TBD
