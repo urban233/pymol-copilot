@@ -35,7 +35,9 @@ and no existing module is modified. Existing plan/parser/policy contracts in
   issue #8 stays open for that.
 - **Allowed scope:** `src/pmc_data/`, a new `tests/data/` test category and
   its fixture, `configs/generation/` only if actually needed, and
-  `docs/codev/wave/evidence/M-01.md`.
+  `docs/codev/wave/evidence/M-01.md`. Expanded during outer-loop review, with
+  explicit developer sign-off, to one `tags = ["exclusive"]` addition on the
+  pre-existing `tests/contract:policy_sabotage` target (see CI note below).
 - **Validation:** New `tests/data/*` Bazel targets (schema round-trip, oracle
   unit tests, real-PyMOL conformance, sabotage) plus the full repository
   checks listed below.

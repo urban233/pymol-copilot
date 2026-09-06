@@ -30,6 +30,11 @@ py_test(
     srcs = ["test_oracle_sabotage.py"],
     main = "test_oracle_sabotage.py",
     data = ["test_oracle.py", "testdata/chain_a_gold_fixture.pdb"],
+    # Spawns a nested pytest subprocess against a disposable temp-directory
+    # copy; excluded from concurrent scheduling so it never races another
+    # such subprocess-spawning sabotage test (tests/contract:policy_sabotage)
+    # under Windows's unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
     deps = [
         "@pypi//pytest",
         "//src/pmc_data:pmc_data",
