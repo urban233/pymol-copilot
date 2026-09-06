@@ -31,7 +31,15 @@ def test_oracle_suite_rejects_a_corrupted_chain_membership_derivation() -> None:
     source_test = Path(__file__).with_name("test_oracle.py")
     source_testdata = Path(__file__).with_name("testdata")
 
-    with tempfile.TemporaryDirectory() as temporary_directory:
+    # Bazel serializes this target against every other test (BUILD.bazel's
+    # tags = ["exclusive"]) so the shutil.copytree below never races another
+    # process writing into the shared source package's __pycache__; that
+    # protection lives in the build graph, not here, so it does not apply
+    # when this module is run outside `bazel test` (direct invocation, an
+    # IDE runner, or future pytest-xdist parallelism).
+    with tempfile.TemporaryDirectory(
+        ignore_cleanup_errors=True
+    ) as temporary_directory:
         root = Path(temporary_directory)
         package = root / "pmc_data"
         shutil.copytree(source_package, package)
