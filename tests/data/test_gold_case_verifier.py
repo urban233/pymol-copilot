@@ -27,6 +27,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import dataclasses
 import os
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Protocol
@@ -291,4 +292,10 @@ if __name__ == "__main__":
     # failing assertion here still reported Bazel PASSED under plain
     # `raise SystemExit(...)`). os._exit bypasses that interpreter-shutdown
     # window entirely, so pytest's real result is what Bazel actually sees.
-    os._exit(pytest.main([__file__]))
+    # os._exit skips the normal stdio flush, so flush explicitly first --
+    # otherwise a real failure's traceback and summary can be silently lost
+    # from the captured test log (also confirmed empirically).
+    _exit_code = pytest.main([__file__])
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_exit_code)
