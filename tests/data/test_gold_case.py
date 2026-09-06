@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Gold-case schema round-trip and fail-closed validation tests.
 
-These tests never import PyMOL. They exercise `pmc_data.gold_case` directly
+These tests never import PyMOL. They exercise pmc_data.gold_case directly
 against the one hand-authored gold record, proving lossless serialization
 and that missing provenance or an unsupported assertion kind invalidates the
 record rather than being silently accepted or defaulted.

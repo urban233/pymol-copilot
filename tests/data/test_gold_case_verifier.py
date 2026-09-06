@@ -2,22 +2,22 @@
 """Real-PyMOL conformance evidence for the chain-A/red gold-case verifier.
 
 Every collaborator here is real: real headless Open-Source PyMOL
-(`pymol.finish_launching(['pymol', '-qc'])`), the real controlled gold-case
-fixture, and the real `pmc_data.verifier.verify_gold_case` grading the real
-accepted `pmc_core` canonical plan. Nothing here is a PyMOL test double.
+(pymol.finish_launching(['pymol', '-qc'])), the real controlled gold-case
+fixture, and the real pmc_data.verifier.verify_gold_case grading the real
+accepted pmc_core canonical plan. Nothing here is a PyMOL test double.
 
 The true gold case must pass every assertion (M-A4). Separate wrong-chain,
 wrong-color, and unintended-change variants of that same case must each fail
 their relevant assertion (M-A5), built from the true case with
-`dataclasses.replace` rather than a second hand-authored record. Missing
+dataclasses.replace rather than a second hand-authored record. Missing
 provenance/parameters and a real PyMOL evaluator error must invalidate the
 result instead of passing or defaulting (M-A6).
 
-PyMOL only supports one `finish_launching` call per interpreter, so it is
+PyMOL only supports one finish_launching call per interpreter, so it is
 launched exactly once for the whole test module (session-scoped fixture) and
 shut down at final teardown. The fixture object is loaded and deleted fresh
 for every test function so state from one test can never leak into the next
--- same pattern as `tests/integration/test_real_pymol_command.py`.
+-- same pattern as tests/integration/test_real_pymol_command.py.
 
 This target is excluded on Windows for the same reason as that module: see
 issue #12.
@@ -43,10 +43,10 @@ OBJECT_NAME = "chain_a_gold_fixture"
 
 
 class PyMOLCmd(Protocol):
-    """Subset of PyMOL's real `cmd` module used to drive this test module.
+    """Subset of PyMOL's real cmd module used to drive this test module.
 
-    A structural superset of `pmc_data.verifier.PyMOLCmd` so the same real
-    `cmd` object satisfies both this module's fixtures and verify_gold_case's
+    A structural superset of pmc_data.verifier.PyMOLCmd so the same real
+    cmd object satisfies both this module's fixtures and verify_gold_case's
     own parameter type.
     """
 
@@ -210,6 +210,11 @@ def test_unintended_change_is_detected(
     """A deliberate non-target mutation injected mid-run fails no_unintended_change while the intended target assertions still pass."""
 
     def inject_mutation(cmd: VerifierPyMOLCmd) -> None:
+        """Recolor the non-target chain, the deliberate sabotage this test detects.
+
+        Args:
+            cmd: The real PyMOL cmd module mid-verification.
+        """
         cmd.do("color blue, chain B")
 
     result = verify_gold_case(

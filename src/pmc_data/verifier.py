@@ -1,10 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Grades a real PyMOL run of the accepted fixture against a GoldCase.
 
-The verifier executes the accepted, unchanged `pmc_core` canonical plan
-through a real (caller-supplied) PyMOL `cmd`, then compares the resulting
+The verifier executes the accepted, unchanged pmc_core canonical plan
+through a real (caller-supplied) PyMOL cmd, then compares the resulting
 selection membership, color state, and non-target atom state against the
-independent oracle in `pmc_data.oracle`. A gold case is graded `TaskSuccess`
+independent oracle in pmc_data.oracle. A gold case is graded TaskSuccess
 only when every declared assertion passes; missing provenance, an
 unsupported assertion, policy denial of the accepted fixture, or any
 real-PyMOL evaluator error invalidates the result instead of silently
@@ -29,11 +29,11 @@ from pmc_data.gold_case import GoldCase
 from pmc_data.oracle import expected_chain_atom_ids
 
 #: Atom color pairs captured for one chain: (atom index, PyMOL color index).
-ChainColorSnapshot = tuple[tuple[int, int], ...]
+CHAIN_COLOR_SNAPSHOT = tuple[tuple[int, int], ...]
 
 
 class PyMOLCmd(Protocol):
-    """Subset of PyMOL's real `cmd` module used by the verifier."""
+    """Subset of PyMOL's real cmd module used by the verifier."""
 
     def do(self, command: str) -> None:
         """Execute one PML command line exactly as a user would type it.
@@ -90,7 +90,7 @@ class VerifierResult:
     Attributes:
         case_id: The identity of the gold case that was graded.
         valid: Whether the run completed without an evaluator error, policy
-            denial, or contract drift. `task_success` is only meaningful
+            denial, or contract drift. task_success is only meaningful
             when this is True.
         invalid_reason: Why the run was invalidated, or None when valid.
         assertion_results: The per-assertion results, empty when invalid.
@@ -105,7 +105,7 @@ class VerifierResult:
     task_success: bool
 
 
-def _capture_colors(cmd: PyMOLCmd, selection: str) -> ChainColorSnapshot:
+def _capture_colors(cmd: PyMOLCmd, selection: str) -> CHAIN_COLOR_SNAPSHOT:
     """Capture a comparable color snapshot for every atom a selection matches.
 
     Args:
@@ -199,7 +199,7 @@ def _evaluate_color_state(
 
     Raises:
         VerifierError: If color names a color PyMOL itself does not
-            recognize (`get_color_index` returns a negative index), since
+            recognize (get_color_index returns a negative index), since
             that names a setup error rather than an observable color state.
     """
     selection_name = _require_param(assertion, "selection_name")
@@ -222,8 +222,8 @@ def _evaluate_color_state(
 
 def _evaluate_no_unintended_change(
     assertion: Assertion,
-    before: Mapping[str, ChainColorSnapshot],
-    after: Mapping[str, ChainColorSnapshot],
+    before: Mapping[str, CHAIN_COLOR_SNAPSHOT],
+    after: Mapping[str, CHAIN_COLOR_SNAPSHOT],
 ) -> AssertionResult:
     """Grade a no_unintended_change assertion for one non-target chain.
 
@@ -319,9 +319,7 @@ def verify_gold_case(
                     )
                 )
             else:
-                # Defense in depth: GoldCase/Assertion construction already
-                # rejects unsupported kinds, but broadening that contract
-                # later must not silently bypass this evaluator too.
+                # Defense in depth: broadening the typed contract later must not silently bypass this evaluator, even though GoldCase/Assertion construction already rejects unsupported kinds.
                 raise VerifierError(
                     f"unsupported assertion kind: {assertion.kind!r}"
                 )

@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Provenance-complete gold-case schema for the chain-A/red fixture.
 
-A GoldCase records everything the verifier in `pmc_data.verifier` needs to
+A GoldCase records everything the verifier in pmc_data.verifier needs to
 grade one real PyMOL run against independently derived expectations: stable
 identity, structure provenance and checksum, contract/PyMOL versions,
 intent/category/difficulty, the canonical typed plan, and a closed set of
@@ -123,7 +123,7 @@ class ContractVersions:
     """Contract versions actually used to produce and grade a gold case.
 
     Attributes:
-        plan_version: The `pmc_core` plan/policy contract version in effect.
+        plan_version: The pmc_core plan/policy contract version in effect.
         pymol_version: The pinned Open-Source PyMOL version in effect.
     """
 
@@ -224,8 +224,8 @@ class GoldCase:
         difficulty: The taxonomy difficulty label for this case.
         provenance: The structure file's source and checksum provenance.
         contract_versions: The plan/PyMOL contract versions actually used.
-        canonical_plan_pml: The exact canonical `.pml` bytes this case
-            grades, cross-checked against `pmc_core`'s own rendering.
+        canonical_plan_pml: The exact canonical .pml bytes this case
+            grades, cross-checked against pmc_core's own rendering.
         target_chain: The chain identifier the fixture selects and colors.
         non_target_chains: Chain identifiers that must show no unintended
             change.
@@ -244,11 +244,11 @@ class GoldCase:
     assertions: tuple[Assertion, ...]
 
     def __post_init__(self) -> None:
-        """Reject a record whose canonical plan drifted from `pmc_core`.
+        """Reject a record whose canonical plan drifted from pmc_core.
 
         Raises:
             InvalidGoldCaseError: If canonical_plan_pml no longer matches
-                `pmc_core.plan.initial_fixture_plan().render_pml()`, or if
+                pmc_core.plan.initial_fixture_plan().render_pml(), or if
                 assertions is empty.
         """
         expected_plan_pml = initial_fixture_plan().render_pml()
@@ -266,7 +266,7 @@ class GoldCase:
         """Render this gold case as a JSON-safe mapping.
 
         Returns:
-            A plain dict suitable for `json.dumps`.
+            A plain dict suitable for json.dumps.
         """
         return {
             "case_id": self.case_id,

@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Independent, dependency-free reader for PDB `ATOM`/`HETATM` records.
+"""Independent, dependency-free reader for PDB ATOM/HETATM records.
 
 This module never imports PyMOL and never delegates to any PyMOL selection
-or parsing facility. It exists so the oracle in `pmc_data.oracle` can derive
+or parsing facility. It exists so the oracle in pmc_data.oracle can derive
 expected atom identities directly from controlled structure file bytes,
 independently of the PyMOL selection query the verifier later exercises
 against the same file. Only the fixed-column fields needed by the current
@@ -17,7 +17,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class PdbAtom:
-    """One independently parsed `ATOM`/`HETATM` record.
+    """One independently parsed ATOM/HETATM record.
 
     Attributes:
         serial: The atom serial number (PDB columns 7-11).
@@ -29,11 +29,11 @@ class PdbAtom:
 
 
 class MalformedPdbRecordError(ValueError):
-    """Raised when an `ATOM`/`HETATM` record cannot be read independently."""
+    """Raised when an ATOM/HETATM record cannot be read independently."""
 
 
 def read_atoms(pdb_path: Path) -> tuple[PdbAtom, ...]:
-    """Read every `ATOM`/`HETATM` record from a controlled PDB file.
+    """Read every ATOM/HETATM record from a controlled PDB file.
 
     Args:
         pdb_path: Path to the controlled PDB file.
@@ -42,7 +42,7 @@ def read_atoms(pdb_path: Path) -> tuple[PdbAtom, ...]:
         The ordered atom records found in the file.
 
     Raises:
-        MalformedPdbRecordError: If an `ATOM`/`HETATM` line's serial number
+        MalformedPdbRecordError: If an ATOM/HETATM line's serial number
             is not present or not an integer in its fixed-column field.
     """
     atoms: list[PdbAtom] = []

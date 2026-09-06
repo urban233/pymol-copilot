@@ -3,8 +3,8 @@
 
 This module never imports PyMOL and never calls a PyMOL selection query. It
 computes expected atom identities directly from the controlled structure
-file's own records (via `pmc_data.pdb`), so the verifier in
-`pmc_data.verifier` can compare a real PyMOL selection against ground truth
+file's own records (via pmc_data.pdb), so the verifier in
+pmc_data.verifier can compare a real PyMOL selection against ground truth
 that was not produced by the same selection machinery being tested.
 """
 
