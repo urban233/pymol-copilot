@@ -1,6 +1,6 @@
 # M-01: Chain-A/Red Gold-Case Verifier Implementation Plan
 
-**Status:** Accepted
+**Status:** Accepted — implemented, awaiting independent review; see [M-01 evidence](../../wave/evidence/M-01.md)
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Risk:** High
@@ -163,11 +163,11 @@ and no existing module is modified. Existing plan/parser/policy contracts in
 
 ## Completion evidence
 
-- **Delivered:** TBD
-- **Changed:** TBD
-- **Head commit/snapshot:** TBD
-- **Validation actually run:** TBD
-- **Acceptance evidence:** TBD
-- **Scope deviations:** TBD
-- **Known limitations:** TBD
-- **Review state:** Not reviewed
+- **Delivered:** A runnable chain-A/red gold-case verifier in `pmc_data`: an independent PDB reader and chain-membership oracle, a provenance-complete `GoldCase` schema with lossless round-trip, one hand-authored gold record, a self-authored controlled fixture, and a verifier that grades a real disposable PyMOL run against the oracle. `TaskSuccess` requires every declared assertion to pass; missing provenance, an unsupported assertion, an unrecognized PyMOL color, a missing assertion parameter, or policy denial of the accepted fixture all invalidate the result instead of defaulting.
+- **Changed:** `src/pmc_data/{pdb,oracle,gold_case,verifier}.py`, `src/pmc_data/gold_cases/chain_a_red.json`, `src/pmc_data/BUILD.bazel`; `tests/data/{BUILD.bazel,README.md,test_gold_case.py,test_oracle.py,test_oracle_sabotage.py,test_gold_case_verifier.py,testdata/chain_a_gold_fixture.pdb}`; `docs/codev/wave/evidence/M-01.md`.
+- **Head commit/snapshot:** `c9c0b1b17fe8bcfe63cb7a33833ea15d8ffae0e0` on `codev/M-01`.
+- **Validation actually run:** See the Commands and results table in [M-01 evidence](../../wave/evidence/M-01.md) -- new `tests/data/*` targets, full repository build/test, dependency-boundary check, ruff lint/format, and pyrefly, all passing.
+- **Acceptance evidence:** M-A1 through M-A8 checked in [M-01 evidence](../../wave/evidence/M-01.md#checklist); M-R1 awaits Hannah's independent reproduction.
+- **Scope deviations:** M-A7's sabotage evidence targets the independent oracle (`pmc_data/oracle.py`) rather than the real-PyMOL verifier path, matching `tests/contract/test_policy_sabotage.py`'s own scope (a pure-logic module) and avoiding a fragile nested real-PyMOL subprocess; the real-PyMOL verifier's own negative-case tests separately prove the evaluator rejects wrong results differentially. The item exceeds the 600-line/12-file soft slicing guideline (1605 lines/14 files); kept as one PR per the wave plan's explicit preference for this item.
+- **Known limitations:** Issue #8's program-first generation remains open and out of scope. M-A6's "evaluator error" case is demonstrated via an unrecognized PyMOL color (a negative `get_color_index` result) rather than a raised exception, since real PyMOL's selection/iterate APIs print a diagnostic and match nothing on malformed input rather than raising -- confirmed empirically before being encoded as the negative test.
+- **Review state:** Not yet independently reviewed (M-R1 open); no pull request opened yet.
