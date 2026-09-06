@@ -26,6 +26,7 @@ issue #12.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import dataclasses
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Protocol
@@ -284,4 +285,10 @@ def test_real_pymol_evaluator_error_invalidates_the_result(
 
 
 if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__]))
+    # Real PyMOL's headless launch leaves behind cleanup that can complete
+    # after this process would otherwise exit, overriding a genuine pytest
+    # failure with process exit code 0 (confirmed empirically: a deliberately
+    # failing assertion here still reported Bazel PASSED under plain
+    # `raise SystemExit(...)`). os._exit bypasses that interpreter-shutdown
+    # window entirely, so pytest's real result is what Bazel actually sees.
+    os._exit(pytest.main([__file__]))
