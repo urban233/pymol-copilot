@@ -17,6 +17,22 @@ jobs:
         os: [ubuntu-24.04, macos-15, windows-2025]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Windows only: pymol-open-source-whl bundles delvewheel-repaired DLLs
+      # with long hash-suffixed names (issue #12); combined with Bazel's
+      # generated repository name, loading them exceeds the classic 260-char
+      # MAX_PATH. Enabling the OS-level long-path policy lets Win32 file APIs
+      # (including LoadLibrary) accept longer paths without an app-side
+      # opt-in; CPython's official Windows builds are already manifested as
+      # long-path aware. Untested against real Windows CI as of this commit
+      # because of an unrelated account billing block -- if this does not
+      # resolve issue #12, revert this step and the target_compatible_with
+      # removal below together.
+      - name: Enable Windows long path support
+        if: matrix.os == 'windows-2025'
+        shell: powershell
+        run: |
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+            -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
       - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # 0.19.0
         with:
           bazelisk-version: 1.29.0
