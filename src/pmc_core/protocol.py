@@ -390,17 +390,27 @@ def _decode_command(value: object) -> SelectOperation | ColorOperation:
     if verb == "select":
         if set(item) != {"verb", "name", "expression"}:
             raise ProtocolDecodeError("invalid select command fields")
-        return SelectOperation(
-            selection_name=_string(item["name"], name="name"),
-            expression=_string(item["expression"], name="expression"),
-        )
+        try:
+            return SelectOperation(
+                selection_name=_string(item["name"], name="name"),
+                expression=_string(item["expression"], name="expression"),
+            )
+        except ValueError as error:
+            raise ProtocolDecodeError(
+                "unsupported select command values"
+            ) from error
     if verb == "color":
         if set(item) != {"verb", "color", "target"}:
             raise ProtocolDecodeError("invalid color command fields")
-        return ColorOperation(
-            color=_string(item["color"], name="color"),
-            selection_name=_string(item["target"], name="target"),
-        )
+        try:
+            return ColorOperation(
+                color=_string(item["color"], name="color"),
+                selection_name=_string(item["target"], name="target"),
+            )
+        except ValueError as error:
+            raise ProtocolDecodeError(
+                "unsupported color command values"
+            ) from error
     raise ProtocolDecodeError("unsupported action plan command")
 
 
@@ -530,17 +540,23 @@ class ValidatedPlanResponseV1:
             raise ProtocolDecodeError("response status is not validated")
         action_plan_data = _object(data["actionPlan"], name="actionPlan")
         plan = _decode_plan(action_plan_data)
+        validation = ValidationReportV1.from_dict(data["validation"])
+        snapshot_digest = _string(
+            action_plan_data["snapshotDigest"], name="snapshotDigest"
+        )
+        if snapshot_digest != validation.snapshot_digest:
+            raise ProtocolDecodeError(
+                "actionPlan and validation snapshot digests do not match"
+            )
         return cls(
             request_id=_uuid4(data["requestId"], name="requestId"),
             session_id=_uuid4(data["sessionId"], name="sessionId"),
             received_at=_timestamp(data["receivedAt"], name="receivedAt"),
             validated_at=_timestamp(data["validatedAt"], name="validatedAt"),
             action_plan=plan,
-            validation=ValidationReportV1.from_dict(data["validation"]),
+            validation=validation,
             plan_id=_uuid4(action_plan_data["planId"], name="planId"),
-            snapshot_digest=_string(
-                action_plan_data["snapshotDigest"], name="snapshotDigest"
-            ),
+            snapshot_digest=snapshot_digest,
         )
 
 

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import CopilotCommandClient
+from pmc_client.transport import TransportError
 from pmc_core.plan import initial_fixture_plan
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
@@ -21,6 +22,13 @@ SESSION_ID = "22222222-2222-4222-8222-222222222222"
 CREATED_AT = "2026-08-26T14:22:03.123Z"
 FIXTURE_PML = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
+)
+PREVIEW_DISCLAIMER = (
+    "copilot preview: this is a fixed, policy-checked plan preview. "
+    "Loaded-state fidelity, execution, and scientific intent were "
+    "not validated, and nothing was applied to this session. The "
+    "snapshot value above is a fixture placeholder, not a computed "
+    "structure checksum."
 )
 
 
@@ -132,7 +140,11 @@ def test_command_builds_fixture_request_and_reports_canonical_plan() -> None:
         "digest": "sha256:example-chain-a-digest",
         "fixtureId": "one-object-chain-a-v1",
     }
-    assert output == ["copilot validation: passed", FIXTURE_PML]
+    assert output == [
+        "copilot validation: passed",
+        FIXTURE_PML,
+        PREVIEW_DISCLAIMER,
+    ]
 
 
 def test_client_reuses_session_and_generates_unique_request_ids() -> None:
@@ -195,6 +207,44 @@ def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
     client.copilot(FIXTURE_INTENT)
 
     assert output == ["copilot failed (policy; not retryable): command denied"]
+
+
+def test_transport_failure_reports_bounded_diagnostic() -> None:
+    """A raised TransportError is caught and reported without a traceback."""
+
+    @dataclass
+    class RaisingTransport:
+        """Transport double that always raises a known transport failure."""
+
+        def submit(
+            self, request: PlanRequestV1
+        ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+            """Raise a bounded transport failure for any request.
+
+            Args:
+                request: Request that would have been submitted.
+
+            Raises:
+                TransportError: Always, to simulate an unavailable server.
+            """
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
+    output: list[str] = []
+    client = CopilotCommandClient(
+        RaisingTransport(),
+        output.append,
+        uuid_factory=uuid_factory(),
+        timestamp_factory=lambda: CREATED_AT,
+    )
+
+    client.copilot(FIXTURE_INTENT)
+
+    assert output == [
+        "copilot unavailable: loopback request failed: "
+        "33333333-3333-4333-8333-333333333333"
+    ]
 
 
 def test_failed_validation_reports_status_without_rendering_plan() -> None:

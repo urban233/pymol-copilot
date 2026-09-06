@@ -266,7 +266,11 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
             received_at=response.received_at,
             validated_at=response.validated_at,
             action_plan=response.action_plan,
-            validation=response.validation,
+            validation=ValidationReportV1(
+                response.validation.status,
+                "sha256:different-snapshot",
+                response.validation.warnings,
+            ),
             plan_id=response.plan_id,
             snapshot_digest="sha256:different-snapshot",
         )

@@ -51,3 +51,30 @@ py_test(
         "//src/pmc_server:pmc_server",
     ],
 )
+
+py_test(
+    name = "real_pymol_command",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_real_pymol_command.py"],
+    main = "test_real_pymol_command.py",
+    data = ["testdata/two_chain_fixture.pdb"],
+    # pymol-open-source-whl's Windows wheel bundles delvewheel-repaired DLLs
+    # with long hash-suffixed names; combined with Bazel's generated
+    # repository name for this dependency, the resulting path exceeds
+    # Windows' MAX_PATH (260 chars) when the compiled _cmd extension loads
+    # its bundled dependencies. Tracked in issue #12; ruled out so far: a
+    # short Bazel output-base, unsandboxed test execution, and the OS-level
+    # LongPathsEnabled long-path policy.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)

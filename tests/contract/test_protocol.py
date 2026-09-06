@@ -179,6 +179,106 @@ def test_validated_response_rejects_missing_action_plan() -> None:
         ValidatedPlanResponseV1.from_dict(payload)
 
 
+def test_validated_response_rejects_mismatched_snapshot_digests() -> None:
+    """A response whose plan and report digests disagree is rejected."""
+    payload = response().to_dict()
+    payload["validation"] = ValidationReportV1(
+        "passed", "sha256:different-digest", ()
+    ).to_dict()
+
+    with pytest.raises(ProtocolDecodeError, match="snapshot digests"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validated_response_accepts_matching_snapshot_digests_from_another_request() -> (
+    None
+):
+    """A differently-keyed response still decodes when its digests agree."""
+    fixture = response()
+    another_request_response = ValidatedPlanResponseV1(
+        request_id=fixture.request_id,
+        session_id=fixture.session_id,
+        received_at=fixture.received_at,
+        validated_at=fixture.validated_at,
+        action_plan=fixture.action_plan,
+        validation=ValidationReportV1(
+            "passed", "sha256:another-request-digest", ()
+        ),
+        plan_id=fixture.plan_id,
+        snapshot_digest="sha256:another-request-digest",
+    )
+
+    decoded = ValidatedPlanResponseV1.from_dict(
+        another_request_response.to_dict()
+    )
+
+    assert decoded.snapshot_digest == "sha256:another-request-digest"
+    assert decoded.validation.snapshot_digest == "sha256:another-request-digest"
+
+
+def _response_payload_with_command(
+    index: int, field: str, value: str
+) -> dict[str, object]:
+    """Build a full V1 response payload with one command field overridden.
+
+    Args:
+        index: Index of the command to modify (0 for select, 1 for color).
+        field: Command field name to override.
+        value: Replacement value, expected to be outside the fixture.
+
+    Returns:
+        A complete V1 response payload dict with the overridden command.
+    """
+    commands: list[dict[str, object]] = [
+        {
+            "verb": "select",
+            "name": "copilot_selection",
+            "expression": "chain A",
+        },
+        {"verb": "color", "color": "red", "target": "copilot_selection"},
+    ]
+    commands[index] = {**commands[index], field: value}
+    return {
+        "protocolVersion": "1",
+        "requestId": REQUEST_IDS["requestId"],
+        "sessionId": REQUEST_IDS["sessionId"],
+        "receivedAt": "2026-08-26T14:22:03.124Z",
+        "validatedAt": "2026-08-26T14:22:03.220Z",
+        "status": "validated",
+        "actionPlan": {
+            "planId": "33333333-3333-4333-8333-333333333333",
+            "planVersion": "1",
+            "snapshotDigest": "sha256:example-chain-a-digest",
+            "commands": commands,
+        },
+        "validation": {
+            "status": "passed",
+            "snapshotDigest": "sha256:example-chain-a-digest",
+            "warnings": [],
+        },
+    }
+
+
+def test_validated_response_rejects_unsupported_command_value_as_decode_error() -> (
+    None
+):
+    """An out-of-fixture command value raises ProtocolDecodeError, not ValueError."""
+    payload = _response_payload_with_command(0, "expression", "chain B")
+
+    with pytest.raises(ProtocolDecodeError, match="unsupported select"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_validated_response_rejects_unsupported_color_value_as_decode_error() -> (
+    None
+):
+    """An out-of-fixture color value raises ProtocolDecodeError, not ValueError."""
+    payload = _response_payload_with_command(1, "color", "blue")
+
+    with pytest.raises(ProtocolDecodeError, match="unsupported color"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
 def test_validation_rejects_unknown_status() -> None:
     """Validation reports accept only the successful passed status."""
     payload = response().validation.to_dict()

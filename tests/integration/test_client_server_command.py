@@ -21,6 +21,13 @@ from pmc_server.transport import LoopbackPlanServer
 FIXTURE_PML = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
 )
+PREVIEW_DISCLAIMER = (
+    "copilot preview: this is a fixed, policy-checked plan preview. "
+    "Loaded-state fidelity, execution, and scientific intent were "
+    "not validated, and nothing was applied to this session. The "
+    "snapshot value above is a fixture placeholder, not a computed "
+    "structure checksum."
+)
 
 
 @dataclass
@@ -121,7 +128,11 @@ def test_public_command_round_trip_renders_without_session_mutation() -> None:
     assert request.session_id == client.session_id
     assert response.request_id == request.request_id
     assert response.session_id == request.session_id
-    assert output == ["copilot validation: passed", FIXTURE_PML]
+    assert output == [
+        "copilot validation: passed",
+        FIXTURE_PML,
+        PREVIEW_DISCLAIMER,
+    ]
     assert adapter.mutations == []
     assert adapter.selections == original_selections
     assert adapter.colors == original_colors
