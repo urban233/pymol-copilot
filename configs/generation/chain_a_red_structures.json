@@ -1,0 +1,18 @@
+{
+  "requests": [
+    {
+      "case_id": "chain_a_red_second_fixture_gold_case",
+      "intent": "Select chain A and color it red.",
+      "category": "selection_and_color",
+      "difficulty": "basic",
+      "structure_relpath": "tests/data/testdata/second_gold_fixture.pdb",
+      "source": "Self-authored synthetic development structure created for this repository; not derived from any external or copyrighted source.",
+      "license": "Public domain (CC0-equivalent); original synthetic content, same convention as tests/integration/testdata/two_chain_fixture.pdb.",
+      "contract_versions": {
+        "plan_version": "1",
+        "pymol_version": "3.2.0.2"
+      },
+      "non_target_chains": ["C"]
+    }
+  ]
+}

@@ -42,6 +42,46 @@ py_test(
 )
 
 py_test(
+    name = "generate",
+    size = "small",
+    srcs = ["test_generate.py"],
+    main = "test_generate.py",
+    data = [
+        "testdata/second_gold_fixture.pdb",
+        "//configs/generation:chain_a_red_structures.json",
+    ],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "generate_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_generate_real_pymol.py"],
+    main = "test_generate_real_pymol.py",
+    data = [
+        "testdata/no_chain_a_fixture.pdb",
+        "testdata/second_gold_fixture.pdb",
+        "//configs/generation:chain_a_red_structures.json",
+    ],
+    # See gold_case_verifier's identical exclusion below: issue #12.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
     name = "gold_case_verifier",
     size = "large",
     timeout = "moderate",

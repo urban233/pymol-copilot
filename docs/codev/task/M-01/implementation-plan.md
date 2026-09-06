@@ -31,13 +31,25 @@ and no existing module is modified. Existing plan/parser/policy contracts in
   in `docs/codev/wave/evidence/M-01.md`; Hannah independently reproduces the
   positive, negative, invalid-record, and sabotage checks (M-R1).
 - **Non-goals:** No parser/policy/runtime edits. No production executor or
-  live-state snapshot contract. No bulk program-first data generation --
-  issue #8 stays open for that.
+  live-state snapshot contract. No teacher access, no curation/dedup/split
+  pipeline, and no bulk program-first data generation -- issue #8 stays open
+  for all of that. (Expanded after initial acceptance, with explicit
+  developer sign-off: one bounded, no-teacher program-first generator that
+  reapplies the same accepted plan to additional controlled structures --
+  exactly the shortcut the wave plan's own M-01 Completion limit names --
+  and its one verified output. See "Bounded program-first generation" below.)
 - **Allowed scope:** `src/pmc_data/`, a new `tests/data/` test category and
   its fixture, `configs/generation/` only if actually needed, and
   `docs/codev/wave/evidence/M-01.md`. Expanded during outer-loop review, with
   explicit developer sign-off, to one `tags = ["exclusive"]` addition on the
   pre-existing `tests/contract:policy_sabotage` target (see CI note below).
+  Expanded again after acceptance, with explicit developer sign-off, to
+  `src/pmc_data/generate.py`, `src/pmc_data/generate_cli.py`, one new
+  `configs/generation/*.json` config plus its `BUILD.bazel`, two new
+  `tests/data/testdata/*.pdb` fixtures, `tests/data/test_generate*.py`, and
+  one new checked-in `src/pmc_data/gold_cases/*.json` record -- bounded by
+  M-01's existing containment rule (no teacher access, no production
+  execution path).
 - **Validation:** New `tests/data/*` Bazel targets (schema round-trip, oracle
   unit tests, real-PyMOL conformance, sabotage) plus the full repository
   checks listed below.
@@ -165,11 +177,11 @@ and no existing module is modified. Existing plan/parser/policy contracts in
 
 ## Completion evidence
 
-- **Delivered:** A runnable chain-A/red gold-case verifier in `pmc_data`: an independent PDB reader and chain-membership oracle, a provenance-complete `GoldCase` schema with lossless round-trip, one hand-authored gold record, a self-authored controlled fixture, and a verifier that grades a real disposable PyMOL run against the oracle. `TaskSuccess` requires every declared assertion to pass; missing provenance, an unsupported assertion, an unrecognized PyMOL color, a missing assertion parameter, or policy denial of the accepted fixture all invalidate the result instead of defaulting.
-- **Changed:** `src/pmc_data/{pdb,oracle,gold_case,verifier}.py`, `src/pmc_data/gold_cases/chain_a_red.json`, `src/pmc_data/BUILD.bazel`; `tests/data/{BUILD.bazel,README.md,test_gold_case.py,test_oracle.py,test_oracle_sabotage.py,test_gold_case_verifier.py,testdata/chain_a_gold_fixture.pdb}`; `docs/codev/wave/evidence/M-01.md`.
-- **Head commit/snapshot:** `c9c0b1b17fe8bcfe63cb7a33833ea15d8ffae0e0` on `codev/M-01`.
-- **Validation actually run:** See the Commands and results table in [M-01 evidence](../../wave/evidence/M-01.md) -- new `tests/data/*` targets, full repository build/test, dependency-boundary check, ruff lint/format, and pyrefly, all passing.
-- **Acceptance evidence:** M-A1 through M-A8 checked in [M-01 evidence](../../wave/evidence/M-01.md#checklist); M-R1 awaits Hannah's independent reproduction.
-- **Scope deviations:** M-A7's sabotage evidence targets the independent oracle (`pmc_data/oracle.py`) rather than the real-PyMOL verifier path, matching `tests/contract/test_policy_sabotage.py`'s own scope (a pure-logic module) and avoiding a fragile nested real-PyMOL subprocess; the real-PyMOL verifier's own negative-case tests separately prove the evaluator rejects wrong results differentially. The item exceeds the 600-line/12-file soft slicing guideline (1605 lines/14 files); kept as one PR per the wave plan's explicit preference for this item.
-- **Known limitations:** Issue #8's program-first generation remains open and out of scope. M-A6's "evaluator error" case is demonstrated via an unrecognized PyMOL color (a negative `get_color_index` result) rather than a raised exception, since real PyMOL's selection/iterate APIs print a diagnostic and match nothing on malformed input rather than raising -- confirmed empirically before being encoded as the negative test.
-- **Review state:** Not yet independently reviewed (M-R1 open); no pull request opened yet.
+- **Delivered:** A runnable chain-A/red gold-case verifier in `pmc_data`: an independent PDB reader and chain-membership oracle, a provenance-complete `GoldCase` schema with lossless round-trip, one hand-authored gold record, a self-authored controlled fixture, and a verifier that grades a real disposable PyMOL run against the oracle. `TaskSuccess` requires every declared assertion to pass; missing provenance, an unsupported assertion, an unrecognized PyMOL color, a missing assertion parameter, or policy denial of the accepted fixture all invalidate the result instead of defaulting. Additionally (developer-authorized scope expansion after initial acceptance): a bounded, no-teacher program-first generator (`pmc_data.generate`/`generate_cli`) that reapplies the same accepted plan to a second controlled structure, verifies the candidate through the same real-PyMOL path, and refuses to persist anything not verified -- one new gold record produced and checked in this way, plus a real-PyMOL test proving a mismatched request is rejected rather than written.
+- **Changed:** `src/pmc_data/{pdb,oracle,gold_case,verifier,generate,generate_cli}.py`, `src/pmc_data/gold_cases/{chain_a_red,chain_a_red_second_fixture_gold_case}.json`, `src/pmc_data/BUILD.bazel`; `configs/generation/{README.md,BUILD.bazel,chain_a_red_structures.json}`; `tests/data/{BUILD.bazel,README.md,test_gold_case.py,test_oracle.py,test_oracle_sabotage.py,test_gold_case_verifier.py,test_generate.py,test_generate_real_pymol.py,testdata/chain_a_gold_fixture.pdb,testdata/second_gold_fixture.pdb,testdata/no_chain_a_fixture.pdb}`; `docs/codev/wave/evidence/M-01.md`.
+- **Head commit/snapshot:** See [M-01 evidence](../../wave/evidence/M-01.md)'s Snapshot section for the exact tested head; this plan covers both the original acceptance and the later generation-scope expansion.
+- **Validation actually run:** See the Commands and results table in [M-01 evidence](../../wave/evidence/M-01.md) -- new `tests/data/*` targets, full repository build/test, dependency-boundary check, ruff lint/format, and pyrefly, all passing at each recorded head.
+- **Acceptance evidence:** M-A1 through M-A8 checked in [M-01 evidence](../../wave/evidence/M-01.md#checklist); M-R1 awaits Hannah's independent reproduction. The generation expansion is additive to this same acceptance evidence, not a new acceptance-criteria set.
+- **Scope deviations:** M-A7's sabotage evidence targets the independent oracle (`pmc_data/oracle.py`) rather than the real-PyMOL verifier path, matching `tests/contract/test_policy_sabotage.py`'s own scope (a pure-logic module) and avoiding a fragile nested real-PyMOL subprocess; the real-PyMOL verifier's own negative-case tests separately prove the evaluator rejects wrong results differentially. The item exceeds the 600-line/12-file soft slicing guideline; kept as one PR per the wave plan's explicit preference for this item.
+- **Known limitations:** Issue #8's bulk/teacher-based program-first generation, human-intent distillation, and curation remain open and out of scope -- only one additional structure's gold case was generated, through the bounded template-reuse path the wave plan's own Completion limit already names as acceptable for this wave. M-A6's "evaluator error" case is demonstrated via an unrecognized PyMOL color (a negative `get_color_index` result) rather than a raised exception, since real PyMOL's selection/iterate APIs print a diagnostic and match nothing on malformed input rather than raising -- confirmed empirically before being encoded as the negative test.
+- **Review state:** Original scope independently outer-loop reviewed, `READY_FOR_HUMAN_APPROVAL`, awaiting Hannah's independent human approval (M-R1). The generation expansion is pending its own outer-loop re-review before that same human approval covers it.
