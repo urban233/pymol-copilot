@@ -28,7 +28,10 @@ from pmc_data.gold_case import ASSERTION_KIND_NO_UNINTENDED_CHANGE
 from pmc_data.gold_case import Assertion
 from pmc_data.gold_case import ContractVersions
 from pmc_data.gold_case import GoldCase
+from pmc_data.gold_case import InvalidGoldCaseError
 from pmc_data.gold_case import Provenance
+from pmc_data.gold_case import _required_string
+from pmc_data.oracle import expected_chain_atom_ids
 from pmc_data.verifier import PyMOLCmd
 from pmc_data.verifier import VerifierResult
 from pmc_data.verifier import verify_gold_case
@@ -36,6 +39,9 @@ from pmc_data.verifier import verify_gold_case
 #: The fixed selection/color the accepted canonical plan always produces.
 _SELECTION_NAME = "copilot_selection"
 _TARGET_COLOR = "red"
+#: The fixed target chain: the canonical plan's selection expression is the
+#: literal "chain A", so any structure lacking it can never succeed.
+_TARGET_CHAIN = "A"
 
 
 class GenerationRejectedError(ValueError):
@@ -44,6 +50,18 @@ class GenerationRejectedError(ValueError):
     A rejected or not-yet-verified candidate can never be written as a gold
     record; this error enforces that at the write boundary rather than
     relying on every caller to check first.
+    """
+
+
+class InvalidGenerationRequestError(ValueError):
+    """Raised when a request names a chain absent from its own structure.
+
+    Declaring the target chain or a non-target chain that the structure does
+    not actually contain would let verification pass vacuously (an absent
+    chain's before/after snapshots are both empty, so no_unintended_change
+    trivially "passes" for a chain that was never really observed). Building
+    a candidate rejects this before ever touching PyMOL, using the same
+    independent, PyMOL-free oracle the rest of pmc_data relies on.
     """
 
 
@@ -123,7 +141,24 @@ def build_candidate_gold_case(request: GenerationRequest) -> GoldCase:
 
     Returns:
         The candidate GoldCase, not yet verified against real PyMOL.
+
+    Raises:
+        InvalidGenerationRequestError: If the structure has no atoms on the
+            fixed target chain "A", or on any declared non-target chain.
     """
+    if not expected_chain_atom_ids(request.structure_path, _TARGET_CHAIN):
+        raise InvalidGenerationRequestError(
+            f"{request.case_id!r}: structure {request.structure_relpath!r} "
+            f"has no atoms on chain {_TARGET_CHAIN!r}, the accepted plan's "
+            "fixed target"
+        )
+    for chain_id in request.non_target_chains:
+        if not expected_chain_atom_ids(request.structure_path, chain_id):
+            raise InvalidGenerationRequestError(
+                f"{request.case_id!r}: declared non-target chain "
+                f"{chain_id!r} has no atoms in structure "
+                f"{request.structure_relpath!r}"
+            )
     provenance = Provenance(
         source=request.source,
         license=request.license,
@@ -133,7 +168,10 @@ def build_candidate_gold_case(request: GenerationRequest) -> GoldCase:
     assertions = (
         Assertion(
             kind=ASSERTION_KIND_CHAIN_MEMBERSHIP,
-            params={"selection_name": _SELECTION_NAME, "chain_id": "A"},
+            params={
+                "selection_name": _SELECTION_NAME,
+                "chain_id": _TARGET_CHAIN,
+            },
         ),
         Assertion(
             kind=ASSERTION_KIND_COLOR_STATE,
@@ -158,7 +196,7 @@ def build_candidate_gold_case(request: GenerationRequest) -> GoldCase:
         provenance=provenance,
         contract_versions=request.contract_versions,
         canonical_plan_pml=initial_fixture_plan().render_pml(),
-        target_chain="A",
+        target_chain=_TARGET_CHAIN,
         non_target_chains=request.non_target_chains,
         assertions=assertions,
     )
@@ -178,9 +216,24 @@ def generate_gold_case(
         The GenerationResult. gold_case is populated only when the real run
         was both valid and TaskSuccess; otherwise the rejected candidate is
         never returned as a gold_case, so a caller cannot promote it by
-        mistake.
+        mistake. A request naming a chain absent from its own structure is
+        rejected without ever touching cmd -- it could not possibly succeed
+        against the fixed plan, so there is nothing for PyMOL to grade.
     """
-    candidate = build_candidate_gold_case(request)
+    try:
+        candidate = build_candidate_gold_case(request)
+    except InvalidGenerationRequestError as error:
+        return GenerationResult(
+            case_id=request.case_id,
+            verifier_result=VerifierResult(
+                case_id=request.case_id,
+                valid=False,
+                invalid_reason=str(error),
+                assertion_results=(),
+                task_success=False,
+            ),
+            gold_case=None,
+        )
     result = verify_gold_case(candidate, request.structure_path, cmd)
     verified_case = candidate if result.valid and result.task_success else None
     return GenerationResult(
@@ -238,29 +291,35 @@ def _request_from_dict(
         The decoded GenerationRequest.
 
     Raises:
-        KeyError: If a required field is absent.
+        InvalidGoldCaseError: If a required field is missing, empty, or the
+            wrong shape -- the same validation gold_case.py's own decoding
+            already applies to a hand-authored gold record.
     """
-    contract_versions = data["contract_versions"]
-    assert isinstance(contract_versions, Mapping)
-    non_target_chains = data["non_target_chains"]
-    assert isinstance(non_target_chains, list)
-    structure_relpath = str(data["structure_relpath"])
+    if "contract_versions" not in data or not isinstance(
+        data["contract_versions"], Mapping
+    ):
+        raise InvalidGoldCaseError(
+            "missing required field: 'contract_versions'"
+        )
+    non_target_chains = data.get("non_target_chains")
+    if not isinstance(non_target_chains, list) or not all(
+        isinstance(chain_id, str) and chain_id for chain_id in non_target_chains
+    ):
+        raise InvalidGoldCaseError(
+            "'non_target_chains' must be a list of non-empty strings"
+        )
+    structure_relpath = _required_string(data, "structure_relpath")
     return GenerationRequest(
-        case_id=str(data["case_id"]),
-        intent=str(data["intent"]),
-        category=str(data["category"]),
-        difficulty=str(data["difficulty"]),
+        case_id=_required_string(data, "case_id"),
+        intent=_required_string(data, "intent"),
+        category=_required_string(data, "category"),
+        difficulty=_required_string(data, "difficulty"),
         structure_path=(repo_root / structure_relpath).resolve(),
         structure_relpath=structure_relpath,
-        source=str(data["source"]),
-        license=str(data["license"]),
-        contract_versions=ContractVersions(
-            plan_version=str(contract_versions["plan_version"]),
-            pymol_version=str(contract_versions["pymol_version"]),
-        ),
-        non_target_chains=tuple(
-            str(chain_id) for chain_id in non_target_chains
-        ),
+        source=_required_string(data, "source"),
+        license=_required_string(data, "license"),
+        contract_versions=ContractVersions.from_dict(data["contract_versions"]),
+        non_target_chains=tuple(non_target_chains),
     )
 
 

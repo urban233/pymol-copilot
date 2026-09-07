@@ -8,8 +8,9 @@ requested chain layout must be verified and produce a gold case that matches
 the checked-in gold_cases/chain_a_red_second_fixture_gold_case.json record
 exactly (this test regenerates it and compares, so drift between the two is
 caught rather than silently tolerated). A generation request against a
-structure lacking chain A must be rejected -- gold_case is None -- rather
-than silently written as a false positive.
+structure lacking chain A must be rejected by the independent pre-check
+before any PyMOL selection or color assertion runs -- gold_case is None --
+rather than silently written as a false positive.
 
 Same real-PyMOL launch/fixture pattern as test_gold_case_verifier.py, and
 excluded on Windows for the same reason (issue #12).
@@ -119,8 +120,8 @@ def generation_request() -> GenerationRequest:
         The GenerationRequest declared in configs/generation.
     """
     requests = load_generation_requests(CONFIG_PATH, repo_root=REPO_ROOT)
-    assert len(requests) == 1
-    return requests[0]
+    by_case_id = {request.case_id: request for request in requests}
+    return by_case_id["chain_a_red_second_fixture_gold_case"]
 
 
 @pytest.fixture
@@ -178,7 +179,7 @@ def loaded_no_chain_a_fixture(real_pymol: PyMOLCmd) -> Iterator[PyMOLCmd]:
 def test_generation_against_a_structure_with_no_chain_a_is_rejected(
     loaded_no_chain_a_fixture: PyMOLCmd,
 ) -> None:
-    """A structure lacking chain A entirely fails color_state (nothing was colored) and the generation is rejected rather than written as a false positive."""
+    """A structure lacking chain A entirely is rejected by the independent pre-check before any PyMOL selection or color assertion ever runs, so the rejection is provably about the structure file having no chain A -- not an ambiguous "nothing was loaded" outcome. The real fixture object being loaded (or not) is irrelevant to this check: it reads the structure file directly, the same independence the rest of pmc_data's oracle relies on."""
     request = GenerationRequest(
         case_id="rejected_no_chain_a_case",
         intent="Select chain A and color it red.",
@@ -196,14 +197,11 @@ def test_generation_against_a_structure_with_no_chain_a_is_rejected(
 
     result = generate_gold_case(request, loaded_no_chain_a_fixture)
 
-    assert result.verifier_result.valid
+    assert not result.verifier_result.valid
     assert not result.verifier_result.task_success
     assert result.gold_case is None
-    by_kind = {
-        assertion.kind: assertion
-        for assertion in result.verifier_result.assertion_results
-    }
-    assert not by_kind["color_state"].passed
+    assert result.verifier_result.assertion_results == ()
+    assert "chain 'A'" in (result.verifier_result.invalid_reason or "")
 
 
 if __name__ == "__main__":

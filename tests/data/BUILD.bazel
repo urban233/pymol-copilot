@@ -47,6 +47,7 @@ py_test(
     srcs = ["test_generate.py"],
     main = "test_generate.py",
     data = [
+        "testdata/no_chain_a_fixture.pdb",
         "testdata/second_gold_fixture.pdb",
         "//configs/generation:chain_a_red_structures.json",
     ],
