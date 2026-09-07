@@ -26,6 +26,7 @@ from pmc_data.generate import load_generation_requests
 from pmc_data.generate import write_generated_gold_case
 from pmc_data.gold_case import ContractVersions
 from pmc_data.gold_case import InvalidGoldCaseError
+from pmc_data.oracle import expected_chain_atom_ids
 from pmc_data.verifier import VerifierResult
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -88,6 +89,87 @@ class _NeverTouched:
         raise AssertionError(
             f"cmd.get_color_index({color!r}) was called unexpectedly"
         )
+
+
+#: A color index _WrongColorCmd claims it actually applied, deliberately
+#: different from what get_color_index("red") reports it should be.
+_WRONG_COLOR_INDEX = 999
+#: The color index _WrongColorCmd reports "red" resolves to.
+_EXPECTED_RED_INDEX = 4
+
+
+class _WrongColorCmd:
+    """Fake PyMOLCmd that selects real chain atoms correctly but colors them wrong.
+
+    Exercises verify_gold_case's genuine assertion-evaluation logic --
+    chain_membership and no_unintended_change both pass, only color_state
+    fails -- without any real PyMOL, so generate_gold_case's promotion
+    guard (never return a gold_case whose real verification failed) is
+    actually driven by a failing verification, not merely a hand-built
+    GenerationResult or the pre-check's early rejection.
+    """
+
+    def __init__(self, atom_ids_by_chain: dict[str, frozenset[int]]) -> None:
+        """Initialize with the real per-chain atom ids the fixture has.
+
+        Args:
+            atom_ids_by_chain: Chain identifier to its real atom ids, from
+                the same independent oracle the rest of pmc_data relies on.
+        """
+        self._atom_ids_by_chain = atom_ids_by_chain
+        self._colored_atom_ids: frozenset[int] = frozenset()
+
+    def do(self, command: str) -> None:
+        """Apply the one command that matters: recolor chain A's atoms.
+
+        Args:
+            command: The rendered PML command line.
+        """
+        if command == "color red, copilot_selection":
+            self._colored_atom_ids = self._atom_ids_by_chain["A"]
+
+    def _resolve(self, selection: str) -> frozenset[int]:
+        """Resolve a selection name/expression to real atom ids.
+
+        Args:
+            selection: Either "copilot_selection" or a "chain <id>" query.
+
+        Returns:
+            The real atom ids the selection refers to.
+        """
+        if selection == "copilot_selection":
+            return self._atom_ids_by_chain["A"]
+        chain_id = selection.removeprefix("chain ")
+        return self._atom_ids_by_chain.get(chain_id, frozenset())
+
+    def iterate(
+        self, selection: str, expression: str, *, space: dict[str, object]
+    ) -> None:
+        """Evaluate expression once per real atom in selection.
+
+        Args:
+            selection: The selection expression to iterate over.
+            expression: The Python expression evaluated once per atom.
+            space: The namespace exposed to the expression.
+        """
+        for atom_id in sorted(self._resolve(selection)):
+            color = (
+                _WRONG_COLOR_INDEX if atom_id in self._colored_atom_ids else 0
+            )
+            eval(expression, {}, {**space, "index": atom_id, "color": color})
+
+    def get_color_index(self, color: str) -> int:
+        """Report the color index "red" should resolve to.
+
+        Args:
+            color: The PyMOL color name to resolve.
+
+        Returns:
+            _EXPECTED_RED_INDEX, deliberately never equal to the index
+            _colored_atom_ids were actually marked with.
+        """
+        del color
+        return _EXPECTED_RED_INDEX
 
 
 def test_load_generation_requests_resolves_the_checked_in_config() -> None:
@@ -203,6 +285,31 @@ def test_generate_gold_case_rejects_an_invalid_request_without_touching_cmd() ->
     assert not result.verifier_result.task_success
     assert result.gold_case is None
     assert result.verifier_result.assertion_results == ()
+
+
+def test_generate_gold_case_does_not_promote_a_verified_but_failing_candidate() -> (
+    None
+):
+    """generate_gold_case's promotion guard is driven by a genuine failing verification (color_state fails, the others pass), not just the pre-check's early rejection or a hand-built GenerationResult."""
+    atom_ids_by_chain = {
+        "A": expected_chain_atom_ids(SECOND_FIXTURE_PATH, "A"),
+        "C": expected_chain_atom_ids(SECOND_FIXTURE_PATH, "C"),
+    }
+
+    result = generate_gold_case(
+        _sample_request(), _WrongColorCmd(atom_ids_by_chain)
+    )
+
+    assert result.verifier_result.valid
+    assert not result.verifier_result.task_success
+    assert result.gold_case is None
+    by_kind = {
+        assertion.kind: assertion
+        for assertion in result.verifier_result.assertion_results
+    }
+    assert not by_kind["color_state"].passed
+    assert by_kind["chain_membership"].passed
+    assert by_kind["no_unintended_change"].passed
 
 
 def test_build_candidate_gold_case_reuses_the_one_accepted_canonical_plan() -> (
