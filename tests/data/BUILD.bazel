@@ -1,0 +1,121 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "gold_case",
+    size = "small",
+    srcs = ["test_gold_case.py"],
+    main = "test_gold_case.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "pdb",
+    size = "small",
+    srcs = ["test_pdb.py"],
+    main = "test_pdb.py",
+    data = ["testdata/chain_a_gold_fixture.pdb"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "oracle",
+    size = "small",
+    srcs = ["test_oracle.py"],
+    main = "test_oracle.py",
+    data = ["testdata/chain_a_gold_fixture.pdb"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "oracle_sabotage",
+    size = "small",
+    srcs = ["test_oracle_sabotage.py"],
+    main = "test_oracle_sabotage.py",
+    data = ["test_oracle.py", "testdata/chain_a_gold_fixture.pdb"],
+    # Spawns a nested pytest subprocess against a disposable temp-directory
+    # copy; excluded from concurrent scheduling so it never races another
+    # such subprocess-spawning sabotage test (tests/contract:policy_sabotage)
+    # under Windows's unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "generate",
+    size = "small",
+    srcs = ["test_generate.py"],
+    main = "test_generate.py",
+    data = [
+        "testdata/no_chain_a_fixture.pdb",
+        "testdata/second_gold_fixture.pdb",
+        "//configs/generation:chain_a_red_structures.json",
+    ],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "generate_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_generate_real_pymol.py"],
+    main = "test_generate_real_pymol.py",
+    data = [
+        "testdata/no_chain_a_fixture.pdb",
+        "testdata/second_gold_fixture.pdb",
+        "//configs/generation:chain_a_red_structures.json",
+    ],
+    # See gold_case_verifier's identical exclusion below: issue #12.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "gold_case_verifier",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_gold_case_verifier.py"],
+    main = "test_gold_case_verifier.py",
+    data = [
+        "testdata/chain_a_gold_fixture.pdb",
+        "testdata/renumbered_serials_fixture.pdb",
+    ],
+    # See tests/integration/BUILD.bazel's real_pymol_command target and
+    # issue #12: pymol-open-source-whl's Windows wheel bundles
+    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
+    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)

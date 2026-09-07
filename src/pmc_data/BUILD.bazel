@@ -1,9 +1,39 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 
 py_library(
     name = "pmc_data",
-    srcs = ["__init__.py"],
+    srcs = [
+        "__init__.py",
+        "generate.py",
+        "gold_case.py",
+        "oracle.py",
+        "pdb.py",
+        "verifier.py",
+    ],
+    data = [
+        "gold_cases/chain_a_red.json",
+        "gold_cases/chain_a_red_second_fixture_gold_case.json",
+    ],
     imports = [".."],
     deps = ["//src/pmc_core:pmc_core"],
     visibility = ["//src/pmc_data:__pkg__", "//src/pmc_train:__pkg__", "//src:tests"],
+)
+
+py_binary(
+    name = "generate_cli",
+    srcs = ["generate_cli.py"],
+    main = "generate_cli.py",
+    data = ["//configs/generation:chain_a_red_structures.json"],
+    # Launches real Open-Source PyMOL to (re)generate the checked-in
+    # gold_cases/*.json records; see issue #12 for why this and every other
+    # real-PyMOL target in this repository excludes Windows.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "//src/pmc_data:pmc_data",
+    ],
 )

@@ -24,6 +24,11 @@ py_test(
     name = "policy_sabotage",
     srcs = ["test_policy.py", "test_policy_sabotage.py"],
     main = "test_policy_sabotage.py",
+    # Spawns a nested pytest subprocess against a disposable temp-directory
+    # copy; excluded from concurrent scheduling so it never races another
+    # such subprocess-spawning sabotage test under Windows's unsandboxed
+    # local execution strategy (observed CI flake, tracked with M-01).
+    tags = ["exclusive"],
     deps = [
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
