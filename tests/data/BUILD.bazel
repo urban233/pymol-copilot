@@ -100,7 +100,10 @@ py_test(
     timeout = "moderate",
     srcs = ["test_gold_case_verifier.py"],
     main = "test_gold_case_verifier.py",
-    data = ["testdata/chain_a_gold_fixture.pdb"],
+    data = [
+        "testdata/chain_a_gold_fixture.pdb",
+        "testdata/renumbered_serials_fixture.pdb",
+    ],
     # See tests/integration/BUILD.bazel's real_pymol_command target and
     # issue #12: pymol-open-source-whl's Windows wheel bundles
     # delvewheel-repaired DLLs whose long hash-suffixed names, combined

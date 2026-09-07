@@ -47,7 +47,7 @@ class InvalidGoldCaseError(ValueError):
     """
 
 
-def _required_string(data: Mapping[str, Any], key: str) -> str:
+def required_string(data: Mapping[str, Any], key: str) -> str:
     """Read a required non-empty string field from a raw gold-case mapping.
 
     Args:
@@ -111,10 +111,10 @@ class Provenance:
             InvalidGoldCaseError: If a required field is missing or empty.
         """
         return Provenance(
-            source=_required_string(data, "source"),
-            license=_required_string(data, "license"),
-            structure_relpath=_required_string(data, "structure_relpath"),
-            structure_sha256=_required_string(data, "structure_sha256"),
+            source=required_string(data, "source"),
+            license=required_string(data, "license"),
+            structure_relpath=required_string(data, "structure_relpath"),
+            structure_sha256=required_string(data, "structure_sha256"),
         )
 
 
@@ -155,8 +155,8 @@ class ContractVersions:
             InvalidGoldCaseError: If a required field is missing or empty.
         """
         return ContractVersions(
-            plan_version=_required_string(data, "plan_version"),
-            pymol_version=_required_string(data, "pymol_version"),
+            plan_version=required_string(data, "plan_version"),
+            pymol_version=required_string(data, "pymol_version"),
         )
 
 
@@ -206,7 +206,7 @@ class Assertion:
         Raises:
             InvalidGoldCaseError: If kind is missing, empty, or unsupported.
         """
-        kind = _required_string(data, "kind")
+        kind = required_string(data, "kind")
         params = data.get("params", {})
         if not isinstance(params, Mapping):
             raise InvalidGoldCaseError("assertion params must be a mapping")
@@ -318,16 +318,16 @@ class GoldCase:
                 "missing required field: 'non_target_chains'"
             )
         return GoldCase(
-            case_id=_required_string(data, "case_id"),
-            intent=_required_string(data, "intent"),
-            category=_required_string(data, "category"),
-            difficulty=_required_string(data, "difficulty"),
+            case_id=required_string(data, "case_id"),
+            intent=required_string(data, "intent"),
+            category=required_string(data, "category"),
+            difficulty=required_string(data, "difficulty"),
             provenance=Provenance.from_dict(data["provenance"]),
             contract_versions=ContractVersions.from_dict(
                 data["contract_versions"]
             ),
-            canonical_plan_pml=_required_string(data, "canonical_plan_pml"),
-            target_chain=_required_string(data, "target_chain"),
+            canonical_plan_pml=required_string(data, "canonical_plan_pml"),
+            target_chain=required_string(data, "target_chain"),
             non_target_chains=tuple(non_target_chains),
             assertions=tuple(
                 Assertion.from_dict(entry) for entry in raw_assertions

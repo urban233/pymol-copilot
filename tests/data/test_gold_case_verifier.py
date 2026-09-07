@@ -26,6 +26,7 @@ issue #12.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import dataclasses
+import hashlib
 import os
 import sys
 from collections.abc import Iterator
@@ -33,8 +34,12 @@ from pathlib import Path
 from typing import Protocol
 
 import pytest
+from pmc_core.plan import initial_fixture_plan
 from pmc_data.gold_case import DEFAULT_GOLD_CASE_PATH
+from pmc_data.gold_case import Assertion
+from pmc_data.gold_case import ContractVersions
 from pmc_data.gold_case import GoldCase
+from pmc_data.gold_case import Provenance
 from pmc_data.verifier import PyMOLCmd as VerifierPyMOLCmd
 from pmc_data.verifier import verify_gold_case
 
@@ -42,6 +47,11 @@ FIXTURE_PATH = (
     Path(__file__).resolve().parent / "testdata" / "chain_a_gold_fixture.pdb"
 )
 OBJECT_NAME = "chain_a_gold_fixture"
+RENUMBERED_FIXTURE_PATH = (
+    Path(__file__).resolve().parent
+    / "testdata"
+    / "renumbered_serials_fixture.pdb"
+)
 
 
 class PyMOLCmd(Protocol):
@@ -153,6 +163,79 @@ def test_true_gold_case_passes_every_assertion(
     assert result.task_success
     assert all(assertion.passed for assertion in result.assertion_results)
     assert len(result.assertion_results) == len(gold_case.assertions)
+
+
+@pytest.fixture
+def loaded_renumbered_fixture(real_pymol: PyMOLCmd) -> Iterator[PyMOLCmd]:
+    """Load a structure whose atom serials are not 1..N, fresh for one test.
+
+    Args:
+        real_pymol: The real PyMOL cmd module.
+
+    Yields:
+        The real PyMOL cmd module with the renumbered fixture loaded.
+    """
+    object_name = "renumbered_serials_fixture"
+    real_pymol.load(str(RENUMBERED_FIXTURE_PATH), object_name)
+    try:
+        yield real_pymol
+    finally:
+        real_pymol.delete(object_name)
+
+
+def test_chain_membership_matches_by_real_serial_not_session_ordinal(
+    loaded_renumbered_fixture: PyMOLCmd,
+) -> None:
+    """A structure whose chain-A atom serials are 101-103 (not 1..N) still passes chain_membership, proving the comparison uses PyMOL's real per-atom ID rather than its session-local index -- confirmed as a real, previously-reachable defect: comparing by index would report this correct selection as failed, since index would read 1-3 here regardless of the real serials."""
+    case = GoldCase(
+        case_id="renumbered_serials_probe_case",
+        intent="Select chain A and color it red.",
+        category="selection_and_color",
+        difficulty="basic",
+        provenance=Provenance(
+            source="Self-authored synthetic development structure.",
+            license="Public domain (CC0-equivalent).",
+            structure_relpath="tests/data/testdata/renumbered_serials_fixture.pdb",
+            structure_sha256=hashlib.sha256(
+                RENUMBERED_FIXTURE_PATH.read_bytes()
+            ).hexdigest(),
+        ),
+        contract_versions=ContractVersions(
+            plan_version="1", pymol_version="3.2.0.2"
+        ),
+        canonical_plan_pml=initial_fixture_plan().render_pml(),
+        target_chain="A",
+        non_target_chains=("B",),
+        assertions=(
+            Assertion(
+                kind="chain_membership",
+                params={
+                    "selection_name": "copilot_selection",
+                    "chain_id": "A",
+                },
+            ),
+            Assertion(
+                kind="color_state",
+                params={"selection_name": "copilot_selection", "color": "red"},
+            ),
+            Assertion(kind="no_unintended_change", params={"chain_id": "B"}),
+        ),
+    )
+
+    result = verify_gold_case(
+        case, RENUMBERED_FIXTURE_PATH, loaded_renumbered_fixture
+    )
+
+    assert result.valid
+    assert result.task_success
+    by_kind = {
+        assertion.kind: assertion for assertion in result.assertion_results
+    }
+    assert by_kind["chain_membership"].passed
+    assert (
+        by_kind["chain_membership"].detail
+        == "expected=[101, 102, 103] actual=[101, 102, 103]"
+    )
 
 
 def test_wrong_chain_case_fails_chain_membership(

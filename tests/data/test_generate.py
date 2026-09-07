@@ -27,7 +27,9 @@ from pmc_data.generate import write_generated_gold_case
 from pmc_data.gold_case import ContractVersions
 from pmc_data.gold_case import InvalidGoldCaseError
 from pmc_data.oracle import expected_chain_atom_ids
+from pmc_data.verifier import PyMOLCmd as VerifierPyMOLCmd
 from pmc_data.verifier import VerifierResult
+from pmc_data.verifier import verify_gold_case
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = (
@@ -114,7 +116,11 @@ class _WrongColorCmd:
     fails -- without any real PyMOL, so generate_gold_case's promotion
     guard (never return a gold_case whose real verification failed) is
     actually driven by a failing verification, not merely a hand-built
-    GenerationResult or the pre-check's early rejection.
+    GenerationResult or the pre-check's early rejection. Also records every
+    call's name, in order, in self.calls -- a second test reuses that log
+    to prove verify_gold_case actually calls sync() between do() and the
+    next iterate(), so a future refactor that drops the sync() call fails
+    loudly instead of only under a stalled real-PyMOL worker thread.
     """
 
     def __init__(self, atom_ids_by_chain: dict[str, frozenset[int]]) -> None:
@@ -126,6 +132,7 @@ class _WrongColorCmd:
         """
         self._atom_ids_by_chain = atom_ids_by_chain
         self._colored_atom_ids: frozenset[int] = frozenset()
+        self.calls: list[str] = []
 
     def do(self, command: str) -> None:
         """Apply the one command that matters: recolor chain A's atoms.
@@ -133,11 +140,13 @@ class _WrongColorCmd:
         Args:
             command: The rendered PML command line.
         """
+        self.calls.append(f"do({command!r})")
         if command == "color red, copilot_selection":
             self._colored_atom_ids = self._atom_ids_by_chain["A"]
 
     def sync(self) -> None:
         """No-op: this fake applies every command immediately, synchronously."""
+        self.calls.append("sync()")
 
     def _resolve(self, selection: str) -> frozenset[int]:
         """Resolve a selection name/expression to real atom ids.
@@ -163,11 +172,16 @@ class _WrongColorCmd:
             expression: The Python expression evaluated once per atom.
             space: The namespace exposed to the expression.
         """
+        self.calls.append(f"iterate({selection!r})")
         for atom_id in sorted(self._resolve(selection)):
             color = (
                 _WRONG_COLOR_INDEX if atom_id in self._colored_atom_ids else 0
             )
-            eval(expression, {}, {**space, "index": atom_id, "color": color})
+            eval(
+                expression,
+                {},
+                {**space, "index": atom_id, "ID": atom_id, "color": color},
+            )
 
     def get_color_index(self, color: str) -> int:
         """Report the color index "red" should resolve to.
@@ -179,7 +193,7 @@ class _WrongColorCmd:
             _EXPECTED_RED_INDEX, deliberately never equal to the index
             _colored_atom_ids were actually marked with.
         """
-        del color
+        self.calls.append(f"get_color_index({color!r})")
         return _EXPECTED_RED_INDEX
 
 
@@ -321,6 +335,54 @@ def test_generate_gold_case_does_not_promote_a_verified_but_failing_candidate() 
     assert not by_kind["color_state"].passed
     assert by_kind["chain_membership"].passed
     assert by_kind["no_unintended_change"].passed
+
+
+def test_verify_gold_case_calls_sync_before_reading_state_back() -> None:
+    """verify_gold_case calls cmd.sync() between the plan's do() calls and the next state read, and again after inject_after_execution's own do() call, so a future refactor that drops either sync() call fails this test instead of only manifesting under a stalled real-PyMOL worker thread (the exact race the sync() calls exist to close, and the exact gap flagged in review: the original real-PyMOL tests stayed green with no sync() call at all)."""
+    atom_ids_by_chain = {
+        "A": expected_chain_atom_ids(SECOND_FIXTURE_PATH, "A"),
+        "C": expected_chain_atom_ids(SECOND_FIXTURE_PATH, "C"),
+    }
+    candidate = build_candidate_gold_case(_sample_request())
+    cmd = _WrongColorCmd(atom_ids_by_chain)
+
+    def inject_mutation(cmd: VerifierPyMOLCmd) -> None:
+        """Log one extra command after the plan executes, before non-target state is captured again.
+
+        Args:
+            cmd: The fake PyMOLCmd mid-verification.
+        """
+        cmd.do("color blue, chain C")
+
+    verify_gold_case(
+        candidate,
+        SECOND_FIXTURE_PATH,
+        cmd,
+        inject_after_execution=inject_mutation,
+    )
+
+    plan_do_indices = [
+        index
+        for index, call in enumerate(cmd.calls)
+        if call.startswith("do(") and "copilot_selection" in call
+    ]
+    last_plan_do_index = plan_do_indices[-1]
+    first_sync_index = cmd.calls.index("sync()", last_plan_do_index)
+    first_post_execution_iterate_index = next(
+        index
+        for index, call in enumerate(cmd.calls)
+        if index > first_sync_index and call.startswith("iterate(")
+    )
+    assert (
+        last_plan_do_index
+        < first_sync_index
+        < first_post_execution_iterate_index
+    )
+
+    inject_do_index = cmd.calls.index("do('color blue, chain C')")
+    second_sync_index = cmd.calls.index("sync()", inject_do_index)
+    assert inject_do_index < second_sync_index
+    assert second_sync_index != first_sync_index
 
 
 def test_build_candidate_gold_case_reuses_the_one_accepted_canonical_plan() -> (

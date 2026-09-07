@@ -144,23 +144,33 @@ def _capture_colors(cmd: PyMOLCmd, selection: str) -> CHAIN_COLOR_SNAPSHOT:
     return tuple(sorted(colors))
 
 
-def _selection_atom_indices(
-    cmd: PyMOLCmd, selection_name: str
-) -> frozenset[int]:
-    """Capture the atom indices a named PyMOL selection actually matches.
+def _selection_atom_ids(cmd: PyMOLCmd, selection_name: str) -> frozenset[int]:
+    """Capture the stable atom identities a named PyMOL selection matches.
+
+    Uses PyMOL's own "ID" namespace field, which carries the loaded
+    structure file's original atom serial number -- the same quantity
+    pmc_data.pdb.read_atoms independently parses from the file's own
+    fixed-column serial field. PyMOL's "index" is a different quantity (a
+    per-session ordinal within the object) that only happens to match the
+    serial when a structure numbers its atoms 1..N in file order; comparing
+    it against the independent oracle's serial-based expectations would
+    silently grade a correct selection as failed on any structure that
+    doesn't (confirmed empirically: a structure with serials renumbered to
+    101-103 still reports index 1-3).
 
     Args:
         cmd: The real PyMOL cmd module.
         selection_name: The selection to inspect.
 
     Returns:
-        The frozen set of atom indices the selection matches.
+        The frozen set of atom identities (real file serial numbers) the
+        selection matches.
     """
-    indices: list[int] = []
+    atom_ids: list[int] = []
     cmd.iterate(
-        selection_name, "indices.append(index)", space={"indices": indices}
+        selection_name, "atom_ids.append(ID)", space={"atom_ids": atom_ids}
     )
-    return frozenset(indices)
+    return frozenset(atom_ids)
 
 
 def _require_param(assertion: Assertion, key: str) -> str:
@@ -210,7 +220,7 @@ def _evaluate_chain_membership(
             f"chain_membership assertion names chain {chain_id!r}, which "
             "has no atoms in the structure"
         )
-    actual = _selection_atom_indices(cmd, selection_name)
+    actual = _selection_atom_ids(cmd, selection_name)
     return AssertionResult(
         kind=assertion.kind,
         passed=expected == actual,

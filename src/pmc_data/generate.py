@@ -30,7 +30,7 @@ from pmc_data.gold_case import ContractVersions
 from pmc_data.gold_case import GoldCase
 from pmc_data.gold_case import InvalidGoldCaseError
 from pmc_data.gold_case import Provenance
-from pmc_data.gold_case import _required_string
+from pmc_data.gold_case import required_string
 from pmc_data.oracle import expected_chain_atom_ids
 from pmc_data.verifier import PyMOLCmd
 from pmc_data.verifier import VerifierResult
@@ -308,16 +308,16 @@ def _request_from_dict(
         raise InvalidGoldCaseError(
             "'non_target_chains' must be a list of non-empty strings"
         )
-    structure_relpath = _required_string(data, "structure_relpath")
+    structure_relpath = required_string(data, "structure_relpath")
     return GenerationRequest(
-        case_id=_required_string(data, "case_id"),
-        intent=_required_string(data, "intent"),
-        category=_required_string(data, "category"),
-        difficulty=_required_string(data, "difficulty"),
+        case_id=required_string(data, "case_id"),
+        intent=required_string(data, "intent"),
+        category=required_string(data, "category"),
+        difficulty=required_string(data, "difficulty"),
         structure_path=(repo_root / structure_relpath).resolve(),
         structure_relpath=structure_relpath,
-        source=_required_string(data, "source"),
-        license=_required_string(data, "license"),
+        source=required_string(data, "source"),
+        license=required_string(data, "license"),
         contract_versions=ContractVersions.from_dict(data["contract_versions"]),
         non_target_chains=tuple(non_target_chains),
     )
