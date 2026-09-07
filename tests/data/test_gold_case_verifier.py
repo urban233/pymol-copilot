@@ -74,6 +74,9 @@ class PyMOLCmd(Protocol):
             command: The command line text to execute.
         """
 
+    def sync(self) -> None:
+        """Block until every previously queued PML command has finished."""
+
     def iterate(
         self, selection: str, expression: str, *, space: dict[str, object]
     ) -> None:
@@ -234,6 +237,76 @@ def test_unintended_change_is_detected(
     assert not by_kind["no_unintended_change"].passed
     assert by_kind["chain_membership"].passed
     assert by_kind["color_state"].passed
+
+
+def test_chain_membership_assertion_for_an_absent_chain_invalidates_the_result(
+    loaded_fixture: PyMOLCmd, gold_case: GoldCase
+) -> None:
+    """A chain_membership assertion naming a chain absent from the structure invalidates the run rather than vacuously passing if expected and actual ever happened to both be empty."""
+    corrupted_assertions = tuple(
+        dataclasses.replace(
+            assertion, params={**assertion.params, "chain_id": "Z"}
+        )
+        if assertion.kind == "chain_membership"
+        else assertion
+        for assertion in gold_case.assertions
+    )
+    invalid_case = dataclasses.replace(
+        gold_case, assertions=corrupted_assertions
+    )
+
+    result = verify_gold_case(invalid_case, FIXTURE_PATH, loaded_fixture)
+
+    assert not result.valid
+    assert not result.task_success
+    assert result.assertion_results == ()
+    assert result.invalid_reason is not None
+    assert "no atoms in the structure" in result.invalid_reason
+
+
+def test_no_unintended_change_assertion_for_an_absent_chain_invalidates_the_result(
+    loaded_fixture: PyMOLCmd, gold_case: GoldCase
+) -> None:
+    """A no_unintended_change assertion naming a chain absent from the structure invalidates the run rather than vacuously passing on two equally empty snapshots."""
+    corrupted_assertions = tuple(
+        dataclasses.replace(assertion, params={"chain_id": "Z"})
+        if assertion.kind == "no_unintended_change"
+        else assertion
+        for assertion in gold_case.assertions
+    )
+    invalid_case = dataclasses.replace(
+        gold_case,
+        assertions=corrupted_assertions,
+        non_target_chains=("Z",),
+    )
+
+    result = verify_gold_case(invalid_case, FIXTURE_PATH, loaded_fixture)
+
+    assert not result.valid
+    assert not result.task_success
+    assert result.assertion_results == ()
+    assert result.invalid_reason is not None
+    assert "no atoms in the structure" in result.invalid_reason
+
+
+def test_structure_checksum_mismatch_invalidates_the_result(
+    loaded_fixture: PyMOLCmd, gold_case: GoldCase
+) -> None:
+    """A gold case whose recorded checksum no longer matches the structure it is graded against invalidates the run instead of silently grading the wrong file as if it were verified."""
+    corrupted_provenance = dataclasses.replace(
+        gold_case.provenance, structure_sha256="0" * 64
+    )
+    invalid_case = dataclasses.replace(
+        gold_case, provenance=corrupted_provenance
+    )
+
+    result = verify_gold_case(invalid_case, FIXTURE_PATH, loaded_fixture)
+
+    assert not result.valid
+    assert not result.task_success
+    assert result.assertion_results == ()
+    assert result.invalid_reason is not None
+    assert "checksum mismatch" in result.invalid_reason
 
 
 def test_missing_assertion_param_invalidates_the_result(

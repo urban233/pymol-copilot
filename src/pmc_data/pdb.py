@@ -43,13 +43,23 @@ def read_atoms(pdb_path: Path) -> tuple[PdbAtom, ...]:
 
     Raises:
         MalformedPdbRecordError: If an ATOM/HETATM line's serial number
-            is not present or not an integer in its fixed-column field.
+            is not present or not an integer in its fixed-column field, or
+            if the line is truncated before the chain identifier column.
     """
     atoms: list[PdbAtom] = []
     text = pdb_path.read_text(encoding="ascii")
     for line in text.splitlines():
         if not (line.startswith("ATOM") or line.startswith("HETATM")):
             continue
+        if len(line) < 22:
+            # A line this short has no chain identifier column at all; left
+            # unchecked, slicing past its end would silently read chain_id
+            # as "", and that atom would disappear from every real chain's
+            # expected set instead of surfacing an error anywhere.
+            raise MalformedPdbRecordError(
+                f"line too short to contain a chain identifier column "
+                f"(need at least 22 characters, got {len(line)}): {line!r}"
+            )
         serial_field = line[6:11].strip()
         chain_id = line[21:22].strip()
         try:

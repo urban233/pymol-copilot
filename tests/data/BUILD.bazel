@@ -13,6 +13,18 @@ py_test(
 )
 
 py_test(
+    name = "pdb",
+    size = "small",
+    srcs = ["test_pdb.py"],
+    main = "test_pdb.py",
+    data = ["testdata/chain_a_gold_fixture.pdb"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
     name = "oracle",
     size = "small",
     srcs = ["test_oracle.py"],

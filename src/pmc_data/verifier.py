@@ -13,6 +13,7 @@ counting as a failure or a pass.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import hashlib
 from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -40,6 +41,15 @@ class PyMOLCmd(Protocol):
 
         Args:
             command: The command line text to execute.
+        """
+
+    def sync(self) -> None:
+        """Block until every previously queued PML command has finished.
+
+        Headless PyMOL's command loop runs on its own worker thread, so
+        do() only enqueues a command; a caller that reads state back out
+        immediately afterward has no guarantee the queued command already
+        ran unless it calls this first.
         """
 
     def iterate(
@@ -103,6 +113,18 @@ class VerifierResult:
     invalid_reason: str | None
     assertion_results: tuple[AssertionResult, ...]
     task_success: bool
+
+
+def _sha256_of(path: Path) -> str:
+    """Compute the hex SHA-256 checksum of a file's bytes.
+
+    Args:
+        path: Path to the file to checksum.
+
+    Returns:
+        The lowercase hex-encoded digest.
+    """
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _capture_colors(cmd: PyMOLCmd, selection: str) -> CHAIN_COLOR_SNAPSHOT:
@@ -173,10 +195,21 @@ def _evaluate_chain_membership(
 
     Returns:
         The observed AssertionResult.
+
+    Raises:
+        VerifierError: If chain_id has no atoms in the structure at all --
+            expected would be empty, so expected == actual could pass
+            vacuously against an equally empty actual instead of actually
+            checking membership.
     """
     chain_id = _require_param(assertion, "chain_id")
     selection_name = _require_param(assertion, "selection_name")
     expected = expected_chain_atom_ids(structure_path, chain_id)
+    if not expected:
+        raise VerifierError(
+            f"chain_membership assertion names chain {chain_id!r}, which "
+            "has no atoms in the structure"
+        )
     actual = _selection_atom_indices(cmd, selection_name)
     return AssertionResult(
         kind=assertion.kind,
@@ -237,11 +270,17 @@ def _evaluate_no_unintended_change(
 
     Raises:
         VerifierError: If assertion's chain was not snapshotted on both
-            sides.
+            sides, or if both snapshots are empty -- before == after could
+            pass vacuously for a chain with no atoms to actually observe.
     """
     chain_id = _require_param(assertion, "chain_id")
     if chain_id not in before or chain_id not in after:
         raise VerifierError(f"no captured snapshot for chain {chain_id!r}")
+    if not before[chain_id] and not after[chain_id]:
+        raise VerifierError(
+            f"no_unintended_change assertion names chain {chain_id!r}, "
+            "which has no atoms in the structure"
+        )
     return AssertionResult(
         kind=assertion.kind,
         passed=before[chain_id] == after[chain_id],
@@ -260,11 +299,20 @@ def verify_gold_case(
 
     Executes the accepted, unchanged canonical plan through cmd, then
     evaluates every assertion in case.assertions against the independent
-    oracle and the captured non-target chain state. inject_after_execution,
-    when given, runs after the plan executes and before non-target state is
-    captured -- its sole purpose is letting a sabotage or negative test
-    inject a deliberate mutation through the same evaluation path used for
-    the positive case.
+    oracle and the captured non-target chain state. case.provenance's
+    recorded checksum is verified against structure_path's actual bytes
+    before grading -- otherwise nothing would stop a future caller from
+    grading a case against a different file than the one its own
+    provenance names while still reporting TaskSuccess. cmd.sync() is called
+    after the plan executes, and again after inject_after_execution, before
+    any state is read back out -- headless PyMOL's command loop runs on its
+    own worker thread, so do() only enqueues a command; without sync(), a
+    read-after-write race can mis-grade a genuinely passing or failing run
+    (confirmed empirically: a stalled worker thread produced an empty
+    post-execution snapshot). inject_after_execution, when given, runs after
+    the plan executes and before non-target state is captured -- its sole
+    purpose is letting a sabotage or negative test inject a deliberate
+    mutation through the same evaluation path used for the positive case.
 
     Args:
         case: The gold case to grade.
@@ -288,6 +336,14 @@ def verify_gold_case(
         if not decision.allowed:
             raise VerifierError("policy denied the accepted fixture plan")
 
+        actual_checksum = _sha256_of(structure_path)
+        if actual_checksum != case.provenance.structure_sha256:
+            raise VerifierError(
+                "structure checksum mismatch: case.provenance names "
+                f"{case.provenance.structure_sha256!r} but structure_path "
+                f"{structure_path} actually hashes to {actual_checksum!r}"
+            )
+
         before_non_target = {
             chain_id: _capture_colors(cmd, f"chain {chain_id}")
             for chain_id in case.non_target_chains
@@ -295,9 +351,11 @@ def verify_gold_case(
 
         for operation in plan.operations:
             cmd.do(operation.render())
+        cmd.sync()
 
         if inject_after_execution is not None:
             inject_after_execution(cmd)
+            cmd.sync()
 
         after_non_target = {
             chain_id: _capture_colors(cmd, f"chain {chain_id}")

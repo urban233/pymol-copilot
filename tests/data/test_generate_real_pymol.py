@@ -73,6 +73,9 @@ class PyMOLCmd(Protocol):
             command: The command line text to execute.
         """
 
+    def sync(self) -> None:
+        """Block until every previously queued PML command has finished."""
+
     def iterate(
         self, selection: str, expression: str, *, space: dict[str, object]
     ) -> None:

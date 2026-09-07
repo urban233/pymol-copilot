@@ -59,6 +59,14 @@ class _NeverTouched:
         """
         raise AssertionError(f"cmd.do({command!r}) was called unexpectedly")
 
+    def sync(self) -> None:
+        """Fail immediately -- see class docstring.
+
+        Raises:
+            AssertionError: Always.
+        """
+        raise AssertionError("cmd.sync() was called unexpectedly")
+
     def iterate(
         self, selection: str, expression: str, *, space: dict[str, object]
     ) -> None:
@@ -127,6 +135,9 @@ class _WrongColorCmd:
         """
         if command == "color red, copilot_selection":
             self._colored_atom_ids = self._atom_ids_by_chain["A"]
+
+    def sync(self) -> None:
+        """No-op: this fake applies every command immediately, synchronously."""
 
     def _resolve(self, selection: str) -> frozenset[int]:
         """Resolve a selection name/expression to real atom ids.
