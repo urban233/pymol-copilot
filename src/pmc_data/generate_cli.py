@@ -16,6 +16,7 @@ same separation pmc_data.verifier already keeps.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from pmc_data.generate import generate_gold_case
@@ -79,4 +80,14 @@ def run() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(run())
+    # Real PyMOL's headless launch leaves behind cleanup that can complete
+    # after this process would otherwise exit, overriding a genuine non-zero
+    # exit code with 0 (same defect confirmed empirically and fixed the same
+    # way in tests/data/test_gold_case_verifier.py's __main__ block). os._exit
+    # bypasses that interpreter-shutdown window entirely, so a rejected
+    # generation's non-zero exit code is what the caller actually sees.
+    # os._exit skips the normal stdio flush, so flush explicitly first.
+    _exit_code = run()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_exit_code)
