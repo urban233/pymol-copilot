@@ -37,8 +37,12 @@ explicitly outstanding. This is not a passed checkpoint.
   present unmodified.
 - Martin checkout `git rev-parse HEAD`: outstanding -- not recorded from
   this environment; see C-2/C-5.
-- Hannah checkout `git rev-parse HEAD`: `a181ccea4d00966c80c0da91b9de5fb3ee29b575`
-  (branch `codev/W2-00`), the tested code snapshot itself.
+- Hannah checkout `git rev-parse HEAD`: `bd4e5190f4fc25a75dcfe00878b2ecd3d6fe5d09`
+  (branch `codev/W2-00`) at the time every command below ran, with this
+  task's one-file fix present as an uncommitted working-tree
+  modification; that same tree is now committed as
+  `a181ccea4d00966c80c0da91b9de5fb3ee29b575`, the Combined commit SHA
+  above and the tested code snapshot itself.
 - `git status --short` (both checkouts): Hannah's, at the moment the
   commands below ran: ` M tests/integration/test_real_pymol_command.py`
   (the fix, since committed as `a181ccea4d00966c80c0da91b9de5fb3ee29b575`;
@@ -185,7 +189,7 @@ combined snapshot. Branch-level results are not combined evidence.
 | W2-00 probe removed | same, probe deleted | same command | `PASSED`, "5 passed in 1.38s" ("Executed 1 out of 1 test: 1 test passes."), no test silently skipped; `git diff` confirms the file differs from the pre-probe version by exactly the intended import/`__main__` fix | Fresh (forced) | Bazel test log, this session |
 | H-01 non-PyMOL regressions | `//tests/contract:protocol //tests/integration:command //tests/integration:loopback_transport //tests/integration:client_server_command` | `bazel test //tests/contract:protocol //tests/integration:command //tests/integration:loopback_transport //tests/integration:client_server_command --lockfile_mode=error` | PASSED, 4/4 | All 4 cache hits (Bazel printed `(cached) PASSED` for each; `Executed 0 out of 4 tests: 4 tests pass.`) | Bazel test log, this session |
 | C-4, first pass (counts only) | `//tests/data/...` (7 targets) | `bazel test //tests/data/... --lockfile_mode=error` | PASSED, 7/7 | Fresh (`Executed 7 out of 7 tests: 7 tests pass.`, no `(cached)` tags), but not forced and not verbose -- superseded by the row below per the correction, above | Bazel test log, this session |
-| C-4, corrected: fresh and verbose | `//tests/data/...` (7 targets: `oracle`, `pdb`, `gold_case`, `generate`, `generate_real_pymol`, `gold_case_verifier`, `oracle_sabotage`) | `bazel test //tests/data/... --lockfile_mode=error --cache_test_results=no --test_output=all` | PASSED, 7/7; per-target collected/passed counts captured verbatim in the log (see C-4, above, for the full breakdown and named tests) | Fresh (forced by `--cache_test_results=no`; log shows no `(cached)` tag on any of the 7 `PASSED` lines; `8 processes: 77 action cache hit` refers to build/runfiles actions, not test executions) | Bazel test log, this session; full log also saved to `/tmp/claude-1000/-home-hannah-github-repos-pymol-copilot/79145b57-cd85-465d-ae43-b0454f2ce802/scratchpad/w2-00-data-fresh.log` |
+| C-4, corrected: fresh and verbose | `//tests/data/...` (7 targets: `oracle`, `pdb`, `gold_case`, `generate`, `generate_real_pymol`, `gold_case_verifier`, `oracle_sabotage`) | `bazel test //tests/data/... --lockfile_mode=error --cache_test_results=no --test_output=all` | PASSED, 7/7; per-target collected/passed counts captured verbatim in the log (see C-4, above, for the full breakdown and named tests) | Fresh (forced by `--cache_test_results=no`; log shows no `(cached)` tag on any of the 7 `PASSED` lines; `8 processes: 77 action cache hit` refers to build/runfiles actions, not test executions) | Bazel test log, this session |
 | C-5 (Hannah's supporting rerun only) | `//tests/integration:real_pymol_command` | `bazel test //tests/integration:real_pymol_command --lockfile_mode=error --cache_test_results=no` | PASSED, 1/1 (5 sub-tests) | Fresh (forced) | Bazel test log, this session |
 | C-6 | `//...` build | `bazel build //... --lockfile_mode=error` | Build completed successfully, 29 targets analyzed, 17 actions | Mostly cache hits at the action level (`17 processes: 226 action cache hit, 16 internal, 1 linux-sandbox`) -- normal incremental-build behavior, not a test-result cache | Bazel log, this session |
 | C-6 | `//...` test | `bazel test //... --lockfile_mode=error` | PASSED, 18/18 test targets | 16 cache hits, 2 fresh (`policy_sabotage`, `subsystem_imports`; `Executed 2 out of 18 tests: 18 tests pass.`) -- the 16 cache hits are exact replays of the fresh runs already recorded in this same table for the same snapshot (H-01's 4 targets and `//tests/data/...`'s 7, plus `real_pymol_command`, `plan`, `policy`, `parser_rejections`, `server_lifecycle`), not results from a different snapshot | Bazel log, this session |
