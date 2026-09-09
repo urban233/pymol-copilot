@@ -266,8 +266,8 @@ one area is recorded in that child design instead.
 
 ## Acceptance
 
-- [x] Material cross-cutting decisions resolved.
+- [ ] Material cross-cutting decisions resolved.
 - [x] [Process architecture](process-architecture.md) is `Accepted`.
-- [x] [Request pipeline](request-pipeline.md) is `Accepted`.
+- [ ] [Request pipeline](request-pipeline.md) is `Accepted`.
 - [x] [Approval and recovery](approval-and-recovery.md) is `Accepted`.
-- [x] Accountable human accepts planning against this design.
+- [ ] Accountable human accepts planning against this revised design.

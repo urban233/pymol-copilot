@@ -1,12 +1,18 @@
 # PyMOL-Copilot wave plan
 
-**Status:** Accepted — accepted by Hannah Kullik (`kullik01`) for her H-01 workstream, 2026-09-05
+**Status:** Superseded
 **Owner:** Martin Urban (`urban233`)
 **Brief:** [Specification and accepted planning baseline](../../../SPECIFICATION.md#current-wave-planning-authority-2026-09-05)
 **Design:** [Dataset and oracle](../design/model-development/dataset-and-oracle.md), [plan and execution](../design/shared-core/plan-and-execution.md), and [runtime application](../design/runtime-application/design.md)
 **Project tracker:** [GitHub issues](https://github.com/urban233/pymol-copilot/issues)
 **Supersedes:** The outdated wave plan removed in commit `a7d052c`; its incomplete work is carried forward, not declared done.
 **Last reviewed:** 2026-09-05
+
+The accepted
+[full-V1 contract wave](pymol-copilot-full-v1-contracts.md) carries forward
+the incomplete evidence closeout and the real-PyMOL test-runner defect
+discovered during M-01 review. Superseding this plan does not retroactively
+declare its final validation checkpoint complete.
 
 ## Current wave
 

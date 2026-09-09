@@ -1,11 +1,18 @@
 # Plan Language, Policy, and Execution Design
 
-**Status:** Accepted
+**Status:** Draft
 **Owner:** Martin Urban (`urban233`)
 **Reviewers:** Hannah Kullik (`kullik01`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Shared Core and Contracts Design](design.md)
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-09-09
+
+**2026-09-09 reconciliation:** The parser and policy fixture are implemented,
+but the shared fresh-process execution protocol is not. The existing
+`pmc_data` verifier runs against a caller-supplied PyMOL process and cannot be
+promoted into the runtime sidecar contract without an evidence-backed request,
+report, limit, and teardown design. This document returns to `Draft` for that
+bounded reconciliation.
 
 ## Summary
 
@@ -50,7 +57,11 @@ for the goals and non-goals that constrain both children. This design adds:
 
 ## Current system and evidence
 
-The repository has no active parser, policy, or executor implementation. See
+The repository implements the restricted `select` and `color` plan, canonical
+rendering, parser, and default-deny policy in `pmc_core`. `pmc_data` adds an
+independent oracle and a caller-supplied real-PyMOL verifier. No shared
+fresh-process executor, normalized execution-error envelope, resource-limit
+contract, or sidecar report exists. See
 the parent design's
 [Current system and evidence](design.md#current-system-and-evidence) for the
 accepted specification decisions this design must satisfy -- most directly,
@@ -262,9 +273,10 @@ below.
 | Which Open-Source PyMOL tokenization and parsing facilities are safe to reuse, and where is a dedicated tokenizer required? | Spike against the accepted positive and adversarial syntax corpus | Yes, before parser design acceptance |
 | Which additional selection-expression and color-value forms belong in the initial `select`/`color` fixture? | Accepted positive and rejection examples in native `.pml` syntax | No; the first positive fixture is accepted |
 | What exact constrained-label forms avoid PyMOL expression evaluation while serving V1 workflows? | Real PyMOL behavior probes plus security evidence | Yes, before command-policy acceptance |
+| Which request, report, limit, and teardown contract supports one shared full-V1 executor? | Successful and forced-failure process runs with exact fixtures and cleanup evidence | Yes, before execution-protocol acceptance |
 
 ## Acceptance
 
-- [x] Material decisions resolved.
+- [ ] Material decisions resolved.
 - [x] Command-policy safety evidence accepted.
-- [x] Accountable human accepts planning against this design.
+- [ ] Accountable human accepts planning against this revised design.

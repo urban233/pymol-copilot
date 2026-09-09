@@ -1,11 +1,17 @@
 # Request Pipeline Design
 
-**Status:** Accepted
+**Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewers:** Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Runtime Application and PyMOL Integration Design](design.md)
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-09-09
+
+**2026-09-09 reconciliation:** The merged client/server preview proves a
+non-mutating fixed request path, but it does not implement LangGraph,
+inference, snapshot export, reconstruction, or sidecar execution. The next
+wave selected a full-V1 state contract. This design returns to `Draft` until
+shared-core discovery establishes the sidecar invocation boundary it consumes.
 
 ## Summary
 
@@ -44,7 +50,9 @@ here unchanged. This design adds:
 
 ## Current system and evidence
 
-The repository has no active graph, inference, or sidecar implementation. See
+The repository has a fixed authenticated loopback preview in `pmc_client` and
+`pmc_server`. It has no active graph, inference, snapshot exporter, or sidecar
+implementation. See
 the parent design's
 [Current system and evidence](design.md#current-system-and-evidence) for the
 accepted specification decisions this design must satisfy -- most directly,
@@ -215,6 +223,6 @@ Each question below is specific to this design. Hannah owns both.
 
 ## Acceptance
 
-- [x] Material decisions resolved.
-- [x] Real-engine conformance and snapshot-fidelity evidence accepted.
-- [x] Accountable human accepts planning against this design.
+- [ ] Material decisions resolved.
+- [ ] Real-engine conformance and snapshot-fidelity evidence accepted.
+- [ ] Accountable human accepts planning against this revised design.

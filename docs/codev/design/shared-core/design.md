@@ -243,7 +243,7 @@ privacy classification.
 
 ## Acceptance
 
-- [x] Material cross-cutting decisions resolved.
-- [x] [Plan language, policy, and execution](plan-and-execution.md) is `Accepted`.
-- [x] [Structure context](structure-context.md) is `Accepted`.
-- [x] Accountable human accepts planning against this design.
+- [ ] Material cross-cutting decisions resolved.
+- [ ] [Plan language, policy, and execution](plan-and-execution.md) is `Accepted`.
+- [ ] [Structure context](structure-context.md) is `Accepted`.
+- [ ] Accountable human accepts planning against this revised design.

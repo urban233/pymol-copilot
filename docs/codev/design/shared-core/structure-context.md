@@ -1,11 +1,18 @@
 # Structure Context Design
 
-**Status:** Accepted
+**Status:** Draft
 **Owner:** Hannah Kullik (`kullik01`) for the snapshot and grammar; Martin Urban (`urban233`) for the structure card
 **Reviewers:** Hannah Kullik (`kullik01`); Martin Urban (`urban233`)
 **Brief:** [`SPECIFICATION.md`](../../../../SPECIFICATION.md)
 **Parent design:** [Shared Core and Contracts Design](design.md)
-**Last reviewed:** 2026-08-22
+**Last reviewed:** 2026-09-09
+
+**2026-09-09 reconciliation:** The product owner selected a full-V1 snapshot
+and execution contract rather than a fixture-only contract for the next wave.
+The repository has no differential evidence supporting a serialization choice
+for modified, multi-state, alternate-location, or display-bearing sessions.
+This design therefore returns to `Draft` until the current discovery wave
+records that evidence and freezes the exact contract.
 
 ## Summary
 
@@ -38,7 +45,11 @@ unchanged. This design adds one goal:
 
 ## Current system and evidence
 
-The repository has no active snapshot, card, or grammar implementation. See
+The repository has only the fixture identity named `StructureSnapshotV1` in
+`src/pmc_core/protocol.py`; it contains a schema version, digest, and fixture
+identifier rather than canonical live state. The client and server use that
+placeholder for the fixed preview. No structure card, grammar, live-state
+exporter, or reconstruction implementation exists. See
 the parent design's
 [Current system and evidence](design.md#current-system-and-evidence) for the
 accepted specification decisions this design must satisfy -- most directly,
@@ -192,11 +203,11 @@ Each question below is specific to this design. Hannah owns both.
 
 | Question | Evidence needed | Blocking? |
 |---|---|---|
-| Which serialization preserves every relevant field for modified, multi-state, and altloc-bearing objects across candidate platforms? | Snapshot round-trip differential report | Yes, before snapshot-contract acceptance |
+| Which serialization and reconstruction path preserves full-V1 relevant state on both development environments? | Field-level candidate matrix covering canonical bytes, reconstruction, and unsupported state | Yes, before snapshot-contract acceptance |
 | Can structure-conditioned residue restrictions remain compact without rejecting insertion codes, gaps, or valid ranges? | Grammar prototypes over representative structure fixtures | No; syntax-only grammar is the bounded fallback for unsupported conditioning |
 
 ## Acceptance
 
-- [x] Material decisions resolved.
-- [x] PyMOL-fidelity evidence accepted for snapshot, card, and grammar.
-- [x] Accountable human accepts planning against this design.
+- [ ] Material decisions resolved.
+- [ ] PyMOL-fidelity evidence accepted for snapshot, card, and grammar.
+- [ ] Accountable human accepts planning against this revised design.
