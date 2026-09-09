@@ -1,7 +1,8 @@
 # H-02: Prove full-V1 snapshot reconstruction and execution boundaries -- Implementation Plan
 
 **Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete
-and under review; slices 2-4 not started
+and independently reviewed in round 1; H-02 is in outer recovery round 2;
+slices 2-4 not started
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** high
@@ -144,8 +145,12 @@ see Decisions needed)
   (new: `README.md`, `BUILD.bazel`,
   `test_full_v1_snapshot_candidate_a.py`,
   `testdata/h02_full_v1_fixture.pdb`), this implementation plan.
-- **Head commit/snapshot:** Working tree on `codev/H-02`, not yet
-  committed (see next step).
+- **Head commit/snapshot:** Slice 1 was committed at
+  `9fd60570c0cc90cc1744a43d0c5923a4e32b744e`. Its round-1 lightweight
+  reviewer independently recorded `READY_FOR_OUTER_LOOP` at that same commit
+  after rerunning the full reported validation. H-02 was then reopened into
+  outer recovery round 2; it is not completed, published, or outer-loop
+  reviewed.
 - **Validation actually run:**
   - `bazel test //tests/discovery/h02:full_v1_snapshot_candidate_a
     --test_output=errors` -> 1 test target, all 4 test functions pass
@@ -159,6 +164,12 @@ see Decisions needed)
     -> clean after one `ruff format` pass (applied).
   - `bazel run //tools/quality:pyrefly -- check` -> 0 errors repository-wide.
   - `bazel run //tools/bazel:check_dependency_boundaries` -> exit 0.
+- The required code-audit gate was interrupted by an API rate limit after
+  partial documentation-only changes. Recovery round 2 restored the
+  non-deterministic changes and reran the targeted Bazel test (cached pass),
+  `bazel test //... --test_output=errors` (19 tests), Ruff check and format,
+  Pyrefly (0 errors), the dependency-boundary check, and `git diff --check`;
+  all passed. No implementation change resulted.
 - **Acceptance evidence:**
   - "Fixture matrix covers object/state identity; atom identity and
     coordinates; chain/residue/insertion/atom/element/alternate-location/
@@ -191,5 +202,7 @@ see Decisions needed)
     explicit polymer flag) is not yet in the schema.
   - Candidates B and C (slice 2) and the fresh-process failure-mode
     prototype (slice 3) are not started.
-- **Review state:** Not yet reviewed. Builder round to be closed and a
-  fresh lightweight-reviewer pass requested next.
+- **Review state:** Slice 1 was independently recorded
+  `READY_FOR_OUTER_LOOP` in round 1 at
+  `9fd60570c0cc90cc1744a43d0c5923a4e32b744e`. H-02 remains in outer recovery
+  round 2 and is not completed, published, or outer-loop reviewed.
