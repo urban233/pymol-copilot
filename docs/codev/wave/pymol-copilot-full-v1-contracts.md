@@ -71,9 +71,9 @@ their joint checkpoint freezes those contracts before implementation begins.
 
 | ID | Task | Owner / reviewer | Risk | Status |
 |---|---|---|---|---|
-| W2-00 | Restore trust in H-01 and close the previous wave | Hannah / Martin | normal | in progress -- runner fixed and re-verified in both directions at `a181cce`; combined checkpoint recorded partially complete (C-2, C-3, C-5, and Martin's half of C-7 outstanding), awaiting independent review |
+| W2-00 | Restore trust in H-01 and close the previous wave | Hannah / Martin | normal | closed by developer-authorized scope amendment on 2026-09-09; the runner is fixed and re-verified, while C-2, C-3, C-5, and Martin's half of C-7 remain explicitly unsatisfied in the historical checkpoint |
 | H-02 | Prove full-V1 snapshot reconstruction and execution boundaries | Hannah / Martin | high | blocked by W2-00 |
-| M-02 | Define full-V1 card and dataset contract needs | Martin / Hannah | high | blocked by W2-00 |
+| M-02 | Define full-V1 card and dataset contract needs | Martin / Hannah | high | in progress -- snapshot-independent taxonomy and fixture-catalog discovery started; card candidates remain blocked on H-02 snapshots |
 
 ### W2-00: Restore trust and close the previous wave
 

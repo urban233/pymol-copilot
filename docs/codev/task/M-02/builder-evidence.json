@@ -1,0 +1,25 @@
+{
+  "delivered": "Started M-02 with a full-V1 intent/fixture taxonomy and candidate dataset sample/artifact-manifest field inventory; deterministic card work remains blocked on H-02 canonical snapshots.",
+  "changed": [
+    "docs/codev/task/M-02/implementation-plan.md",
+    "docs/codev/task/M-02/taxonomy-and-fixture-catalog.md",
+    "docs/codev/task/M-02/dataset-sample-and-artifact-manifest.md",
+    "docs/codev/task/M-02/builder-evidence.md",
+    "docs/codev/task/M-02/builder-evidence.json",
+    "docs/codev/task/W2-00/implementation-plan.md",
+    "docs/codev/wave/evidence/combined.md",
+    "docs/codev/wave/pymol-copilot-full-v1-contracts.md",
+    "docs/codev/wave/pymol-copilot.md"
+  ],
+  "base_snapshot": "f217965a45de12199e48d41c901b829700827f37",
+  "validation": [
+    "git diff --check: passed",
+    "Focused macOS runtime regressions: protocol 21/21, command 6/6, client/server 1/1, loopback 8/8, and real PyMOL 5/5 passed",
+    "bazel build //... --lockfile_mode=error: passed",
+    "bazel test //... --lockfile_mode=error --cache_test_results=no: 18/18 passed",
+    "Dependency-boundary, Ruff lint/format, and Pyrefly checks: passed"
+  ],
+  "scope_deviations": "The developer authorized a documented W2-00 closure amendment to unblock M-02. C-2, C-3, C-5, and Martin's half of C-7 remain explicitly unsatisfied and are not represented as passed.",
+  "limitations": "No H-02 candidate canonical snapshot or shared fixture catalog exists. Card-byte, field-mutation, and data/runtime parity experiments have not run; the taxonomy and manifest are Draft discovery evidence rather than frozen contracts.",
+  "review_state": "AWAITING INDEPENDENT REVIEW"
+}

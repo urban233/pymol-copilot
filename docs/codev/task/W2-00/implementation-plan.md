@@ -203,7 +203,9 @@ combined receipt whose real-PyMOL numbers came from an untrusted runner.
 
 ## Completion evidence
 
-**Status:** Implemented, awaiting independent review.
+**Status:** Closed by developer-authorized scope amendment on 2026-09-09. The
+runner fix and recorded validation stand; the combined checkpoint's C-2, C-3,
+C-5, and Martin half of C-7 remain unsatisfied and are not claimed as passed.
 
 - **Delivered:** `tests/integration/test_real_pymol_command.py`'s
   `__main__` entry point now reports pytest's real exit code and complete

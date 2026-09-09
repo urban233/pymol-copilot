@@ -1,13 +1,12 @@
 # Combined evidence — final validation checkpoint
 
-**Status:** Partially complete. [W2-00](../../task/W2-00/implementation-plan.md)
-fixed the untrusted real-PyMOL exit code, re-ran the previous wave's
-combined checks in Hannah's environment, and recorded C-1, C-4, and C-6
-below. C-2 and C-3 are only half-recorded (Martin's checkout and a jointly
-exchanged fixture are both missing, the latter a genuine gap against this
-checklist's own premise -- see Fixture, below). C-5 and Martin's half of
-C-7 require Martin's own environment and coordinating acceptance and stay
-explicitly outstanding. This is not a passed checkpoint.
+**Status:** Closed by developer-authorized scope amendment on 2026-09-09.
+[W2-00](../../task/W2-00/implementation-plan.md) fixed the untrusted real-PyMOL
+exit code and recorded the available evidence below. C-2, C-3, C-5, and
+Martin's half of C-7 remain explicitly unsatisfied; this is not a passed final
+validation checkpoint. The amendment closes W2-00 as a delivery task and
+permits the full-V1 discovery wave to begin without claiming that the omitted
+shared-fixture or joint-verdict evidence exists.
 **Coordinator:** Martin Urban (`urban233`)
 **Wave plan:** [PyMOL-Copilot wave plan](../pymol-copilot.md#final-validation-checkpoint)
 **Inputs:** [M-01 receipt](M-01.md) and [H-01 receipt](H-01.md), both handoffs complete
@@ -257,3 +256,33 @@ actually changed.
   the items above are missing evidence, not failures. This checkpoint is
   recorded as incomplete, not passed, per the wave plan's own rule that a
   missing required result leaves it so.
+
+## 2026-09-09 developer-authorized closure
+
+The developer authorized W2-00 to close and M-02 discovery to begin despite
+the unchecked C-2, C-3, C-5, and C-7 requirements. This is a scope amendment,
+not evidence that those requirements passed. Their historical status above is
+preserved unchanged.
+
+Additional Martin-environment evidence was collected on
+`f217965a45de12199e48d41c901b829700827f37` (macOS 15.7.9, arm64; Bazel 9.2.0;
+`pymol-open-source-whl==3.2.0.2`):
+
+| Evidence | Command | Result |
+|---|---|---|
+| Checkout | `git rev-parse HEAD` | `f217965a45de12199e48d41c901b829700827f37` |
+| Focused runtime regressions | `bazel test //tests/contract:protocol //tests/integration:command //tests/integration:loopback_transport //tests/integration:client_server_command --lockfile_mode=error --cache_test_results=no --test_output=all` | PASSED: protocol 21/21, command 6/6, client/server 1/1, loopback 8/8 |
+| Real PyMOL regression | `bazel test //tests/integration:real_pymol_command --lockfile_mode=error --cache_test_results=no --test_output=all` | PASSED: 5/5 |
+| Repository build | `bazel build //... --lockfile_mode=error` | PASSED: 28 targets |
+| Repository tests | `bazel test //... --lockfile_mode=error --cache_test_results=no` | PASSED: 18/18 |
+| Dependency boundaries | `bazel run //tools/bazel:check_dependency_boundaries --lockfile_mode=error` | PASSED |
+| Lint | `bazel run //tools/quality:ruff --lockfile_mode=error -- check .` | PASSED |
+| Formatting | `bazel run //tools/quality:ruff --lockfile_mode=error -- format --check .` | PASSED: 91 files formatted |
+| Type checking | `bazel run //tools/quality:pyrefly --lockfile_mode=error -- check` | PASSED: 0 errors (12 suppressed) |
+
+The checkout also had an untracked M-02 implementation plan only; no source,
+test, or configuration file was modified. The candidate runtime fixture
+`tests/integration/testdata/two_chain_fixture.pdb` has SHA-256
+`8a322a792774c31b61a358baa8d57666be43ed8bd7580b2860016ac67dd85cc9`, but
+Hannah has not independently verified it. C-3 and the resulting C-5 claim
+therefore remain unsatisfied.
