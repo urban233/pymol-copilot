@@ -103,6 +103,7 @@ REP_NAMES = (
 #: the real accepted set; this proves the get/set/reconstruct path for a
 #: representative non-view, non-atom-level setting.
 SAFE_SETTINGS = ("sphere_scale", "cartoon_transparency")
+CANDIDATE_A_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,7 @@ class AtomRecord:
         b: The temperature factor.
         color: The PyMOL color index.
         reps: The names of every representation this atom is shown in.
+        label: The atom label text, or None when it is not labeled.
         coord: The (x, y, z) coordinate for this state.
     """
 
@@ -139,6 +141,7 @@ class AtomRecord:
     b: float
     color: int
     reps: tuple[str, ...]
+    label: str | None
     coord: tuple[float, float, float]
 
 
@@ -173,14 +176,19 @@ class ObjectSnapshot:
     """A canonical structured snapshot of one live PyMOL object.
 
     Attributes:
+        schema_version: Candidate A's private schema version; not a production
+            StructureSnapshotV1 contract.
         name: The object's name.
+        enabled: Whether the object is enabled in the PyMOL session.
         states: Every coordinate state, in order.
         bonds: Every bond, addressed by first-state atom position.
         view: The camera view, as `cmd.get_view()` returns it.
         settings: The (setting name, value) pairs this candidate tracks.
     """
 
+    schema_version: int
     name: str
+    enabled: bool
     states: tuple[StateSnapshot, ...]
     bonds: tuple[BondRecord, ...]
     view: tuple[float, ...]
@@ -202,8 +210,11 @@ def extract(cmd: Any, object_name: str) -> ObjectSnapshot:
     for state in range(1, n_states + 1):
         model = cmd.get_model(object_name, state=state)
         colors: list[int] = []
+        labels: list[str | None] = []
         cmd.iterate(
-            object_name, "colors.append(color)", space={"colors": colors}
+            object_name,
+            "colors.append(color); labels.append(label)",
+            space={"colors": colors, "labels": labels},
         )
         # Per-atom membership in each named representation, keyed by ID
         # (stable regardless of atom-array order) rather than position.
@@ -235,6 +246,7 @@ def extract(cmd: Any, object_name: str) -> ObjectSnapshot:
                     b=atom.b,
                     color=colors[index],
                     reps=tuple(reps_by_id.get(atom.id, [])),
+                    label=labels[index] or None,
                     coord=tuple(atom.coord),
                 )
             )
@@ -255,7 +267,9 @@ def extract(cmd: Any, object_name: str) -> ObjectSnapshot:
     )
 
     return ObjectSnapshot(
+        schema_version=CANDIDATE_A_SCHEMA_VERSION,
         name=object_name,
+        enabled=object_name in cmd.get_names("objects", enabled_only=1),
         states=tuple(states),
         bonds=bonds,
         view=view,
@@ -328,6 +342,8 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
         cmd.hide("everything", sel)
         for rep_name in atom.reps:
             cmd.show(rep_name, sel)
+        if atom.label is not None:
+            cmd.label(sel, repr(atom.label))
     cmd.sync()
 
     # segi was only a reconstruction-time addressing aid, never part of the
@@ -352,6 +368,10 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
 
     for setting_name, value in snapshot.settings:
         cmd.set(setting_name, value, name)
+    if snapshot.enabled:
+        cmd.enable(name)
+    else:
+        cmd.disable(name)
     cmd.sync()
 
 
@@ -390,6 +410,7 @@ def _atom_record_from_json(data: dict[str, Any]) -> AtomRecord:
         b=data["b"],
         color=data["color"],
         reps=tuple(data["reps"]),
+        label=data["label"],
         coord=tuple(data["coord"]),
     )
 
@@ -404,8 +425,16 @@ def from_json(text: str) -> ObjectSnapshot:
         The reconstructed ObjectSnapshot dataclass tree.
     """
     data = json.loads(text)
+    if data.get("schema_version") != CANDIDATE_A_SCHEMA_VERSION:
+        raise ValueError(
+            "unsupported candidate-A schema version: "
+            f"{data.get('schema_version')!r}; "
+            f"expected {CANDIDATE_A_SCHEMA_VERSION}"
+        )
     return ObjectSnapshot(
+        schema_version=data["schema_version"],
         name=data["name"],
+        enabled=data["enabled"],
         states=tuple(
             StateSnapshot(
                 atoms=tuple(_atom_record_from_json(a) for a in state["atoms"])
@@ -437,6 +466,21 @@ def _diff(expected: ObjectSnapshot, actual: ObjectSnapshot) -> list[str]:
         the snapshots match exactly.
     """
     mismatches: list[str] = []
+
+    if expected.schema_version != actual.schema_version:
+        mismatches.append(
+            "schema_version expected="
+            f"{expected.schema_version!r} actual={actual.schema_version!r}"
+        )
+    if expected.name != actual.name:
+        mismatches.append(
+            f"object.name expected={expected.name!r} actual={actual.name!r}"
+        )
+    if expected.enabled != actual.enabled:
+        mismatches.append(
+            f"object.enabled expected={expected.enabled!r} "
+            f"actual={actual.enabled!r}"
+        )
 
     def compare_atom(
         label: str, exp_atom: AtomRecord, act_atom: AtomRecord
@@ -529,9 +573,34 @@ def loaded_fixture(real_pymol: Any) -> Iterator[Any]:
     """
     real_pymol.load(str(FIXTURE_PATH), "fx")
     real_pymol.color("red", "fx and chain A")
+    real_pymol.show("sticks", "fx")
     real_pymol.show("spheres", "fx and resn ZN")
+    real_pymol.label("fx and name CA", "name")
+    real_pymol.set_view(
+        (
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            -0.5,
+            0.5,
+            -20.0,
+        )
+    )
     real_pymol.set("sphere_scale", "0.35", "fx")
     real_pymol.set("cartoon_transparency", "0.25", "fx")
+    real_pymol.disable("fx")
     real_pymol.sync()
     try:
         yield real_pymol
@@ -554,6 +623,159 @@ def test_fixture_loads_with_every_declared_state_category(
         space={"resi_with_icode": resi_with_icode},
     )
     assert resi_with_icode == ["3A", "3A"]
+
+
+def test_extracted_snapshot_has_independent_expected_values_for_each_category(
+    loaded_fixture: Any,
+) -> None:
+    """The real fixture contains meaningful data for every candidate field."""
+    snapshot = extract(loaded_fixture, "fx")
+    first_state = snapshot.states[0]
+    second_state = snapshot.states[1]
+    ca = next(atom for atom in first_state.atoms if atom.serial == 2)
+    insertion_atom = next(
+        atom for atom in first_state.atoms if atom.serial == 8
+    )
+    alt_a = next(atom for atom in first_state.atoms if atom.serial == 6)
+    alt_b = next(atom for atom in first_state.atoms if atom.serial == 7)
+    zinc = next(atom for atom in first_state.atoms if atom.serial == 13)
+    second_state_ca = next(
+        atom for atom in second_state.atoms if atom.serial == 2
+    )
+
+    assert snapshot.schema_version == CANDIDATE_A_SCHEMA_VERSION
+    assert snapshot.name == "fx"
+    assert snapshot.enabled is False
+    assert len(snapshot.states) == 2
+    assert ca.coord == (12.0, 13.0, 2.5)
+    assert ca.name == "CA"
+    assert ca.resn == "ALA"
+    assert ca.chain == "A"
+    assert ca.resv == 1
+    assert ca.ins_code == ""
+    assert ca.elem == "C"
+    assert ca.hetatm is False
+    assert ca.q == 1.0
+    assert ca.b == 20.0
+    assert ca.color == loaded_fixture.get_color_index("red")
+    assert ca.label == "CA"
+    assert "sticks" in ca.reps
+    assert insertion_atom.resn == "GLY"
+    assert insertion_atom.ins_code == "A"
+    assert alt_a.alt == "A"
+    assert alt_a.q == pytest.approx(0.6, abs=1e-6)
+    assert alt_b.alt == "B"
+    assert alt_b.q == pytest.approx(0.4, abs=1e-6)
+    assert zinc.resn == "ZN"
+    assert zinc.hetatm is True
+    assert "spheres" in zinc.reps
+    assert snapshot.bonds == (
+        BondRecord(0, 1, 1),
+        BondRecord(1, 2, 1),
+        BondRecord(2, 3, 1),
+        BondRecord(3, 4, 1),
+        BondRecord(4, 5, 1),
+        BondRecord(4, 6, 1),
+        BondRecord(4, 7, 1),
+        BondRecord(4, 8, 1),
+        BondRecord(5, 7, 1),
+        BondRecord(5, 8, 1),
+        BondRecord(6, 7, 1),
+        BondRecord(6, 8, 1),
+        BondRecord(7, 8, 1),
+        BondRecord(10, 11, 1),
+        BondRecord(11, 12, 1),
+    )
+    assert second_state_ca.coord == (12.0, 13.0, 3.0)
+    expected_view = (
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -0.5,
+        0.5,
+        -20.0,
+    )
+    assert snapshot.view == pytest.approx(expected_view, abs=1e-6)
+    assert snapshot.settings == (
+        ("sphere_scale", "0.35000"),
+        ("cartoon_transparency", "0.25000"),
+    )
+
+
+def test_json_rejects_an_unsupported_candidate_schema_version(
+    loaded_fixture: Any,
+) -> None:
+    """Candidate A rejects JSON from an unknown private schema version."""
+    payload = json.loads(to_json(extract(loaded_fixture, "fx")))
+    payload["schema_version"] = CANDIDATE_A_SCHEMA_VERSION + 1
+
+    with pytest.raises(
+        ValueError, match="unsupported candidate-A schema version"
+    ):
+        from_json(json.dumps(payload))
+
+
+def test_object_enabled_state_is_extracted_when_object_is_enabled(
+    loaded_fixture: Any,
+) -> None:
+    """Candidate A records both disabled and enabled object visibility."""
+    loaded_fixture.enable("fx")
+    loaded_fixture.sync()
+
+    assert extract(loaded_fixture, "fx").enabled is True
+
+    loaded_fixture.disable("fx")
+    loaded_fixture.sync()
+
+
+def test_diff_reports_identity_and_state_mutations(
+    loaded_fixture: Any,
+) -> None:
+    """Diff reports independent mutations instead of trusting equal extracts."""
+    snapshot = extract(loaded_fixture, "fx")
+    atom = snapshot.states[0].atoms[0]
+    mutated_atom = dataclasses.replace(
+        atom,
+        coord=(atom.coord[0] + 1.0, atom.coord[1], atom.coord[2]),
+        color=atom.color + 1,
+        label="mutated label",
+        reps=atom.reps[1:],
+    )
+    mutated = dataclasses.replace(
+        snapshot,
+        name="other-object",
+        enabled=not snapshot.enabled,
+        schema_version=CANDIDATE_A_SCHEMA_VERSION + 1,
+        states=(
+            dataclasses.replace(
+                snapshot.states[0],
+                atoms=(mutated_atom, *snapshot.states[0].atoms[1:]),
+            ),
+            *snapshot.states[1:],
+        ),
+    )
+
+    mismatches = _diff(snapshot, mutated)
+
+    assert any("object.name" in mismatch for mismatch in mismatches)
+    assert any("object.enabled" in mismatch for mismatch in mismatches)
+    assert any("schema_version" in mismatch for mismatch in mismatches)
+    assert any("state0.atom0.coord" in mismatch for mismatch in mismatches)
+    assert any("state0.atom0.color" in mismatch for mismatch in mismatches)
+    assert any("state0.atom0.label" in mismatch for mismatch in mismatches)
+    assert any("state0.atom0.reps" in mismatch for mismatch in mismatches)
 
 
 def test_candidate_a_round_trips_through_a_fresh_process(

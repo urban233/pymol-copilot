@@ -1,7 +1,7 @@
 # H-02: Prove full-V1 snapshot reconstruction and execution boundaries -- Implementation Plan
 
 **Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete
-and independently reviewed in round 1; H-02 is in outer recovery round 2;
+and independently reviewed in round 1; H-02 is in outer recovery round 3;
 slices 2-4 not started
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
@@ -149,13 +149,14 @@ see Decisions needed)
   `9fd60570c0cc90cc1744a43d0c5923a4e32b744e`. Its round-1 lightweight
   reviewer independently recorded `READY_FOR_OUTER_LOOP` at that same commit
   after rerunning the full reported validation. H-02 was then reopened into
-  outer recovery round 2; it is not completed, published, or outer-loop
+  outer recovery round 3; it is not completed, published, or outer-loop
   reviewed.
 - **Validation actually run:**
   - `bazel test //tests/discovery/h02:full_v1_snapshot_candidate_a
-    --test_output=errors` -> 1 test target, all 4 test functions pass
-    (fixture-category check, fresh-process round trip, nested
-    reconstruct-and-diff, measurement-object negative result).
+     --test_output=errors` -> pytest collected 8 tests: 7 passed and 1
+    expected parent-process skip. The skipped reconstruction helper runs
+    successfully in the nested subprocess selected by the fresh-process
+    round-trip test.
   - `bazel test //...` -> all 19 repository test targets pass; no
     regression in any existing target.
   - `bazel run //tools/quality:ruff -- check tests/discovery/` -> all
@@ -165,17 +166,18 @@ see Decisions needed)
   - `bazel run //tools/quality:pyrefly -- check` -> 0 errors repository-wide.
   - `bazel run //tools/bazel:check_dependency_boundaries` -> exit 0.
 - The required code-audit gate was interrupted by an API rate limit after
-  partial documentation-only changes. Recovery round 2 restored the
-  non-deterministic changes and reran the targeted Bazel test (cached pass),
-  `bazel test //... --test_output=errors` (19 tests), Ruff check and format,
-  Pyrefly (0 errors), the dependency-boundary check, and `git diff --check`;
-  all passed. No implementation change resulted.
+  partial documentation-only changes. Outer recovery round 3 added the
+  triaged Candidate-A corrections and reran the targeted and full Bazel tests,
+  Ruff check and format, Pyrefly (0 errors), the dependency-boundary check,
+  and `git diff --check`; all passed. The Windows incompatibility remains
+  explicit, so Windows smoke is not Candidate-A fidelity evidence.
 - **Acceptance evidence:**
   - "Fixture matrix covers object/state identity; atom identity and
     coordinates; chain/residue/insertion/atom/element/alternate-location/
     polymer/hetero metadata; bonds; ... visibility/representation/color
     state; view and supported setting state" -> covered and round-tripped
-    with zero mismatches, except measurement objects (see below) and
+    with zero mismatches, including representative labels and object enabled
+    state, except measurement objects (see below) and
     polymer/hetero classification beyond the `hetatm` flag already
     recorded (polymer status is derivable from resn/hetatm but not
     separately stored -- a candidate-A schema gap for slice 4's
@@ -185,7 +187,14 @@ see Decisions needed)
     z-coordinate, and both states round-trip exactly.
   - "It must define explicit unsupported-state behavior rather than
     silently dropping fields" -> satisfied for measurement objects via
-    the dedicated negative-result test, not a silent omission.
+    the dedicated negative-result test, and unknown candidate-A schema
+    versions fail explicitly in `from_json`.
+  - Outer findings H02-OUTER-F1 through H02-OUTER-F4 are addressed by the
+    candidate-private label/enabled fields, version validation, identity diff,
+    and independent expected-value/mutation tests. H02-OUTER-F5 is recorded:
+    the discovery target is incompatible/skipped on Windows because of the
+    PyMOL wheel path limitation, so green Windows smoke does not establish
+    Candidate-A fidelity there; Martin's environment remains needed.
 - **Scope deviations:** None from slice 1's own scope. Settings and
   measurement-object coverage were originally flagged as open items
   during the session and completed within this same slice at the
@@ -205,4 +214,4 @@ see Decisions needed)
 - **Review state:** Slice 1 was independently recorded
   `READY_FOR_OUTER_LOOP` in round 1 at
   `9fd60570c0cc90cc1744a43d0c5923a4e32b744e`. H-02 remains in outer recovery
-  round 2 and is not completed, published, or outer-loop reviewed.
+  round 3 and is not completed, published, or outer-loop reviewed.
