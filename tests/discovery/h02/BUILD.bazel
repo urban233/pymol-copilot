@@ -1,0 +1,29 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "full_v1_snapshot_candidate_a",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_full_v1_snapshot_candidate_a.py"],
+    main = "test_full_v1_snapshot_candidate_a.py",
+    data = ["testdata/h02_full_v1_fixture.pdb"],
+    # Spawns a nested pytest subprocess that launches its own real PyMOL
+    # process (the fresh-process reconstruction half of the round trip);
+    # excluded from concurrent scheduling for the same reason as
+    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
+    # never races another subprocess-spawning test under Windows's
+    # unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    # See tests/integration/BUILD.bazel's real_pymol_command target and
+    # issue #12: pymol-open-source-whl's Windows wheel bundles
+    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
+    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+    ],
+)
