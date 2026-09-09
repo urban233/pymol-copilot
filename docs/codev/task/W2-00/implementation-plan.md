@@ -289,3 +289,41 @@ combined receipt whose real-PyMOL numbers came from an untrusted runner.
   `test_real_pymol_command.py`) are not refactored into a shared helper,
   per this plan's stated non-goal.
 - **Review state:** AWAITING INDEPENDENT REVIEW.
+
+## Style audit
+
+CoDev's Build execution step 5 dispatches `code-audit-gate` against the head
+snapshot before the pull request opens. That dispatch was attempted and its
+result discarded: the agent edited 27 files, reaching well outside this
+task's diff into production source under `src/` and the repository's own
+`.claude/hooks/`, and applied the `import-class-not-module` rewrite this
+repository deliberately tolerates -- introducing a duplicate
+`from pmc_core import plan` in `src/pmc_core/parser.py` while doing so.
+Nothing was committed; the working tree was restored to
+`59a894b49db60ad71c5770aa798864ae66975644` and `ruff check`, `ruff format
+--check`, `pyrefly check`, and `//tests/integration:real_pymol_command` were
+all re-run clean afterwards.
+
+The audit was then performed directly instead, running the same checker the
+agent uses
+(`.agents/skills/audit-google-python-style/scripts/check_google_rules.py`)
+against `tests/integration/test_real_pymol_command.py`, the one Python file
+this task changes. It reports 20 findings. Nineteen fall in categories this
+repository already tolerates repo-wide, on lines W2-00 never edited:
+`import-class-not-module` (lines 50, 57, 59-61), `docstring-args` on
+fixture-taking test functions (lines 303, 312, 343, 375, 402),
+`docstring-markup` (lines 1, 81), and `line-length` on the pre-existing
+`from __future__` noqa line (line 42). M-01's own style audit records the
+same decision for the first two categories.
+
+The one category this task's diff does touch is `comment-punctuation`, seven
+hits on the new `__main__` comment block (lines 418-425), which the rule
+flags because a wrapped multi-line prose comment does not end every physical
+line with a period. That rule fires 60 times across this repository,
+including seven times on the sibling block at
+`tests/data/test_gold_case_verifier.py:445-452` that this fix was
+deliberately copied from. Rewriting only this block to satisfy it would make
+the file diverge from the sibling it is meant to match, which is the
+specific outcome M-01's audit warned against. No style change is therefore
+applied, and the repository's enforced gates -- `ruff check`, `ruff format
+--check`, and `pyrefly check` -- all pass clean at this head.
