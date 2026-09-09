@@ -421,37 +421,53 @@ Complete this checklist in order and map every C-entry to evidence in
 `docs/codev/wave/evidence/combined.md`. Do not copy branch-level green results
 into the combined receipt as if they had been rerun.
 
-- [ ] **C-1: Both handoffs are complete.** Martin links the M-01 and H-01
+**State (W2-00, [combined.md](evidence/combined.md)):** partially complete,
+not passed. C-1, C-4, and C-6 are satisfied on the working-tree snapshot
+recorded there (`a181ccea4d00966c80c0da91b9de5fb3ee29b575`); C-2 and C-3 are only
+half-recorded (Martin's checkout, and a jointly exchanged fixture that
+never happened -- see combined.md's Fixture section); C-5 and Martin's half
+of C-7 require Martin's own environment and coordinating acceptance and
+remain explicitly outstanding.
+
+- [x] **C-1: Both handoffs are complete.** Martin links the M-01 and H-01
   receipts and their reviewed commit SHAs. M-A1 through M-A8, M-R1, H-A1 through
   H-A8, and H-R1 are satisfied with no unresolved blocking review findings.
+  (See combined.md.)
 - [ ] **C-2: One exact combined code snapshot.** Martin records the full
   combined commit SHA, both reviewed item SHAs, and the integration diff or
   ancestry mapping proving that both items are present. Both developers retain
   `git rev-parse HEAD` and `git status --short` output from their checkouts.
   The tested code, tests, and configuration must match that combined snapshot;
   conflict resolutions or additional code changes require affected re-review.
+  (Hannah's side recorded; Martin's outstanding -- see combined.md.)
 - [ ] **C-3: One verified input fixture.** Both developers record the checksum
   verification output for Martin's frozen structure, the fixture identity,
   canonical plan bytes, and actual contract versions. Their results must agree.
   Use separate disposable sessions for the mutating oracle reference run and
   the non-mutating preview test; neither may consume the other's altered state.
-- [ ] **C-4: Oracle revalidated on the combined snapshot.** Hannah reruns
+  (Not satisfied: no fixture was ever exchanged between the two lanes -- see
+  combined.md's Fixture section.)
+- [x] **C-4: Oracle revalidated on the combined snapshot.** Hannah reruns
   M-01's positive, semantic-negative, invalid-record, round-trip, and sabotage
   checks. Retain the new per-assertion report, expected/actual atom sets, color
   and unintended-change observations, exact commands, and test logs. Correct
   behavior succeeds; wrong/invalid behavior receives its expected rejection.
+  (See combined.md: `//tests/data/...` 7/7 PASSED.)
 - [ ] **C-5: Runtime revalidated with the exchanged fixture.** Martin reruns
   H-01's codec/command regressions and real-PyMOL success, rejection,
   unavailable-server, and sabotage checks using the verified structure.
   Retain the new console transcripts, pre/post state comparisons, cleanup
   results, exact commands, and test logs. The preview does not execute the plan.
-- [ ] **C-6: Repository-wide checks pass on that same snapshot.** Martin runs
+  (Outstanding -- requires Martin's own environment; see combined.md.)
+- [x] **C-6: Repository-wide checks pass on that same snapshot.** Martin runs
   every command in Validation and retains a separate command/result entry for
   build, tests, dependency boundaries, lint, format, and type checking. Include
   the new targets or explicitly separate real-PyMOL invocations from C-4/C-5.
   Record passed/failed/skipped counts; a required skipped check leaves this box
   unchecked. Historical CI and cached results for a different snapshot do not
   satisfy this entry.
+  (Run by Hannah in her own environment per combined.md; Martin's own
+  environment confirmation not recorded here.)
 - [ ] **C-7: Joint verdict is recorded.** Hannah records her oracle verdict;
   Martin records his runtime and repository-check verdicts, all against the
   combined SHA. The final receipt links C-1 through C-6, lists limitations and
@@ -459,6 +475,7 @@ into the combined receipt as if they had been rerun.
   finding. If any required result is missing or fails, record an incomplete
   checkpoint, return the affected item to its owner, and refresh affected
   validation/review on the corrected snapshot before checking C-7.
+  (Hannah's half recorded; Martin's half outstanding -- see combined.md.)
 
 A passed checkpoint makes the wave ready for human acceptance, not automatic
 closure or rollout. Keep issue #8 open for its remaining generation obligation.
