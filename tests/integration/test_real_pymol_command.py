@@ -41,6 +41,8 @@ against real Windows CI and neither changed the error. Tracked in
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import os
+import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -413,4 +415,16 @@ def test_sabotage_mutation_is_detected_by_state_comparison(
 
 
 if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__]))
+    # Real PyMOL's headless launch leaves behind cleanup that can complete
+    # after this process would otherwise exit, overriding a genuine pytest
+    # failure with process exit code 0 (the same defect confirmed empirically
+    # and fixed the same way in tests/data/test_gold_case_verifier.py's
+    # __main__ block). os._exit bypasses that interpreter-shutdown window
+    # entirely, so pytest's real result is what Bazel actually sees.
+    # os._exit skips the normal stdio flush, so flush explicitly first --
+    # otherwise a real failure's traceback and summary can be silently lost
+    # from the captured test log (also confirmed empirically).
+    _exit_code = pytest.main([__file__])
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_exit_code)
