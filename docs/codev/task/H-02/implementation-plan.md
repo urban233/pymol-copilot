@@ -1,11 +1,14 @@
 # H-02: Prove full-V1 snapshot reconstruction and execution boundaries -- Implementation Plan
 
 **Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete,
-outer-loop reviewed, and its pull request (#16) open awaiting human approval;
-slice 2 (`candidate-b-and-c`) implemented on a stacked branch
-(`codev/H-02--candidate-b-and-c`, based on `codev/H-02` since #16 is not yet
-merged) -- see slice 2's own Completion evidence below for exactly what is
-and is not yet independently re-validated; slices 3-4 not started
+outer-loop reviewed, and its pull request (#16) open and approved; slice 2
+(`candidate-b-and-c`) complete, outer-loop reviewed, and its pull request (#17)
+open and approved; slice 3 (`fresh-process-execution-boundary`) implemented and
+outer-loop reviewed on a stacked branch
+(`codev/H-02--fresh-process-execution-boundary`, based on
+`codev/H-02--candidate-b-and-c` since #17 is not yet merged), with F1 corrected
+at `daff445` and the final F2 correction recorded below;
+slice 4 (`differential-report-and-design-updates`) not started
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** high
@@ -627,3 +630,207 @@ removed in slice 4.
 
 Coverage for `security_privacy_data_compatibility`, `concurrency` and
 `rollout` was waived for this slice with recorded reasons, not verified.
+
+## Proposed change (slice 3: fresh-process-execution-boundary)
+
+Prototypes the request/report boundary the accepted design calls the
+hermetic execution protocol, whose stated guarantees are "fresh process,
+finite resources, command-indexed outcomes, and deterministic evidence
+where declared", and whose stated error behavior is that "timeout,
+resource, and PyMOL errors terminate the process with no internal retry"
+([plan and execution](../../design/shared-core/plan-and-execution.md#apis-and-contracts)).
+This slice builds a disposable prototype of that boundary and the sabotage
+fixtures that prove it fails closed. It ships no production API.
+
+1. Add a new `tests/discovery/h02/execution_boundary.py` process primitive.
+   It must be its own primitive, **not** an extension of
+   `run_nested_snapshot_process`: that helper is a nested-pytest runner
+   with no deadline and no kill path, and growing it with timeout/kill flags
+   would both overload one function and put this slice's failure modes
+   inside the harness every candidate test depends on. Outer-loop review of
+   slice 2 called this out explicitly.
+2. Define the request and report shapes. A request carries a candidate
+   snapshot (reuse the shared harness's `ObjectSnapshot` and its JSON round
+   trip), an ordered command list, and explicit finite limits -- maximum
+   input size in bytes and a wall-clock deadline. A report carries the
+   input fingerprint, the resulting fingerprint, per-command outcomes
+   indexed by position, timing, and any warnings. Both are versioned like
+   the slice-1 and slice-2 schemas, and both remain candidate-private
+   prototype shapes, not the contract-freeze checkpoint's accepted
+   contract.
+3. Implement the boundary itself: spawn a genuinely fresh PyMOL process,
+   reconstruct from the snapshot alone, execute the commands in order,
+   collect per-command outcomes, and return the report. Enforce the
+   deadline with a hard kill, reap the child so no process is left behind,
+   and delete all scratch data on every exit path, success or failure.
+4. Probe each failure mode with its own sabotage fixture, asserting the
+   boundary fails closed, reports a typed reason, performs no internal
+   retry, leaves no live child process, and leaves no scratch data:
+   oversized input, malformed input, incompatible schema version,
+   spawn or load failure, wall-clock timeout, forced child crash, PyMOL
+   command failure, and fidelity mismatch between the expected and
+   resulting fingerprints.
+5. Assert the positive path too: a well-formed request returns a report
+   whose command-indexed outcomes and fingerprints match independently
+   computed expected values, and repeat it to show the evidence is
+   deterministic where the design says it is declared to be.
+
+**Validation (slice 3):** The focus card's middle tier -- medium-scope
+subprocess timeout, crash and cleanup probes. Each failure mode gets a
+Bazel `py_test` following the established pattern for this directory
+(`exclusive` tag, Windows exclusion where real PyMOL is involved, and the
+`__main__` + flush + `os._exit` discipline slice 2 proved is load-bearing
+for a trustworthy exit code). Plus the full repository suite, Ruff check
+and format, Pyrefly, and the dependency-boundary check.
+
+**Explicitly not in this slice:** no candidate is selected (slice 4), no
+production snapshot, card, or executor API ships before the joint
+contract-freeze checkpoint with M-02, and the ten non-blocking findings
+left open by slice 2's review are not swept up here unless one is directly
+in the way.
+
+## Slice 3 completion evidence (fresh-process-execution-boundary)
+
+Implemented at `c82fed6`; F1 and the initial F2 correction landed at `daff445`,
+then F2's remaining blind spot was closed in the follow-up recorded below.
+
+**Delivered:** `tests/discovery/h02/execution_boundary.py`, a disposable
+prototype of the design's hermetic execution protocol -- versioned,
+candidate-private request and report shapes plus an `execute()` primitive
+that spawns a genuinely fresh PyMOL child, reconstructs from the snapshot
+alone, runs an ordered command list, enforces a wall-clock deadline with a
+hard kill, reaps the child, and deletes all scratch data on every exit
+path. `tests/discovery/h02/test_execution_boundary.py` probes all eight
+declared failure modes plus the positive path.
+`tests/discovery/h02/build_defs.bzl` collapses the repeated `py_test`
+shape this directory had copied four times, retiring most of slice 2's
+H02-S2-F9.
+
+**Validation before the final F2 correction (`daff445`):**
+
+- `//tests/discovery/h02/...` with `--nocache_test_results` -> 5 of 5
+  targets PASSED; the probe module itself is 16 tests, up from 9.
+- `bazel test //...` -> 23 of 23 targets pass, no regression.
+- Ruff check and `format --check`, Pyrefly (0 errors, 20 suppressed,
+  matching the slice-1 baseline), and the dependency-boundary check
+  (exit 0) all clean.
+
+**Takeover validation (after the final F2 correction):**
+
+- `bazel test //tests/discovery/h02:execution_boundary_probes
+  --nocache_test_results --test_output=errors` -> PASSED (1 of 1 target;
+  16 probe tests).
+- The correctness specialist temporarily wrapped the shared command handler
+  containing both the sentinel and real PyMOL dispatch in a three-attempt
+  silent retry, then ran the two no-retry tests uncached. The original
+  outcome-only test passed, while the counter test failed with
+  `AssertionError: assert '3' == '1'` (1 failed, 1 passed, 14 deselected).
+  After restoration, the source checksum matched exactly and the clean
+  16-test target above passed again.
+- `bazel test //... --nocache_test_results --test_output=errors` -> all 23
+  repository test targets passed.
+- `bazel build //...` -> all 36 targets built successfully.
+- Ruff check and `format --check` passed for `tests/discovery/`; Pyrefly
+  reported 0 errors (20 suppressed); the dependency-boundary check exited 0.
+
+**Known limitations:** "Finite resources" is prototyped as two of the
+design's limits only -- maximum input bytes and a wall-clock deadline --
+with no memory bound and nowhere in either shape to record that omission
+(H02-S3-F14). A `STATUS_OK` report is therefore not evidence that the
+design's full finite-resources guarantee holds. Windows is excluded from
+these targets as it is for every real-PyMOL target here (issue #12), so
+the green Windows smoke job did not execute them. Coverage for
+`security_privacy_data_compatibility` and `rollout` was waived for this
+slice with recorded reasons, not verified.
+
+## Outer-loop corrections (slice 3, rounds 11-12)
+
+Round 11 ran three specialists -- correctness/tests, concurrency, and
+architecture/maintainability -- against `c82fed6` and returned
+CHANGES_REQUIRED with fifteen findings, two of them blocking. F1 was triaged
+"address" and fixed at `daff445`; the F2 correction below was found to need a
+further narrow takeover correction. What makes them worth recording is that
+both were found by *running* the code rather than reading it, and both
+concerned guarantees this module documents about itself.
+
+### The boundary raised instead of failing closed (H02-S3-F1) -- fixed at `daff445`
+
+`execute()` documents that it "never raises for any of this module's own
+documented failure modes". It did. `harness.from_json` does `json.loads`,
+then `data.get("schema_version")`, then indexes required keys, so any
+syntactically valid JSON that is not a snapshot object escaped the
+`except (json.JSONDecodeError, ValueError)` clause entirely: `42`, `null`,
+`[]`, `"hello"` and `true` each raised `AttributeError`, and an object
+missing a key raised `KeyError`. The specialist demonstrated this against
+the shipped code with no mutation at all.
+
+The fix broadens the clause to `(KeyError, AttributeError, TypeError)`
+mapped to `REASON_MALFORMED_INPUT`, placed after the version check so an
+unsupported-but-recognized version still reports as
+`REASON_UNSUPPORTED_SCHEMA_VERSION`. Six new probes cover the class.
+Reverting the clause makes all six fail with exactly the uncaught
+`AttributeError`/`KeyError` the finding described -- so the probes are
+load-bearing, not decorative.
+
+### "No internal retry" was asserted only by a test name (H02-S3-F2) -- final correction below
+
+The design authority requires that errors "terminate the process with no
+internal retry". The test named for that guarantee asserted only on
+`command_outcomes` -- one recorded failure at index 0 -- which a child
+silently retrying three times before recording one final failure
+satisfies perfectly. The specialist proved it: with such a retry
+injected, all nine probes passed, including that one.
+
+The first counter-sentinel fix added `COUNT_THEN_FAIL_VERB`, but it lived before
+the shared `try` and duplicated the failure bookkeeping. That structure only
+caught a retry around the whole per-command loop; a three-attempt retry at the
+actual real-command handler still invoked `cmd.color` three times while both
+tests passed. The final correction moves the sentinel inside the shared
+`try`, increments and fsyncs its counter, then raises through the shared
+handler. A separate test asserts the counter reads exactly `1`. Attempt count,
+not outcome count, is the load-bearing assertion.
+
+The first attempt at this fix *replaced* the original test rather than
+adding to it, which would have silently dropped the only coverage of a
+genuine `pymol.CmdException` travelling through the child's real
+exception handler. At that point the sentinel was special-cased before
+the handler and never reached it. Caught in review before it landed; the
+two tests now sit side by side, one exercising the real PyMOL failure path
+and one counting attempts through the same handler.
+
+The correctness specialist verified the final correction with the decisive
+three-attempt real-handler mutation: the original outcome-only test still
+passed, but the sentinel travelled through the retried shared handler three
+times and the counter test failed with `assert '3' == '1'`. The specialist
+restored the source byte-for-byte, verified its checksum, and reran all 16
+clean probes successfully.
+
+### Open, deliberately deferred
+
+Twelve non-blocking findings remained deferred after H02-S3-F13 (this
+document's own Status header still read "slices 3-4 not started" in the commit
+that implemented slice 3) was corrected. H02-S3-F15 is resolved by the final
+F2 correction because its only issue was the same real-handler retry test gap;
+eleven non-blocking findings remain deferred.
+
+Deferred: H02-S3-F3 (a child escaping between spawn and `communicate()`
+is neither killed nor reaped, and its scratch directory is deleted while
+it may still be live -- reachable only through the test-only hook or an
+async exception, demonstrated empirically), F4 (the post-kill drain is
+unbounded, latent today because the child never forks), F5
+(orphan-on-parent-SIGKILL is undocumented; Bazel's sandbox is the
+backstop), F6 (the child's entire 91-line program is a string literal,
+invisible to Ruff and Pyrefly, re-hardcoding the `STATUS_*`/`OUTCOME_*`
+literals the parent compares against), F7 (reconstruction technique and
+sabotage verbs are hardwired into the primitive rather than injected),
+F8 (`input_fingerprint`'s docstring contradicts `_rejected()`'s
+unconditional `None`), F9 (`execute()` adjudicates a caller expectation
+under the same status as real failures), F10 (the report carries no
+process evidence, so "fresh process, no leak" is observable only through
+a test-only hook), F11 (the new Bazel macro still leaves redundant `deps`
+and `data` at each call site), F12 (a fifth verbatim copy of the
+`__main__` boilerplate, extending slice 2's H02-S2-F11), and F14 (the
+memory-bound gap recorded above).
+
+F3 and F10 compound: the reap gap F3 demonstrates is invisible from the
+report a real caller sees. Slice 4 should take both together.

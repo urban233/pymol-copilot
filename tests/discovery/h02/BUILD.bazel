@@ -1,5 +1,5 @@
 load("@rules_python//python:py_library.bzl", "py_library")
-load("@rules_python//python:py_test.bzl", "py_test")
+load(":build_defs.bzl", "h02_pymol_py_test")
 
 # Slice 2's shared, candidate-agnostic differential harness (extraction
 # format, extract()/_diff(), the fixture, and the nested-subprocess-via-
@@ -7,8 +7,8 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # re-exports harness.py's real_pymol/loaded_fixture fixtures once so every
 # candidate test module below can request them by parameter name without
 # importing them itself (see conftest.py's own docstring for why: ruff's
-# F811, confirmed empirically). All three candidate test targets below
-# depend on this library.
+# F811, confirmed empirically). Every test target below depends on this
+# library.
 py_library(
     name = "harness",
     srcs = ["harness.py"],
@@ -23,135 +23,92 @@ py_library(
     ],
 )
 
-py_test(
-    # Named "harness_test" rather than "harness" (which this same file
-    # already uses for the py_library target above) to avoid a same-package
-    # Bazel target-name collision.
+# Slice 3's fresh-process hermetic execution boundary prototype: the
+# request/report shapes and the `execute()` process primitive itself. Its
+# own module code never imports pymol directly (only the child runner
+# script it spawns does), but it does import harness.py for the shared
+# ObjectSnapshot/from_json/to_json/extract it reuses.
+py_library(
+    name = "execution_boundary",
+    srcs = ["execution_boundary.py"],
+    imports = ["."],
+    deps = [":harness"],
+)
+
+# Named "harness_test" rather than "harness" (which this same file already
+# uses for the py_library target above) to avoid a same-package Bazel
+# target-name collision. Spawns a nested pytest subprocess that launches its
+# own real PyMOL process and lets it reach shutdown before failing -- the
+# masking condition run_nested_snapshot_process works around only manifests
+# once real PyMOL is actually involved, so this target can no longer be the
+# PyMOL-free "small" target it started as. Deliberate trade: this target
+# gives up the "runs on Windows" property the old PyMOL-free version had, in
+# exchange for actually being able to detect the regression it exists to
+# guard against.
+h02_pymol_py_test(
     name = "harness_test",
-    size = "large",
-    timeout = "moderate",
     srcs = ["test_harness.py"],
-    main = "test_harness.py",
-    # Spawns a nested pytest subprocess that launches its own real PyMOL
-    # process and lets it reach shutdown before failing -- the masking
-    # condition run_nested_snapshot_process works around only manifests
-    # once real PyMOL is actually involved, so this target can no longer be
-    # the PyMOL-free "small" target it started as. Excluded from
-    # concurrent scheduling for the same reason as tests/data:oracle_sabotage
-    # and tests/contract:policy_sabotage, so it never races another
-    # subprocess-spawning test under Windows's unsandboxed local execution
-    # strategy (observed CI flake).
-    tags = ["exclusive"],
-    # See tests/integration/BUILD.bazel's real_pymol_command target and
-    # issue #12: pymol-open-source-whl's Windows wheel bundles
-    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
-    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
-    # Deliberate trade: this target gives up the "runs on Windows" property
-    # the old PyMOL-free version had, in exchange for actually being able
-    # to detect the regression it exists to guard against.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
     deps = [
         ":harness",
         "@pypi//pymol_open_source_whl",
-        "@pypi//pytest",
     ],
 )
 
-py_test(
+h02_pymol_py_test(
     name = "full_v1_snapshot_candidate_a",
-    size = "large",
-    timeout = "moderate",
     srcs = ["test_full_v1_snapshot_candidate_a.py"],
-    main = "test_full_v1_snapshot_candidate_a.py",
     data = [
         "conftest.py",
         "testdata/h02_full_v1_fixture.pdb",
     ],
-    # Spawns a nested pytest subprocess that launches its own real PyMOL
-    # process (the fresh-process reconstruction half of the round trip);
-    # excluded from concurrent scheduling for the same reason as
-    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
-    # never races another subprocess-spawning test under Windows's
-    # unsandboxed local execution strategy (observed CI flake).
-    tags = ["exclusive"],
-    # See tests/integration/BUILD.bazel's real_pymol_command target and
-    # issue #12: pymol-open-source-whl's Windows wheel bundles
-    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
-    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
     deps = [
         ":harness",
         "@pypi//pymol_open_source_whl",
-        "@pypi//pytest",
     ],
 )
 
-py_test(
+h02_pymol_py_test(
     name = "full_v1_snapshot_candidate_b",
-    size = "large",
-    timeout = "moderate",
     srcs = ["test_full_v1_snapshot_candidate_b.py"],
-    main = "test_full_v1_snapshot_candidate_b.py",
     data = [
         "conftest.py",
         "testdata/h02_full_v1_fixture.pdb",
     ],
-    # Spawns a nested pytest subprocess that launches its own real PyMOL
-    # process (the fresh-process reconstruction half of the round trip);
-    # excluded from concurrent scheduling for the same reason as
-    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
-    # never races another subprocess-spawning test under Windows's
-    # unsandboxed local execution strategy (observed CI flake).
-    tags = ["exclusive"],
-    # See tests/integration/BUILD.bazel's real_pymol_command target and
-    # issue #12: pymol-open-source-whl's Windows wheel bundles
-    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
-    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
     deps = [
         ":harness",
         "@pypi//pymol_open_source_whl",
-        "@pypi//pytest",
     ],
 )
 
-py_test(
+h02_pymol_py_test(
     name = "full_v1_snapshot_candidate_c",
-    size = "large",
-    timeout = "moderate",
     srcs = ["test_full_v1_snapshot_candidate_c.py"],
-    main = "test_full_v1_snapshot_candidate_c.py",
     data = [
         "conftest.py",
         "testdata/h02_full_v1_fixture.pdb",
     ],
-    # Spawns a nested pytest subprocess that launches its own real PyMOL
-    # process (the fresh-process reconstruction half of the round trip);
-    # excluded from concurrent scheduling for the same reason as
-    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
-    # never races another subprocess-spawning test under Windows's
-    # unsandboxed local execution strategy (observed CI flake).
-    tags = ["exclusive"],
-    # See tests/integration/BUILD.bazel's real_pymol_command target and
-    # issue #12: pymol-open-source-whl's Windows wheel bundles
-    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
-    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
     deps = [
         ":harness",
         "@pypi//pymol_open_source_whl",
-        "@pypi//pytest",
+    ],
+)
+
+# Slice 3: the execution boundary's own sabotage and positive-path probes.
+# Unlike candidates A/B/C, this target's own test process never loads the
+# fixture PDB or launches PyMOL itself for most of its probes (the boundary
+# under test does that, in its own spawned child); "conftest.py" is still
+# needed as data because the positive-path test requests harness.py's
+# module-scoped `real_pymol` fixture (re-exported by conftest.py) to compute
+# an independent expected value.
+h02_pymol_py_test(
+    name = "execution_boundary_probes",
+    srcs = ["test_execution_boundary.py"],
+    data = [
+        "conftest.py",
+    ],
+    deps = [
+        ":execution_boundary",
+        ":harness",
+        "@pypi//pymol_open_source_whl",
     ],
 )
