@@ -11,24 +11,46 @@ can never override a genuine nested failure's exit code with 0 (see that
 function's own docstring for the full empirical finding this fixes).
 
 This module tests that guarantee directly, independent of any one
-candidate and without needing real PyMOL at all: a deliberately failing
-nested test function, targeted the same way every candidate's own
-reconstruction test is (the `-k` selector mechanism), is enough to prove
-the returned exit code is the nested process's real one.
+candidate's own reconstruction logic -- but it cannot do so without real
+PyMOL involved: a nested failure that never launches PyMOL already returns
+nonzero under both the current `python -c` spawn and the old, broken
+`python -m pytest` one, so it cannot tell the two apart (confirmed
+empirically -- see below). The nested test below therefore launches real
+headless PyMOL and lets it reach the same shutdown sequence every
+candidate's own reconstruction test does before it fails, reproducing the
+exact masking condition run_nested_snapshot_process's own docstring
+documents. That makes this module's own test a genuine regression guard:
+temporarily reverting run_nested_snapshot_process's spawn back to
+`python -m pytest` makes this test fail, exactly as a guard for that
+regression must.
 """
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
+
+import pytest
 
 from harness import run_nested_snapshot_process
 
-#: A minimal nested test module: one test function that unconditionally
-#: fails, so exercising it never depends on real PyMOL or any candidate's
-#: reconstruction logic -- only on run_nested_snapshot_process's own
-#: process-spawning and exit-code plumbing.
+#: A minimal nested test module: one test function that launches real
+#: headless PyMOL, lets it reach the same `finish_launching` -> `sync()`
+#: point every candidate's own reconstruction test does, and only then
+#: unconditionally fails. Launching real PyMOL here is not incidental: the
+#: shutdown-masking condition run_nested_snapshot_process works around only
+#: manifests once real PyMOL has actually been started in the nested
+#: process (confirmed empirically -- a PyMOL-free failing test already
+#: returns nonzero under both the current `python -c` spawn and the old,
+#: broken `python -m pytest` one, so it cannot discriminate between them).
 _FAILING_TEST_SOURCE = (
     "def test_deliberately_fails() -> None:\n"
+    "    import pymol\n"
+    "    from pymol import cmd\n"
+    "\n"
+    "    pymol.finish_launching(['pymol', '-qc'])\n"
+    "    cmd.sync()\n"
     "    raise AssertionError('h02 harness meta-test induced failure')\n"
 )
 
@@ -38,9 +60,11 @@ def test_run_nested_snapshot_process_propagates_a_genuine_failure(
 ) -> None:
     """A genuinely failing nested test's exit code must reach the caller.
 
-    Proves the defect this harness works around cannot silently return: a
-    nested process whose one selected test genuinely fails must report a
-    nonzero exit code, not a PyMOL-shutdown-masked 0.
+    The nested test launches real headless PyMOL and lets it reach its own
+    shutdown before failing, reproducing the exact masking condition
+    run_nested_snapshot_process works around -- a PyMOL-free nested failure
+    would return nonzero regardless of which spawn form ran it, and so
+    would prove nothing about this harness's own defect-avoidance.
 
     Args:
         tmp_path: A pytest-provided temporary directory for the nested
@@ -60,3 +84,19 @@ def test_run_nested_snapshot_process_propagates_a_genuine_failure(
 
     assert result.returncode != 0, result.stdout + result.stderr
     assert "test_deliberately_fails" in result.stdout + result.stderr
+
+
+if __name__ == "__main__":
+    # Real PyMOL's headless launch leaves behind cleanup that can complete
+    # after this process would otherwise exit, overriding a genuine pytest
+    # failure with process exit code 0 (the same defect documented and
+    # fixed the same way in tests/integration/test_real_pymol_command.py
+    # and candidate A's own __main__ block). os._exit bypasses that
+    # interpreter-shutdown window entirely, so pytest's real result is what
+    # Bazel actually sees. os._exit skips the normal stdio flush, so flush
+    # explicitly first -- otherwise a real failure's traceback and summary
+    # can be silently lost from the captured test log.
+    _exit_code = pytest.main([__file__])
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_exit_code)
