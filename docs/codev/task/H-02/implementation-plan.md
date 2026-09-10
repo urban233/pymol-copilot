@@ -6,8 +6,8 @@ outer-loop reviewed, and its pull request (#16) open and approved; slice 2
 open and approved; slice 3 (`fresh-process-execution-boundary`) implemented and
 outer-loop reviewed on a stacked branch
 (`codev/H-02--fresh-process-execution-boundary`, based on
-`codev/H-02--candidate-b-and-c` since #17 is not yet merged), with both blocking
-findings corrected at `daff445` -- see slice 3's own completion evidence below;
+`codev/H-02--candidate-b-and-c` since #17 is not yet merged), with F1 corrected
+at `daff445` and the final F2 correction recorded below;
 slice 4 (`differential-report-and-design-updates`) not started
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
@@ -691,7 +691,8 @@ in the way.
 
 ## Slice 3 completion evidence (fresh-process-execution-boundary)
 
-Implemented at `c82fed6`, corrected at `daff445` after outer-loop review.
+Implemented at `c82fed6`; F1 and the initial F2 correction landed at `daff445`,
+then F2's remaining blind spot was closed in the follow-up recorded below.
 
 **Delivered:** `tests/discovery/h02/execution_boundary.py`, a disposable
 prototype of the design's hermetic execution protocol -- versioned,
@@ -705,7 +706,7 @@ declared failure modes plus the positive path.
 shape this directory had copied four times, retiring most of slice 2's
 H02-S2-F9.
 
-**Validation at `daff445`:**
+**Validation before the final F2 correction (`daff445`):**
 
 - `//tests/discovery/h02/...` with `--nocache_test_results` -> 5 of 5
   targets PASSED; the probe module itself is 16 tests, up from 9.
@@ -713,6 +714,24 @@ H02-S2-F9.
 - Ruff check and `format --check`, Pyrefly (0 errors, 20 suppressed,
   matching the slice-1 baseline), and the dependency-boundary check
   (exit 0) all clean.
+
+**Takeover validation (after the final F2 correction):**
+
+- `bazel test //tests/discovery/h02:execution_boundary_probes
+  --nocache_test_results --test_output=errors` -> PASSED (1 of 1 target;
+  16 probe tests).
+- The correctness specialist temporarily wrapped the shared command handler
+  containing both the sentinel and real PyMOL dispatch in a three-attempt
+  silent retry, then ran the two no-retry tests uncached. The original
+  outcome-only test passed, while the counter test failed with
+  `AssertionError: assert '3' == '1'` (1 failed, 1 passed, 14 deselected).
+  After restoration, the source checksum matched exactly and the clean
+  16-test target above passed again.
+- `bazel test //... --nocache_test_results --test_output=errors` -> all 23
+  repository test targets passed.
+- `bazel build //...` -> all 36 targets built successfully.
+- Ruff check and `format --check` passed for `tests/discovery/`; Pyrefly
+  reported 0 errors (20 suppressed); the dependency-boundary check exited 0.
 
 **Known limitations:** "Finite resources" is prototyped as two of the
 design's limits only -- maximum input bytes and a wall-clock deadline --
@@ -728,11 +747,11 @@ slice with recorded reasons, not verified.
 
 Round 11 ran three specialists -- correctness/tests, concurrency, and
 architecture/maintainability -- against `c82fed6` and returned
-CHANGES_REQUIRED with fifteen findings, two of them blocking. Both
-blocking findings were triaged "address" and are fixed at `daff445`. What
-makes them worth recording is that both were found by *running* the code
-rather than reading it, and both concerned guarantees this module
-documents about itself.
+CHANGES_REQUIRED with fifteen findings, two of them blocking. F1 was triaged
+"address" and fixed at `daff445`; the F2 correction below was found to need a
+further narrow takeover correction. What makes them worth recording is that
+both were found by *running* the code rather than reading it, and both
+concerned guarantees this module documents about itself.
 
 ### The boundary raised instead of failing closed (H02-S3-F1) -- fixed at `daff445`
 
@@ -753,7 +772,7 @@ Reverting the clause makes all six fail with exactly the uncaught
 `AttributeError`/`KeyError` the finding described -- so the probes are
 load-bearing, not decorative.
 
-### "No internal retry" was asserted only by a test name (H02-S3-F2) -- fixed at `daff445`
+### "No internal retry" was asserted only by a test name (H02-S3-F2) -- final correction below
 
 The design authority requires that errors "terminate the process with no
 internal retry". The test named for that guarantee asserted only on
@@ -762,32 +781,37 @@ silently retrying three times before recording one final failure
 satisfies perfectly. The specialist proved it: with such a retry
 injected, all nine probes passed, including that one.
 
-The fix adds `COUNT_THEN_FAIL_VERB`, a sentinel the child always fails on
-but only after incrementing a counter file on each real invocation, and a
-separate test asserting the counter reads exactly `1`. Attempt count, not
-outcome count, is now the load-bearing assertion.
+The first counter-sentinel fix added `COUNT_THEN_FAIL_VERB`, but it lived before
+the shared `try` and duplicated the failure bookkeeping. That structure only
+caught a retry around the whole per-command loop; a three-attempt retry at the
+actual real-command handler still invoked `cmd.color` three times while both
+tests passed. The final correction moves the sentinel inside the shared
+`try`, increments and fsyncs its counter, then raises through the shared
+handler. A separate test asserts the counter reads exactly `1`. Attempt count,
+not outcome count, is the load-bearing assertion.
 
 The first attempt at this fix *replaced* the original test rather than
 adding to it, which would have silently dropped the only coverage of a
 genuine `pymol.CmdException` travelling through the child's real
-exception handler -- the sentinel is special-cased before that handler
-and never reaches it. Caught in review before it landed; the two tests
-now sit side by side, one exercising the real PyMOL failure path and one
-counting attempts.
+exception handler. At that point the sentinel was special-cased before
+the handler and never reached it. Caught in review before it landed; the
+two tests now sit side by side, one exercising the real PyMOL failure path
+and one counting attempts through the same handler.
 
-Verified in both directions at `daff445`: with a genuine three-attempt
-retry injected into the child runner, the new test fails on
-`assert '3' == '1'` while the other fifteen pass -- including the
-original command-failure test, which is precisely the blind spot the new
-test closes. Restored and re-run clean, with the file confirmed
-byte-identical by checksum before and after each experiment.
+The correctness specialist verified the final correction with the decisive
+three-attempt real-handler mutation: the original outcome-only test still
+passed, but the sentinel travelled through the retried shared handler three
+times and the counter test failed with `assert '3' == '1'`. The specialist
+restored the source byte-for-byte, verified its checksum, and reran all 16
+clean probes successfully.
 
 ### Open, deliberately deferred
 
-Thirteen non-blocking findings were recorded and left unaddressed, except
-H02-S3-F13 (this document's own Status header still read "slices 3-4 not
-started" in the commit that implemented slice 3), corrected here because
-the same edit was already touching that header.
+Twelve non-blocking findings remained deferred after H02-S3-F13 (this
+document's own Status header still read "slices 3-4 not started" in the commit
+that implemented slice 3) was corrected. H02-S3-F15 is resolved by the final
+F2 correction because its only issue was the same real-handler retry test gap;
+eleven non-blocking findings remain deferred.
 
 Deferred: H02-S3-F3 (a child escaping between spawn and `communicate()`
 is neither killed nor reaped, and its scratch directory is deleted while
@@ -805,9 +829,8 @@ under the same status as real failures), F10 (the report carries no
 process evidence, so "fresh process, no leak" is observable only through
 a test-only hook), F11 (the new Bazel macro still leaves redundant `deps`
 and `data` at each call site), F12 (a fifth verbatim copy of the
-`__main__` boilerplate, extending slice 2's H02-S2-F11), F14 (the
-memory-bound gap recorded above), and F15 (the module docstring's retry
-claim is broader than what the fixed tests verify).
+`__main__` boilerplate, extending slice 2's H02-S2-F11), and F14 (the
+memory-bound gap recorded above).
 
 F3 and F10 compound: the reap gap F3 demonstrates is invisible from the
 report a real caller sees. Slice 4 should take both together.
