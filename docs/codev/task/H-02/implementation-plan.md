@@ -442,9 +442,14 @@ same lint/format/type/dependency-boundary checks.
     //tests/discovery/h02:full_v1_snapshot_candidate_b
     //tests/discovery/h02:full_v1_snapshot_candidate_c
     --test_output=errors` -> 3 of 3 PASSED (candidate A 16.3s, candidate B
-    11.9s, candidate C 10.5s). This was candidate C's first execution in
-    any process, and it passed without modification; candidate B's
-    exception-matching fix passed here too.
+    11.9s, candidate C 10.5s).
+    **This result was later shown to be meaningless and must not be read
+    as fidelity evidence.** Outer-loop review established that all three
+    fresh-process round-trip tests were structurally incapable of failing
+    at this commit; see "Outer-loop corrections" below for what was
+    actually wrong and what the genuine results turned out to be. The line
+    is kept rather than deleted so the evidence trail shows what was
+    believed at the time and how it was corrected.
   - `bazel test //...` -> 21 of 21 test targets pass; no regression in any
     pre-existing target. Re-run after the formatting fix below, with
     candidate A re-executing in 18.7s.
@@ -509,9 +514,116 @@ same lint/format/type/dependency-boundary checks.
     (`harness.SNAPSHOT_SCHEMA_VERSION`) are both private prototype
     versions, not the contract-freeze checkpoint's real accepted schema,
     exactly as slice 1 already recorded for its own schema version.
-- **Review state:** Not independently reviewed. The validation gap that
-  originally blocked this slice is closed -- every check above was run
-  against the files as they stand -- but the implementer's evidence has
-  not yet been checked by an independent reviewer, and no inner-loop
-  reviewer round has been recorded for slice 2. `AWAITING INDEPENDENT
-  REVIEW`.
+- **Review state:** Inner loop complete (round 5, `READY_FOR_OUTER_LOOP`).
+  Outer-loop review then ran across rounds 6-8 and materially corrected
+  the evidence above -- see the next section, which supersedes it wherever
+  the two disagree.
+
+## Outer-loop corrections (slice 2, rounds 6-8)
+
+Outer-loop review found that slice 2's headline validation result did not
+mean what it appeared to. The corrections below are recorded at the same
+level of detail as the original claims, because the original claims were
+wrong and a reader needs to know exactly how.
+
+### The round-trip tests could not fail (H02-S2-F1) -- fixed at `252e41a`
+
+`run_nested_snapshot_process` spawned its nested "genuinely fresh process"
+as `python -m pytest <file>`. That runs the file through pytest's own
+runner as an imported module, so it never reaches the module's `__main__`
+block -- and that block is the only place the repository's `os._exit`
+workaround for PyMOL's headless shutdown clobbering the exit code is
+applied. The child's real exit code could therefore silently become 0
+after a genuine failure.
+
+Proven, not inferred: substituting an unconditional `raise AssertionError`
+into a nested test still produced a `PASSED` Bazel target. Every
+fresh-process round-trip test in this directory -- candidates A, B and C
+-- was structurally incapable of failing. The recorded "3 of 3 PASSED"
+established nothing about reconstruction fidelity.
+
+The fix spawns the child via `python -c` running a runner that reproduces
+`pytest.main()` -> flush -> `os._exit(code)` directly, preserving the `-k`
+selector so the child still runs exactly one test and cannot recurse.
+Independently confirmed with real PyMOL: a nested failure after
+`finish_launching` yields parent exit 1 under the new spawn and parent
+exit 0 under the old one.
+
+**This defect also affects slice 1.** Candidate A's round-trip test used
+the same `-m pytest` invocation inline, so slice 1's recorded
+fresh-process evidence in pull request #16 was masked in exactly the same
+way. The fix lives here in slice 2, stacked on top of it.
+
+### Candidate B did not actually round-trip (H02-S2-F2) -- fixed at `252e41a`
+
+With the masking removed, candidate B's reconstruction showed 8 real
+mismatches: `cmd.save(..., format="pdb")` renumbers atom serials by write
+order rather than preserving them, so the hetero ZN atom's serial 13
+reloaded as 10, shifting IDs 10-13 across both states. Atom identity is an
+explicit wave acceptance category, so this was a genuine fidelity gap that
+the inert test had been hiding.
+
+Repaired rather than documented away: the manifest now carries each atom's
+`serial` and `apply_manifest` restores it via `cmd.alter(sel, f"ID=...")`.
+The identity selection uses only chain/resi/resn/name/alt and no serial
+term, so restoration is order-independent and cannot invalidate the
+selection driving it. This is squarely the candidate-B thesis -- a
+standard export plus an explicit manifest for what the format cannot
+carry.
+
+### Candidate C was never actually measured (H02-S2-F3) -- resolved at `252e41a`
+
+Candidate C's fidelity had only ever been asserted, never executed under a
+working exit-code check. It now genuinely passes. Its measurement-object
+recovery is demonstrated by real executing assertions, but **same-process**
+(save/delete/reload within one session), not across the fresh-process
+boundary -- recorded as H02-S2-F13 so slice 4 does not overread it.
+
+### The first regression guard was itself inert (H02-S2-F12) -- fixed at `86893d4`
+
+The guard added alongside the F1 fix did not work either, in two
+independent ways: `test_harness.py` had no `__main__` block while its
+`py_test` set `main` to that file, so Bazel ran it as a script that
+defined a function and exited 0 with empty test output; and its nested
+child was PyMOL-free, so `-m pytest` returned nonzero for it anyway and it
+could not have discriminated the spawn forms. Its docstring nonetheless
+claimed it proved the defect could not return.
+
+Now fixed and verified in both directions, twice independently: with the
+pre-fix spawn restored the target FAILS (bazel exit 3), with the fix in
+place it PASSES. The child launches headless PyMOL before failing, so the
+masking condition is actually present. Cost of that: the target needed
+real PyMOL and so lost the Windows coverage it previously had, a
+deliberate trade stated in `BUILD.bazel`.
+
+### Genuine validation at `86893d4`
+
+Every check below was run against the corrected files, with the
+round-trip tests now demonstrably able to fail:
+
+- Three candidate targets, `--nocache_test_results` -> 3 of 3 PASSED.
+- `//tests/discovery/h02:harness_test` -> PASSES with the fix, FAILS with
+  the pre-fix spawn restored (the property that makes the above
+  meaningful).
+- `bazel test //...` -> 22 of 22 targets pass.
+- Ruff check and `format --check`, Pyrefly (0 errors), and the
+  dependency-boundary check all clean.
+
+### Open, deliberately deferred
+
+Non-blocking and untouched by design: H02-S2-F4 (candidate B's module
+docstring still describes the measurement-export failure as the
+message-bearing `Invalid selection name` error rather than the
+empty-message `QuietException` its own corrected test records), F5 (no
+test exercises candidate B's manifest schema-version guard), F6
+(`pytest.raises(Exception)` is near-vacuous), F7 (`_diff` is
+private-named but is the shared public seam), F8 (candidate-agnostic
+display-state read duplicated between `harness.py` and candidate B), F9
+(three near-identical Bazel target blocks), F11 (the same explanatory
+comment repeated in three modules), F13 (candidate C's same-process
+measurement caveat above), and the observation that the `pyproject.toml`
+`search-path` entry outlives the disposable prototype and should be
+removed in slice 4.
+
+Coverage for `security_privacy_data_compatibility`, `concurrency` and
+`rollout` was waived for this slice with recorded reasons, not verified.
