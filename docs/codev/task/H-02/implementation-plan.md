@@ -627,3 +627,61 @@ removed in slice 4.
 
 Coverage for `security_privacy_data_compatibility`, `concurrency` and
 `rollout` was waived for this slice with recorded reasons, not verified.
+
+## Proposed change (slice 3: fresh-process-execution-boundary)
+
+Prototypes the request/report boundary the accepted design calls the
+hermetic execution protocol, whose stated guarantees are "fresh process,
+finite resources, command-indexed outcomes, and deterministic evidence
+where declared", and whose stated error behavior is that "timeout,
+resource, and PyMOL errors terminate the process with no internal retry"
+([plan and execution](../../design/shared-core/plan-and-execution.md#apis-and-contracts)).
+This slice builds a disposable prototype of that boundary and the sabotage
+fixtures that prove it fails closed. It ships no production API.
+
+1. Add a new `tests/discovery/h02/execution_boundary.py` process primitive.
+   It must be its own primitive, **not** an extension of
+   `run_nested_snapshot_process`: that helper is a nested-pytest runner
+   with no deadline and no kill path, and growing it with timeout/kill flags
+   would both overload one function and put this slice's failure modes
+   inside the harness every candidate test depends on. Outer-loop review of
+   slice 2 called this out explicitly.
+2. Define the request and report shapes. A request carries a candidate
+   snapshot (reuse the shared harness's `ObjectSnapshot` and its JSON round
+   trip), an ordered command list, and explicit finite limits -- maximum
+   input size in bytes and a wall-clock deadline. A report carries the
+   input fingerprint, the resulting fingerprint, per-command outcomes
+   indexed by position, timing, and any warnings. Both are versioned like
+   the slice-1 and slice-2 schemas, and both remain candidate-private
+   prototype shapes, not the contract-freeze checkpoint's accepted
+   contract.
+3. Implement the boundary itself: spawn a genuinely fresh PyMOL process,
+   reconstruct from the snapshot alone, execute the commands in order,
+   collect per-command outcomes, and return the report. Enforce the
+   deadline with a hard kill, reap the child so no process is left behind,
+   and delete all scratch data on every exit path, success or failure.
+4. Probe each failure mode with its own sabotage fixture, asserting the
+   boundary fails closed, reports a typed reason, performs no internal
+   retry, leaves no live child process, and leaves no scratch data:
+   oversized input, malformed input, incompatible schema version,
+   spawn or load failure, wall-clock timeout, forced child crash, PyMOL
+   command failure, and fidelity mismatch between the expected and
+   resulting fingerprints.
+5. Assert the positive path too: a well-formed request returns a report
+   whose command-indexed outcomes and fingerprints match independently
+   computed expected values, and repeat it to show the evidence is
+   deterministic where the design says it is declared to be.
+
+**Validation (slice 3):** The focus card's middle tier -- medium-scope
+subprocess timeout, crash and cleanup probes. Each failure mode gets a
+Bazel `py_test` following the established pattern for this directory
+(`exclusive` tag, Windows exclusion where real PyMOL is involved, and the
+`__main__` + flush + `os._exit` discipline slice 2 proved is load-bearing
+for a trustworthy exit code). Plus the full repository suite, Ruff check
+and format, Pyrefly, and the dependency-boundary check.
+
+**Explicitly not in this slice:** no candidate is selected (slice 4), no
+production snapshot, card, or executor API ships before the joint
+contract-freeze checkpoint with M-02, and the ten non-blocking findings
+left open by slice 2's review are not swept up here unless one is directly
+in the way.
