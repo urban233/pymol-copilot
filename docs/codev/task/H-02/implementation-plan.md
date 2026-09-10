@@ -1,11 +1,14 @@
 # H-02: Prove full-V1 snapshot reconstruction and execution boundaries -- Implementation Plan
 
 **Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete,
-outer-loop reviewed, and its pull request (#16) open awaiting human approval;
-slice 2 (`candidate-b-and-c`) implemented on a stacked branch
-(`codev/H-02--candidate-b-and-c`, based on `codev/H-02` since #16 is not yet
-merged) -- see slice 2's own Completion evidence below for exactly what is
-and is not yet independently re-validated; slices 3-4 not started
+outer-loop reviewed, and its pull request (#16) open and approved; slice 2
+(`candidate-b-and-c`) complete, outer-loop reviewed, and its pull request (#17)
+open and approved; slice 3 (`fresh-process-execution-boundary`) implemented and
+outer-loop reviewed on a stacked branch
+(`codev/H-02--fresh-process-execution-boundary`, based on
+`codev/H-02--candidate-b-and-c` since #17 is not yet merged), with both blocking
+findings corrected at `daff445` -- see slice 3's own completion evidence below;
+slice 4 (`differential-report-and-design-updates`) not started
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** high
@@ -685,3 +688,126 @@ production snapshot, card, or executor API ships before the joint
 contract-freeze checkpoint with M-02, and the ten non-blocking findings
 left open by slice 2's review are not swept up here unless one is directly
 in the way.
+
+## Slice 3 completion evidence (fresh-process-execution-boundary)
+
+Implemented at `c82fed6`, corrected at `daff445` after outer-loop review.
+
+**Delivered:** `tests/discovery/h02/execution_boundary.py`, a disposable
+prototype of the design's hermetic execution protocol -- versioned,
+candidate-private request and report shapes plus an `execute()` primitive
+that spawns a genuinely fresh PyMOL child, reconstructs from the snapshot
+alone, runs an ordered command list, enforces a wall-clock deadline with a
+hard kill, reaps the child, and deletes all scratch data on every exit
+path. `tests/discovery/h02/test_execution_boundary.py` probes all eight
+declared failure modes plus the positive path.
+`tests/discovery/h02/build_defs.bzl` collapses the repeated `py_test`
+shape this directory had copied four times, retiring most of slice 2's
+H02-S2-F9.
+
+**Validation at `daff445`:**
+
+- `//tests/discovery/h02/...` with `--nocache_test_results` -> 5 of 5
+  targets PASSED; the probe module itself is 16 tests, up from 9.
+- `bazel test //...` -> 23 of 23 targets pass, no regression.
+- Ruff check and `format --check`, Pyrefly (0 errors, 20 suppressed,
+  matching the slice-1 baseline), and the dependency-boundary check
+  (exit 0) all clean.
+
+**Known limitations:** "Finite resources" is prototyped as two of the
+design's limits only -- maximum input bytes and a wall-clock deadline --
+with no memory bound and nowhere in either shape to record that omission
+(H02-S3-F14). A `STATUS_OK` report is therefore not evidence that the
+design's full finite-resources guarantee holds. Windows is excluded from
+these targets as it is for every real-PyMOL target here (issue #12), so
+the green Windows smoke job did not execute them. Coverage for
+`security_privacy_data_compatibility` and `rollout` was waived for this
+slice with recorded reasons, not verified.
+
+## Outer-loop corrections (slice 3, rounds 11-12)
+
+Round 11 ran three specialists -- correctness/tests, concurrency, and
+architecture/maintainability -- against `c82fed6` and returned
+CHANGES_REQUIRED with fifteen findings, two of them blocking. Both
+blocking findings were triaged "address" and are fixed at `daff445`. What
+makes them worth recording is that both were found by *running* the code
+rather than reading it, and both concerned guarantees this module
+documents about itself.
+
+### The boundary raised instead of failing closed (H02-S3-F1) -- fixed at `daff445`
+
+`execute()` documents that it "never raises for any of this module's own
+documented failure modes". It did. `harness.from_json` does `json.loads`,
+then `data.get("schema_version")`, then indexes required keys, so any
+syntactically valid JSON that is not a snapshot object escaped the
+`except (json.JSONDecodeError, ValueError)` clause entirely: `42`, `null`,
+`[]`, `"hello"` and `true` each raised `AttributeError`, and an object
+missing a key raised `KeyError`. The specialist demonstrated this against
+the shipped code with no mutation at all.
+
+The fix broadens the clause to `(KeyError, AttributeError, TypeError)`
+mapped to `REASON_MALFORMED_INPUT`, placed after the version check so an
+unsupported-but-recognized version still reports as
+`REASON_UNSUPPORTED_SCHEMA_VERSION`. Six new probes cover the class.
+Reverting the clause makes all six fail with exactly the uncaught
+`AttributeError`/`KeyError` the finding described -- so the probes are
+load-bearing, not decorative.
+
+### "No internal retry" was asserted only by a test name (H02-S3-F2) -- fixed at `daff445`
+
+The design authority requires that errors "terminate the process with no
+internal retry". The test named for that guarantee asserted only on
+`command_outcomes` -- one recorded failure at index 0 -- which a child
+silently retrying three times before recording one final failure
+satisfies perfectly. The specialist proved it: with such a retry
+injected, all nine probes passed, including that one.
+
+The fix adds `COUNT_THEN_FAIL_VERB`, a sentinel the child always fails on
+but only after incrementing a counter file on each real invocation, and a
+separate test asserting the counter reads exactly `1`. Attempt count, not
+outcome count, is now the load-bearing assertion.
+
+The first attempt at this fix *replaced* the original test rather than
+adding to it, which would have silently dropped the only coverage of a
+genuine `pymol.CmdException` travelling through the child's real
+exception handler -- the sentinel is special-cased before that handler
+and never reaches it. Caught in review before it landed; the two tests
+now sit side by side, one exercising the real PyMOL failure path and one
+counting attempts.
+
+Verified in both directions at `daff445`: with a genuine three-attempt
+retry injected into the child runner, the new test fails on
+`assert '3' == '1'` while the other fifteen pass -- including the
+original command-failure test, which is precisely the blind spot the new
+test closes. Restored and re-run clean, with the file confirmed
+byte-identical by checksum before and after each experiment.
+
+### Open, deliberately deferred
+
+Thirteen non-blocking findings were recorded and left unaddressed, except
+H02-S3-F13 (this document's own Status header still read "slices 3-4 not
+started" in the commit that implemented slice 3), corrected here because
+the same edit was already touching that header.
+
+Deferred: H02-S3-F3 (a child escaping between spawn and `communicate()`
+is neither killed nor reaped, and its scratch directory is deleted while
+it may still be live -- reachable only through the test-only hook or an
+async exception, demonstrated empirically), F4 (the post-kill drain is
+unbounded, latent today because the child never forks), F5
+(orphan-on-parent-SIGKILL is undocumented; Bazel's sandbox is the
+backstop), F6 (the child's entire 91-line program is a string literal,
+invisible to Ruff and Pyrefly, re-hardcoding the `STATUS_*`/`OUTCOME_*`
+literals the parent compares against), F7 (reconstruction technique and
+sabotage verbs are hardwired into the primitive rather than injected),
+F8 (`input_fingerprint`'s docstring contradicts `_rejected()`'s
+unconditional `None`), F9 (`execute()` adjudicates a caller expectation
+under the same status as real failures), F10 (the report carries no
+process evidence, so "fresh process, no leak" is observable only through
+a test-only hook), F11 (the new Bazel macro still leaves redundant `deps`
+and `data` at each call site), F12 (a fifth verbatim copy of the
+`__main__` boilerplate, extending slice 2's H02-S2-F11), F14 (the
+memory-bound gap recorded above), and F15 (the module docstring's retry
+claim is broader than what the fixed tests verify).
+
+F3 and F10 compound: the reap gap F3 demonstrates is invisible from the
+report a real caller sees. Slice 4 should take both together.
