@@ -434,6 +434,23 @@ def _diff(expected: ObjectSnapshot, actual: ObjectSnapshot) -> list[str]:
     return mismatches
 
 
+#: The nested child's own entire program, passed via `python -c`. Runs
+#: pytest in-process exactly like each candidate module's own `__main__`
+#: block does (`pytest.main()`, flush, `os._exit(code)`), instead of
+#: `python -m pytest`, which runs the file as a module through pytest's own
+#: runner and never reaches a `__main__` block -- see
+#: run_nested_snapshot_process's docstring for why that distinction is not
+#: cosmetic. `sys.argv[1]`/`sys.argv[2]` are the test file and `-k` filter,
+#: appended after this source string in the child's argv.
+_NESTED_RUNNER_SOURCE = (
+    "import os, sys, pytest\n"
+    "code = pytest.main([sys.argv[1], '-k', sys.argv[2], '-q'])\n"
+    "sys.stdout.flush()\n"
+    "sys.stderr.flush()\n"
+    "os._exit(code)\n"
+)
+
+
 def run_nested_snapshot_process(
     test_file: Path | str,
     test_name_filter: str,
@@ -451,6 +468,22 @@ def run_nested_snapshot_process(
     process never receives the parent's live PyMOL objects directly, and
     never opens the original source fixture file; it only ever reads
     whatever `env` points it at.
+
+    The child runs `python -c <_NESTED_RUNNER_SOURCE>` rather than
+    `python -m pytest` on purpose. Real PyMOL's headless shutdown can
+    complete after pytest's own process would otherwise exit, overriding a
+    genuine failure's exit code with 0 -- the same defect every candidate
+    module's own `__main__` block documents and works around by calling
+    `os._exit` immediately after `pytest.main()` returns, once stdout and
+    stderr are flushed. `python -m pytest` imports the file as a module and
+    runs pytest's own runner directly, so it never reaches that `__main__`
+    block and the workaround never applies to the child -- confirmed
+    empirically: an unconditional `raise AssertionError` substituted into a
+    nested test still produced a zero exit code through `-m pytest`.
+    `_NESTED_RUNNER_SOURCE` reproduces the exact same
+    `pytest.main()` -> flush -> `os._exit()` sequence directly as the
+    child's whole program, so this function's caller observes the child's
+    real result.
 
     Args:
         test_file: The test module to re-invoke (normally the caller's own
@@ -471,12 +504,10 @@ def run_nested_snapshot_process(
     return subprocess.run(
         [
             sys.executable,
-            "-m",
-            "pytest",
+            "-c",
+            _NESTED_RUNNER_SOURCE,
             str(test_file),
-            "-k",
             test_name_filter,
-            "-q",
         ],
         env=environment,
         capture_output=True,

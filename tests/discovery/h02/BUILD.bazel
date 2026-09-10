@@ -24,6 +24,27 @@ py_library(
 )
 
 py_test(
+    # Named "harness_test" rather than "harness" (which this same file
+    # already uses for the py_library target above) to avoid a same-package
+    # Bazel target-name collision.
+    name = "harness_test",
+    size = "small",
+    srcs = ["test_harness.py"],
+    main = "test_harness.py",
+    # Spawns a nested pytest subprocess against a trivial, disposable
+    # temp-directory test file (no real PyMOL involved); excluded from
+    # concurrent scheduling for the same reason as tests/data:oracle_sabotage
+    # and tests/contract:policy_sabotage, so it never races another
+    # subprocess-spawning test under Windows's unsandboxed local execution
+    # strategy (observed CI flake).
+    tags = ["exclusive"],
+    deps = [
+        ":harness",
+        "@pypi//pytest",
+    ],
+)
+
+py_test(
     name = "full_v1_snapshot_candidate_a",
     size = "large",
     timeout = "moderate",

@@ -46,6 +46,16 @@ cost a probe to discover:
   `segi` tag trick -- atom order was also observed to survive this
   fixture's PDB round trip unchanged, but the identity key does not
   depend on that holding in general.
+- A plain PDB export/reload does not preserve every atom's original
+  serial number (confirmed empirically: the hetero ZN atom's serial is
+  13 in the original loaded fixture but reloads as 10, shifting this
+  fixture's chain-B atoms from 10-12 to 11-13) -- `cmd.save(...,
+  format="pdb")` renumbers serials sequentially by write order rather
+  than preserving each atom's original value. The manifest therefore
+  also carries each atom's original serial by identity, alongside color/
+  reps/label, and `apply_manifest()` restores it with `cmd.alter(sel,
+  f"ID={serial}")` (PyMOL's atom-serial attribute is the uppercase `ID`
+  field, same as candidate A's own finding above it).
 - Exporting a measurement object through `cmd.save(..., format="pdb")`
   fails outright with the same "Invalid selection name" error candidate
   A's negative-result test already found for atom-based queries --
@@ -97,6 +107,10 @@ class ManifestAtomEntry:
         resn: Residue name.
         name: Atom name.
         alt: Alternate location indicator, or "" when absent.
+        serial: The atom's original PyMOL ID (serial number). A plain PDB
+            export/reload does not reliably preserve it (see the module
+            docstring's empirical finding), so the manifest carries it
+            explicitly and apply_manifest() restores it after reload.
         color: The PyMOL color index.
         reps: The names of every representation this atom is shown in.
         label: The atom label text, or None when unlabeled.
@@ -107,6 +121,7 @@ class ManifestAtomEntry:
     resn: str
     name: str
     alt: str
+    serial: int
     color: int
     reps: tuple[str, ...]
     label: str | None
@@ -217,6 +232,7 @@ def build_manifest(cmd: Any, object_name: str) -> CandidateBManifest:
                 resn=identity[2],
                 name=identity[3],
                 alt=identity[4],
+                serial=atom.id,
                 color=colors[index],
                 reps=tuple(reps_by_id.get(atom.id, [])),
                 label=labels[index] or None,
@@ -292,6 +308,7 @@ def manifest_from_json(text: str) -> CandidateBManifest:
                 resn=a["resn"],
                 name=a["name"],
                 alt=a["alt"],
+                serial=a["serial"],
                 color=a["color"],
                 reps=tuple(a["reps"]),
                 label=a["label"],
@@ -329,6 +346,12 @@ def apply_manifest(cmd: Any, manifest: CandidateBManifest) -> None:
         sel = _atom_selection(
             name, entry.chain, entry.resi, entry.resn, entry.name, entry.alt
         )
+        # Restore the original serial the PDB export/reload did not
+        # reliably preserve (see the module docstring's empirical
+        # finding); the identity selection above never depends on this
+        # value, so restoring it here is safe regardless of what
+        # serial cmd.load assigned on reload.
+        cmd.alter(sel, f"ID={entry.serial}")
         cmd.color(str(entry.color), sel)
         cmd.hide("everything", sel)
         for rep_name in entry.reps:
@@ -377,7 +400,9 @@ def test_manifest_captures_display_state_a_plain_pdb_cannot(
     assert ca.color == loaded_fixture.get_color_index("red")
     assert ca.label == "CA"
     assert "sticks" in ca.reps
+    assert ca.serial == 2
     assert "spheres" in zinc.reps
+    assert zinc.serial == 13
     assert manifest.settings == (
         ("sphere_scale", "0.35000"),
         ("cartoon_transparency", "0.25000"),
