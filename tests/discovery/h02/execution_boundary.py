@@ -91,9 +91,14 @@ OUTCOME_ERROR = "error"
 
 #: Sentinel command verbs the child runner interprets itself, never
 #: forwarded to `cmd`, used only by this slice's own sabotage fixtures to
-#: force a wall-clock timeout or a hard child-process crash on demand.
+#: force a wall-clock timeout or a hard child-process crash on demand, or to
+#: make a command that always fails while still recording each real
+#: invocation it receives (`COUNT_THEN_FAIL_VERB`), so a test can tell
+#: "attempted once" apart from "attempted, then silently retried" even
+#: though both currently produce exactly one recorded outcome.
 CRASH_VERB = "__crash__"
 SLEEP_VERB = "__sleep__"
+COUNT_THEN_FAIL_VERB = "__count_then_fail__"
 
 
 @dataclass(frozen=True)
@@ -102,7 +107,8 @@ class Command:
 
     Attributes:
         verb: The `cmd.<verb>` PyMOL API to call, or one of this module's
-            own sentinel verbs (`CRASH_VERB`, `SLEEP_VERB`).
+            own sentinel verbs (`CRASH_VERB`, `SLEEP_VERB`,
+            `COUNT_THEN_FAIL_VERB`).
         args: Positional string arguments passed to that verb.
     """
 
@@ -348,6 +354,28 @@ _CHILD_RUNNER_SOURCE = (
     "            {'index': index, 'verb': verb, 'status': 'ok', 'error': None}\n"
     "        )\n"
     "        continue\n"
+    "    if verb == eb.COUNT_THEN_FAIL_VERB:\n"
+    "        counter_path = args[0]\n"
+    "        count = 0\n"
+    "        if os.path.exists(counter_path):\n"
+    "            existing = open(counter_path).read().strip()\n"
+    "            count = int(existing) if existing else 0\n"
+    "        count += 1\n"
+    "        with open(counter_path, 'w') as fh:\n"
+    "            fh.write(str(count))\n"
+    "            fh.flush()\n"
+    "            os.fsync(fh.fileno())\n"
+    "        command_outcomes.append(\n"
+    "            {\n"
+    "                'index': index,\n"
+    "                'verb': verb,\n"
+    "                'status': 'error',\n"
+    "                'error': 'sentinel always fails; counts invocations',\n"
+    "            }\n"
+    "        )\n"
+    "        overall_status = 'failed'\n"
+    "        overall_reason = eb.REASON_COMMAND_FAILURE\n"
+    "        break\n"
     "    try:\n"
     "        getattr(cmd, verb)(*args)\n"
     "        cmd.sync()\n"
@@ -466,6 +494,13 @@ def execute(
         return _rejected(
             REASON_UNSUPPORTED_SCHEMA_VERSION, time.monotonic() - start
         )
+    except (KeyError, AttributeError, TypeError):
+        # Syntactically valid JSON that from_json cannot treat as a
+        # snapshot object at all -- a bare scalar/array/string (whose
+        # `.get("schema_version")` raises AttributeError) or a JSON object
+        # missing a required key (KeyError) -- is malformed input, not an
+        # unsupported-but-recognized schema version.
+        return _rejected(REASON_MALFORMED_INPUT, time.monotonic() - start)
 
     input_fingerprint = fingerprint(request.snapshot_json)
 

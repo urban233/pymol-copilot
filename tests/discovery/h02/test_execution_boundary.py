@@ -239,6 +239,55 @@ def test_malformed_input_is_rejected_with_no_process_spawned() -> None:
     assert _scratch_dirs() == scratch_before
 
 
+@pytest.mark.parametrize("scalar_json", ["42", "null", "[]", '"hello"', "true"])
+def test_non_object_snapshot_json_is_rejected_with_no_process_spawned(
+    scalar_json: str,
+) -> None:
+    """Syntactically valid JSON that is not an object fails closed.
+
+    `harness.from_json` parses this text successfully (it is valid JSON)
+    but then calls `.get("schema_version")` on the result, which raises
+    `AttributeError` for a scalar, string, or list -- confirmed empirically,
+    not merely a `json.JSONDecodeError` or `ValueError`. `execute()` must
+    still fail closed with `REASON_MALFORMED_INPUT` rather than let that
+    exception escape.
+    """
+    scratch_before = _scratch_dirs()
+
+    report = eb.execute(
+        _base_request(snapshot_json=scalar_json),
+        on_process_spawned=_refuse_to_spawn,
+    )
+
+    assert report.status == eb.STATUS_REJECTED
+    assert report.reason == eb.REASON_MALFORMED_INPUT
+    assert _scratch_dirs() == scratch_before
+
+
+def test_snapshot_missing_a_key_is_rejected_with_no_process_spawned() -> None:
+    """A well-formed JSON object missing a required snapshot key fails closed.
+
+    `harness.from_json` reads several required keys (for example `name`)
+    straight off the parsed dict with `data["name"]`, which raises
+    `KeyError` when a key is absent -- confirmed empirically, not a
+    `json.JSONDecodeError` or `ValueError`. `execute()` must still fail
+    closed with `REASON_MALFORMED_INPUT` rather than let that exception
+    escape.
+    """
+    payload = json.loads(to_json(_sample_snapshot()))
+    del payload["name"]
+    scratch_before = _scratch_dirs()
+
+    report = eb.execute(
+        _base_request(snapshot_json=json.dumps(payload)),
+        on_process_spawned=_refuse_to_spawn,
+    )
+
+    assert report.status == eb.STATUS_REJECTED
+    assert report.reason == eb.REASON_MALFORMED_INPUT
+    assert _scratch_dirs() == scratch_before
+
+
 def test_incompatible_schema_version_is_rejected_with_no_process_spawned() -> (
     None
 ):
@@ -367,6 +416,60 @@ def test_pymol_command_failure_fails_closed_with_no_retry() -> None:
     assert len(spawned) == 1
     _assert_process_not_running(spawned[0])
     assert _scratch_dirs() == scratch_before
+
+
+def test_failing_command_is_attempted_exactly_once_with_no_retry() -> None:
+    """A failing command's own outcome count cannot prove "no retry" alone.
+
+    `test_pymol_command_failure_fails_closed_with_no_retry` above only
+    asserts on `command_outcomes` -- exactly one recorded failure -- which
+    a child runner silently retrying the same failing command some number
+    of times before recording one final failure would still satisfy
+    (confirmed empirically: such a mutation still passes that test, and
+    the whole `execution_boundary_probes` suite). This test instead uses
+    `COUNT_THEN_FAIL_VERB`, a sentinel the child runner always fails on but
+    only after incrementing a counter file on disk each time it is
+    actually invoked, regardless of outcome. That counter -- not the
+    outcome count -- is what can actually distinguish "attempted once"
+    from "attempted, then silently retried:" a silent 3-attempt retry
+    before the one recorded failure would leave this counter at "3", not
+    "1".
+    """
+    scratch_before = _scratch_dirs()
+    spawned: list[subprocess.Popen[str]] = []
+
+    with tempfile.TemporaryDirectory(
+        prefix="h02-attempt-counter-"
+    ) as counter_dir:
+        counter_path = Path(counter_dir) / "attempts.txt"
+
+        report = eb.execute(
+            _base_request(
+                commands=(
+                    Command(eb.COUNT_THEN_FAIL_VERB, (str(counter_path),)),
+                    Command("show", ("spheres", "fx")),
+                )
+            ),
+            on_process_spawned=spawned.append,
+        )
+
+        assert report.status == eb.STATUS_FAILED
+        assert report.reason == eb.REASON_COMMAND_FAILURE
+        # Exactly one outcome: the failing command, at its own position,
+        # with no outcome recorded for the never-attempted second command.
+        assert len(report.command_outcomes) == 1
+        assert report.command_outcomes[0].index == 0
+        assert report.command_outcomes[0].verb == eb.COUNT_THEN_FAIL_VERB
+        assert report.command_outcomes[0].status == eb.OUTCOME_ERROR
+        assert report.command_outcomes[0].error
+        # The load-bearing assertion this module's docstring's "no internal
+        # retry" claim actually needs: exactly one real invocation, not
+        # merely one recorded outcome.
+        assert counter_path.read_text().strip() == "1"
+        assert report.resulting_fingerprint is None
+        assert len(spawned) == 1
+        _assert_process_not_running(spawned[0])
+        assert _scratch_dirs() == scratch_before
 
 
 def test_fidelity_mismatch_fails_closed_even_though_commands_succeeded() -> (
