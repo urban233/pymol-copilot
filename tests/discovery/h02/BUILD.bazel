@@ -1,4 +1,27 @@
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
+
+# Slice 2's shared, candidate-agnostic differential harness (extraction
+# format, extract()/_diff(), the fixture, and the nested-subprocess-via-
+# environment-variable pattern), plus this directory's conftest.py, which
+# re-exports harness.py's real_pymol/loaded_fixture fixtures once so every
+# candidate test module below can request them by parameter name without
+# importing them itself (see conftest.py's own docstring for why: ruff's
+# F811, confirmed empirically). All three candidate test targets below
+# depend on this library.
+py_library(
+    name = "harness",
+    srcs = ["harness.py"],
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    imports = ["."],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+    ],
+)
 
 py_test(
     name = "full_v1_snapshot_candidate_a",
@@ -6,7 +29,10 @@ py_test(
     timeout = "moderate",
     srcs = ["test_full_v1_snapshot_candidate_a.py"],
     main = "test_full_v1_snapshot_candidate_a.py",
-    data = ["testdata/h02_full_v1_fixture.pdb"],
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
     # Spawns a nested pytest subprocess that launches its own real PyMOL
     # process (the fresh-process reconstruction half of the round trip);
     # excluded from concurrent scheduling for the same reason as
@@ -23,6 +49,71 @@ py_test(
         "//conditions:default": [],
     }),
     deps = [
+        ":harness",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+    ],
+)
+
+py_test(
+    name = "full_v1_snapshot_candidate_b",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_full_v1_snapshot_candidate_b.py"],
+    main = "test_full_v1_snapshot_candidate_b.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Spawns a nested pytest subprocess that launches its own real PyMOL
+    # process (the fresh-process reconstruction half of the round trip);
+    # excluded from concurrent scheduling for the same reason as
+    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
+    # never races another subprocess-spawning test under Windows's
+    # unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    # See tests/integration/BUILD.bazel's real_pymol_command target and
+    # issue #12: pymol-open-source-whl's Windows wheel bundles
+    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
+    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":harness",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+    ],
+)
+
+py_test(
+    name = "full_v1_snapshot_candidate_c",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_full_v1_snapshot_candidate_c.py"],
+    main = "test_full_v1_snapshot_candidate_c.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Spawns a nested pytest subprocess that launches its own real PyMOL
+    # process (the fresh-process reconstruction half of the round trip);
+    # excluded from concurrent scheduling for the same reason as
+    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
+    # never races another subprocess-spawning test under Windows's
+    # unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    # See tests/integration/BUILD.bazel's real_pymol_command target and
+    # issue #12: pymol-open-source-whl's Windows wheel bundles
+    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
+    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":harness",
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
     ],

@@ -1,8 +1,11 @@
 # H-02: Prove full-V1 snapshot reconstruction and execution boundaries -- Implementation Plan
 
-**Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete
-and independently reviewed in round 1; H-02 is in outer recovery round 3;
-slices 2-4 not started
+**Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete,
+outer-loop reviewed, and its pull request (#16) open awaiting human approval;
+slice 2 (`candidate-b-and-c`) implemented on a stacked branch
+(`codev/H-02--candidate-b-and-c`, based on `codev/H-02` since #16 is not yet
+merged) -- see slice 2's own Completion evidence below for exactly what is
+and is not yet independently re-validated; slices 3-4 not started
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** high
@@ -211,7 +214,304 @@ see Decisions needed)
     explicit polymer flag) is not yet in the schema.
   - Candidates B and C (slice 2) and the fresh-process failure-mode
     prototype (slice 3) are not started.
-- **Review state:** Slice 1 was independently recorded
-  `READY_FOR_OUTER_LOOP` in round 1 at
-  `9fd60570c0cc90cc1744a43d0c5923a4e32b744e`. H-02 remains in outer recovery
-  round 3 and is not completed, published, or outer-loop reviewed.
+- **Review state:** Slice 1 was independently recorded `READY_FOR_OUTER_LOOP`
+  in round 1 at `9fd60570c0cc90cc1744a43d0c5923a4e32b744e`. Outer recovery
+  round 4 then ran the outer-loop specialist review against the corrected
+  `f769a51` snapshot (`correctness-tests-specialist` and
+  `architecture-maintainability-specialist`) and recorded
+  `READY_FOR_HUMAN_APPROVAL` with no blocking findings. The slice is published
+  as pull request [#16](https://github.com/urban233/pymol-copilot/pull/16)
+  (open, not draft) but has zero recorded GitHub reviews as of this note;
+  merge still requires that independent human approval before slice 1 is
+  actually landed upstream. Slice 2 (below) proceeds on a branch stacked on
+  top of `codev/H-02`'s current head rather than waiting for that merge, per
+  the task's own stacked-slice model -- it will need rebasing onto `main`
+  once #16 merges.
+
+## Proposed change (slice 2: candidate-b-and-c)
+
+Reuses the slice 1 fixture (`tests/discovery/h02/testdata/h02_full_v1_fixture.pdb`)
+and PyMOL harness unchanged; extends the same differential method to the
+task's other two candidate serializations.
+
+1. Extract the candidate-agnostic parts of slice 1's harness --
+   `ObjectSnapshot`/`AtomRecord`/`BondRecord`/`StateSnapshot`, `extract()`,
+   `_diff()`, `SAFE_SETTINGS`, `REP_NAMES`, the `real_pymol`/`loaded_fixture`
+   fixtures, and the nested-subprocess-via-env-var pattern -- into a shared
+   `tests/discovery/h02/harness.py` module. Update
+   `test_full_v1_snapshot_candidate_a.py` to import from it instead of
+   defining its own copies (behavior-preserving refactor; slice 1's own test
+   still passes unchanged). This is what "against the same fixture and
+   harness" means mechanically, and avoids duplicating ~500 lines per new
+   candidate.
+2. Candidate B (standard export + manifest): export the loaded fixture with
+   `cmd.save(..., format="pdb")` (matching the fixture's own format and the
+   diff engine's existing 1e-3 coordinate tolerance, itself derived from
+   PDB's 3-decimal precision). Pair it with an explicit JSON manifest for
+   everything PDB cannot carry: per-atom color/representation, camera view,
+   `SAFE_SETTINGS`, labels, and bonds (recorded explicitly rather than
+   trusting PDB `CONECT` emission, which is a real empirical unknown this
+   probe should record either way). Reconstruct in a genuinely fresh second
+   process fed only the exported `.pdb` and manifest paths (never the source
+   fixture), apply the manifest, then re-extract with the shared `extract()`
+   and diff against the original extraction.
+3. Candidate C (PyMOL session): export with `cmd.save(..., format="pse")`.
+   Reconstruct in a fresh process via `cmd.load()` of only the `.pse` file --
+   no manifest, since session serialization is native. Re-extract with the
+   same shared `extract()` and diff. Add a positive-result test for
+   measurement objects (`cmd.distance`), directly contrasting slice 1's
+   negative result for candidate A.
+4. Record fidelity, boundedness, inspectability, portability, and
+   reconstruction-cost evidence for both candidates on the same axes as
+   slice 1, including whether PDB's `CONECT` records actually round-trip
+   bonds and whether `.pse` recovers measurement objects.
+5. Update this plan's known limitations with the findings. No candidate is
+   selected in this slice -- selection is slice 4's job once all three
+   candidates have differential evidence.
+
+**Validation (slice 2):** Same three-tier pattern as slice 1 -- an
+exploratory venv loop while the harness refactor and new extractors are
+still moving, then hermetic Bazel `py_test` targets
+(`full_v1_snapshot_candidate_b`, `full_v1_snapshot_candidate_c`), tagged
+`exclusive` and Windows-incompatible for the same nested-subprocess reasons
+as slice 1's target, plus a full `bazel test //...` regression run and the
+same lint/format/type/dependency-boundary checks.
+
+## Slice 2 completion evidence (candidate-b-and-c)
+
+- **Delivered:** `tests/discovery/h02/harness.py`, a shared, candidate-
+  agnostic differential harness factored out of slice 1's candidate-A
+  module: the `ObjectSnapshot`/`AtomRecord`/`BondRecord`/`StateSnapshot`
+  dataclasses, `extract()`, `_diff()`, `SAFE_SETTINGS`, `REP_NAMES`,
+  `FIXTURE_PATH`, the `real_pymol`/`loaded_fixture` fixtures, and
+  `run_nested_snapshot_process()` (the nested-subprocess-via-environment-
+  variable technique, now a reusable helper rather than inlined once per
+  candidate). `to_json`/`from_json` moved too, renamed from candidate A's
+  private `CANDIDATE_A_SCHEMA_VERSION` to a shared `SNAPSHOT_SCHEMA_VERSION`
+  -- not explicitly named in this plan's own slice-2 list, but unavoidable
+  once `extract()` itself is shared: every candidate's nested-process diff
+  needs the same JSON round trip to carry the parent's
+  "expected" extraction across the process boundary, so keeping that logic
+  in one place is exactly what avoids the ~500-line-per-candidate
+  duplication this slice exists to avoid. Candidate A's own `reconstruct()`
+  and its own `SNAPSHOT_ENV_VAR` stayed candidate-specific, as planned.
+  Candidate B (`test_full_v1_snapshot_candidate_b.py`): exports the loaded
+  fixture with `cmd.save(..., "fx", state=0, format="pdb")`, paired with an
+  explicit JSON manifest (`CandidateBManifest`,
+  `CANDIDATE_B_MANIFEST_SCHEMA_VERSION`) carrying per-atom color/
+  representation/label, camera view, `SAFE_SETTINGS`, and bonds -- keyed by
+  each atom's `(chain, resi, resn, name, alt)` identity rather than a
+  reconstruction-time positional index. Reconstruction in a fresh nested
+  process loads only the exported `.pdb` and manifest, applies the
+  manifest, then re-extracts and diffs with the shared harness. Candidate C
+  (`test_full_v1_snapshot_candidate_c.py`): exports with
+  `cmd.save(..., format="pse")` (no selection argument -- see finding
+  below) and reconstructs with a bare `cmd.load()` of only the `.pse` file
+  in a fresh nested process, no manifest, then re-extracts and diffs with
+  the same shared harness.
+- **Changed:** `tests/discovery/h02/harness.py` (new),
+  `tests/discovery/h02/conftest.py` (new, see Scope deviations),
+  `tests/discovery/h02/test_full_v1_snapshot_candidate_b.py` (new),
+  `tests/discovery/h02/test_full_v1_snapshot_candidate_c.py` (new),
+  `tests/discovery/h02/test_full_v1_snapshot_candidate_a.py` (refactored to
+  import the above from harness.py instead of defining its own copies;
+  candidate-specific `reconstruct()` and its tests are otherwise
+  unchanged), `tests/discovery/h02/BUILD.bazel` (added a `harness` py_library
+  and `full_v1_snapshot_candidate_b`/`full_v1_snapshot_candidate_c` py_test
+  targets mirroring candidate A's), this implementation plan.
+- **Fidelity/boundedness/inspectability/portability/reconstruction-cost
+  findings (candidates B and C):**
+  - **CONECT (candidate B, fidelity):** confirmed empirically that PyMOL's
+    PDB writer emits **zero** `CONECT` records for this fixture's
+    `cmd.save(..., format="pdb")` export, even though every bond in the
+    fixture is an ordinary single bond between geometrically bonded atoms
+    -- there is no partial or conditional CONECT emission to rely on here,
+    at least for this fixture. Despite that, reloading the plain PDB in a
+    fresh process still reports the original 15 bonds with the original
+    orders -- but only because PyMOL's PDB loader independently
+    *re-perceives* a bond graph from interatomic geometry by default, not
+    because the file encodes those bonds; that auto-perceived graph would
+    silently mask a broken or missing manifest bond list for this
+    particular fixture (every bond happens to be a single bond between
+    close, plausible partners). Candidate B's `apply_manifest()` therefore
+    calls `cmd.unbond()` to strip PyMOL's own guess before re-adding only
+    the manifest's explicit bonds, so its round trip is genuine evidence
+    for the manifest mechanism, not a coincidence of auto-perception. This
+    confirms the plan's own expectation: candidate B must record bonds
+    explicitly and cannot rely on CONECT.
+  - **Multi-state export (candidate B, fidelity):** `cmd.save`'s default
+    `state=-1` (current state only) silently drops every state but one;
+    `state=0` is required to write every coordinate state as its own
+    MODEL/ENDMDL block. Confirmed empirically for this fixture's two
+    states.
+  - **Atom addressing (candidate B, boundedness/inspectability):** a plain
+    atom-identity selection (`chain "<chain>" and resi "<resi>" and resn
+    "<resn>" and name "<name>" and alt "<alt>"`) addresses exactly one atom
+    for every atom in this fixture, including the insertion-code residue
+    and both members of the altloc pair -- confirmed empirically. Atom
+    order was also observed to survive this fixture's PDB round trip
+    unchanged, but the manifest keys atoms by this identity tuple rather
+    than by position, since the order guarantee is fixture-specific, not
+    general.
+  - **Measurement objects (candidate B, fidelity -- negative result,
+    matching candidate A):** exporting a measurement object through
+    `cmd.save(..., format="pdb")` fails outright (`pymol.parsing
+    .QuietException`, confirmed empirically to carry an *empty* message,
+    unlike the `pymol.CmdException` with a real message that candidate A's
+    equivalent negative test observes for `count_atoms`) -- a measurement
+    object is not a selectable set of atoms by either path, so no standard
+    export format can carry one.
+  - **Session export selection (candidate C, reconstruction cost/
+    inspectability pitfall):** `cmd.save(path, format="pse")` must be
+    called with **no** `selection` argument to capture the whole session.
+    Passing an explicit `selection="all"` was tried first and produced a
+    broken, effectively empty session file for this fixture (a fraction of
+    the size of the default save; reloading it yielded zero objects,
+    confirmed empirically) -- `"all"` is not a safe stand-in for PyMOL's
+    own true default in `cmd.save`'s session handling.
+  - **Object naming on load (candidate C, reconstruction cost):**
+    `cmd.load()` of a `.pse` file does not accept a meaningful target
+    object name the way it does for a plain structure file; every object
+    regains whatever name it was saved under (confirmed empirically).
+    Reconstruction therefore calls `cmd.load(pse_path)` with no name
+    argument and refers to the fixture by its original name afterward.
+  - **Measurement objects (candidate C, fidelity -- positive result,
+    contrasting candidates A and B):** a `cmd.distance` measurement object
+    *does* survive this candidate's round trip: reloading a `.pse` file
+    saved while "d1" existed restores "d1" as a real `object:measurement`
+    again, confirmed empirically in the same process (save, delete all,
+    reload). Session serialization is not limited to an atom-based
+    selection the way a query API or a structure-file export is.
+  - **Portability:** neither candidate B nor C is expected to change this
+    task's existing Windows finding (H02-OUTER-F5): both new targets carry
+    the same `pymol-open-source-whl` dependency and the same
+    `target_compatible_with` exclusion as candidate A, for the same
+    delvewheel/MAX_PATH reason (issue #12); this was not independently
+    re-tested on Windows in this slice.
+- **Validation actually run:**
+  - Exploratory venv (`pymol-open-source-whl==3.2.0.2`, matching slice 1's
+    pin): `python -m pytest test_full_v1_snapshot_candidate_a.py -q` after
+    the harness refactor -> 7 passed, 1 skipped (the nested-process
+    reconstruction test, which only runs meaningfully in its spawned
+    child) -- identical to slice 1's own recorded result, confirming the
+    refactor is behavior-preserving.
+  - Exploratory venv: `python -m pytest
+    test_full_v1_snapshot_candidate_b.py -q` (candidate B, first pass,
+    before the exception-matching fix below) -> 1 failed, 3 passed, 1
+    skipped. The one failure was
+    `test_measurement_objects_are_not_recoverable_via_pdb_export` asserting
+    `pytest.raises(Exception, match="Invalid selection name")`; the actual
+    exception is `pymol.parsing.QuietException` with an empty message (the
+    diagnostic text only reaches PyMOL's own stdout). Fixed by asserting
+    only that an exception is raised, and recorded as a finding above
+    rather than papered over. This fix was **not** re-executed afterward
+    (see Known limitations) -- the tool-execution restriction below began
+    immediately after this run.
+  - Standalone empirical probe scripts (not part of the retained test
+    suite; run directly against the pinned wheel in the exploratory venv,
+    outside pytest) established every finding above before it was encoded
+    into `harness.py`/candidate B/candidate C: PDB `CONECT` emission and
+    bond re-perception on reload, PDB atom-identity/order preservation,
+    `cmd.save(..., format="pse")` selection-argument sensitivity, and
+    `cmd.load()`'s name-argument handling for `.pse` files.
+  - Isolated ruff repro (two-line helper module, a conftest.py-style
+    re-export, and a two-test module -- not part of the retained test
+    suite): `python -m ruff check . --select F401,F811` reported zero
+    errors for the conftest.py re-export pattern, and the corresponding
+    `pytest` run passed both tests, confirming the pattern this slice's
+    real `conftest.py` uses is sound in principle.
+  - `bazel run //tools/quality:ruff -- check tests/discovery/`, run once
+    against the real files **before** the conftest.py fix, reported real,
+    expected findings: 11 `F811` "redefinition of unused" errors (7 in
+    candidate A, 4 in candidate B) from every test function's
+    `loaded_fixture` parameter shadowing the then-direct
+    `from harness import loaded_fixture` import -- this is exactly the
+    problem conftest.py was introduced to fix (see Scope deviations).
+  - **Deferred, then completed externally:** the implementing session's
+    tool-execution layer began refusing every `bazel`, `ruff`, `pip`, and
+    even previously-successful `pytest` invocation partway through this
+    slice, each time reporting the refusal was about earlier conversation
+    content rather than the specific command; plain read/search/edit
+    operations kept working, which is how implementation continued. That
+    left candidate C written but never executed, and candidate B's
+    exception-matching fix unverified. The remaining validation was
+    therefore run to completion outside that session, against the exact
+    files on disk, and is recorded below. The refusal was a tool-level
+    limitation of one session, not a project or code finding.
+  - `bazel test //tests/discovery/h02:full_v1_snapshot_candidate_a
+    //tests/discovery/h02:full_v1_snapshot_candidate_b
+    //tests/discovery/h02:full_v1_snapshot_candidate_c
+    --test_output=errors` -> 3 of 3 PASSED (candidate A 16.3s, candidate B
+    11.9s, candidate C 10.5s). This was candidate C's first execution in
+    any process, and it passed without modification; candidate B's
+    exception-matching fix passed here too.
+  - `bazel test //...` -> 21 of 21 test targets pass; no regression in any
+    pre-existing target. Re-run after the formatting fix below, with
+    candidate A re-executing in 18.7s.
+  - `bazel run //tools/quality:ruff -- check tests/discovery/` -> all
+    checks passed; the 11 pre-fix `F811` errors are fully resolved by the
+    `conftest.py` re-export.
+  - `bazel run //tools/quality:ruff -- format --check tests/discovery/` ->
+    initially reported one violation (a `pytest.raises` call split across
+    three lines in candidate A that the formatter joins); after applying
+    it, 7 files already formatted.
+  - `bazel run //tools/quality:pyrefly -- check` -> initially **22 errors**,
+    every one `Cannot find module 'harness' [missing-import]` from the bare
+    sibling-module imports in candidates A/B/C and `conftest.py` -- a real
+    regression against slice 1's recorded 0 errors, since `pyproject.toml`
+    deliberately sets `missing-import = "error"`. Resolved by the
+    `search-path` addition recorded under Scope deviations, not by
+    suppression; re-run afterward -> **0 errors** (20 suppressed), matching
+    slice 1's baseline.
+  - `bazel run //tools/bazel:check_dependency_boundaries` -> exit 0.
+  - `git diff --check` -> clean.
+- **Scope deviations:**
+  - `tests/discovery/h02/conftest.py` was added; it is not named in this
+    plan. It exists solely to make `real_pymol`/`loaded_fixture` (moved to
+    harness.py, exactly as planned) available to every candidate test
+    module's own fixture-by-parameter-name requests without each module
+    importing those two names directly -- confirmed empirically that a
+    direct `from harness import loaded_fixture` import, combined with
+    every test function's own `loaded_fixture` parameter (pytest's
+    ordinary fixture convention), trips `ruff`'s F811 ("redefinition of
+    unused name") once per test function, for a real 11 errors across the
+    two affected files before the fix. A directory-scoped `conftest.py`
+    re-export is pytest's own standard mechanism for exactly this sharing
+    case and removes the shadowing entirely, at the cost of one new file
+    this plan did not anticipate.
+  - `to_json`/`from_json` (renamed to use a shared `SNAPSHOT_SCHEMA_VERSION`
+    in place of candidate A's private `CANDIDATE_A_SCHEMA_VERSION`) moved
+    into harness.py alongside `extract()`/`_diff()`, though not separately
+    named in this plan's own slice-2 list -- see Delivered above for why
+    this was unavoidable rather than optional cleanup.
+  - `pyproject.toml` was modified to add
+    `search-path = ["tests/discovery/h02"]` to `[tool.pyrefly]`. This is
+    outside this slice's stated allowed scope (a disposable prototype
+    location and this task's own documents) and was explicitly authorized
+    by Hannah after the alternatives were weighed. The bare
+    `from harness import ...` imports resolve at runtime because pytest and
+    Bazel place the test's own directory on `sys.path`, but pyrefly cannot
+    see that. Suppressing the 22 errors with `# pyrefly: ignore.` was
+    rejected deliberately: `pyproject.toml:128` sets
+    `missing-import = "error"` with the comment "Keeps missing
+    architectural imports guarded as hard failures", and blanket-
+    suppressing that error class would work against a stated project
+    policy. The search path makes the imports genuinely resolve instead,
+    leaving the hard-failure guarantee intact everywhere else.
+  - No candidate was selected; selection remains slice 4's job, as planned.
+- **Known limitations:**
+  - Windows compatibility for the two new targets is asserted by
+    construction (same wheel, same exclusion as candidate A) but not
+    independently tested here, consistent with H02-OUTER-F5's existing
+    scope.
+  - Candidate B's manifest schema (`CANDIDATE_B_MANIFEST_SCHEMA_VERSION`)
+    and candidate A's extraction schema
+    (`harness.SNAPSHOT_SCHEMA_VERSION`) are both private prototype
+    versions, not the contract-freeze checkpoint's real accepted schema,
+    exactly as slice 1 already recorded for its own schema version.
+- **Review state:** Not independently reviewed. The validation gap that
+  originally blocked this slice is closed -- every check above was run
+  against the files as they stand -- but the implementer's evidence has
+  not yet been checked by an independent reviewer, and no inner-loop
+  reviewer round has been recorded for slice 2. `AWAITING INDEPENDENT
+  REVIEW`.

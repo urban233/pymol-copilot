@@ -11,6 +11,14 @@ headless Open-Source PyMOL process, reconstruct a fresh object from that
 snapshot alone in a genuinely different process (one that never opens the
 source fixture file), and diff the two extractions field by field.
 
+The extraction format, the extraction query itself, the JSON round trip,
+the diff, the shared fixture, and the nested-subprocess-via-environment-
+variable technique all live in `harness.py` now (slice 2) -- shared
+unchanged with candidates B and C. Only what is genuinely specific to this
+candidate stays here: `reconstruct()` (the object-construction technique
+itself), this candidate's own snapshot env-var name, and this module's own
+tests.
+
 Real, empirically confirmed API facts this candidate depends on, each of
 which cost a wrong first attempt to discover:
 
@@ -45,7 +53,7 @@ which cost a wrong first attempt to discover:
   makes every post-creation edit safe regardless of internal reordering.
 - The per-atom `reps` integer has no documented Python-level bit layout.
   Querying membership by name through the `rep <name>` selection keyword
-  (REP_NAMES below) is the robust, stable alternative.
+  (harness.REP_NAMES) is the robust, stable alternative.
 
 Confirmed unsupported case, recorded rather than silently dropped per the
 structure-context design's requirement: measurement objects (`cmd.distance`
@@ -58,223 +66,34 @@ can reuse. See test_measurement_objects_are_not_recoverable_via_query_apis
 below for the negative evidence.
 """
 
-from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
+from __future__ import annotations
 
 import dataclasses
 import json
 import os
-import subprocess
 import sys
-from collections.abc import Iterator
-from dataclasses import asdict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-FIXTURE_PATH = (
-    Path(__file__).resolve().parent / "testdata" / "h02_full_v1_fixture.pdb"
-)
+from harness import SNAPSHOT_SCHEMA_VERSION
+from harness import BondRecord
+from harness import ObjectSnapshot
+from harness import _diff
+from harness import extract
+from harness import from_json
+from harness import run_nested_snapshot_process
+from harness import to_json
+
+# real_pymol/loaded_fixture (pytest fixtures defined in harness.py) are not
+# imported here: this directory's conftest.py re-exports them once so
+# pytest's directory-scoped fixture discovery makes them available to every
+# test below without a same-named import that every test function's
+# loaded_fixture parameter would otherwise shadow (ruff's F811, confirmed
+# empirically -- see conftest.py's own docstring).
+
 SNAPSHOT_ENV_VAR = "H02_CANDIDATE_A_SNAPSHOT_JSON"
-
-#: PyMOL's named representations, in the order `cmd.count_atoms(f"rep {x}")`
-#: is queried -- there is no documented Python-level bit layout for the raw
-#: per-atom `reps` integer, so candidate A records membership by name instead.
-REP_NAMES = (
-    "lines",
-    "sticks",
-    "spheres",
-    "dots",
-    "surface",
-    "mesh",
-    "nonbonded",
-    "nb_spheres",
-    "cartoon",
-    "ribbon",
-    "labels",
-    "slice",
-    "ellipsoids",
-    "volume",
-)
-
-#: The bounded set of "safe" display settings this prototype exercises at
-#: object scope. Not exhaustive -- H-02's contract-freeze checkpoint decides
-#: the real accepted set; this proves the get/set/reconstruct path for a
-#: representative non-view, non-atom-level setting.
-SAFE_SETTINGS = ("sphere_scale", "cartoon_transparency")
-CANDIDATE_A_SCHEMA_VERSION = 1
-
-
-@dataclass(frozen=True)
-class AtomRecord:
-    """One atom's full-V1 relevant state, as candidate A represents it.
-
-    Attributes:
-        serial: The atom's stable serial number (PyMOL's uppercase `ID`).
-        name: The atom name.
-        alt: The alternate location indicator, or "" when not altloc-bearing.
-        resn: The residue name.
-        chain: The chain identifier.
-        resv: The integer residue number, with any insertion code excluded.
-        ins_code: The insertion code, or "" when absent.
-        elem: The element symbol.
-        hetatm: Whether PyMOL classifies this atom as HETATM.
-        q: The occupancy.
-        b: The temperature factor.
-        color: The PyMOL color index.
-        reps: The names of every representation this atom is shown in.
-        label: The atom label text, or None when it is not labeled.
-        coord: The (x, y, z) coordinate for this state.
-    """
-
-    serial: int
-    name: str
-    alt: str
-    resn: str
-    chain: str
-    resv: int
-    ins_code: str
-    elem: str
-    hetatm: bool
-    q: float
-    b: float
-    color: int
-    reps: tuple[str, ...]
-    label: str | None
-    coord: tuple[float, float, float]
-
-
-@dataclass(frozen=True)
-class BondRecord:
-    """One bond between two atoms, addressed by their position in a state.
-
-    Attributes:
-        atom_index_a: The zero-based position of the bond's first atom.
-        atom_index_b: The zero-based position of the bond's second atom.
-        order: The bond order.
-    """
-
-    atom_index_a: int
-    atom_index_b: int
-    order: int
-
-
-@dataclass(frozen=True)
-class StateSnapshot:
-    """The atoms present in one coordinate state.
-
-    Attributes:
-        atoms: The atoms in this state, in a fixed, comparable order.
-    """
-
-    atoms: tuple[AtomRecord, ...]
-
-
-@dataclass(frozen=True)
-class ObjectSnapshot:
-    """A canonical structured snapshot of one live PyMOL object.
-
-    Attributes:
-        schema_version: Candidate A's private schema version; not a production
-            StructureSnapshotV1 contract.
-        name: The object's name.
-        enabled: Whether the object is enabled in the PyMOL session.
-        states: Every coordinate state, in order.
-        bonds: Every bond, addressed by first-state atom position.
-        view: The camera view, as `cmd.get_view()` returns it.
-        settings: The (setting name, value) pairs this candidate tracks.
-    """
-
-    schema_version: int
-    name: str
-    enabled: bool
-    states: tuple[StateSnapshot, ...]
-    bonds: tuple[BondRecord, ...]
-    view: tuple[float, ...]
-    settings: tuple[tuple[str, str], ...]
-
-
-def extract(cmd: Any, object_name: str) -> ObjectSnapshot:
-    """Extract a canonical structured snapshot of one live PyMOL object.
-
-    Args:
-        cmd: The real PyMOL cmd module.
-        object_name: Name of the loaded object to extract.
-
-    Returns:
-        The extracted canonical snapshot.
-    """
-    n_states = cmd.count_states(object_name)
-    states: list[StateSnapshot] = []
-    for state in range(1, n_states + 1):
-        model = cmd.get_model(object_name, state=state)
-        colors: list[int] = []
-        labels: list[str | None] = []
-        cmd.iterate(
-            object_name,
-            "colors.append(color); labels.append(label)",
-            space={"colors": colors, "labels": labels},
-        )
-        # Per-atom membership in each named representation, keyed by ID
-        # (stable regardless of atom-array order) rather than position.
-        reps_by_id: dict[int, list[str]] = {}
-        for rep_name in REP_NAMES:
-            ids: list[int] = []
-            cmd.iterate(
-                f"{object_name} and rep {rep_name}",
-                "ids.append(ID)",
-                space={"ids": ids},
-            )
-            for atom_id in ids:
-                reps_by_id.setdefault(atom_id, []).append(rep_name)
-
-        atoms: list[AtomRecord] = []
-        for index, atom in enumerate(model.atom):
-            atoms.append(
-                AtomRecord(
-                    serial=atom.id,
-                    name=atom.name,
-                    alt=atom.alt,
-                    resn=atom.resn,
-                    chain=atom.chain,
-                    resv=atom.resi_number,
-                    ins_code=atom.ins_code,
-                    elem=atom.symbol,
-                    hetatm=bool(atom.hetatm),
-                    q=atom.q,
-                    b=atom.b,
-                    color=colors[index],
-                    reps=tuple(reps_by_id.get(atom.id, [])),
-                    label=labels[index] or None,
-                    coord=tuple(atom.coord),
-                )
-            )
-        states.append(StateSnapshot(atoms=tuple(atoms)))
-
-    model = cmd.get_model(object_name, state=1)
-    bonds = tuple(
-        BondRecord(
-            atom_index_a=bond.index[0],
-            atom_index_b=bond.index[1],
-            order=bond.order,
-        )
-        for bond in model.bond
-    )
-    view = tuple(cmd.get_view())
-    settings = tuple(
-        (setting, cmd.get(setting, object_name)) for setting in SAFE_SETTINGS
-    )
-
-    return ObjectSnapshot(
-        schema_version=CANDIDATE_A_SCHEMA_VERSION,
-        name=object_name,
-        enabled=object_name in cmd.get_names("objects", enabled_only=1),
-        states=tuple(states),
-        bonds=bonds,
-        view=view,
-        settings=settings,
-    )
 
 
 def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
@@ -375,239 +194,6 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
     cmd.sync()
 
 
-def to_json(snapshot: ObjectSnapshot) -> str:
-    """Serialize a canonical snapshot to JSON for cross-process comparison.
-
-    Args:
-        snapshot: The snapshot to serialize.
-
-    Returns:
-        The compact JSON text.
-    """
-    return json.dumps(asdict(snapshot))
-
-
-def _atom_record_from_json(data: dict[str, Any]) -> AtomRecord:
-    """Deserialize one atom record from its JSON object.
-
-    Args:
-        data: The JSON object for one atom, as to_json wrote it.
-
-    Returns:
-        The reconstructed AtomRecord.
-    """
-    return AtomRecord(
-        serial=data["serial"],
-        name=data["name"],
-        alt=data["alt"],
-        resn=data["resn"],
-        chain=data["chain"],
-        resv=data["resv"],
-        ins_code=data["ins_code"],
-        elem=data["elem"],
-        hetatm=data["hetatm"],
-        q=data["q"],
-        b=data["b"],
-        color=data["color"],
-        reps=tuple(data["reps"]),
-        label=data["label"],
-        coord=tuple(data["coord"]),
-    )
-
-
-def from_json(text: str) -> ObjectSnapshot:
-    """Deserialize a canonical snapshot from JSON.
-
-    Args:
-        text: JSON text produced by to_json.
-
-    Returns:
-        The reconstructed ObjectSnapshot dataclass tree.
-    """
-    data = json.loads(text)
-    if data.get("schema_version") != CANDIDATE_A_SCHEMA_VERSION:
-        raise ValueError(
-            "unsupported candidate-A schema version: "
-            f"{data.get('schema_version')!r}; "
-            f"expected {CANDIDATE_A_SCHEMA_VERSION}"
-        )
-    return ObjectSnapshot(
-        schema_version=data["schema_version"],
-        name=data["name"],
-        enabled=data["enabled"],
-        states=tuple(
-            StateSnapshot(
-                atoms=tuple(_atom_record_from_json(a) for a in state["atoms"])
-            )
-            for state in data["states"]
-        ),
-        bonds=tuple(
-            BondRecord(
-                atom_index_a=b["atom_index_a"],
-                atom_index_b=b["atom_index_b"],
-                order=b["order"],
-            )
-            for b in data["bonds"]
-        ),
-        view=tuple(data["view"]),
-        settings=tuple((s, v) for s, v in data["settings"]),
-    )
-
-
-def _diff(expected: ObjectSnapshot, actual: ObjectSnapshot) -> list[str]:
-    """Compare two snapshots field by field.
-
-    Args:
-        expected: The snapshot taken before reconstruction.
-        actual: The snapshot re-extracted after reconstruction.
-
-    Returns:
-        A human-readable mismatch for every field that differs; empty when
-        the snapshots match exactly.
-    """
-    mismatches: list[str] = []
-
-    if expected.schema_version != actual.schema_version:
-        mismatches.append(
-            "schema_version expected="
-            f"{expected.schema_version!r} actual={actual.schema_version!r}"
-        )
-    if expected.name != actual.name:
-        mismatches.append(
-            f"object.name expected={expected.name!r} actual={actual.name!r}"
-        )
-    if expected.enabled != actual.enabled:
-        mismatches.append(
-            f"object.enabled expected={expected.enabled!r} "
-            f"actual={actual.enabled!r}"
-        )
-
-    def compare_atom(
-        label: str, exp_atom: AtomRecord, act_atom: AtomRecord
-    ) -> None:
-        for field in dataclasses.fields(AtomRecord):
-            e = getattr(exp_atom, field.name)
-            a = getattr(act_atom, field.name)
-            if field.name == "coord":
-                if not all(
-                    abs(x - y) < 1e-3 for x, y in zip(e, a, strict=True)
-                ):
-                    mismatches.append(f"{label}.coord expected={e} actual={a}")
-                continue
-            if e != a:
-                mismatches.append(
-                    f"{label}.{field.name} expected={e!r} actual={a!r}"
-                )
-
-    if len(expected.states) != len(actual.states):
-        mismatches.append(
-            f"n_states expected={len(expected.states)} "
-            f"actual={len(actual.states)}"
-        )
-    else:
-        for s_idx, (exp_state, act_state) in enumerate(
-            zip(expected.states, actual.states, strict=True)
-        ):
-            if len(exp_state.atoms) != len(act_state.atoms):
-                mismatches.append(
-                    f"state{s_idx}.n_atoms expected={len(exp_state.atoms)} "
-                    f"actual={len(act_state.atoms)}"
-                )
-                continue
-            for a_idx, (exp_atom, act_atom) in enumerate(
-                zip(exp_state.atoms, act_state.atoms, strict=True)
-            ):
-                compare_atom(f"state{s_idx}.atom{a_idx}", exp_atom, act_atom)
-
-    expected_bonds = sorted(
-        (b.atom_index_a, b.atom_index_b, b.order) for b in expected.bonds
-    )
-    actual_bonds = sorted(
-        (b.atom_index_a, b.atom_index_b, b.order) for b in actual.bonds
-    )
-    if expected_bonds != actual_bonds:
-        mismatches.append(
-            f"bonds expected={expected_bonds} actual={actual_bonds}"
-        )
-
-    if not all(
-        abs(x - y) < 1e-3
-        for x, y in zip(expected.view, actual.view, strict=True)
-    ):
-        mismatches.append(f"view expected={expected.view} actual={actual.view}")
-
-    if expected.settings != actual.settings:
-        mismatches.append(
-            f"settings expected={expected.settings} actual={actual.settings}"
-        )
-
-    return mismatches
-
-
-@pytest.fixture(scope="module")
-def real_pymol() -> Iterator[Any]:
-    """Launch real headless PyMOL exactly once for this test module.
-
-    Yields:
-        The real PyMOL cmd module.
-    """
-    import pymol  # pyrefly: ignore.
-    from pymol import cmd  # pyrefly: ignore.
-
-    pymol.finish_launching(["pymol", "-qc"])
-    try:
-        yield cmd
-    finally:
-        cmd.do("quit")
-
-
-@pytest.fixture
-def loaded_fixture(real_pymol: Any) -> Iterator[Any]:
-    """Load the full-V1 discovery fixture fresh for one test and delete it.
-
-    Args:
-        real_pymol: The real PyMOL cmd module.
-
-    Yields:
-        The real PyMOL cmd module with the fixture object loaded.
-    """
-    real_pymol.load(str(FIXTURE_PATH), "fx")
-    real_pymol.color("red", "fx and chain A")
-    real_pymol.show("sticks", "fx")
-    real_pymol.show("spheres", "fx and resn ZN")
-    real_pymol.label("fx and name CA", "name")
-    real_pymol.set_view(
-        (
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            -0.5,
-            0.5,
-            -20.0,
-        )
-    )
-    real_pymol.set("sphere_scale", "0.35", "fx")
-    real_pymol.set("cartoon_transparency", "0.25", "fx")
-    real_pymol.disable("fx")
-    real_pymol.sync()
-    try:
-        yield real_pymol
-    finally:
-        real_pymol.delete("fx")
-
-
 def test_fixture_loads_with_every_declared_state_category(
     loaded_fixture: Any,
 ) -> None:
@@ -643,7 +229,7 @@ def test_extracted_snapshot_has_independent_expected_values_for_each_category(
         atom for atom in second_state.atoms if atom.serial == 2
     )
 
-    assert snapshot.schema_version == CANDIDATE_A_SCHEMA_VERSION
+    assert snapshot.schema_version == SNAPSHOT_SCHEMA_VERSION
     assert snapshot.name == "fx"
     assert snapshot.enabled is False
     assert len(snapshot.states) == 2
@@ -717,13 +303,11 @@ def test_extracted_snapshot_has_independent_expected_values_for_each_category(
 def test_json_rejects_an_unsupported_candidate_schema_version(
     loaded_fixture: Any,
 ) -> None:
-    """Candidate A rejects JSON from an unknown private schema version."""
+    """Candidate A rejects JSON from an unknown shared schema version."""
     payload = json.loads(to_json(extract(loaded_fixture, "fx")))
-    payload["schema_version"] = CANDIDATE_A_SCHEMA_VERSION + 1
+    payload["schema_version"] = SNAPSHOT_SCHEMA_VERSION + 1
 
-    with pytest.raises(
-        ValueError, match="unsupported candidate-A schema version"
-    ):
+    with pytest.raises(ValueError, match="unsupported snapshot schema version"):
         from_json(json.dumps(payload))
 
 
@@ -757,7 +341,7 @@ def test_diff_reports_identity_and_state_mutations(
         snapshot,
         name="other-object",
         enabled=not snapshot.enabled,
-        schema_version=CANDIDATE_A_SCHEMA_VERSION + 1,
+        schema_version=SNAPSHOT_SCHEMA_VERSION + 1,
         states=(
             dataclasses.replace(
                 snapshot.states[0],
@@ -800,22 +384,10 @@ def test_candidate_a_round_trips_through_a_fresh_process(
     snapshot_path = tmp_path / "snapshot.json"
     snapshot_path.write_text(to_json(snapshot))
 
-    environment = os.environ.copy()
-    environment[SNAPSHOT_ENV_VAR] = str(snapshot_path)
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            str(__file__),
-            "-k",
-            "test_reconstruct_from_env_snapshot_matches_original",
-            "-q",
-        ],
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
+    result = run_nested_snapshot_process(
+        __file__,
+        "test_reconstruct_from_env_snapshot_matches_original",
+        {SNAPSHOT_ENV_VAR: str(snapshot_path)},
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
