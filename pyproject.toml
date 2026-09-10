@@ -113,6 +113,12 @@ project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_tr
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true
+# H-02 slice 2's discovery harness (tests/discovery/h02/harness.py) is
+# imported as a bare sibling module (`from harness import ...`) by three
+# test modules and conftest.py in that same directory -- resolved at
+# runtime by pytest/Bazel via sys.path, but not otherwise visible to
+# pyrefly without this search path.
+search-path = ["tests/discovery/h02"]
 
 [tool.pyrefly.errors]
 # --- Target PyQt6 Framework Gaps ---
