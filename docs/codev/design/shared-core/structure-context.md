@@ -136,13 +136,19 @@ This is prototype evidence for the path, not the frozen field set itself,
 which the contract-freeze checkpoint still owns.
 
 Measurement objects are declared unsupported by this contract's snapshot: no
-query API the prototype found can read one back from live PyMOL state at
-all, and a measurement is created by the copilot's own commands rather than
-discovered in already-loaded structure, so it is recorded at the plan and
-execution-report layer instead of in the snapshot (see
-[plan and execution](plan-and-execution.md#execution-and-validation-report)).
-This satisfies the "never silently drop a field" rule for this one category
-by declaration rather than by capture.
+query API the prototype found can read one back from live PyMOL state at all,
+and a measurement is created by the copilot's own commands rather than
+discovered in already-loaded structure. Recording it at the plan and
+execution-report layer instead of the snapshot is this design's proposal for
+the contract-freeze checkpoint to accept, not yet a fact about that layer's own
+contract: `plan-and-execution.md`'s [execution-report
+section](plan-and-execution.md#execution-and-validation-report) does not
+currently name measurement records among what it returns, and naming them (or
+declining to) is an obligation on Martin, that contract's owner, tracked in
+[H-02's deferred-finding
+disposition](../../wave/evidence/H-02.md#deferred-finding-disposition). This
+satisfies the "never silently drop a field" rule for this one category by
+declaration rather than by capture.
 
 Polymer classification is not yet an independently stored field: the
 prototype's own schema derives it only from residue name and the hetero
