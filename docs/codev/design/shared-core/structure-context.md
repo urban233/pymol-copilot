@@ -120,6 +120,37 @@ snapshot schema review before command-policy expansion. Export failure or an
 unknown required field makes the snapshot inapplicable; it never produces a
 weaker "exact" claim.
 
+H-02's differential prototype selected canonical structured data as this
+schema's serialization and reconstruction path, against a standard-export-
+plus-manifest candidate and PyMOL's own session serialization, on fidelity,
+boundedness, inspectability, portability, and reconstruction cost (see the
+[H-02 evidence](../../wave/evidence/H-02.md#candidate-matrix)). The
+prototype's own schema demonstrated an exact round trip, in a genuinely fresh
+process, for object and state identity; atom identity and coordinates,
+including multiple coordinate states; chain, residue, insertion, element, and
+alternate-location metadata; bonds; per-atom and per-object visibility,
+representation, and color; and view and a representative bounded set of
+settings (see
+[H-02's acceptance-category matrix](../../wave/evidence/H-02.md#acceptance-category-matrix)).
+This is prototype evidence for the path, not the frozen field set itself,
+which the contract-freeze checkpoint still owns.
+
+Measurement objects are declared unsupported by this contract's snapshot: no
+query API the prototype found can read one back from live PyMOL state at
+all, and a measurement is created by the copilot's own commands rather than
+discovered in already-loaded structure, so it is recorded at the plan and
+execution-report layer instead of in the snapshot (see
+[plan and execution](plan-and-execution.md#execution-and-validation-report)).
+This satisfies the "never silently drop a field" rule for this one category
+by declaration rather than by capture.
+
+Polymer classification is not yet an independently stored field: the
+prototype's own schema derives it only from residue name and the hetero
+flag, which is what the "polymer and hetero classification" requirement
+above currently reduces to in practice. Whether that derivation is
+sufficient, or the frozen contract needs an explicit, independently stored
+polymer flag, is left to the contract-freeze checkpoint.
+
 ### Structure card
 
 The card is compact, deterministic model context generated from the snapshot.
@@ -203,7 +234,7 @@ Each question below is specific to this design. Hannah owns both.
 
 | Question | Evidence needed | Blocking? |
 |---|---|---|
-| Which serialization and reconstruction path preserves full-V1 relevant state on both development environments? | Field-level candidate matrix covering canonical bytes, reconstruction, and unsupported state | Yes, before snapshot-contract acceptance |
+| Which serialization and reconstruction path preserves full-V1 relevant state on both development environments? | Field-level candidate matrix covering canonical bytes, reconstruction, and unsupported state -- produced on Linux only, see the [H-02 evidence](../../wave/evidence/H-02.md); the Windows side of this question is not yet evidenced (issue #12) | Yes, before snapshot-contract acceptance |
 | Can structure-conditioned residue restrictions remain compact without rejecting insertion codes, gaps, or valid ranges? | Grammar prototypes over representative structure fixtures | No; syntax-only grammar is the bounded fallback for unsupported conditioning |
 
 ## Acceptance

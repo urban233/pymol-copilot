@@ -40,6 +40,25 @@ but by launching real PyMOL directly in this test process (harness.py's
 own `real_pymol` fixture, re-exported by this directory's `conftest.py`)
 and reconstructing, running the same commands, and extracting there,
 entirely outside the boundary being tested.
+
+Two further probes close slice 4's own deferred gap (H02-S3-F3 and
+H02-S3-F10, both fixed in this slice, not this module's own sabotage
+fixtures above):
+
+- `test_child_that_escapes_before_communicate_is_terminated_and_reaped`
+  exploits the only hook `execute()` exposes between `Popen` and
+  `communicate()` (`on_process_spawned`) to simulate an exception on that
+  exact boundary, and asserts the child is terminated and reaped anyway
+  (H02-S3-F3).
+- Every genuinely-spawned-process test above (`test_spawn_or_load_failure_
+  fails_closed_with_no_leak`, `test_wall_clock_timeout_is_hard_killed_and_
+  reaped`, `test_forced_child_crash_leaves_no_live_process_or_scratch_data`,
+  and the positive-path test) also asserts `report.child_pid` matches the
+  spawned handle's own PID and `report.child_terminated` is `True`, and
+  every parent-rejected test above also asserts both fields are `None` --
+  a real caller's own evidence for "fresh process, terminated, not leaked"
+  where before only the test-only `on_process_spawned` hook could show it
+  (H02-S3-F10).
 """
 
 from __future__ import annotations
@@ -221,6 +240,10 @@ def test_oversized_input_is_rejected_with_no_process_spawned() -> None:
     assert report.reason == eb.REASON_OVERSIZED_INPUT
     assert report.input_fingerprint is None
     assert report.resulting_fingerprint is None
+    # H02-S3-F10: no process was ever spawned for a rejected request, so
+    # neither process-evidence field has anything to report.
+    assert report.child_pid is None
+    assert report.child_terminated is None
     assert report.command_outcomes == ()
     assert _scratch_dirs() == scratch_before
 
@@ -236,6 +259,9 @@ def test_malformed_input_is_rejected_with_no_process_spawned() -> None:
 
     assert report.status == eb.STATUS_REJECTED
     assert report.reason == eb.REASON_MALFORMED_INPUT
+    # H02-S3-F10: no process was ever spawned for a rejected request.
+    assert report.child_pid is None
+    assert report.child_terminated is None
     assert _scratch_dirs() == scratch_before
 
 
@@ -261,6 +287,9 @@ def test_non_object_snapshot_json_is_rejected_with_no_process_spawned(
 
     assert report.status == eb.STATUS_REJECTED
     assert report.reason == eb.REASON_MALFORMED_INPUT
+    # H02-S3-F10: no process was ever spawned for a rejected request.
+    assert report.child_pid is None
+    assert report.child_terminated is None
     assert _scratch_dirs() == scratch_before
 
 
@@ -285,6 +314,9 @@ def test_snapshot_missing_a_key_is_rejected_with_no_process_spawned() -> None:
 
     assert report.status == eb.STATUS_REJECTED
     assert report.reason == eb.REASON_MALFORMED_INPUT
+    # H02-S3-F10: no process was ever spawned for a rejected request.
+    assert report.child_pid is None
+    assert report.child_terminated is None
     assert _scratch_dirs() == scratch_before
 
 
@@ -303,6 +335,9 @@ def test_incompatible_schema_version_is_rejected_with_no_process_spawned() -> (
 
     assert report.status == eb.STATUS_REJECTED
     assert report.reason == eb.REASON_UNSUPPORTED_SCHEMA_VERSION
+    # H02-S3-F10: no process was ever spawned for a rejected request.
+    assert report.child_pid is None
+    assert report.child_terminated is None
     assert _scratch_dirs() == scratch_before
 
 
@@ -330,6 +365,11 @@ def test_spawn_or_load_failure_fails_closed_with_no_leak() -> None:
     assert report.command_outcomes == ()
     assert report.resulting_fingerprint is None
     assert len(spawned) == 1
+    # H02-S3-F10: the report's own process-evidence fields, not only the
+    # test-only on_process_spawned hook, show the spawned child by PID and
+    # confirm it was terminated before execute() returned.
+    assert report.child_pid == spawned[0].pid
+    assert report.child_terminated is True
     _assert_process_not_running(spawned[0])
     assert _scratch_dirs() == scratch_before
 
@@ -358,6 +398,9 @@ def test_wall_clock_timeout_is_hard_killed_and_reaped() -> None:
     # (process teardown and reaping both take some real time).
     assert report.elapsed_seconds < sleep_seconds
     assert len(spawned) == 1
+    # H02-S3-F10: process evidence is present even for a hard-killed child.
+    assert report.child_pid == spawned[0].pid
+    assert report.child_terminated is True
     _assert_process_not_running(spawned[0])
     assert _scratch_dirs() == scratch_before
 
@@ -376,6 +419,39 @@ def test_forced_child_crash_leaves_no_live_process_or_scratch_data() -> None:
     assert report.reason == eb.REASON_CHILD_CRASH
     assert report.command_outcomes == ()
     assert report.resulting_fingerprint is None
+    assert len(spawned) == 1
+    # H02-S3-F10: process evidence is present even after a forced crash.
+    assert report.child_pid == spawned[0].pid
+    assert report.child_terminated is True
+    _assert_process_not_running(spawned[0])
+    assert _scratch_dirs() == scratch_before
+
+
+def test_child_that_escapes_before_communicate_is_terminated_and_reaped() -> (
+    None
+):
+    """H02-S3-F3: an exception between spawn and `communicate()` still reaps.
+
+    `on_process_spawned` is the only hook `execute()` invokes between
+    `Popen` and `communicate()`; making it raise reproduces exactly the
+    exception window the finding described -- a real caller could just as
+    well hit an unrelated exception on that same boundary, not only this
+    test's own injected one. Before the fix, `execute()`'s only `finally`
+    clause deleted the scratch directory and left the spawned child
+    neither terminated nor reaped. After the fix, the inner `finally`
+    guarding the child's own lifecycle confirms it is stopped and reaped
+    before the injected exception ever reaches this test.
+    """
+    scratch_before = _scratch_dirs()
+    spawned: list[subprocess.Popen[str]] = []
+
+    def _escape(process: subprocess.Popen[str]) -> None:
+        spawned.append(process)
+        raise RuntimeError("simulated escape between spawn and communicate()")
+
+    with pytest.raises(RuntimeError, match="simulated escape"):
+        eb.execute(_base_request(), on_process_spawned=_escape)
+
     assert len(spawned) == 1
     _assert_process_not_running(spawned[0])
     assert _scratch_dirs() == scratch_before
@@ -543,9 +619,10 @@ def test_positive_path_matches_independently_computed_expected_values(
         "spheres" in atom.reps for atom in expected_extraction.states[0].atoms
     )
 
+    spawned: list[subprocess.Popen[str]] = []
     request = _base_request(commands=commands)
-    first_report = eb.execute(request)
-    second_report = eb.execute(request)
+    first_report = eb.execute(request, on_process_spawned=spawned.append)
+    second_report = eb.execute(request, on_process_spawned=spawned.append)
 
     for report in (first_report, second_report):
         assert report.status == eb.STATUS_OK
@@ -561,6 +638,17 @@ def test_positive_path_matches_independently_computed_expected_values(
         == second_report.resulting_fingerprint
     )
     assert first_report.command_outcomes == second_report.command_outcomes
+    # H02-S3-F10: process evidence on the success path too, and each of the
+    # two "deterministic evidence" runs above used a genuinely distinct
+    # fresh child, not one process reused or memoized across calls.
+    assert len(spawned) == 2
+    assert first_report.child_pid == spawned[0].pid
+    assert second_report.child_pid == spawned[1].pid
+    assert first_report.child_pid != second_report.child_pid
+    assert first_report.child_terminated is True
+    assert second_report.child_terminated is True
+    _assert_process_not_running(spawned[0])
+    _assert_process_not_running(spawned[1])
 
 
 if __name__ == "__main__":
