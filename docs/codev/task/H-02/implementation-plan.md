@@ -854,10 +854,15 @@ touched. They are recorded here because the rest of this section follows from
 them, and a reviewer should be able to see that they were decided rather than
 assumed.
 
-1. **Candidate A is selected** -- canonical structured data. It wins fidelity
-   on every acceptance category except measurement objects, and wins
-   boundedness, inspectability, and portability outright. Its higher
-   reconstruction cost is recorded rather than minimized.
+1. **Candidate A is selected** -- canonical structured data. It achieves exact
+   fidelity on every acceptance category except measurement objects, tying B
+   and C rather than winning uniquely, and wins boundedness and inspectability
+   outright against C's opaque, un-independently-inspectable format and
+   undeclared field set. It ties B and C on portability instead of winning it
+   outright: every candidate was measured on Linux only (issue #12), so the
+   axis did not discriminate, and the decision point on claiming portability
+   stays open. Its higher reconstruction cost is recorded rather than
+   minimized.
 2. **Measurement objects move to the plan and report layer.** Candidate A
    cannot read them back from PyMOL at all, and they are created by the
    copilot's own commands in the first place, so they are recorded where they
