@@ -181,6 +181,29 @@ Hannah owns every contract below.
 - Test/fixture: process leak, state leak, fidelity, timeout, and
   forced-crash tests.
 
+H-02's fresh-process execution-boundary prototype
+(`tests/discovery/h02/execution_boundary.py`) demonstrated this boundary's
+request and report shape: a fresh process per attempt, reconstruction from
+the snapshot alone (never the original source), command-indexed outcomes,
+unconditional termination with the child reaped on every exit path --
+including the exception path between spawn and completion -- scratch-data
+cleanup on every exit path, and typed, fail-closed reasons with no internal
+retry, demonstrated by an attempt-counter probe distinguishing "attempted
+once" from "attempted, then silently retried" (see the
+[H-02 evidence](../../wave/evidence/H-02.md)). The report itself now carries
+the spawned child's own process identity and its observed termination,
+rather than that guarantee being observable only through a test-only hook.
+
+Only two of the finite-resource limits above were actually prototyped:
+maximum input size in bytes, and a wall-clock deadline. No memory bound was
+prototyped; a passing report from this prototype is evidence for those two
+limits only, not for the full finite-resources guarantee. Exactly which
+request, report, limit, and teardown contract this evidence feeds into one
+shared full-V1 executor is
+[plan and execution](plan-and-execution.md#open-questions)'s own open
+question, owned by Martin; this prototype supplies evidence toward it and
+does not decide it.
+
 ## Alternatives and trade-offs
 
 | Option | Benefits | Costs/risks | Decision |
@@ -219,7 +242,7 @@ Each question below is specific to this design. Hannah owns both.
 | Question | Evidence needed | Blocking? |
 |---|---|---|
 | Does Lemonade expose enforceable per-request grammar, cancellation, model identity, and CPU and iGPU (integrated GPU) behavior on the reference environment? | Pinned real-engine conformance report | Yes, before Lemonade adapter acceptance |
-| Which live-state serialization and reconstruction path passes exact fidelity on modified, multi-state, and altloc-bearing objects (atoms modeled in more than one position)? | Shared-core snapshot differential evidence | Yes, before sidecar design acceptance |
+| Which live-state serialization and reconstruction path passes exact fidelity on modified, multi-state, and altloc-bearing objects (atoms modeled in more than one position)? | Shared-core snapshot differential evidence -- produced, see the [H-02 evidence](../../wave/evidence/H-02.md) | Yes, before sidecar design acceptance |
 
 ## Acceptance
 

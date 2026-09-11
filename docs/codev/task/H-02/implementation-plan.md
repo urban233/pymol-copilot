@@ -1,14 +1,17 @@
 # H-02: Prove full-V1 snapshot reconstruction and execution boundaries -- Implementation Plan
 
-**Status:** In progress -- slice 1 (`fixture-matrix-and-candidate-a`) complete,
-outer-loop reviewed, and its pull request (#16) open and approved; slice 2
-(`candidate-b-and-c`) complete, outer-loop reviewed, and its pull request (#17)
-open and approved; slice 3 (`fresh-process-execution-boundary`) implemented and
-outer-loop reviewed on a stacked branch
-(`codev/H-02--fresh-process-execution-boundary`, based on
-`codev/H-02--candidate-b-and-c` since #17 is not yet merged), with F1 corrected
-at `daff445` and the final F2 correction recorded below;
-slice 4 (`differential-report-and-design-updates`) not started
+**Status:** In progress -- slices 1 to 3 are complete, outer-loop reviewed, and
+merged: slice 1 (`fixture-matrix-and-candidate-a`) as pull request
+[#16](https://github.com/urban233/pymol-copilot/pull/16), slice 2
+(`candidate-b-and-c`) as [#17](https://github.com/urban233/pymol-copilot/pull/17),
+and slice 3 (`fresh-process-execution-boundary`) as
+[#18](https://github.com/urban233/pymol-copilot/pull/18), whose head `902064b`
+has a tree identical to the resulting `main` at `2387fd2`. Slice 4
+(`differential-report-and-design-updates`), this task's final slice, is
+implemented on branch `codev/H-02--differential-report-and-design-updates`,
+cut from that merged slice-3 head -- see Slice 4 completion evidence, below --
+but not yet committed, code-audited, outer-loop reviewed, or merged, so H-02
+as a whole remains in progress.
 **Owner:** Hannah Kullik (`kullik01`)
 **Reviewer:** Martin Urban (`urban233`)
 **Risk:** high
@@ -834,3 +837,279 @@ memory-bound gap recorded above).
 
 F3 and F10 compound: the reap gap F3 demonstrates is invisible from the
 report a real caller sees. Slice 4 should take both together.
+
+## Proposed change (slice 4: differential-report-and-design-updates)
+
+The task's final slice. It writes the differential report H-02 exists to
+produce, carries its conclusions into the design contracts Hannah owns, and
+closes the one deferred prototype gap those conclusions depend on. It ships no
+production API, and it does not close either joint checkpoint: M-02 has not
+started, so neither the fixture-freeze nor the contract-freeze checkpoint can
+complete here. This slice produces H-02's half of both.
+
+### Decisions accepted before this slice began
+
+Four material decisions were put to the owner and answered before any file was
+touched. They are recorded here because the rest of this section follows from
+them, and a reviewer should be able to see that they were decided rather than
+assumed.
+
+1. **Candidate A is selected** -- canonical structured data. It wins fidelity
+   on every acceptance category except measurement objects, and wins
+   boundedness, inspectability, and portability outright. Its higher
+   reconstruction cost is recorded rather than minimized.
+2. **Measurement objects move to the plan and report layer.** Candidate A
+   cannot read them back from PyMOL at all, and they are created by the
+   copilot's own commands in the first place, so they are recorded where they
+   originate. The snapshot contract names them an explicit declared-unsupported
+   category, satisfying the wave's "never silently drop a field" rule.
+3. **Design edits stay inside Hannah-owned sections.**
+   `structure-context.md` states "Hannah owns the snapshot and grammar
+   contracts", and `request-pipeline.md` states "Hannah owns every contract
+   below". `plan-and-execution.md` states "Martin owns every contract below",
+   which includes the hermetic execution protocol and every open question
+   there. This slice supplies evidence for Martin's open question; it does not
+   edit his contract.
+4. **The prototype is retained as acceptance evidence, and H02-S3-F3 plus
+   H02-S3-F10 are fixed here.** Those two compound into the one gap the report
+   itself leans on: the report's "fresh process, no leaked process" conclusion
+   is currently observable only through a test-only hook. The other nine
+   deferred findings get a recorded disposition, not a fix.
+
+### 1. The differential report
+
+Add `docs/codev/wave/evidence/H-02.md`, following the shape this repository's
+existing wave evidence already uses (`H-01.md`, `M-01.md`): Snapshot,
+Environment, Fixture and contracts, Checklist, Commands and results,
+Observations, Review. Its subject-specific core is three tables.
+
+- **Candidate matrix.** Candidates A, B, and C against the five declared axes
+  -- fidelity, boundedness, inspectability, portability, reconstruction cost.
+  Every cell cites an executed test or a recorded empirical probe by name. A
+  cell with no execution behind it says so rather than carrying a judgment.
+- **Acceptance-category matrix.** Each state category the wave names --
+  object and state identity; atom identity and coordinates; chain, residue,
+  insertion, atom, element, altloc, polymer, and hetero metadata; bonds;
+  object and atom visibility, representation, and color; view and supported
+  settings; measurement objects -- against each candidate, resolved as exact
+  match, lossy with evidence, or not representable, each citing its test.
+- **Deferred-finding disposition.** Every finding left open by slices 2 and 3
+  -- H02-S2-F4 through F9, F11, F13, and H02-S3-F3 through F12, F14 -- with
+  its disposition: fixed in this slice, retained with a stated reason, or
+  carried to the contract-freeze checkpoint as an owner's decision.
+
+Three things the report must state plainly rather than leave to inference:
+
+- **Candidate C's measurement recovery was never demonstrated across the
+  fresh-process boundary.** It was shown same-process only -- save, delete,
+  reload inside one session (H02-S2-F13). The report must not let that read as
+  fresh-process evidence, since that is precisely the boundary this task
+  exists to prove.
+- **The portability axis did not discriminate.** Every real-PyMOL target here
+  is excluded on Windows for the same delvewheel/MAX_PATH reason (issue #12),
+  so all three candidates were measured on Linux only. The wave's own risk
+  table puts a decision point at "before claiming portability or choosing the
+  demo environment", owned by Hannah; that decision point stays open, and the
+  report says so instead of claiming an axis it did not measure.
+- **Neither checkpoint closes here.** The report is H-02's input to the
+  fixture-freeze checkpoint Hannah coordinates and the contract-freeze
+  checkpoint Martin coordinates. Both need M-02's fixture catalog, card-byte,
+  and taxonomy reports, which do not exist yet.
+
+Per the artifact-authority rule, the report references upstream facts by link
+rather than restating them, and uses commits as the revision identifier.
+
+### 2. Design updates, Hannah-owned sections only
+
+- `docs/codev/design/shared-core/structure-context.md`, "Structure snapshot
+  and digest" and the `StructureSnapshotV1` and digest contract block: record
+  that canonical structured data is the selected serialization and
+  reconstruction path, the field set the prototype demonstrated it carries,
+  the measurement-object category as explicitly declared-unsupported with its
+  recording moved to the plan and report layer, and the polymer-classification
+  gap the prototype found (derivable from `resn`/`hetatm`, not separately
+  stored). Digest scope wording follows the evidence, not the other way round.
+- `docs/codev/design/runtime-application/request-pipeline.md`, the "Sidecar
+  invocation" contract block: record the request and report boundary the
+  prototype proved -- fresh process, reconstruction from the snapshot alone,
+  command-indexed outcomes, unconditional termination with reap, scratch
+  cleanup on every exit path, and typed fail-closed reasons with no internal
+  retry. Record the limits actually prototyped (maximum input bytes and a
+  wall-clock deadline) and state that no memory bound was prototyped
+  (H02-S3-F14), so a reader cannot mistake the prototyped subset for the
+  design's full finite-resources guarantee.
+- `docs/codev/design/shared-core/plan-and-execution.md` is **not** edited.
+  Martin owns the hermetic execution protocol contract and the open question
+  "Which request, report, limit, and teardown contract supports one shared
+  full-V1 executor?". The report supplies that question's evidence; he decides.
+
+### 3. Close the one prototype gap the report depends on
+
+In `tests/discovery/h02/execution_boundary.py` and its probe module:
+
+- **H02-S3-F3:** a child that escapes between `Popen` and `communicate()` is
+  today neither killed nor reaped, and its scratch directory is deleted while
+  the child may still be live. Order every exit path so the child is
+  terminated, killed if it does not stop, and reaped *before* scratch data is
+  removed -- including the exception path between spawn and communicate.
+- **H02-S3-F10:** the report a real caller sees carries no process evidence,
+  so "fresh process, terminated, not leaked" is observable only through the
+  module's test-only hook. Add the child's process identity and its observed
+  termination to the report shape, and bump the report schema version, since
+  both shapes in this module are versioned.
+
+Each fix needs a probe that fails without it. Slice 3's own review is the
+standard here: a guard that cannot fail is worse than no guard, because it
+reports safety it does not provide. Demonstrate each probe's teeth by
+reverting the fix under a trap that restores the file, exactly as slices 2
+and 3 did.
+
+**Validation (slice 4):** `bazel test //tests/discovery/h02/...
+--nocache_test_results` for the candidate and boundary targets, so every
+number the report quotes is re-executed rather than recalled; `bazel test
+//...` for regression; `bazel run //tools/quality:ruff -- check` and `format
+--check` over `tests/discovery/`; `bazel run //tools/quality:pyrefly -- check`;
+`bazel run //tools/bazel:check_dependency_boundaries`; and `git diff --check`.
+The report records the exact commands and their outcomes, and records nothing
+it did not run.
+
+**Explicitly not in this slice:** no production snapshot, card, or executor
+API -- the wave's no-production-API-before-contract-freeze rule still binds;
+no fourth candidate; no edit to Martin-owned design sections; no closure of
+either joint checkpoint; and no sweep of the nine deferred findings outside
+H02-S3-F3 and F10.
+
+**Expected budget overage:** this slice will exceed the 600-line review budget,
+almost entirely in the report itself. A differential report is one indivisible
+reviewer-facing document -- splitting it across pull requests would leave a
+reviewer unable to check any conclusion against the evidence that supports it.
+The file count stays inside the budget of twelve. Flagged here rather than
+explained after the fact.
+
+## Slice 4 completion evidence (differential-report-and-design-updates)
+
+**Delivered:** [`docs/codev/wave/evidence/H-02.md`](../../wave/evidence/H-02.md),
+the differential report this task exists to produce: a candidate matrix, an
+acceptance-category matrix, and a deferred-finding disposition table, every
+cell citing a real test name or a recorded empirical probe, plus the three
+required plain statements (candidate C's measurement recovery is same-process
+only, the portability axis did not discriminate, and neither joint checkpoint
+closes here). `docs/codev/design/shared-core/structure-context.md`'s
+"Structure snapshot and digest" section now records candidate A's selection,
+the field set the prototype demonstrated, the measurement-object declared-
+unsupported disposition, and the polymer-classification gap.
+`docs/codev/design/runtime-application/request-pipeline.md`'s "Sidecar
+invocation" contract block now records the request/report boundary the
+prototype proved and states plainly that only two of the design's finite-
+resource limits were prototyped. `docs/codev/design/shared-core/
+plan-and-execution.md` was not edited. H02-S3-F3 and H02-S3-F10 -- the one
+gap this task's own report depends on -- are fixed in
+`tests/discovery/h02/execution_boundary.py`: a child that escapes between
+`Popen` and `communicate()` is now terminated and reaped
+(`_terminate_and_reap`, invoked from a `finally` wrapping the child's whole
+lifecycle) before scratch data is removed, and `ExecutionReport` now carries
+`child_pid`/`child_terminated` (schema bumped 1 -> 2) so "fresh process,
+terminated, not leaked" is observable from the report itself rather than only
+through the module's test-only `on_process_spawned` hook. Both fixes are
+demonstrated in both directions with a SHA-256-checksum-verified revert and
+restore; see H-02.md's "Two-direction fix demonstration" section for the
+exact failing assertions and restored-clean re-runs. The other nine findings
+slice 3 deferred, and the eight slice 2 deferred (plus the un-numbered
+`pyproject.toml` observation), each get a recorded disposition in the report
+rather than a fix, exactly as this slice's own plan specified.
+
+**Changed:** `docs/codev/wave/evidence/H-02.md` (new, 351 lines) -- the
+differential report itself.
+`tests/discovery/h02/execution_boundary.py` -- added `_terminate_and_reap`
+and its call from `execute()`'s own `finally` (H02-S3-F3); added
+`ExecutionReport.child_pid`/`child_terminated`, populated at every return
+site, and bumped `EXECUTION_REPORT_SCHEMA_VERSION` from 1 to 2 (H02-S3-F10).
+`tests/discovery/h02/test_execution_boundary.py` -- added
+`test_child_that_escapes_before_communicate_is_terminated_and_reaped` (F3);
+added `child_pid`/`child_terminated` assertions to the five rejected-path
+tests and to `test_spawn_or_load_failure_fails_closed_with_no_leak`,
+`test_wall_clock_timeout_is_hard_killed_and_reaped`,
+`test_forced_child_crash_leaves_no_live_process_or_scratch_data`, and
+`test_positive_path_matches_independently_computed_expected_values` (F10).
+`docs/codev/design/shared-core/structure-context.md` and
+`docs/codev/design/runtime-application/request-pipeline.md` -- the two
+Hannah-owned design edits described under Delivered. This implementation
+plan -- this Status header and this section.
+
+**Validation actually run:**
+- `bazel test //tests/discovery/h02/... --nocache_test_results
+  --test_output=errors` -> 5 of 5 targets PASSED (`execution_boundary_probes`
+  28.3s/17 tests, `full_v1_snapshot_candidate_a` 13.3s, `_candidate_b` 11.3s,
+  `_candidate_c` 11.5s, `harness_test` 1.9s).
+- `bazel test //... --test_output=errors` -> 23 of 23 test targets pass; no
+  regression in any pre-existing target.
+- `bazel run //tools/quality:ruff -- check tests/discovery/` -> all checks
+  passed.
+- `bazel run //tools/quality:ruff -- format --check tests/discovery/` -> 10
+  files already formatted.
+- `bazel run //tools/quality:pyrefly -- check` -> 0 errors (20 suppressed),
+  matching every prior slice's baseline.
+- `bazel run //tools/bazel:check_dependency_boundaries` -> exit 0.
+- `git diff --check` -> exit 0 (clean).
+- H02-S3-F3 two-direction demonstration: `_terminate_and_reap`'s body
+  temporarily replaced with a bare `return`; `bazel test
+  //tests/discovery/h02:execution_boundary_probes --nocache_test_results
+  --test_output=errors` -> 1 failed (the new escape test, `AssertionError:
+  child process was not reaped`), 16 passed. File restored from a pre-revert
+  copy; SHA-256 matched
+  `7b2ae72d0a9e239da3d352b04217e6521c038bdb307830427fc4efb00cd1ac44` exactly;
+  same command re-run -> 17 passed.
+- H02-S3-F10 two-direction demonstration: every `child_pid=child_pid`/
+  `child_terminated=process.poll() is not None` construction-site pair
+  temporarily replaced with `child_pid=None`/`child_terminated=None`; same
+  command -> 4 failed (`test_spawn_or_load_failure_fails_closed_with_no_leak`,
+  `test_wall_clock_timeout_is_hard_killed_and_reaped`,
+  `test_forced_child_crash_leaves_no_live_process_or_scratch_data`,
+  `test_positive_path_matches_independently_computed_expected_values`, each
+  `AssertionError: assert None == <pid>`), 13 passed. File restored; SHA-256
+  matched the same checksum exactly (confirmed by checksum and a
+  byte-for-byte `diff`); same command re-run -> 17 passed.
+
+**Acceptance evidence:** H-02.md's own Checklist (H02-A1 through H02-A6
+satisfied; H02-A7 -- portability on both development environments -- and
+H02-R1 -- independent review -- explicitly left open, not this slice's to
+close) maps every acceptance sentence in the
+[wave plan](../../wave/pymol-copilot-full-v1-contracts.md#h-02-prove-full-v1-snapshot-and-execution-boundaries)
+to the test or probe that supports it; see that document rather than
+restating it here.
+
+**Scope deviations:** None from this slice's own plan. One documentation
+choice worth naming: H-02.md's Checklist introduces `H02-A1`-`H02-A8`/`H02-R1`
+identifiers for its own acceptance items, since the wave plan's H-02 section
+states its acceptance criteria in prose rather than as a pre-existing ID
+scheme (unlike H-01's `H-A1`-style checklist); the report says so explicitly
+where the IDs are introduced, rather than implying they were a pre-existing
+contract.
+
+**Known limitations:**
+- The three required plain statements (candidate C's same-process-only
+  measurement recovery, the non-discriminating portability axis, and the two
+  joint checkpoints staying open) are recorded in H-02.md and not repeated
+  here; they are limitations of the evidence, not of this slice's execution
+  of its own plan.
+- Of the nineteen deferred findings this slice was asked to give a
+  disposition to (H02-S2-F4 through F9/F11/F13 plus the un-numbered
+  `pyproject.toml` observation, and H02-S3-F4 through F9/F11/F12/F14), none
+  besides F3 and F10 was fixed, exactly as planned; several (H02-S2-F7,
+  H02-S3-F7/F8/F9/F14) are explicitly carried to the contract-freeze
+  checkpoint as an owner's decision rather than resolved here.
+- H02-S3-F8 (`input_fingerprint`'s docstring contradicts `_rejected()`'s
+  unconditional `None`) was confirmed still present while investigating
+  H02-S3-F10 and was deliberately left unfixed, being outside this slice's
+  two named fixes.
+- `pyproject.toml`'s `search-path` entry (flagged in slice 2 as outliving the
+  disposable prototype) remains unremoved: `pyproject.toml` is not one of
+  this slice's six allowed files.
+- This document's own Status header now describes slice 4 as implemented but
+  not yet committed, code-audited, outer-loop reviewed, or merged; H-02 as a
+  whole is not complete until that review happens.
+
+**Review state:** Not yet reviewed. This slice's own builder evidence receipt
+records `AWAITING INDEPENDENT REVIEW`; no code-audit, outer-loop, or human
+review has occurred against any commit of this slice, because none exists yet
+(see Snapshot in H-02.md).

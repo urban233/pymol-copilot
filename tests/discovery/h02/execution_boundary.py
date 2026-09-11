@@ -66,7 +66,11 @@ from harness import from_json
 #: like harness.SNAPSHOT_SCHEMA_VERSION and candidate B's own manifest
 #: schema version.
 EXECUTION_REQUEST_SCHEMA_VERSION = 1
-EXECUTION_REPORT_SCHEMA_VERSION = 1
+#: Bumped from 1 to 2 when `ExecutionReport` gained `child_pid` and
+#: `child_terminated` (H02-S3-F10): the report shape itself changed, so its
+#: own version must move with it, exactly as this module's docstring says
+#: every shape here is versioned.
+EXECUTION_REPORT_SCHEMA_VERSION = 2
 
 #: Top-level report outcomes.
 STATUS_OK = "ok"
@@ -187,6 +191,19 @@ class ExecutionReport:
         resulting_fingerprint: A fingerprint of the reconstructed object's
             canonical extraction after every command ran, or None when no
             such extraction was ever produced.
+        child_pid: The spawned child's OS process ID, or None when no
+            process was ever spawned (every `STATUS_REJECTED` report). A
+            real caller's own process-identity evidence for "fresh
+            process" -- before this field existed, that claim was
+            observable only through the module-private
+            `on_process_spawned` test hook (H02-S3-F10).
+        child_terminated: Whether `execute()` itself observed, by the time
+            it returns, that `child_pid` was no longer running (always
+            computed from a fresh `Popen.poll()`/`wait()` result, never
+            hardcoded) -- None exactly when `child_pid` is None, mirroring
+            `input_fingerprint`'s own None-when-not-applicable convention.
+            A real caller's own "not leaked" evidence, for the same reason
+            as `child_pid` above.
         command_outcomes: Per-command outcomes, indexed by position. Shorter
             than the request's command list whenever execution stopped
             early (a command failure, or a crash).
@@ -201,6 +218,8 @@ class ExecutionReport:
     reason: str
     input_fingerprint: str | None
     resulting_fingerprint: str | None
+    child_pid: int | None
+    child_terminated: bool | None
     command_outcomes: tuple[CommandOutcome, ...]
     elapsed_seconds: float
     warnings: tuple[str, ...] = field(default_factory=tuple)
@@ -432,10 +451,43 @@ def _rejected(reason: str, elapsed_seconds: float) -> ExecutionReport:
         reason=reason,
         input_fingerprint=None,
         resulting_fingerprint=None,
+        child_pid=None,
+        child_terminated=None,
         command_outcomes=(),
         elapsed_seconds=elapsed_seconds,
         warnings=(),
     )
+
+
+def _terminate_and_reap(
+    process: subprocess.Popen[str], *, grace_seconds: float = 5.0
+) -> None:
+    """Ensure a spawned child is stopped and reaped, on any exit path.
+
+    Safe -- and a no-op -- when the child has already exited and already
+    been waited on, which is true on every one of `execute()`'s own
+    documented return paths above (`communicate()` itself already waits
+    for the child, and the timeout branch already calls `kill()` then
+    `communicate()` again before returning). This function exists for the
+    one path none of those returns runs at all: an exception raised
+    between `Popen` and `communicate()` -- for example, the test-only
+    `on_process_spawned` hook itself raising -- which used to leave the
+    child neither terminated nor reaped while its scratch directory was
+    still deleted out from under it (H02-S3-F3).
+
+    Args:
+        process: The spawned child's `Popen` handle.
+        grace_seconds: How long to wait for a plain `terminate()` (SIGTERM)
+            to take effect before escalating to a hard `kill()` (SIGKILL).
+    """
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 def execute(
@@ -451,8 +503,9 @@ def execute(
     ever spawned and no scratch data ever written. Only a request that
     passes every check causes a fresh child process to be spawned, given a
     hard wall-clock deadline, and reaped -- on every exit path, including
-    timeout and an unhandled child crash -- with its scratch directory
-    always removed.
+    timeout, an unhandled child crash, and an exception raised between
+    spawn and the child's own completion -- with its scratch directory
+    always removed only after that termination and reap (H02-S3-F3).
 
     Args:
         request: The execution request to run.
@@ -526,80 +579,103 @@ def execute(
             stderr=subprocess.PIPE,
             text=True,
         )
-        if on_process_spawned is not None:
-            on_process_spawned(process)
-
+        child_pid = process.pid
         try:
-            _stdout, stderr = process.communicate(
-                timeout=request.deadline_seconds
+            if on_process_spawned is not None:
+                on_process_spawned(process)
+
+            try:
+                _stdout, stderr = process.communicate(
+                    timeout=request.deadline_seconds
+                )
+            except subprocess.TimeoutExpired:
+                # Hard kill, then reap: communicate() again both waits for
+                # the now-killed child to actually terminate (never leaving
+                # a zombie behind) and drains whatever partial output it had
+                # already produced.
+                process.kill()
+                _stdout, stderr = process.communicate()
+                return ExecutionReport(
+                    schema_version=EXECUTION_REPORT_SCHEMA_VERSION,
+                    status=STATUS_FAILED,
+                    reason=REASON_TIMEOUT,
+                    input_fingerprint=input_fingerprint,
+                    resulting_fingerprint=None,
+                    child_pid=child_pid,
+                    child_terminated=process.poll() is not None,
+                    command_outcomes=(),
+                    elapsed_seconds=time.monotonic() - start,
+                    warnings=(),
+                )
+
+            if not output_path.exists():
+                # The child never reached its own _write() call -- a crash
+                # (this module's own CRASH_VERB sentinel, or a real one)
+                # rather than a reported failure. communicate() above
+                # already waited for it, so it is reaped either way.
+                return ExecutionReport(
+                    schema_version=EXECUTION_REPORT_SCHEMA_VERSION,
+                    status=STATUS_FAILED,
+                    reason=REASON_CHILD_CRASH,
+                    input_fingerprint=input_fingerprint,
+                    resulting_fingerprint=None,
+                    child_pid=child_pid,
+                    child_terminated=process.poll() is not None,
+                    command_outcomes=(),
+                    elapsed_seconds=time.monotonic() - start,
+                    warnings=(f"child stderr: {stderr}",) if stderr else (),
+                )
+
+            payload = json.loads(output_path.read_text())
+            command_outcomes = tuple(
+                CommandOutcome(
+                    index=outcome["index"],
+                    verb=outcome["verb"],
+                    status=outcome["status"],
+                    error=outcome.get("error"),
+                )
+                for outcome in payload.get("command_outcomes", [])
             )
-        except subprocess.TimeoutExpired:
-            # Hard kill, then reap: communicate() again both waits for the
-            # now-killed child to actually terminate (never leaving a
-            # zombie behind) and drains whatever partial output it had
-            # already produced.
-            process.kill()
-            _stdout, stderr = process.communicate()
+            resulting_fingerprint = payload.get("resulting_fingerprint")
+            status = payload["status"]
+            reason = payload["reason"]
+
+            if (
+                status == STATUS_OK
+                and request.expected_resulting_fingerprint is not None
+                and resulting_fingerprint
+                != request.expected_resulting_fingerprint
+            ):
+                status = STATUS_FAILED
+                reason = REASON_FIDELITY_MISMATCH
+
             return ExecutionReport(
                 schema_version=EXECUTION_REPORT_SCHEMA_VERSION,
-                status=STATUS_FAILED,
-                reason=REASON_TIMEOUT,
+                status=status,
+                reason=reason,
                 input_fingerprint=input_fingerprint,
-                resulting_fingerprint=None,
-                command_outcomes=(),
+                resulting_fingerprint=resulting_fingerprint,
+                child_pid=child_pid,
+                child_terminated=process.poll() is not None,
+                command_outcomes=command_outcomes,
                 elapsed_seconds=time.monotonic() - start,
                 warnings=(),
             )
-
-        if not output_path.exists():
-            # The child never reached its own _write() call -- a crash
-            # (this module's own CRASH_VERB sentinel, or a real one) rather
-            # than a reported failure. communicate() above already waited
-            # for it, so it is reaped either way.
-            return ExecutionReport(
-                schema_version=EXECUTION_REPORT_SCHEMA_VERSION,
-                status=STATUS_FAILED,
-                reason=REASON_CHILD_CRASH,
-                input_fingerprint=input_fingerprint,
-                resulting_fingerprint=None,
-                command_outcomes=(),
-                elapsed_seconds=time.monotonic() - start,
-                warnings=(f"child stderr: {stderr}",) if stderr else (),
-            )
-
-        payload = json.loads(output_path.read_text())
-        command_outcomes = tuple(
-            CommandOutcome(
-                index=outcome["index"],
-                verb=outcome["verb"],
-                status=outcome["status"],
-                error=outcome.get("error"),
-            )
-            for outcome in payload.get("command_outcomes", [])
-        )
-        resulting_fingerprint = payload.get("resulting_fingerprint")
-        status = payload["status"]
-        reason = payload["reason"]
-
-        if (
-            status == STATUS_OK
-            and request.expected_resulting_fingerprint is not None
-            and resulting_fingerprint != request.expected_resulting_fingerprint
-        ):
-            status = STATUS_FAILED
-            reason = REASON_FIDELITY_MISMATCH
-
-        return ExecutionReport(
-            schema_version=EXECUTION_REPORT_SCHEMA_VERSION,
-            status=status,
-            reason=reason,
-            input_fingerprint=input_fingerprint,
-            resulting_fingerprint=resulting_fingerprint,
-            command_outcomes=command_outcomes,
-            elapsed_seconds=time.monotonic() - start,
-            warnings=(),
-        )
+        finally:
+            # H02-S3-F3: guarantee the child is terminated and reaped
+            # before the outer `finally` below deletes the scratch
+            # directory it may still be reading from -- including the
+            # exception path between `Popen` and `communicate()` (for
+            # example, `on_process_spawned` itself raising), which none of
+            # the return statements above run at all. Every documented
+            # return above already leaves the child not running
+            # (`communicate()` itself already waited for it, or the
+            # timeout branch already killed and waited), so
+            # `_terminate_and_reap` is a genuine no-op on all of them; it
+            # only does real work on the one path they do not cover.
+            _terminate_and_reap(process)
     finally:
         # Every exit path above -- success, rejection after spawn (there is
-        # none), timeout, crash, command failure -- passes through here.
+        # none), timeout, crash, command failure, and the child-escape path
+        # the inner `finally` just handled -- passes through here.
         shutil.rmtree(scratch_dir, ignore_errors=True)
