@@ -101,4 +101,4 @@ snapshot schema or select a production card contract.
   controlled experiment input, but the joint full-V1 fixture catalog,
   production schema, compatibility policy, and reciprocal contract acceptance
   remain pending.
-- **Review state:** Awaiting fresh independent review.
+- **Review state:** Ready for outer-loop review (`READY_FOR_OUTER_LOOP`).
