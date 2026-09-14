@@ -19,6 +19,8 @@ import os
 import sys
 from pathlib import Path
 
+import winstage
+
 from pmc_data.generate import generate_gold_case
 from pmc_data.generate import load_generation_requests
 from pmc_data.generate import write_generated_gold_case
@@ -48,6 +50,7 @@ def run() -> int:
     Returns:
         0 if every request was verified and written, 1 if any was rejected.
     """
+    winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 

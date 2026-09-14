@@ -20,7 +20,7 @@ py_library(
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
-        "//tests/support:winstage",
+        "//tools/winstage:winstage",
     ],
 )
 
@@ -35,7 +35,7 @@ py_library(
     imports = ["."],
     deps = [
         ":harness",
-        "//tests/support:winstage",
+        "//tools/winstage:winstage",
     ],
 )
 

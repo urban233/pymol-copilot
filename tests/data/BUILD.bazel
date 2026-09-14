@@ -81,19 +81,16 @@ py_test(
         "testdata/second_gold_fixture.pdb",
         "//configs/generation:chain_a_red_structures.json",
     ],
-    # See gold_case_verifier's identical exclusion below: the MAX_PATH
-    # cause (issue #12) is fixed in-repository by
-    # //tests/support:winstage, but this target remains Windows-excluded
-    # because it does not call that shim.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
+    # No longer excluded on Windows: see gold_case_verifier's identical
+    # comment below. //tools/winstage:winstage now stages a short-path
+    # copy before this module's own real-PyMOL import (a no-op on every
+    # other platform). See issue #12.
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
+        "//tools/winstage:winstage",
     ],
 )
 
@@ -107,22 +104,19 @@ py_test(
         "testdata/chain_a_gold_fixture.pdb",
         "testdata/renumbered_serials_fixture.pdb",
     ],
-    # tests/integration/BUILD.bazel's real_pymol_command target hit the
-    # same MAX_PATH failure (issue #12: pymol-open-source-whl's Windows
-    # wheel bundles delvewheel-repaired DLLs whose long hash-suffixed
-    # names, combined with Bazel's generated repository name, exceed
-    # Windows' MAX_PATH) and fixed it in-repository with
-    # //tests/support:winstage, a short-path staging shim. This target
-    # remains Windows-excluded only because it does not yet call that
-    # shim.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
+    # No longer excluded on Windows: tests/integration/BUILD.bazel's
+    # real_pymol_command target hit the same MAX_PATH failure (issue
+    # #12: pymol-open-source-whl's Windows wheel bundles delvewheel-
+    # repaired DLLs whose long hash-suffixed names, combined with
+    # Bazel's generated repository name, exceed Windows' MAX_PATH) and
+    # fixed it in-repository with //tools/winstage:winstage, a
+    # short-path staging shim this target now calls too, below, before
+    # its own real-PyMOL import.
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
+        "//tools/winstage:winstage",
     ],
 )

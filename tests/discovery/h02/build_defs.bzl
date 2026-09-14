@@ -40,7 +40,7 @@ def h02_pymol_py_test(name, srcs, deps, data = []):
         # No longer excluded on Windows: pymol-open-source-whl's Windows
         # wheel bundles delvewheel-repaired DLLs whose long hash-suffixed
         # names, combined with Bazel's generated repository name, used to
-        # exceed Windows' MAX_PATH. tests/support:winstage now stages a
+        # exceed Windows' MAX_PATH. //tools/winstage:winstage now stages a
         # short-path copy before every real-PyMOL import in this directory
         # (a no-op on every other platform). See issue #12.
         deps = deps + ["@pypi//pytest"],

@@ -64,7 +64,7 @@ py_test(
     # combined with Bazel's generated repository name for this dependency,
     # the resulting path used to exceed Windows' MAX_PATH (260 chars) when
     # the compiled _cmd extension loaded its bundled dependencies.
-    # //tests/support:winstage now stages a short-path copy before this
+    # //tools/winstage:winstage now stages a short-path copy before this
     # module's own real-PyMOL import (a no-op on every other platform). See
     # issue #12.
     deps = [
@@ -73,6 +73,6 @@ py_test(
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
-        "//tests/support:winstage",
+        "//tools/winstage:winstage",
     ],
 )

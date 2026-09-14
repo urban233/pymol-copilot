@@ -12,10 +12,11 @@ structure lacking chain A must be rejected by the independent pre-check
 before any PyMOL selection or color assertion runs -- gold_case is None --
 rather than silently written as a false positive.
 
-Same real-PyMOL launch/fixture pattern as test_gold_case_verifier.py, and
-excluded on Windows for the same reason (issue #12): the MAX_PATH cause is
-fixed in-repository by tests/support/winstage.py, but this target does not
-yet call that shim.
+Same real-PyMOL launch/fixture pattern as test_gold_case_verifier.py. Runs
+on Windows too, for the same reason
+tests/integration/test_real_pymol_command.py's docstring describes (issue
+#12): tools/winstage/winstage.py's short-path staging shim, called below
+before this module's own `import pymol`.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -32,6 +33,8 @@ from pmc_data.generate import GenerationRequest
 from pmc_data.generate import generate_gold_case
 from pmc_data.generate import load_generation_requests
 from pmc_data.gold_case import ContractVersions
+
+import winstage
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CONFIG_PATH = (
@@ -107,6 +110,7 @@ def real_pymol() -> Iterator[PyMOLCmd]:
     Yields:
         The real PyMOL cmd module.
     """
+    winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 

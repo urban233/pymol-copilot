@@ -36,7 +36,7 @@ resulting path exceeded Windows' MAX_PATH when the compiled `_cmd`
 extension loaded its bundled dependencies. A short Bazel output-base and
 unsandboxed test execution were both tried against real Windows CI and
 neither changed the error; only staging a copy to a short path did (see
-`tests/support/winstage.py`, called below before this module's own
+`tools/winstage/winstage.py`, called below before this module's own
 `import pymol`). Tracked in
 [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
 """

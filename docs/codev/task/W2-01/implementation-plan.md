@@ -24,25 +24,68 @@ Linux/macOS-only coverage gap.
 - **Change:** Stage `pymol` and its delvewheel `.libs` directory to a short
   filesystem path on Windows before the extension is imported, so the
   compiled `_cmd` extension's dependency DLLs resolve within `MAX_PATH`.
-  Then drop the Windows exclusion from `tests/discovery/h02`'s five targets
-  and from `//tests/integration:real_pymol_command`.
-- **Success:** All six previously-skipped real-PyMOL targets execute and
+  Then drop the Windows exclusion from every real-PyMOL target in the
+  repository, so issue #12 closes rather than narrowing.
+- **Success:** All nine previously-skipped real-PyMOL targets execute and
   pass on `windows-2025` CI, and continue to pass unchanged on
-  `ubuntu-24.04` and `macos-15`.
+  `ubuntu-24.04` and `macos-15`. No `target_compatible_with` Windows
+  exclusion citing issue #12 remains anywhere in the repository.
 - **Non-goals:** No change to any candidate's snapshot logic, the execution
-  boundary's own contract, or H-02's recorded conclusions. No upstream
-  change to `pymol-open-source-whl`. No attempt to make the staging shim a
-  production runtime facility -- it is test support.
-- **Allowed scope:** `tests/support/` (new), `tests/discovery/h02/`
-  (`conftest.py`, `harness.py`, `execution_boundary.py`, `build_defs.bzl`,
-  `BUILD.bazel`), `tests/integration/` (`test_real_pymol_command.py`,
-  `BUILD.bazel`).
+  boundary's *public* `execute()` contract, or H-02's recorded conclusions.
+  No upstream change to `pymol-open-source-whl`. No use of the staging shim
+  by any target inside a runtime dependency closure -- `pmc_core` and
+  `pmc_agent` must not gain it, directly or transitively.
+- **Allowed scope:** `tools/winstage/` (new), `tests/discovery/h02/`
+  (`conftest.py`, `harness.py`, `execution_boundary.py`,
+  `test_execution_boundary.py`, `build_defs.bzl`, `BUILD.bazel`),
+  `tests/integration/` (`test_real_pymol_command.py`, `BUILD.bazel`),
+  `tests/data/` (`BUILD.bazel`, `test_generate_real_pymol.py`,
+  `test_gold_case_verifier.py`), `src/pmc_data/BUILD.bazel`, and
+  `pyproject.toml` (pyrefly `search-path` only).
 - **Validation:** Full Bazel test suite on all three platforms via CI, plus
   the repository's ruff, format, pyrefly, and dependency-boundary gates.
-- **Stop if:** The staged import fails on Windows CI for any target, or any
-  currently-passing target regresses on any platform.
-- **Work style:** Bounded delegate. The plan is specific, the scope is six
-  files plus one new module, and the acceptance signal is a CI result.
+- **Stop if:** The staged import fails on Windows CI for any target, any
+  currently-passing target regresses on any platform, or
+  `check_dependency_boundaries` reports the shim inside a runtime closure.
+- **Work style:** Pair. Recorded as pair style when round 2's correction
+  work was absorbed, and the item has since been driven interactively
+  round by round against real Windows CI results rather than as one
+  bounded delegation.
+
+## Scope amendments
+
+Recorded rather than applied silently, because finding W201-R3-ARCH-4
+correctly flagged that two earlier expansions were never written down. The
+accepted authority and the delivered change should not disagree on paper.
+
+1. **`pyproject.toml`** (rounds 1-2). `winstage.py` is a bare top-level
+   module reached through Bazel's `imports = ["."]`, exactly like
+   `tests/discovery/h02/harness.py`, which pyrefly's `search-path` already
+   lists. Without the entry the type-check gate fails.
+2. **`tests/discovery/h02/test_execution_boundary.py`** (rounds 2-5). Windows
+   CI exposed a POSIX-only assertion and, later, a genuine resource leak in
+   `_terminate_and_reap`. Both were load-bearing for this plan's own success
+   criterion: `pyproject.toml`'s `filterwarnings = ["error"]` makes a leaked
+   pipe's `ResourceWarning` a hard test failure, so neither fix could be
+   split out without leaving Windows red. The non-goal above is narrowed to
+   the boundary's *public* contract accordingly: `execute()` is untouched;
+   its private cleanup helper was extended.
+3. **`tools/winstage/`, `tests/data/`, `src/pmc_data/BUILD.bazel`**
+   (round 6). Martin's review of PR #22 observed that the pull request
+   declares `Closes #12` while three real-PyMOL targets remain
+   Windows-excluded citing that issue. Rather than weaken the claim, the
+   scope widens to make it true. This requires relocating the shim out of
+   `tests/support/`: `//src/pmc_data:generate_cli` cannot depend on a
+   `tests/` package without inverting the dependency direction that
+   `src/BUILD.bazel`'s own package groups establish. `tools/` is the
+   neutral home -- nothing ships from it, and the dependency-boundary
+   checker's forbidden sets live entirely under `src/`. The earlier
+   "production runtime facility" non-goal overstated the obstacle:
+   `check_dependency_boundaries` forbids `//src/pmc_data:pmc_data` from
+   every runtime closure it enforces, so `generate_cli` is a developer
+   data-generation tool, not production runtime. The non-goal is restated
+   above in the terms that actually matter -- no runtime closure gains the
+   shim.
 
 ## Repository evidence
 
