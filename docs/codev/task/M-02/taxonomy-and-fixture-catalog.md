@@ -1,6 +1,6 @@
 # M-02 V1 Taxonomy and Fixture Catalog
 
-**Status:** Draft discovery evidence
+**Status:** Candidate A card evidence recorded; contract freeze pending
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Authority:** [M-02](../../wave/pymol-copilot-full-v1-contracts.md#m-02-define-full-v1-card-and-dataset-needs)
@@ -9,11 +9,13 @@ serialization, define a production card API, or promote a dataset.
 
 ## Shared fixture status
 
-No H-02 candidate canonical snapshot or jointly reviewed full-V1 fixture
-catalog exists yet. Every execution category below is therefore `deferred`,
-not silently omitted. The listed snapshot facts define the requirements for
-the fixture-freeze checkpoint; they are not a claim that the current
-`StructureSnapshotV1` placeholder contains them.
+H-02 Candidate A supplies a controlled `ObjectSnapshot` fixture for the
+candidate-card experiment. It is sufficient to demonstrate deterministic
+rendering from the candidate snapshot, but it is not a jointly reviewed
+full-V1 fixture catalog. Execution categories remain `deferred` unless they
+have separately recorded oracle and policy evidence. The listed snapshot facts
+define fixture-freeze requirements; they do not promote Candidate A into a
+production snapshot contract.
 
 ## Execution categories
 
@@ -48,9 +50,9 @@ operations, and cleanup boundaries.
 
 ## Card and dataset follow-up
 
-Once H-02 supplies candidate canonical snapshots, this catalog will name the
-input fixture for deterministic card-byte experiments. The follow-up will
-record exact field order, escaping, numeric normalization, collection order,
-truncation and unsupported markers, and every field-mutation result. Dataset
-sample and artifact-manifest examples will then retain the snapshot/card,
-plan, assertions, execution evidence, provenance, and all contract versions.
+The Candidate A controlled fixture is the input for the recorded deterministic
+card-byte experiment. It records field order, ASCII escaping, numeric
+normalization, collection order, per-state truncation, explicit unsupported
+markers, and rendered-field mutations. Dataset sample and artifact-manifest
+examples still require a jointly reviewed fixture catalog before they can
+reference a frozen snapshot/card contract.

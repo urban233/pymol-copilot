@@ -95,9 +95,10 @@ runtime. At contract freeze, this example must become a strict schema with
 exact field order/canonical bytes where relevant, version compatibility rules,
 and malformed/missing-field tests.
 
-## Deferred card dependency
+## Candidate-card dependency
 
 The field inventory does not choose the live-state serialization or card
-format. Card bytes, `card_sha256`, and `card_contract_version` become usable
-only after H-02 provides candidate canonical snapshots and the joint fixture
-freeze identifies a controlled input for golden-byte and mutation evidence.
+format. H-02 Candidate A now provides a controlled input for M-02 golden-byte,
+mutation, parity, and truncation experiments. Card bytes, `card_sha256`, and
+`card_contract_version` remain candidate-only until the joint fixture freeze
+selects a production contract and its compatibility policy.

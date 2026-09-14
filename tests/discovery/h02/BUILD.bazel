@@ -17,6 +17,9 @@ py_library(
         "testdata/h02_full_v1_fixture.pdb",
     ],
     imports = ["."],
+    # Candidate-private handoff for M-02 card discovery; this does not expose
+    # a production snapshot API beyond the one sibling discovery package.
+    visibility = ["//tests/discovery/m02:__pkg__"],
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",

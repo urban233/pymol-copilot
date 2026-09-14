@@ -1,8 +1,8 @@
 # M-02 Builder Evidence
 
-**Status:** Snapshot-independent discovery complete; card work blocked on H-02
+**Status:** Candidate A card discovery complete; contract freeze pending
 **Task:** M-02
-**Base snapshot:** `f217965a45de12199e48d41c901b829700827f37`
+**Base snapshot:** `914bc6e299665085b82b9f4c3e5ede4a54975353`
 
 ## Delivered
 
@@ -15,46 +15,57 @@
 - Defined candidate dataset sample and artifact-manifest field inventories,
   including snapshot/card, plan, assertions, execution evidence, provenance,
   and contract versions.
-- Recorded the developer-authorized W2-00 closure as a scope amendment. C-2,
-  C-3, C-5, and Martin's half of C-7 remain explicitly unsatisfied and are not
-  represented as passed.
+- Added a disposable, candidate-private renderer for H-02 Candidate A
+  `ObjectSnapshot` values. It defines stable order, ASCII escaping, numeric
+  normalization, per-state atom bounds, unsupported-schema rejection, and
+  visible markers for measurement objects and polymer classification that are
+  not yet captured.
+- Added golden-byte, permutation, caller-parity, rendered-field mutation,
+  truncation, unsupported-schema, and real Candidate A extraction checks.
 
 ## Changed
 
 - `docs/codev/task/M-02/implementation-plan.md`
 - `docs/codev/task/M-02/taxonomy-and-fixture-catalog.md`
 - `docs/codev/task/M-02/dataset-sample-and-artifact-manifest.md`
-- `docs/codev/wave/pymol-copilot-full-v1-contracts.md`
-- `docs/codev/wave/pymol-copilot.md`
-- `docs/codev/wave/evidence/combined.md`
-- `docs/codev/task/W2-00/implementation-plan.md`
+- `docs/codev/task/M-02/builder-evidence.md`
+- `docs/codev/task/M-02/builder-evidence.json`
+- `tests/discovery/m02/card_candidate.py`
+- `tests/discovery/m02/test_card_candidate.py`
+- `tests/discovery/m02/BUILD.bazel`
+- `tests/discovery/h02/BUILD.bazel`
+- `pyproject.toml`
 
 ## Validation Actually Run
 
 - `git diff --check` -> passed.
-- No automated M-02 card or parity test is applicable: H-02 has not supplied
-  candidate canonical snapshots or the shared fixture catalog.
-- Supporting macOS W2-00 runtime and repository validation is appended to
-  `docs/codev/wave/evidence/combined.md`; its exact commands and outcomes are
-  recorded there.
+- `bazel test //tests/discovery/m02:card_candidate_test --lockfile_mode=error
+  --cache_test_results=no --test_output=all` -> 25 passed.
+- `bazel test //tests/data/... //tests/discovery/m02:card_candidate_test
+  //tests/discovery/h02:full_v1_snapshot_candidate_a --lockfile_mode=error
+  --cache_test_results=no --test_output=errors` -> 9 of 9 targets passed.
+- `bazel run //tools/quality:ruff --lockfile_mode=error -- check .` -> passed.
+- `bazel run //tools/quality:ruff --lockfile_mode=error -- format --check .`
+  -> 108 files already formatted.
+- `bazel run //tools/quality:pyrefly --lockfile_mode=error -- check` -> 0
+  errors, 20 existing suppressions.
 
 ## Acceptance Evidence
 
 - Taxonomy coverage and explicit deferred states: `taxonomy-and-fixture-catalog.md`.
 - Candidate sample/manifest provenance and version needs:
   `dataset-sample-and-artifact-manifest.md`.
-- Honest scope amendment and retained incomplete prior-wave evidence:
-  `combined.md` and the two wave-plan status entries.
+- Candidate-card determinism, parity, mutation sensitivity, bounds, and H-02
+  extraction: `tests/discovery/m02/test_card_candidate.py`.
 
 ## Scope and Limitations
 
-- The developer explicitly authorized the W2-00 closure amendment to unblock
-  M-02. That documented dependency update is outside M-02's initial task-local
-  paths but is required to reflect the authorized start state.
 - The taxonomy and manifest documents are Draft discovery evidence, not frozen
   contracts or production schemas.
-- Deterministic card bytes, field-mutation tests, caller parity tests, and
-  reciprocal contract acceptance remain blocked on H-02 evidence.
+- H-02 Candidate A's `harness` target has package-limited visibility only to
+  `//tests/discovery/m02`; it does not expose a production snapshot API.
+- The joint full-V1 fixture catalog, card schema, compatibility policy, and
+  reciprocal contract acceptance remain deferred.
 
 ## Review State
 

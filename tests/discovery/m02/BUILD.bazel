@@ -1,0 +1,20 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_library(
+    name = "card_candidate",
+    srcs = ["card_candidate.py"],
+    imports = ["."],
+    deps = ["//tests/discovery/h02:harness"],
+)
+
+py_test(
+    name = "card_candidate_test",
+    srcs = ["test_card_candidate.py"],
+    main = "test_card_candidate.py",
+    deps = [
+        ":card_candidate",
+        "//tests/discovery/h02:harness",
+        "@pypi//pytest",
+    ],
+)

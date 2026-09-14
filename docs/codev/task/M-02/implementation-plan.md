@@ -1,6 +1,7 @@
 # M-02: Define Full-V1 Card and Dataset Contract Needs
 
-**Status:** Accepted by Martin Urban (`urban233`), 2026-09-09
+**Status:** In progress: Candidate A card discovery complete; contract freeze
+pending
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Risk:** High
@@ -65,11 +66,26 @@ policy dependency before any candidate card bytes are evaluated.
 
 ## Completion evidence
 
-- **Delivered:** M-02 is started at its snapshot-independent taxonomy and fixture-catalog discovery step.
-- **Changed:** `docs/codev/task/M-02/implementation-plan.md`, `taxonomy-and-fixture-catalog.md`, `dataset-sample-and-artifact-manifest.md`, and builder evidence receipts.
-- **Head commit/snapshot:** Pending.
-- **Validation actually run:** Repository inspection; W2-00 supporting macOS focused/runtime and repository checks are recorded in `combined.md`. No candidate-card test is applicable before H-02 snapshots exist.
-- **Acceptance evidence:** The draft taxonomy and candidate sample/manifest field inventory now cover the snapshot-independent portion. Taxonomy review, H-02 fixtures, card-byte evidence, and reciprocal contract acceptance remain pending.
+- **Delivered:** The snapshot-independent taxonomy and dataset field inventory,
+  plus a candidate-private deterministic renderer that consumes H-02 Candidate
+  A `ObjectSnapshot` values. The renderer has stable order, escaping, number
+  normalization, bounded per-state atom output, schema rejection, and explicit
+  markers for measurement objects and polymer classification that remain
+  unsupported.
+- **Changed:** M-02 task records; `tests/discovery/m02/` candidate renderer
+  and test target; narrow H-02 harness visibility; and the Pyrefly discovery
+  search path.
+- **Head commit/snapshot:** Pending review and commit.
+- **Validation actually run:** Focused M-02 candidate-card test: 25 passed
+  against a synthetic snapshot and H-02's controlled Candidate A fixture.
+- **Acceptance evidence:** Golden bytes, collection-order determinism,
+  data/runtime caller parity, mutations of every rendered field, truncation,
+  schema rejection, and H-02 Candidate A extraction are covered. The taxonomy
+  and sample/manifest inventory remain draft discovery evidence.
 - **Scope deviations:** None.
-- **Known limitations:** W2-00's historical combined checkpoint remains incomplete under the recorded scope amendment, and no H-02 candidate canonical snapshot or shared fixture catalog exists in the repository.
-- **Review state:** Not reviewed.
+- **Known limitations:** W2-00's historical combined checkpoint remains
+  incomplete under the recorded scope amendment. H-02 Candidate A provides a
+  controlled experiment input, but the joint full-V1 fixture catalog,
+  production schema, compatibility policy, and reciprocal contract acceptance
+  remain pending.
+- **Review state:** Awaiting independent review.

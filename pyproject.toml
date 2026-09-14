@@ -121,7 +121,7 @@ check-unannotated-defs = true
 # situation, one level up: a bare top-level module reached via Bazel's
 # py_library `imports = ["."]`, imported the same way by every process
 # that imports real PyMOL on Windows (W2-01, issue #12).
-search-path = ["tests/discovery/h02", "tools/winstage"]
+search-path = ["tests/discovery/h02", "tests/discovery/m02", "tools/winstage"]
 
 [tool.pyrefly.errors]
 # --- Target PyQt6 Framework Gaps ---
