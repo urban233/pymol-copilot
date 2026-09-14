@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 from harness import AtomRecord
+from harness import BondRecord
 from harness import ObjectSnapshot
 
 CARD_VERSION = "candidate-1"
@@ -91,16 +92,37 @@ def render(snapshot: ObjectSnapshot, *, max_atoms_per_state: int = 256) -> str:
             f"emitted={_number(len(emitted))} truncated={str(len(emitted) != len(atoms)).lower()}"
         )
         lines.extend(_atom_line(index, atom) for atom in emitted)
+
+    canonical_indices = (
+        {
+            original_index: canonical_index
+            for canonical_index, (original_index, _atom) in enumerate(
+                sorted(
+                    enumerate(snapshot.states[0].atoms),
+                    key=lambda item: _atom_key(item[1]),
+                )
+            )
+        }
+        if snapshot.states
+        else {}
+    )
+
+    def canonical_bond_indices(bond: BondRecord) -> tuple[int, int]:
+        return (
+            canonical_indices[bond.atom_index_a],
+            canonical_indices[bond.atom_index_b],
+        )
+
     lines.extend(
         "bond "
-        f"from={_number(min(bond.atom_index_a, bond.atom_index_b))} "
-        f"to={_number(max(bond.atom_index_a, bond.atom_index_b))} "
+        f"from={_number(min(*canonical_bond_indices(bond)))} "
+        f"to={_number(max(*canonical_bond_indices(bond)))} "
         f"order={_number(bond.order)}"
         for bond in sorted(
             snapshot.bonds,
             key=lambda bond: (
-                min(bond.atom_index_a, bond.atom_index_b),
-                max(bond.atom_index_a, bond.atom_index_b),
+                min(*canonical_bond_indices(bond)),
+                max(*canonical_bond_indices(bond)),
                 bond.order,
             ),
         )

@@ -1,7 +1,8 @@
 # M-02: Define Full-V1 Card and Dataset Contract Needs
 
-**Status:** In progress: Candidate A card discovery complete; contract freeze
-pending
+**Status:** Accepted by Martin Urban (`urban233`), 2026-09-14; Candidate A
+card discovery complete, round-5 bond correction validated, independent review
+pending, contract freeze pending
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Risk:** High
@@ -42,6 +43,15 @@ policy dependency before any candidate card bytes are evaluated.
 3. Document dataset sample and artifact-manifest schema examples alongside the candidate cards. Include structure snapshot/card identities and versions, intent and category, plan, assertions and oracle status, execution evidence, provenance, and all contract versions. Reject missing or unknown required evidence in the prototype schema rather than default-filling it.
 4. After the H-02 differential/failure evidence and M-02 byte/taxonomy evidence are complete, revise `structure-context.md` and `dataset-and-oracle.md` once with the jointly chosen contract: schemas, guarantees, errors, limits, compatibility policy, and contract fixtures. Request reciprocal review; do not self-accept the result.
 
+## Round-5 corrective scope
+
+The developer authorized this corrective round on 2026-09-14 after independent
+review found that sorting atoms without remapping bond endpoints can change a
+bond's meaning. Remap each original atom position to its canonical rendered
+position before emitting bonds, and add a three-atom permutation regression
+test. This remains candidate-private discovery work and does not alter H-02's
+snapshot schema or select a production card contract.
+
 ## Validation
 
 - `bazel test //tests/data/... --lockfile_mode=error` -> preserve existing gold-case/oracle behavior while adding candidate-card checks only when their fixtures exist.
@@ -75,13 +85,16 @@ policy dependency before any candidate card bytes are evaluated.
 - **Changed:** M-02 task records; `tests/discovery/m02/` candidate renderer
   and test target; narrow H-02 harness visibility; and the Pyrefly discovery
   search path.
-- **Head commit/snapshot:** Pending review and commit.
-- **Validation actually run:** Focused M-02 candidate-card test: 25 passed
-  against a synthetic snapshot and H-02's controlled Candidate A fixture.
+- **Working-tree snapshot:** Round-5 bond correction validated; commit remains
+  pending.
+- **Validation actually run:** Focused M-02 candidate-card test: 26 passed
+  against a synthetic snapshot and H-02's controlled Candidate A fixture;
+  repository Pyrefly, Ruff, data tests, and diff checks pass.
 - **Acceptance evidence:** Golden bytes, collection-order determinism,
-  data/runtime caller parity, mutations of every rendered field, truncation,
-  schema rejection, and H-02 Candidate A extraction are covered. The taxonomy
-  and sample/manifest inventory remain draft discovery evidence.
+  canonical bond endpoints across a three-atom permutation, data/runtime caller
+  parity, mutations of every rendered field, truncation, schema rejection, and
+  H-02 Candidate A extraction are covered. The taxonomy and sample/manifest
+  inventory remain draft discovery evidence.
 - **Scope deviations:** None.
 - **Known limitations:** W2-00's historical combined checkpoint remains
   incomplete under the recorded scope amendment. H-02 Candidate A provides a

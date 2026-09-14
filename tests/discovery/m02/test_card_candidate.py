@@ -96,6 +96,43 @@ def test_equivalent_collection_order_produces_identical_card() -> None:
     assert render(equivalent) == render(snapshot)
 
 
+def test_atom_permutation_remaps_bonds_to_canonical_positions() -> None:
+    """Reordered atoms preserve card bytes and canonical bond endpoints."""
+    atom_a = replace(
+        _snapshot().states[0].atoms[1],
+        serial=10,
+        name="A",
+        alt="",
+        resn="X",
+        resv=1,
+        ins_code="",
+    )
+    atom_b = replace(
+        _snapshot().states[0].atoms[0],
+        serial=20,
+        name="B",
+        alt="",
+        resn="X",
+        resv=1,
+        ins_code="",
+    )
+    atom_c = replace(atom_a, serial=30, name="C")
+    base = replace(
+        _snapshot(),
+        states=(StateSnapshot((atom_b, atom_a, atom_c)),),
+        bonds=(BondRecord(0, 2, 1), BondRecord(1, 0, 2)),
+    )
+    reordered = replace(
+        base,
+        states=(StateSnapshot((atom_c, atom_b, atom_a)),),
+        bonds=(BondRecord(0, 1, 1), BondRecord(1, 2, 2)),
+    )
+
+    assert render(reordered) == render(base)
+    assert "bond from=0 to=1 order=2\n" in render(base)
+    assert "bond from=1 to=2 order=1\n" in render(base)
+
+
 def test_data_and_runtime_candidate_callers_have_byte_parity() -> None:
     """Both candidate callers delegate to the same pure renderer."""
     snapshot = _snapshot()
