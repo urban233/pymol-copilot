@@ -1,8 +1,8 @@
 # M-02: Define Full-V1 Card and Dataset Contract Needs
 
 **Status:** Accepted by Martin Urban (`urban233`), 2026-09-14; Candidate A
-card discovery complete, round-5 bond correction validated, independent review
-pending, contract freeze pending
+card discovery complete, round-8 outer-review corrections implemented,
+independent review pending, contract freeze pending
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Risk:** High
@@ -52,6 +52,16 @@ position before emitting bonds, and add a three-atom permutation regression
 test. This remains candidate-private discovery work and does not alter H-02's
 snapshot schema or select a production card contract.
 
+## Round-8 corrective scope
+
+The developer authorized addressing outer-review findings M02-OUTER-001 and
+M02-OUTER-002. Candidate rendering now returns stable unsupported bytes for
+malformed structural values, including invalid bond endpoints, while preserving
+schema-version and invalid-limit behavior. Per-state truncation filters bonds
+whose endpoints are omitted and emits a deterministic omitted-bond marker and
+count. Focused tests cover both corrections; the candidate remains private
+discovery evidence and does not alter H-02 APIs or define a production contract.
+
 ## Validation
 
 - `bazel test //tests/data/... --lockfile_mode=error` -> preserve existing gold-case/oracle behavior while adding candidate-card checks only when their fixtures exist.
@@ -90,11 +100,16 @@ snapshot schema or select a production card contract.
 - **Validation actually run:** Focused M-02 candidate-card test: 26 passed
   against a synthetic snapshot and H-02's controlled Candidate A fixture;
   repository Pyrefly, Ruff, data tests, and diff checks pass.
+- **Round-8 validation:** `bazel test
+  //tests/discovery/m02:card_candidate_test --lockfile_mode=error` passed;
+  Ruff check and format check for `tests/discovery/m02`, repository Pyrefly,
+  and `git diff --check` passed.
 - **Acceptance evidence:** Golden bytes, collection-order determinism,
   canonical bond endpoints across a three-atom permutation, data/runtime caller
-  parity, mutations of every rendered field, truncation, schema rejection, and
-  H-02 Candidate A extraction are covered. The taxonomy and sample/manifest
-  inventory remain draft discovery evidence.
+  parity, mutations of every rendered field, truncation with explicit omitted
+  bonds, malformed snapshot rejection, schema rejection, and H-02 Candidate A
+  extraction are covered. The taxonomy and sample/manifest inventory remain
+  draft discovery evidence.
 - **Scope deviations:** None.
 - **Known limitations:** W2-00's historical combined checkpoint remains
   incomplete under the recorded scope amendment. H-02 Candidate A provides a

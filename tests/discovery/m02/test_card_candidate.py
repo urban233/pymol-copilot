@@ -204,6 +204,34 @@ def test_truncation_and_unsupported_schema_are_explicit() -> None:
     )
 
 
+def test_invalid_bond_endpoint_returns_stable_malformed_card() -> None:
+    """A bond outside the first state's atom range fails closed."""
+    malformed = replace(_snapshot(), bonds=(BondRecord(0, 2, 1),))
+
+    assert render(malformed) == (
+        "card-version=candidate-1\n"
+        "status=unsupported reason=malformed-snapshot\n"
+    )
+
+
+def test_malformed_structural_value_returns_stable_malformed_card() -> None:
+    """A malformed view value fails closed without changing schema handling."""
+    malformed = replace(_snapshot(), view=cast(Any, ("not-a-number",)))
+
+    assert render(malformed) == (
+        "card-version=candidate-1\n"
+        "status=unsupported reason=malformed-snapshot\n"
+    )
+
+
+def test_truncation_omits_bonds_with_missing_endpoint_atoms() -> None:
+    """Truncation never emits a bond to an omitted atom."""
+    card = render(_snapshot(), max_atoms_per_state=1)
+
+    assert "bond " not in card
+    assert "omitted-bonds reason=atom-truncation count=1\n" in card
+
+
 if __name__ == "__main__":
     # PyMOL's shutdown can replace pytest's nonzero result with zero. Flush
     # before os._exit so Bazel receives both the real result and test output.

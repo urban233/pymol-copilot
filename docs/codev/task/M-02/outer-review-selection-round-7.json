@@ -1,0 +1,6 @@
+{
+  "specialists": [
+    "correctness-tests-specialist",
+    "architecture-maintainability-specialist"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "dispositions": {
+    "M02-OUTER-001": {
+      "disposition": "address",
+      "override_reason": null
+    },
+    "M02-OUTER-002": {
+      "disposition": "address",
+      "override_reason": null
+    }
+  }
+}
