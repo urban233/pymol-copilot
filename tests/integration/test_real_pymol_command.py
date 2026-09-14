@@ -46,25 +46,19 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 import os
 import sys
 import time
-import uuid
 from collections.abc import Callable
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import UTC
-from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
 import pytest
 
 from pmc_client.command import FIXTURE_INTENT
-from pmc_client.command import FIXTURE_MANIFEST
-from pmc_client.command import FIXTURE_SNAPSHOT
 from pmc_client.command import register_copilot
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
-from pmc_core.protocol import PlanRequestV1
 from pmc_server.lifecycle import PlanRequestLifecycle
 from pmc_server.transport import LoopbackPlanServer
 
@@ -391,58 +385,10 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     dead_port = dead_server.port
     dead_server.close()
 
-    transport = LoopbackPlanClient(dead_port, CREDENTIAL, timeout_seconds=2.0)
-
-    # --- TEMPORARY instrumentation -------------------------------------
-    # This test fails on windows-2025 CI with an empty `output` list; it
-    # cannot be reproduced on Linux. The two sibling tests in this module
-    # exercise the same `loaded_fixture.do(f"copilot ...")` ->
-    # `output.append` path and both pass on Windows, so PyMOL's command
-    # dispatch and the output callback are not in question -- only this
-    # closed-port path is. Probe `transport.submit()` directly, once,
-    # with a request shaped exactly like the one
-    # `CopilotCommandClient.copilot()` builds internally, and print what
-    # it actually does on the failing platform: the exception type and
-    # message if it raises, or the returned value if it does not. Remove
-    # this whole block (and the `uuid`/`datetime`/`FIXTURE_MANIFEST`/
-    # `FIXTURE_SNAPSHOT`/`PlanRequestV1` imports it alone needs) once a
-    # real CI run has revealed the cause.
-    probe_request = PlanRequestV1(
-        request_id=str(uuid.uuid4()),
-        session_id=str(uuid.uuid4()),
-        created_at=datetime.now(UTC)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z"),
-        contract_manifest=FIXTURE_MANIFEST,
-        intent=FIXTURE_INTENT,
-        snapshot=FIXTURE_SNAPSHOT,
-    )
-    probe_started = time.monotonic()
-    try:
-        probe_result: object = transport.submit(probe_request)
-    except Exception as probe_error:  # temporary diagnostic
-        probe_elapsed = time.monotonic() - probe_started
-        print(  # temporary diagnostic, removed with this block
-            "TEMPORARY DIAGNOSTIC "
-            "[test_unavailable_server_path_reports_bounded_diagnostic]: "
-            "transport.submit() raised "
-            f"{type(probe_error).__module__}.{type(probe_error).__qualname__}"
-            f"({probe_error!r}) after {probe_elapsed:.3f}s"
-        )
-    else:
-        probe_elapsed = time.monotonic() - probe_started
-        print(  # temporary diagnostic, removed with this block
-            "TEMPORARY DIAGNOSTIC "
-            "[test_unavailable_server_path_reports_bounded_diagnostic]: "
-            f"transport.submit() returned {probe_result!r} instead of "
-            f"raising, after {probe_elapsed:.3f}s"
-        )
-    # --- end TEMPORARY instrumentation ----------------------------------
-
     output: list[str] = []
     register_copilot(
         RealPyMOLCmdExtension(loaded_fixture),
-        transport,
+        LoopbackPlanClient(dead_port, CREDENTIAL, timeout_seconds=2.0),
         output.append,
     )
     before = capture_session_state(loaded_fixture)
@@ -454,8 +400,7 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     after = capture_session_state(loaded_fixture)
 
     assert len(output) == 1, (
-        "empty output; see the TEMPORARY DIAGNOSTIC line printed above "
-        f"this failure for what transport.submit() actually did (output={output!r})"
+        f"expected exactly one bounded diagnostic line, got {output!r}"
     )
     assert output[0].startswith("copilot unavailable: ")
     assert_session_unchanged(before, after)
