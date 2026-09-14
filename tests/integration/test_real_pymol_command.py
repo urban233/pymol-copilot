@@ -251,51 +251,83 @@ def always_deny(_plan: ActionPlan) -> PlanDecision:
     return PlanDecision(decisions=(), allowed=False)
 
 
-class _RecordingExtension:
-    """Wrap a command extension to record whether its callback ran.
+class _SynchronizingExtension:
+    """Wrap a command extension so a test can wait for its callback.
 
-    TEMPORARY, for W201-R8-unavailable-flake: registers a wrapper around
-    the real callback so a failing run can say whether `copilot()` was
-    entered at all, whether it raised before reporting, and on which
-    thread. Remove with the rest of that instrumentation.
+    PyMOL's `cmd.do()` queues the command onto PyMOL's own thread and
+    returns as soon as it is queued, not when it has run. That was
+    established directly rather than assumed: instrumentation on a real
+    windows-2025 run recorded the callback entering on `Thread-1
+    (launch)` while the test continued on the main thread, with no
+    matching return by the time the assertions ran, and `cmd.sync()` did
+    not wait for it either.
+
+    Two consequences, and both bit this module. A test that asserts on
+    the callback's effects straight after `do()` races it -- which is why
+    `test_unavailable_server_path_reports_bounded_diagnostic` failed two
+    Windows runs in eight while passing everywhere else, the dead-port
+    connection being slower to refuse there than on Linux or macOS. And a
+    test that measures elapsed time across `do()` alone measures how long
+    queueing took, not how long the command took, so this module's
+    `INVOCATION_DEADLINE_SECONDS` assertions were vacuous on every
+    platform until this wrapper existed.
+
+    Setting the event from a `finally` rather than after the call means a
+    callback that raises still releases the waiter, so a failure surfaces
+    as its own assertion rather than as a deadline timeout.
     """
 
-    def __init__(self, inner: Any, events: list[tuple[str, ...]]) -> None:
-        """Store the wrapped extension and the event log to append to.
+    def __init__(self, inner: Any, finished: threading.Event) -> None:
+        """Store the wrapped extension and the event to signal.
 
         Args:
             inner: The real extension this delegates registration to.
-            events: Mutable log the wrapper appends observations to.
+            finished: Event set once the callback has run to completion.
         """
         self._inner = inner
-        self._events = events
+        self._finished = finished
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
-        """Register `callback` wrapped in an entry/exit recorder.
+        """Register `callback` wrapped so completion signals the event.
 
         Args:
             name: Command name to register.
             callback: Function invoked for the registered command.
         """
 
-        def recorded(argument: str) -> None:
-            self._events.append(
-                (
-                    "enter",
-                    f"{time.monotonic():.3f}",
-                    threading.current_thread().name,
-                )
-            )
+        def synchronized(argument: str) -> None:
             try:
                 callback(argument)
-            except BaseException as error:
-                self._events.append(
-                    ("raised", type(error).__name__, repr(error))
-                )
-                raise
-            self._events.append(("returned", f"{time.monotonic():.3f}"))
+            finally:
+                self._finished.set()
 
-        self._inner.extend(name, recorded)
+        self._inner.extend(name, synchronized)
+
+
+def _run_copilot(cmd: PyMOLCmd, finished: threading.Event) -> float:
+    """Dispatch the copilot command and wait for it to finish.
+
+    Args:
+        cmd: The real PyMOL cmd module.
+        finished: Event the registered wrapper sets on completion.
+
+    Returns:
+        Seconds from dispatch until the callback completed.
+
+    Raises:
+        AssertionError: If the callback did not complete within the
+            invocation deadline.
+    """
+    finished.clear()
+    started = time.monotonic()
+    cmd.do(f"copilot {FIXTURE_INTENT}")
+    completed = finished.wait(INVOCATION_DEADLINE_SECONDS)
+    elapsed = time.monotonic() - started
+    assert completed, (
+        "copilot did not complete within "
+        f"{INVOCATION_DEADLINE_SECONDS}s of dispatch"
+    )
+    return elapsed
 
 
 class RealPyMOLCmdExtension:
@@ -371,16 +403,19 @@ def test_success_path_previews_without_mutating_session(
     server = LoopbackPlanServer(CREDENTIAL, PlanRequestLifecycle())
     try:
         server.start()
+        finished = threading.Event()
         register_copilot(
-            RealPyMOLCmdExtension(loaded_fixture),
+            _SynchronizingExtension(
+                RealPyMOLCmdExtension(loaded_fixture), finished
+            ),
             LoopbackPlanClient(server.port, CREDENTIAL),
             output.append,
         )
         before = capture_session_state(loaded_fixture)
 
-        started = time.monotonic()
-        loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
-        assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
+        assert _run_copilot(loaded_fixture, finished) < (
+            INVOCATION_DEADLINE_SECONDS
+        )
 
         after = capture_session_state(loaded_fixture)
     finally:
@@ -404,16 +439,19 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
     )
     try:
         server.start()
+        finished = threading.Event()
         register_copilot(
-            RealPyMOLCmdExtension(loaded_fixture),
+            _SynchronizingExtension(
+                RealPyMOLCmdExtension(loaded_fixture), finished
+            ),
             LoopbackPlanClient(server.port, CREDENTIAL),
             output.append,
         )
         before = capture_session_state(loaded_fixture)
 
-        started = time.monotonic()
-        loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
-        assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
+        assert _run_copilot(loaded_fixture, finished) < (
+            INVOCATION_DEADLINE_SECONDS
+        )
 
         after = capture_session_state(loaded_fixture)
     finally:
@@ -435,61 +473,24 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     dead_server.close()
 
     output: list[str] = []
-    # --- TEMPORARY instrumentation (W201-R8-unavailable-flake) ----------
-    # This test has failed 2 of 8 windows-2025 runs with an empty `output`
-    # while its two sibling tests, which use the identical dispatch path
-    # against a live server, have never failed. Reading the code rules out
-    # the obvious explanation: transport.submit() either returns one of the
-    # two response types or raises TransportError -- it has its own
-    # `case _` that raises -- so `copilot()` cannot fall through its match
-    # silently. The remaining candidate is that PyMOL's `cmd.do()`
-    # dispatches asynchronously here and the assertion reads `output`
-    # before the command has run. These events discriminate the cases: they
-    # record whether the callback was entered at all, whether it raised,
-    # and on which thread. Remove once a real Windows run has answered it.
-    events: list[tuple[str, ...]] = []
-    # --- end TEMPORARY instrumentation ---------------------------------
+    finished = threading.Event()
     register_copilot(
-        _RecordingExtension(RealPyMOLCmdExtension(loaded_fixture), events),
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
         LoopbackPlanClient(dead_port, CREDENTIAL, timeout_seconds=2.0),
         output.append,
     )
     before = capture_session_state(loaded_fixture)
 
-    started = time.monotonic()
-    loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
-    assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
-
-    # --- TEMPORARY instrumentation (W201-R8-unavailable-flake) ----------
-    # Sample immediately, then force PyMOL's own queue to drain, then
-    # sample again. `immediate == 0 < after_sync` would prove the dispatch
-    # is asynchronous and this is a test defect rather than a client one.
-    immediate = len(output)
-    sync = getattr(loaded_fixture, "sync", None)
-    if callable(sync):
-        sync()
-    after_sync = len(output)
-    # --- end TEMPORARY instrumentation ---------------------------------
-
-    # TEMPORARY (W201-R8-unavailable-flake): assert the property directly
-    # rather than waiting for the intermittent to recur. If the reporter
-    # has not been called by the time `do()` returns, the dispatch is
-    # asynchronous and every pass of this test is luck of timing -- so
-    # fail here, deterministically, instead of 2 runs in 8.
-    assert immediate == 1, (
-        "copilot reported nothing synchronously: len(output) was "
-        f"{immediate} immediately after do() and {after_sync} after "
-        f"cmd.sync(), so PyMOL dispatched the command asynchronously and "
-        f"this test's assertions race it; callback events {events!r}"
+    assert _run_copilot(loaded_fixture, finished) < (
+        INVOCATION_DEADLINE_SECONDS
     )
 
     after = capture_session_state(loaded_fixture)
 
     assert len(output) == 1, (
-        "expected exactly one bounded diagnostic line, got "
-        f"{output!r}; TEMPORARY DIAGNOSTIC: len(output) immediately after "
-        f"do() was {immediate}, after cmd.sync() was {after_sync}, and "
-        f"finally {len(output)}; callback events were {events!r}"
+        f"expected exactly one bounded diagnostic line, got {output!r}"
     )
     assert output[0].startswith("copilot unavailable: ")
     assert_session_unchanged(before, after)
