@@ -239,8 +239,10 @@ def _assert_process_not_running(process: subprocess.Popen[str]) -> None:
     # varies enough between platforms (and even between runs) that this
     # exact leak stayed silent on Linux for an entire slice while it broke
     # Windows CI immediately. Asserting `closed` directly is deterministic
-    # regardless of GC timing, so every one of this helper's six call
-    # sites now also proves neither pipe was left open.
+    # regardless of GC timing, so every one of this helper's call sites
+    # now also proves neither pipe was left open. Deliberately no count
+    # here: a hand-maintained one drifts the moment a caller is added or
+    # removed, which is how this comment was wrong on arrival.
     assert process.stdout is not None and process.stdout.closed
     assert process.stderr is not None and process.stderr.closed
 
