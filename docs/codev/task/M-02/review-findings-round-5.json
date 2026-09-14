@@ -1,0 +1,11 @@
+[
+  {
+    "blocking": true,
+    "category": "maintainability",
+    "expansion_reason": null,
+    "id": "M02-REVIEW-004",
+    "location": "docs/codev/task/M-02/implementation-plan.md:88",
+    "rank": 1,
+    "summary": "Completion evidence says the round-5 commit is pending after it was recorded at 3b5253efb3c10dcce7fece06699367857210059a."
+  }
+]

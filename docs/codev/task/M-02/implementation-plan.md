@@ -85,8 +85,8 @@ snapshot schema or select a production card contract.
 - **Changed:** M-02 task records; `tests/discovery/m02/` candidate renderer
   and test target; narrow H-02 harness visibility; and the Pyrefly discovery
   search path.
-- **Working-tree snapshot:** Round-5 bond correction validated; commit remains
-  pending.
+- **Committed head:** Round-5 bond correction validated at
+  `3b5253efb3c10dcce7fece06699367857210059a`.
 - **Validation actually run:** Focused M-02 candidate-card test: 26 passed
   against a synthetic snapshot and H-02's controlled Candidate A fixture;
   repository Pyrefly, Ruff, data tests, and diff checks pass.
@@ -101,4 +101,4 @@ snapshot schema or select a production card contract.
   controlled experiment input, but the joint full-V1 fixture catalog,
   production schema, compatibility policy, and reciprocal contract acceptance
   remain pending.
-- **Review state:** Awaiting independent review.
+- **Review state:** Awaiting fresh independent review.
