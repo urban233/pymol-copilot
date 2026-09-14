@@ -1,0 +1,10 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+
+# Throwaway issue #12 diagnostic. Deliberately given the shortest workable
+# package and target path in the repository so that it can run on Windows
+# even where tests/discovery/h02's own targets cannot; see d.py's docstring.
+py_binary(
+    name = "d",
+    srcs = ["d.py"],
+    deps = ["@pypi//pymol_open_source_whl"],
+)

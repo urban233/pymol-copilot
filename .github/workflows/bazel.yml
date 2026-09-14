@@ -27,6 +27,11 @@ jobs:
       - run: bazel version
       - run: bazel mod graph --lockfile_mode=error
       - run: bazel build //... --lockfile_mode=error
+      # Temporary issue #12 diagnostic probe (throwaway, not for merge):
+      # measures which MAX_PATH lever is viable on a real Windows runner.
+      - if: matrix.os == 'windows-2025'
+        run: bazel run //tools/wd:d --lockfile_mode=error
+        continue-on-error: true
       - run: bazel test //... --lockfile_mode=error
       - run: bazel run //tools/bazel:check_dependency_boundaries --lockfile_mode=error
       - run: bazel run //tools/quality:ruff --lockfile_mode=error -- check .
