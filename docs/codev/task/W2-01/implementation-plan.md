@@ -40,8 +40,10 @@ Linux/macOS-only coverage gap.
   `test_execution_boundary.py`, `build_defs.bzl`, `BUILD.bazel`),
   `tests/integration/` (`test_real_pymol_command.py`, `BUILD.bazel`),
   `tests/data/` (`BUILD.bazel`, `test_generate_real_pymol.py`,
-  `test_gold_case_verifier.py`), `src/pmc_data/BUILD.bazel`, and
-  `pyproject.toml` (pyrefly `search-path` only).
+  `test_gold_case_verifier.py`), `src/pmc_data/` (`BUILD.bazel` and
+  `generate_cli.py`), `pyproject.toml` (pyrefly `search-path` and
+  `project-includes`), `.gitattributes`, and
+  `tools/bazel/check_dependency_boundaries.py`.
 - **Validation:** Full Bazel test suite on all three platforms via CI, plus
   the repository's ruff, format, pyrefly, and dependency-boundary gates.
 - **Stop if:** The staged import fails on Windows CI for any target, any
@@ -86,6 +88,38 @@ accepted authority and the delivered change should not disagree on paper.
    data-generation tool, not production runtime. The non-goal is restated
    above in the terms that actually matter -- no runtime closure gains the
    shim.
+
+4. **`.gitattributes`** (round 7). Removing the Windows exclusions exposed a
+   defect that pre-dates this task: gold-case provenance records a SHA-256 of
+   the structure fixture and the verifier checks it on every run, but the
+   repository had no line-ending policy, so git rewrote LF to CRLF on Windows
+   checkout and changed the digest. Proven rather than inferred --
+   `chain_a_gold_fixture.pdb` hashes to `0f2cd04e` with committed LF endings
+   and to `823ac3e4` converted to CRLF, and `823ac3e4` is exactly what Windows
+   reported. `*.pdb -text` is load-bearing for this plan's own success
+   criterion by the same argument amendment 2 makes: without it the two
+   newly-unblocked targets are red on Windows, so splitting it out would mean
+   landing a knowingly-failing pull request or re-adding exclusions only to
+   remove them again.
+
+5. **`src/pmc_data/generate_cli.py`** (round 6) and
+   **`pyproject.toml`'s `project-includes`**, **`tools/bazel/check_dependency_boundaries.py`**
+   (round 8). Amendment 3 named only `src/pmc_data/BUILD.bazel`, but wiring
+   `generate_cli` also required the one-line shim call in its Python source --
+   the first source change under `src/` in this task. The round-8 additions
+   repair two defects this task introduced: relocating the shim in round 6
+   took it out of pyrefly's `project-includes` (the `search-path` entry makes
+   a module resolvable, not checked), so rounds 6 and 7 both reported pyrefly
+   clean for a file pyrefly was no longer reading; and the Stop-if clause
+   below named a gate that could not fire, since the boundary checker's
+   `FORBIDDEN` set contained only `//src/...` libraries.
+
+These amendments were themselves incomplete on first writing -- finding
+W201-R7-scope-amendments-incomplete caught amendments 1 to 3 omitting
+`.gitattributes` and `generate_cli.py`, reproducing the very defect
+W201-R3-ARCH-4 had described. Recorded here rather than quietly corrected,
+because a scope-discipline section that silently drifts is worth less than
+no section at all.
 
 ## Repository evidence
 

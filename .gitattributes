@@ -19,3 +19,13 @@
 # thing everywhere. This applies to the H-02 discovery fixture too, whose
 # digest is recorded in docs/codev/wave/evidence/H-02.md.
 *.pdb -text
+#
+# A clone made before this rule landed already holds CRLF copies in its
+# working tree, and pulling will not re-check-out files whose blob did not
+# change. Note that `git add --renormalize` is the wrong remedy here: under
+# `-text` it cleans without converting, so it would commit the CRLF bytes
+# and break the recorded digests for everyone. Force a re-checkout instead
+# (delete the affected files and `git checkout -- .`). Note also that
+# `-text` removes the conversion in both directions, so `core.autocrlf` no
+# longer scrubs CRLF back to LF on the way in -- which is the point, but it
+# means the working tree is now the only place this can go wrong.

@@ -10,6 +10,14 @@ FORBIDDEN = {
     "//src/pmc_agent:pmc_agent",
     "//src/pmc_data:pmc_data",
     "//src/pmc_train:pmc_train",
+    # Test/developer-tooling support: the Windows short-path staging shim
+    # (W2-01, issue #12). It is reached from five test targets and one
+    # developer data-generation binary, and must never enter a runtime
+    # closure. Keeping it out rests primarily on its enumerated visibility
+    # list in tools/winstage/BUILD.bazel, which names neither root below;
+    # this entry is defence in depth behind that, and makes W2-01's own
+    # "Stop if" clause enforceable rather than merely stated.
+    "//tools/winstage:winstage",
 }
 FORBIDDEN_BY_ROOT = {
     "//src/pmc_core:pmc_core": FORBIDDEN,
