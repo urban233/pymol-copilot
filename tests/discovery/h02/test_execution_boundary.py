@@ -202,6 +202,24 @@ def _scratch_dirs() -> set[Path]:
 def _assert_process_not_running(process: subprocess.Popen[str]) -> None:
     """Assert a spawned child process was reaped and is no longer alive.
 
+    `process.poll() is not None` alone already proves the child was
+    reaped and its exit status collected by this process, on every
+    platform. On POSIX, this assertion goes further: `os.kill(pid, 0)`
+    raising `ProcessLookupError` proves the kernel itself has no process
+    table entry for that PID anymore -- a stronger, independent check
+    than trusting `Popen`'s own bookkeeping.
+
+    That second, stronger check does not have a Windows equivalent.
+    `os.kill(pid, 0)` is POSIX signal semantics that Windows does not
+    implement the same way, and Windows recycles PIDs aggressively
+    enough that probing a PID after reaping is actively unreliable
+    there, not merely unavailable: a probe could pass spuriously against
+    an unrelated process that has since reused the same PID. So on
+    Windows this assertion is deliberately weaker -- it relies on
+    `poll()` alone -- and the "no leaked process" guarantee this helper
+    backs (H02-S3-F3, H02-S3-F10) is correspondingly less independently
+    verified there than on POSIX.
+
     Args:
         process: The Popen handle captured via `on_process_spawned`.
 
@@ -209,8 +227,9 @@ def _assert_process_not_running(process: subprocess.Popen[str]) -> None:
         AssertionError: If the process was never reaped.
     """
     assert process.poll() is not None, "child process was not reaped"
-    with pytest.raises(ProcessLookupError):
-        os.kill(process.pid, 0)
+    if sys.platform != "win32":
+        with pytest.raises(ProcessLookupError):
+            os.kill(process.pid, 0)
 
 
 def _refuse_to_spawn(process: subprocess.Popen[str]) -> None:
