@@ -19,8 +19,11 @@ shut down at final teardown. The fixture object is loaded and deleted fresh
 for every test function so state from one test can never leak into the next
 -- same pattern as tests/integration/test_real_pymol_command.py.
 
-This target is excluded on Windows for the same reason as that module: see
-issue #12.
+This target is still excluded on Windows for the same MAX_PATH reason
+tests/integration/test_real_pymol_command.py's docstring describes (issue
+#12) -- but unlike that module, this target has not yet been wired to call
+tests/support/winstage.py's short-path staging shim, which is what fixed
+it there.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

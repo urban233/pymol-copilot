@@ -224,12 +224,25 @@ def _assert_process_not_running(process: subprocess.Popen[str]) -> None:
         process: The Popen handle captured via `on_process_spawned`.
 
     Raises:
-        AssertionError: If the process was never reaped.
+        AssertionError: If the process was never reaped, or if either
+            pipe object was left open.
     """
     assert process.poll() is not None, "child process was not reaped"
     if sys.platform != "win32":
         with pytest.raises(ProcessLookupError):
             os.kill(process.pid, 0)
+    # `_terminate_and_reap`'s own pipe-close fix (H02-S3-F3's Windows
+    # follow-up) has no assertion here otherwise: `pyproject.toml`'s
+    # `filterwarnings = ["error"]` turns a leaked pipe's `ResourceWarning`
+    # into a failure too, but only if and when the garbage collector
+    # happens to run inside pytest's observation window -- GC timing that
+    # varies enough between platforms (and even between runs) that this
+    # exact leak stayed silent on Linux for an entire slice while it broke
+    # Windows CI immediately. Asserting `closed` directly is deterministic
+    # regardless of GC timing, so every one of this helper's six call
+    # sites now also proves neither pipe was left open.
+    assert process.stdout is not None and process.stdout.closed
+    assert process.stderr is not None and process.stderr.closed
 
 
 def _refuse_to_spawn(process: subprocess.Popen[str]) -> None:

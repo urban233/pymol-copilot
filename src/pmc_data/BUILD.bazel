@@ -26,8 +26,14 @@ py_binary(
     main = "generate_cli.py",
     data = ["//configs/generation:chain_a_red_structures.json"],
     # Launches real Open-Source PyMOL to (re)generate the checked-in
-    # gold_cases/*.json records; see issue #12 for why this and every other
-    # real-PyMOL target in this repository excludes Windows.
+    # gold_cases/*.json records. Windows hits the same MAX_PATH failure as
+    # every other real-PyMOL target in this repository (issue #12), and
+    # that cause is fixed in-repository by //tests/support:winstage's
+    # short-path staging shim -- but this is a py_binary under src/, not a
+    # test target, and wiring test-support scaffolding into it is not
+    # simply pending work: making the shim a production runtime facility
+    # is explicitly a non-goal. This target stays Windows-excluded until
+    # that is resolved some other way.
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],

@@ -13,7 +13,9 @@ before any PyMOL selection or color assertion runs -- gold_case is None --
 rather than silently written as a false positive.
 
 Same real-PyMOL launch/fixture pattern as test_gold_case_verifier.py, and
-excluded on Windows for the same reason (issue #12).
+excluded on Windows for the same reason (issue #12): the MAX_PATH cause is
+fixed in-repository by tests/support/winstage.py, but this target does not
+yet call that shim.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

@@ -81,7 +81,10 @@ py_test(
         "testdata/second_gold_fixture.pdb",
         "//configs/generation:chain_a_red_structures.json",
     ],
-    # See gold_case_verifier's identical exclusion below: issue #12.
+    # See gold_case_verifier's identical exclusion below: the MAX_PATH
+    # cause (issue #12) is fixed in-repository by
+    # //tests/support:winstage, but this target remains Windows-excluded
+    # because it does not call that shim.
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
@@ -104,10 +107,14 @@ py_test(
         "testdata/chain_a_gold_fixture.pdb",
         "testdata/renumbered_serials_fixture.pdb",
     ],
-    # See tests/integration/BUILD.bazel's real_pymol_command target and
-    # issue #12: pymol-open-source-whl's Windows wheel bundles
-    # delvewheel-repaired DLLs whose long hash-suffixed names, combined
-    # with Bazel's generated repository name, exceed Windows' MAX_PATH.
+    # tests/integration/BUILD.bazel's real_pymol_command target hit the
+    # same MAX_PATH failure (issue #12: pymol-open-source-whl's Windows
+    # wheel bundles delvewheel-repaired DLLs whose long hash-suffixed
+    # names, combined with Bazel's generated repository name, exceed
+    # Windows' MAX_PATH) and fixed it in-repository with
+    # //tests/support:winstage, a short-path staging shim. This target
+    # remains Windows-excluded only because it does not yet call that
+    # shim.
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
