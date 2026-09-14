@@ -3,12 +3,11 @@
 Every target in `tests/discovery/h02` that spawns a subprocess running real
 headless PyMOL (a nested pytest process for candidates A/B/C and the harness
 meta-test, or the execution boundary's own child) shares the same
-size/timeout budget, the same `exclusive` scheduling tag, and the same
-Windows incompatibility. Slice 2's outer-loop review flagged three
-near-identical `py_test` blocks as a maintainability finding
-(H02-S2-F9); slice 3 adds a fourth and fifth block sharing the exact same
-shape, which is directly what justifies factoring it into one macro here
-instead of copying it a third and fourth time.
+size/timeout budget and the same `exclusive` scheduling tag. Slice 2's
+outer-loop review flagged three near-identical `py_test` blocks as a
+maintainability finding (H02-S2-F9); slice 3 adds a fourth and fifth block
+sharing the exact same shape, which is directly what justifies factoring it
+into one macro here instead of copying it a third and fourth time.
 """
 
 load("@rules_python//python:py_test.bzl", "py_test")
@@ -38,13 +37,11 @@ def h02_pymol_py_test(name, srcs, deps, data = []):
         # it never races another subprocess-spawning test under Windows's
         # unsandboxed local execution strategy (observed CI flake).
         tags = ["exclusive"],
-        # See tests/integration/BUILD.bazel's real_pymol_command target and
-        # issue #12: pymol-open-source-whl's Windows wheel bundles
-        # delvewheel-repaired DLLs whose long hash-suffixed names, combined
-        # with Bazel's generated repository name, exceed Windows' MAX_PATH.
-        target_compatible_with = select({
-            "@platforms//os:windows": ["@platforms//:incompatible"],
-            "//conditions:default": [],
-        }),
+        # No longer excluded on Windows: pymol-open-source-whl's Windows
+        # wheel bundles delvewheel-repaired DLLs whose long hash-suffixed
+        # names, combined with Bazel's generated repository name, used to
+        # exceed Windows' MAX_PATH. tests/support:winstage now stages a
+        # short-path copy before every real-PyMOL import in this directory
+        # (a no-op on every other platform). See issue #12.
         deps = deps + ["@pypi//pytest"],
     )

@@ -19,5 +19,13 @@ without weakening or duplicating any fixture logic.
 
 from __future__ import annotations
 
+import winstage
+
 from harness import loaded_fixture  # noqa: F401
 from harness import real_pymol  # noqa: F401
+
+# Stage `pymol` to a short path before any test module in this directory
+# gets a chance to import it -- a no-op everywhere but Windows, and inert
+# there too whenever the installed wheel's own path already fits. See
+# winstage.py's own docstring and issue #12.
+winstage.ensure_importable()

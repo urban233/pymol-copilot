@@ -61,6 +61,8 @@ from typing import Any
 from harness import ObjectSnapshot
 from harness import from_json
 
+import winstage
+
 #: This module's own schema versions for the request/report shapes below --
 #: candidate-private prototype versions, not a production contract, exactly
 #: like harness.SNAPSHOT_SCHEMA_VERSION and candidate B's own manifest
@@ -316,7 +318,10 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
 #: `run_nested_snapshot_process` (which reuses pytest's own automatic
 #: sys.path insertion for a real test-file argv path), this child is a bare
 #: script with no test-file argument at all, so that automatic insertion
-#: does not apply here and PYTHONPATH must be set explicitly.
+#: does not apply here and PYTHONPATH must be set explicitly -- including
+#: for winstage.py's own directory, needed for this source's `import
+#: winstage` immediately before its `import pymol`, staging pymol to a
+#: short path first on Windows (a no-op everywhere else).
 #:
 #: The child always exits through `os._exit` after flushing stdout/stderr,
 #: for the same reason every candidate module's own `__main__` block and
@@ -343,6 +348,8 @@ _CHILD_RUNNER_SOURCE = (
     "snapshot_text = open(snapshot_path).read()\n"
     "commands = json.load(open(commands_path))\n"
     "\n"
+    "import winstage\n"
+    "winstage.ensure_importable()\n"
     "import pymol\n"
     "from pymol import cmd\n"
     "pymol.finish_launching(['pymol', '-qc'])\n"
@@ -561,8 +568,11 @@ def execute(
 
         env = os.environ.copy()
         h02_dir = str(Path(__file__).resolve().parent)
+        winstage_dir = str(Path(winstage.__file__).resolve().parent)
         env["PYTHONPATH"] = os.pathsep.join(
-            part for part in (h02_dir, env.get("PYTHONPATH", "")) if part
+            part
+            for part in (h02_dir, winstage_dir, env.get("PYTHONPATH", ""))
+            if part
         )
 
         process = subprocess.Popen(

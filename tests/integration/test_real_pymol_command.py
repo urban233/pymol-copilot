@@ -29,13 +29,15 @@ reports the pin as unsatisfiable against the wheel's own declared
 so this substitutes one real PyMOL query API for another to capture the same
 observable (per-atom coordinates) without touching production code.
 
-This target is excluded on Windows (see its `target_compatible_with` in
-`BUILD.bazel`): the wheel's Windows build bundles delvewheel-repaired DLLs
-with long hash-suffixed names, and combined with Bazel's generated
-repository name for this dependency the resulting path exceeds Windows'
-MAX_PATH when the compiled `_cmd` extension loads its bundled dependencies.
-A short Bazel output-base and unsandboxed test execution were both tried
-against real Windows CI and neither changed the error. Tracked in
+This target used to be excluded on Windows: the wheel's Windows build
+bundles delvewheel-repaired DLLs with long hash-suffixed names, and
+combined with Bazel's generated repository name for this dependency the
+resulting path exceeded Windows' MAX_PATH when the compiled `_cmd`
+extension loaded its bundled dependencies. A short Bazel output-base and
+unsandboxed test execution were both tried against real Windows CI and
+neither changed the error; only staging a copy to a short path did (see
+`tests/support/winstage.py`, called below before this module's own
+`import pymol`). Tracked in
 [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
 """
 
@@ -59,6 +61,8 @@ from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_server.lifecycle import PlanRequestLifecycle
 from pmc_server.transport import LoopbackPlanServer
+
+import winstage
 
 CREDENTIAL = "real-pymol-integration-secret"
 OBJECT_NAME = "two_chain_fixture"
@@ -273,6 +277,7 @@ def real_pymol() -> Iterator[PyMOLCmd]:
     Yields:
         The real PyMOL cmd module.
     """
+    winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 
