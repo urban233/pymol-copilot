@@ -6,3 +6,16 @@
 .codev/task/**/*.json linguist-generated=true
 .codev/lock.json linguist-generated=true
 # codev:end
+
+# Structure fixtures whose SHA-256 is recorded as gold-case provenance, and
+# checked against on every verifier run. Git's default text handling would
+# rewrite LF to CRLF when checking out on Windows (GitHub's runners set
+# core.autocrlf=true), changing the bytes and so the digest -- which is
+# exactly what broke //tests/data:generate_real_pymol and
+# //tests/data:gold_case_verifier the first time they ran on windows-2025,
+# with "structure checksum mismatch" rather than anything to do with the
+# targets themselves. Marking them -text pins the working-tree bytes to
+# what is committed on every platform, so a recorded digest means the same
+# thing everywhere. This applies to the H-02 discovery fixture too, whose
+# digest is recorded in docs/codev/wave/evidence/H-02.md.
+*.pdb -text
