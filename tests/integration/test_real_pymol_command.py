@@ -45,11 +45,13 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from typing import Protocol
 
 import pytest
@@ -249,6 +251,53 @@ def always_deny(_plan: ActionPlan) -> PlanDecision:
     return PlanDecision(decisions=(), allowed=False)
 
 
+class _RecordingExtension:
+    """Wrap a command extension to record whether its callback ran.
+
+    TEMPORARY, for W201-R8-unavailable-flake: registers a wrapper around
+    the real callback so a failing run can say whether `copilot()` was
+    entered at all, whether it raised before reporting, and on which
+    thread. Remove with the rest of that instrumentation.
+    """
+
+    def __init__(self, inner: Any, events: list[tuple[str, ...]]) -> None:
+        """Store the wrapped extension and the event log to append to.
+
+        Args:
+            inner: The real extension this delegates registration to.
+            events: Mutable log the wrapper appends observations to.
+        """
+        self._inner = inner
+        self._events = events
+
+    def extend(self, name: str, callback: Callable[[str], None]) -> None:
+        """Register `callback` wrapped in an entry/exit recorder.
+
+        Args:
+            name: Command name to register.
+            callback: Function invoked for the registered command.
+        """
+
+        def recorded(argument: str) -> None:
+            self._events.append(
+                (
+                    "enter",
+                    f"{time.monotonic():.3f}",
+                    threading.current_thread().name,
+                )
+            )
+            try:
+                callback(argument)
+            except BaseException as error:
+                self._events.append(
+                    ("raised", type(error).__name__, repr(error))
+                )
+                raise
+            self._events.append(("returned", f"{time.monotonic():.3f}"))
+
+        self._inner.extend(name, recorded)
+
+
 class RealPyMOLCmdExtension:
     """Adapter registering commands through PyMOL's own command system."""
 
@@ -386,8 +435,22 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     dead_server.close()
 
     output: list[str] = []
+    # --- TEMPORARY instrumentation (W201-R8-unavailable-flake) ----------
+    # This test has failed 2 of 8 windows-2025 runs with an empty `output`
+    # while its two sibling tests, which use the identical dispatch path
+    # against a live server, have never failed. Reading the code rules out
+    # the obvious explanation: transport.submit() either returns one of the
+    # two response types or raises TransportError -- it has its own
+    # `case _` that raises -- so `copilot()` cannot fall through its match
+    # silently. The remaining candidate is that PyMOL's `cmd.do()`
+    # dispatches asynchronously here and the assertion reads `output`
+    # before the command has run. These events discriminate the cases: they
+    # record whether the callback was entered at all, whether it raised,
+    # and on which thread. Remove once a real Windows run has answered it.
+    events: list[tuple[str, ...]] = []
+    # --- end TEMPORARY instrumentation ---------------------------------
     register_copilot(
-        RealPyMOLCmdExtension(loaded_fixture),
+        _RecordingExtension(RealPyMOLCmdExtension(loaded_fixture), events),
         LoopbackPlanClient(dead_port, CREDENTIAL, timeout_seconds=2.0),
         output.append,
     )
@@ -397,10 +460,36 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
     assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
 
+    # --- TEMPORARY instrumentation (W201-R8-unavailable-flake) ----------
+    # Sample immediately, then force PyMOL's own queue to drain, then
+    # sample again. `immediate == 0 < after_sync` would prove the dispatch
+    # is asynchronous and this is a test defect rather than a client one.
+    immediate = len(output)
+    sync = getattr(loaded_fixture, "sync", None)
+    if callable(sync):
+        sync()
+    after_sync = len(output)
+    # --- end TEMPORARY instrumentation ---------------------------------
+
+    # TEMPORARY (W201-R8-unavailable-flake): assert the property directly
+    # rather than waiting for the intermittent to recur. If the reporter
+    # has not been called by the time `do()` returns, the dispatch is
+    # asynchronous and every pass of this test is luck of timing -- so
+    # fail here, deterministically, instead of 2 runs in 8.
+    assert immediate == 1, (
+        "copilot reported nothing synchronously: len(output) was "
+        f"{immediate} immediately after do() and {after_sync} after "
+        f"cmd.sync(), so PyMOL dispatched the command asynchronously and "
+        f"this test's assertions race it; callback events {events!r}"
+    )
+
     after = capture_session_state(loaded_fixture)
 
     assert len(output) == 1, (
-        f"expected exactly one bounded diagnostic line, got {output!r}"
+        "expected exactly one bounded diagnostic line, got "
+        f"{output!r}; TEMPORARY DIAGNOSTIC: len(output) immediately after "
+        f"do() was {immediate}, after cmd.sync() was {after_sync}, and "
+        f"finally {len(output)}; callback events were {events!r}"
     )
     assert output[0].startswith("copilot unavailable: ")
     assert_session_unchanged(before, after)
