@@ -1,0 +1,19 @@
+{
+  "delivered": "Made malformed candidate snapshots fail closed and omitted bonds whose endpoints are excluded by atom truncation.",
+  "changed": [
+    "tests/discovery/m02/card_candidate.py",
+    "tests/discovery/m02/test_card_candidate.py",
+    "docs/codev/task/M-02/implementation-plan.md"
+  ],
+  "base_snapshot": "43405c5e0583144f885da8db5fa1541cb576ad44",
+  "validation": [
+    "bazel test //tests/discovery/m02:card_candidate_test --lockfile_mode=error --cache_test_results=no --test_output=all: 29 passed",
+    "bazel run //tools/quality:ruff --lockfile_mode=error -- check tests/discovery/m02: passed",
+    "bazel run //tools/quality:ruff --lockfile_mode=error -- format --check tests/discovery/m02: 2 files already formatted",
+    "bazel run //tools/quality:pyrefly --lockfile_mode=error -- check: 0 errors (20 suppressed)",
+    "git diff --check: passed"
+  ],
+  "scope_deviations": "None. This addresses only M02-OUTER-001 and M02-OUTER-002.",
+  "limitations": "Candidate-private discovery behavior only; no production card contract or H-02 API changes.",
+  "review_state": "AWAITING TARGETED OUTER RE-REVIEW"
+}

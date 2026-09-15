@@ -1,0 +1,19 @@
+{
+  "delivered": "Replaced duplicate harness pytest-plugin registration with directory-scoped fixture discovery for Windows-compatible collection.",
+  "changed": [
+    "tests/discovery/m02/conftest.py",
+    "tests/discovery/m02/test_card_candidate.py",
+    "tests/discovery/m02/BUILD.bazel"
+  ],
+  "base_snapshot": "813ba98c9e43d29bdb8b133629427a4ea136fb8f",
+  "validation": [
+    "bazel test //tests/discovery/m02:card_candidate_test --lockfile_mode=error --cache_test_results=no --test_output=all: 29 passed",
+    "bazel run //tools/quality:ruff --lockfile_mode=error -- check tests/discovery/m02: passed",
+    "bazel run //tools/quality:ruff --lockfile_mode=error -- format --check tests/discovery/m02: 3 files already formatted",
+    "bazel run //tools/quality:pyrefly --lockfile_mode=error -- check: 0 errors (20 suppressed)",
+    "git diff --check: passed"
+  ],
+  "scope_deviations": "None.",
+  "limitations": "Windows CI remains the required cross-platform confirmation; no CI workflow behavior changed.",
+  "review_state": "AWAITING TARGETED OUTER RE-REVIEW"
+}

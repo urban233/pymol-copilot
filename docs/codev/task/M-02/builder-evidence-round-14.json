@@ -1,0 +1,15 @@
+{
+  "task": "M-02",
+  "round": 14,
+  "base_snapshot": "84b3b32595852a9b7bca8de162f46182782a212e",
+  "delivered": "Recovered the round-13 tracker drift without changing the already-built PR-comment corrections.",
+  "implementation_evidence": "docs/codev/task/M-02/builder-evidence-round-13.json records the efca90d482ae1dbd62450d3b30047b5b11a728df to 84b3b32595852a9b7bca8de162f46182782a212e correction and its validation.",
+  "changed": [],
+  "validation": [
+    "git diff efca90d482ae1dbd62450d3b30047b5b11a728df..84b3b32595852a9b7bca8de162f46182782a212e --check: passed",
+    "working tree: clean before recording this recovery receipt"
+  ],
+  "scope_deviations": "None.",
+  "known_limitations": "The PR-comment correction requires independent re-review and CI on its pushed head.",
+  "review_state": "AWAITING INDEPENDENT REVIEW"
+}

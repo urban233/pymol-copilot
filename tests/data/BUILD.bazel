@@ -76,6 +76,7 @@ py_test(
     timeout = "moderate",
     srcs = ["test_generate_real_pymol.py"],
     main = "test_generate_real_pymol.py",
+    tags = ["exclusive"],
     data = [
         "testdata/no_chain_a_fixture.pdb",
         "testdata/second_gold_fixture.pdb",
@@ -100,6 +101,7 @@ py_test(
     timeout = "moderate",
     srcs = ["test_gold_case_verifier.py"],
     main = "test_gold_case_verifier.py",
+    tags = ["exclusive"],
     data = [
         "testdata/chain_a_gold_fixture.pdb",
         "testdata/renumbered_serials_fixture.pdb",

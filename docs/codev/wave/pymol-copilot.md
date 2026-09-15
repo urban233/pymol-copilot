@@ -421,13 +421,13 @@ Complete this checklist in order and map every C-entry to evidence in
 `docs/codev/wave/evidence/combined.md`. Do not copy branch-level green results
 into the combined receipt as if they had been rerun.
 
-**State (W2-00, [combined.md](evidence/combined.md)):** partially complete,
-not passed. C-1, C-4, and C-6 are satisfied on the working-tree snapshot
-recorded there (`a181ccea4d00966c80c0da91b9de5fb3ee29b575`); C-2 and C-3 are only
-half-recorded (Martin's checkout, and a jointly exchanged fixture that
-never happened -- see combined.md's Fixture section); C-5 and Martin's half
-of C-7 require Martin's own environment and coordinating acceptance and
-remain explicitly outstanding.
+**State (W2-00, [combined.md](evidence/combined.md)):** closed by a
+developer-authorized scope amendment on 2026-09-09, not as a passed final
+validation checkpoint. C-1, C-4, and C-6 are satisfied on the historical
+working-tree snapshot recorded there (`a181ccea4d00966c80c0da91b9de5fb3ee29b575`).
+C-2, C-3, C-5, and Martin's half of C-7 remain explicitly unsatisfied. The
+amendment permits the full-V1 discovery wave to begin; it does not certify the
+missing shared-fixture or joint-verdict evidence.
 
 - [x] **C-1: Both handoffs are complete.** Martin links the M-01 and H-01
   receipts and their reviewed commit SHAs. M-A1 through M-A8, M-R1, H-A1 through

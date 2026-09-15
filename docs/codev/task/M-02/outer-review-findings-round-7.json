@@ -1,0 +1,38 @@
+[
+  {
+    "blocking": true,
+    "category": "correctness",
+    "expansion_reason": null,
+    "id": "M02-OUTER-001",
+    "location": "tests/discovery/m02/card_candidate.py:75-129",
+    "rank": 1,
+    "summary": "Malformed snapshots can raise instead of returning a stable unsupported result."
+  },
+  {
+    "blocking": true,
+    "category": "correctness",
+    "expansion_reason": null,
+    "id": "M02-OUTER-002",
+    "location": "tests/discovery/m02/card_candidate.py:89-129",
+    "rank": 2,
+    "summary": "Per-state truncation can emit bonds whose endpoints refer to omitted atoms."
+  },
+  {
+    "blocking": false,
+    "category": "test_quality",
+    "expansion_reason": null,
+    "id": "M02-OUTER-003",
+    "location": "tests/discovery/m02/test_card_candidate.py:179-193",
+    "rank": 3,
+    "summary": "Boundary coverage omits invalid bond references, empty and multi-state snapshots, and truncation-plus-bonds."
+  },
+  {
+    "blocking": false,
+    "category": "maintainability",
+    "expansion_reason": null,
+    "id": "M02-OUTER-004",
+    "location": "docs/codev/task/M-02/builder-evidence.md:42-46",
+    "rank": 4,
+    "summary": "The generic round-4 builder receipt reports 25 focused tests while the current target collects 26."
+  }
+]
