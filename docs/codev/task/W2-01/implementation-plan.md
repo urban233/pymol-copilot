@@ -161,7 +161,9 @@ recorded on [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
 
 ## Proposed change
 
-1. Add `tests/support/winstage.py` exposing one function,
+1. Add the staging shim exposing one function (delivered at
+   `tools/winstage/winstage.py`; see amendment 3 for why it did not stay
+   under `tests/support/`),
    `ensure_importable() -> str | None`:
    - Returns `None` immediately when `sys.platform != "win32"`, so no other
      platform changes behavior.
@@ -181,7 +183,8 @@ recorded on [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
    - Fails closed with an explicit error if staging is impossible, rather
      than silently leaving the caller to hit the original opaque
      `ImportError`.
-2. Add `tests/support/BUILD.bazel` declaring a `winstage` `py_library` with
+2. Add its `BUILD.bazel` (delivered at `tools/winstage/BUILD.bazel`)
+   declaring a `winstage` `py_library` with
    `imports = ["."]`, visible to the test packages that need it.
 3. Call it before every `pymol` import:
    - `tests/discovery/h02/conftest.py` at module import, covering every test
@@ -196,7 +199,7 @@ recorded on [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
    `h02_pymol_py_test` in `tests/discovery/h02/build_defs.bzl` and from
    `real_pymol_command` in `tests/integration/BUILD.bazel`, updating both
    comments to record why the exclusion is no longer needed. Add the
-   `//tests/support:winstage` dependency wherever the shim is now imported.
+   `//tools/winstage:winstage` dependency wherever the shim is now imported.
 
 ## Validation
 
@@ -209,7 +212,7 @@ recorded on [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
 - `bazel run //tools/quality:pyrefly -- check` -> 0 errors, matching the
   20-suppressed baseline.
 - `bazel run //tools/bazel:check_dependency_boundaries` -> exit 0.
-- Windows CI on the pull request -> the six previously-skipped targets
+- Windows CI on the pull request -> the nine previously-skipped real-PyMOL targets
   execute and pass; `macos-15` and `ubuntu-24.04` stay green. This is the
   acceptance signal and cannot be produced locally on Linux.
 
