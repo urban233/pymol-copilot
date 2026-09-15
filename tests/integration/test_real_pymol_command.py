@@ -29,13 +29,15 @@ reports the pin as unsatisfiable against the wheel's own declared
 so this substitutes one real PyMOL query API for another to capture the same
 observable (per-atom coordinates) without touching production code.
 
-This target is excluded on Windows (see its `target_compatible_with` in
-`BUILD.bazel`): the wheel's Windows build bundles delvewheel-repaired DLLs
-with long hash-suffixed names, and combined with Bazel's generated
-repository name for this dependency the resulting path exceeds Windows'
-MAX_PATH when the compiled `_cmd` extension loads its bundled dependencies.
-A short Bazel output-base and unsandboxed test execution were both tried
-against real Windows CI and neither changed the error. Tracked in
+This target used to be excluded on Windows: the wheel's Windows build
+bundles delvewheel-repaired DLLs with long hash-suffixed names, and
+combined with Bazel's generated repository name for this dependency the
+resulting path exceeded Windows' MAX_PATH when the compiled `_cmd`
+extension loaded its bundled dependencies. A short Bazel output-base and
+unsandboxed test execution were both tried against real Windows CI and
+neither changed the error; only staging a copy to a short path did (see
+`tools/winstage/winstage.py`, called below before this module's own
+`import pymol`). Tracked in
 [issue #12](https://github.com/urban233/pymol-copilot/issues/12).
 """
 
@@ -43,11 +45,13 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from typing import Protocol
 
 import pytest
@@ -59,6 +63,8 @@ from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_server.lifecycle import PlanRequestLifecycle
 from pmc_server.transport import LoopbackPlanServer
+
+import winstage
 
 CREDENTIAL = "real-pymol-integration-secret"
 OBJECT_NAME = "two_chain_fixture"
@@ -245,6 +251,85 @@ def always_deny(_plan: ActionPlan) -> PlanDecision:
     return PlanDecision(decisions=(), allowed=False)
 
 
+class _SynchronizingExtension:
+    """Wrap a command extension so a test can wait for its callback.
+
+    PyMOL's `cmd.do()` queues the command onto PyMOL's own thread and
+    returns as soon as it is queued, not when it has run. That was
+    established directly rather than assumed: instrumentation on a real
+    windows-2025 run recorded the callback entering on `Thread-1
+    (launch)` while the test continued on the main thread, with no
+    matching return by the time the assertions ran, and `cmd.sync()` did
+    not wait for it either.
+
+    Two consequences, and both bit this module. A test that asserts on
+    the callback's effects straight after `do()` races it -- which is why
+    `test_unavailable_server_path_reports_bounded_diagnostic` failed two
+    Windows runs in eight while passing everywhere else, the dead-port
+    connection being slower to refuse there than on Linux or macOS. And a
+    test that measures elapsed time across `do()` alone measures how long
+    queueing took, not how long the command took, so this module's
+    `INVOCATION_DEADLINE_SECONDS` assertions were vacuous on every
+    platform until this wrapper existed.
+
+    Setting the event from a `finally` rather than after the call means a
+    callback that raises still releases the waiter, so a failure surfaces
+    as its own assertion rather than as a deadline timeout.
+    """
+
+    def __init__(self, inner: Any, finished: threading.Event) -> None:
+        """Store the wrapped extension and the event to signal.
+
+        Args:
+            inner: The real extension this delegates registration to.
+            finished: Event set once the callback has run to completion.
+        """
+        self._inner = inner
+        self._finished = finished
+
+    def extend(self, name: str, callback: Callable[[str], None]) -> None:
+        """Register `callback` wrapped so completion signals the event.
+
+        Args:
+            name: Command name to register.
+            callback: Function invoked for the registered command.
+        """
+
+        def synchronized(argument: str) -> None:
+            try:
+                callback(argument)
+            finally:
+                self._finished.set()
+
+        self._inner.extend(name, synchronized)
+
+
+def _run_copilot(cmd: PyMOLCmd, finished: threading.Event) -> float:
+    """Dispatch the copilot command and wait for it to finish.
+
+    Args:
+        cmd: The real PyMOL cmd module.
+        finished: Event the registered wrapper sets on completion.
+
+    Returns:
+        Seconds from dispatch until the callback completed.
+
+    Raises:
+        AssertionError: If the callback did not complete within the
+            invocation deadline.
+    """
+    finished.clear()
+    started = time.monotonic()
+    cmd.do(f"copilot {FIXTURE_INTENT}")
+    completed = finished.wait(INVOCATION_DEADLINE_SECONDS)
+    elapsed = time.monotonic() - started
+    assert completed, (
+        "copilot did not complete within "
+        f"{INVOCATION_DEADLINE_SECONDS}s of dispatch"
+    )
+    return elapsed
+
+
 class RealPyMOLCmdExtension:
     """Adapter registering commands through PyMOL's own command system."""
 
@@ -273,6 +358,7 @@ def real_pymol() -> Iterator[PyMOLCmd]:
     Yields:
         The real PyMOL cmd module.
     """
+    winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 
@@ -317,16 +403,19 @@ def test_success_path_previews_without_mutating_session(
     server = LoopbackPlanServer(CREDENTIAL, PlanRequestLifecycle())
     try:
         server.start()
+        finished = threading.Event()
         register_copilot(
-            RealPyMOLCmdExtension(loaded_fixture),
+            _SynchronizingExtension(
+                RealPyMOLCmdExtension(loaded_fixture), finished
+            ),
             LoopbackPlanClient(server.port, CREDENTIAL),
             output.append,
         )
         before = capture_session_state(loaded_fixture)
 
-        started = time.monotonic()
-        loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
-        assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
+        assert _run_copilot(loaded_fixture, finished) < (
+            INVOCATION_DEADLINE_SECONDS
+        )
 
         after = capture_session_state(loaded_fixture)
     finally:
@@ -350,16 +439,19 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
     )
     try:
         server.start()
+        finished = threading.Event()
         register_copilot(
-            RealPyMOLCmdExtension(loaded_fixture),
+            _SynchronizingExtension(
+                RealPyMOLCmdExtension(loaded_fixture), finished
+            ),
             LoopbackPlanClient(server.port, CREDENTIAL),
             output.append,
         )
         before = capture_session_state(loaded_fixture)
 
-        started = time.monotonic()
-        loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
-        assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
+        assert _run_copilot(loaded_fixture, finished) < (
+            INVOCATION_DEADLINE_SECONDS
+        )
 
         after = capture_session_state(loaded_fixture)
     finally:
@@ -381,20 +473,25 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     dead_server.close()
 
     output: list[str] = []
+    finished = threading.Event()
     register_copilot(
-        RealPyMOLCmdExtension(loaded_fixture),
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
         LoopbackPlanClient(dead_port, CREDENTIAL, timeout_seconds=2.0),
         output.append,
     )
     before = capture_session_state(loaded_fixture)
 
-    started = time.monotonic()
-    loaded_fixture.do(f"copilot {FIXTURE_INTENT}")
-    assert time.monotonic() - started < INVOCATION_DEADLINE_SECONDS
+    assert _run_copilot(loaded_fixture, finished) < (
+        INVOCATION_DEADLINE_SECONDS
+    )
 
     after = capture_session_state(loaded_fixture)
 
-    assert len(output) == 1
+    assert len(output) == 1, (
+        f"expected exactly one bounded diagnostic line, got {output!r}"
+    )
     assert output[0].startswith("copilot unavailable: ")
     assert_session_unchanged(before, after)
 

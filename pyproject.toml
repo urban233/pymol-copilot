@@ -109,7 +109,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyrefly]
-project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_train", "tests"]
+project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_train", "tests", "tools/winstage"]
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true
@@ -117,8 +117,11 @@ check-unannotated-defs = true
 # imported as a bare sibling module (`from harness import ...`) by three
 # test modules and conftest.py in that same directory -- resolved at
 # runtime by pytest/Bazel via sys.path, but not otherwise visible to
-# pyrefly without this search path.
-search-path = ["tests/discovery/h02"]
+# pyrefly without this search path. tools/winstage/winstage.py is the same
+# situation, one level up: a bare top-level module reached via Bazel's
+# py_library `imports = ["."]`, imported the same way by every process
+# that imports real PyMOL on Windows (W2-01, issue #12).
+search-path = ["tests/discovery/h02", "tools/winstage"]
 
 [tool.pyrefly.errors]
 # --- Target PyQt6 Framework Gaps ---

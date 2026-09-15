@@ -1,0 +1,30 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+# The repository's first shared test-support library, relocated here from
+# tests/support/ in round 6 so //src/pmc_data:generate_cli could depend on
+# it too: src/BUILD.bazel's own package groups establish that //tests/...
+# may depend on src, and nothing in src depends on tests, so a py_binary
+# under src/ could not depend on a tests/ package without inverting that
+# direction. tools/ is the neutral home instead -- nothing ships from it.
+# The primary guard against this reaching production is the visibility
+# list below, which names neither //src/pmc_core nor //src/pmc_agent, so
+# neither can acquire it without an explicit edit here; round 8 added
+# this target to tools/bazel/check_dependency_boundaries.py's FORBIDDEN
+# set as defence in depth behind that. Every process that imports real
+# PyMOL on Windows calls
+# `winstage.ensure_importable()` immediately before doing so; it is a
+# no-op everywhere else (see winstage.py's own docstring). Visibility is
+# limited to the packages that actually call it, not public. See issue
+# #12.
+py_library(
+    name = "winstage",
+    srcs = ["winstage.py"],
+    imports = ["."],
+    visibility = [
+        "//src/pmc_data:__pkg__",
+        "//tests/data:__pkg__",
+        "//tests/discovery/h02:__pkg__",
+        "//tests/integration:__pkg__",
+    ],
+    deps = ["@pypi//pymol_open_source_whl"],
+)

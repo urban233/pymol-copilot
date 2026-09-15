@@ -20,6 +20,7 @@ py_library(
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
+        "//tools/winstage:winstage",
     ],
 )
 
@@ -32,7 +33,10 @@ py_library(
     name = "execution_boundary",
     srcs = ["execution_boundary.py"],
     imports = ["."],
-    deps = [":harness"],
+    deps = [
+        ":harness",
+        "//tools/winstage:winstage",
+    ],
 )
 
 # Named "harness_test" rather than "harness" (which this same file already

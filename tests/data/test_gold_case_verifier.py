@@ -19,8 +19,10 @@ shut down at final teardown. The fixture object is loaded and deleted fresh
 for every test function so state from one test can never leak into the next
 -- same pattern as tests/integration/test_real_pymol_command.py.
 
-This target is excluded on Windows for the same reason as that module: see
-issue #12.
+This target runs on Windows too, for the same MAX_PATH reason
+tests/integration/test_real_pymol_command.py's docstring describes (issue
+#12): tools/winstage/winstage.py's short-path staging shim, called below
+before this module's own `import pymol`, the same way it is fixed there.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -42,6 +44,8 @@ from pmc_data.gold_case import GoldCase
 from pmc_data.gold_case import Provenance
 from pmc_data.verifier import PyMOLCmd as VerifierPyMOLCmd
 from pmc_data.verifier import verify_gold_case
+
+import winstage
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parent / "testdata" / "chain_a_gold_fixture.pdb"
@@ -116,6 +120,7 @@ def real_pymol() -> Iterator[PyMOLCmd]:
     Yields:
         The real PyMOL cmd module.
     """
+    winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 

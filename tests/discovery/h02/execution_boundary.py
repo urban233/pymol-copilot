@@ -44,6 +44,7 @@ the boundary at all.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -57,9 +58,12 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from typing import Any
+from typing import IO
 
 from harness import ObjectSnapshot
 from harness import from_json
+
+import winstage
 
 #: This module's own schema versions for the request/report shapes below --
 #: candidate-private prototype versions, not a production contract, exactly
@@ -316,7 +320,10 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
 #: `run_nested_snapshot_process` (which reuses pytest's own automatic
 #: sys.path insertion for a real test-file argv path), this child is a bare
 #: script with no test-file argument at all, so that automatic insertion
-#: does not apply here and PYTHONPATH must be set explicitly.
+#: does not apply here and PYTHONPATH must be set explicitly -- including
+#: for winstage.py's own directory, needed for this source's `import
+#: winstage` immediately before its `import pymol`, staging pymol to a
+#: short path first on Windows (a no-op everywhere else).
 #:
 #: The child always exits through `os._exit` after flushing stdout/stderr,
 #: for the same reason every candidate module's own `__main__` block and
@@ -343,6 +350,8 @@ _CHILD_RUNNER_SOURCE = (
     "snapshot_text = open(snapshot_path).read()\n"
     "commands = json.load(open(commands_path))\n"
     "\n"
+    "import winstage\n"
+    "winstage.ensure_importable()\n"
     "import pymol\n"
     "from pymol import cmd\n"
     "pymol.finish_launching(['pymol', '-qc'])\n"
@@ -459,35 +468,74 @@ def _rejected(reason: str, elapsed_seconds: float) -> ExecutionReport:
     )
 
 
+def _close_pipe(pipe: IO[str] | None) -> None:
+    """Close a `Popen` pipe object defensively.
+
+    `stdout`/`stderr` are `None` whenever a caller does not pipe that
+    stream, and may already be closed by the time this runs (`communicate()`
+    closes both as a side effect, and this helper's own caller may run
+    after that has already happened). Closing an already-closed file
+    object is a documented no-op, but the underlying OS handle can still
+    raise on some platforms, so `OSError` is swallowed too: this runs from
+    a `finally` whose whole purpose is cleanup on an exception path, and
+    raising here would replace -- not add to -- the exception already in
+    flight.
+
+    Args:
+        pipe: The pipe object to close, or `None` if that stream was never
+            piped.
+    """
+    if pipe is None:
+        return
+    with contextlib.suppress(OSError):
+        pipe.close()
+
+
 def _terminate_and_reap(
     process: subprocess.Popen[str], *, grace_seconds: float = 5.0
 ) -> None:
-    """Ensure a spawned child is stopped and reaped, on any exit path.
+    """Ensure a spawned child is stopped, reaped, and its pipes closed.
 
-    Safe -- and a no-op -- when the child has already exited and already
-    been waited on, which is true on every one of `execute()`'s own
-    documented return paths above (`communicate()` itself already waits
-    for the child, and the timeout branch already calls `kill()` then
-    `communicate()` again before returning). This function exists for the
-    one path none of those returns runs at all: an exception raised
-    between `Popen` and `communicate()` -- for example, the test-only
-    `on_process_spawned` hook itself raising -- which used to leave the
-    child neither terminated nor reaped while its scratch directory was
-    still deleted out from under it (H02-S3-F3).
+    Terminating and waiting on the child alone turned out not to be
+    enough: `communicate()` closes the child's `stdout`/`stderr` pipe
+    objects as a side effect on every path that reaches it, but this
+    function exists for exactly the one path that never reaches
+    `communicate()` at all, so nothing closed them there -- the child's
+    pipes leaked past this function returning, surfacing only as
+    `ResourceWarning`s on the first Windows CI run of this suite (Linux's
+    GC timing happened not to collect them inside pytest's observation
+    window for this same test, so the leak was silent there even though
+    it was just as real). Reaping the process and closing its pipes are
+    both handled here now, unconditionally, so this function's own
+    no-op case (the child already reaped by `communicate()`) simply closes
+    already-closed pipe objects, which is itself a no-op.
+
+    Safe -- and a near no-op -- when the child has already exited and
+    already been waited on, which is true on every one of `execute()`'s
+    own documented return paths above (`communicate()` itself already
+    waits for the child, and the timeout branch already calls `kill()`
+    then `communicate()` again before returning). This function's own
+    terminate-and-wait branch below exists for the one path none of those
+    returns runs at all: an exception raised between `Popen` and
+    `communicate()` -- for example, the test-only `on_process_spawned`
+    hook itself raising -- which used to leave the child neither
+    terminated nor reaped while its scratch directory was still deleted
+    out from under it (H02-S3-F3).
 
     Args:
         process: The spawned child's `Popen` handle.
         grace_seconds: How long to wait for a plain `terminate()` (SIGTERM)
             to take effect before escalating to a hard `kill()` (SIGKILL).
     """
-    if process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=grace_seconds)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait()
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=grace_seconds)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+    _close_pipe(process.stdout)
+    _close_pipe(process.stderr)
 
 
 def execute(
@@ -561,8 +609,11 @@ def execute(
 
         env = os.environ.copy()
         h02_dir = str(Path(__file__).resolve().parent)
+        winstage_dir = str(Path(winstage.__file__).resolve().parent)
         env["PYTHONPATH"] = os.pathsep.join(
-            part for part in (h02_dir, env.get("PYTHONPATH", "")) if part
+            part
+            for part in (h02_dir, winstage_dir, env.get("PYTHONPATH", ""))
+            if part
         )
 
         process = subprocess.Popen(

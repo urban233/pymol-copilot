@@ -45,6 +45,14 @@ from typing import Any
 
 import pytest
 
+import winstage
+
+#: The directory `winstage.py` itself lives in, so nested child processes
+#: spawned below (which never inherit this process's own sys.path) can be
+#: given it explicitly, exactly as PYTHONPATH is already extended with
+#: this directory for execution_boundary.py's own spawned child.
+_WINSTAGE_DIR = str(Path(winstage.__file__).resolve().parent)
+
 FIXTURE_PATH = (
     Path(__file__).resolve().parent / "testdata" / "h02_full_v1_fixture.pdb"
 )
@@ -441,8 +449,14 @@ def _diff(expected: ObjectSnapshot, actual: ObjectSnapshot) -> list[str]:
 #: runner and never reaches a `__main__` block -- see
 #: run_nested_snapshot_process's docstring for why that distinction is not
 #: cosmetic. `sys.argv[1]`/`sys.argv[2]` are the test file and `-k` filter,
-#: appended after this source string in the child's argv.
+#: appended after this source string in the child's argv. Starts with the
+#: same Windows staging shim call every real-PyMOL process makes (see
+#: winstage.py); a no-op everywhere else, and it must run here, in the
+#: child, since staging it in this function's own parent process never
+#: helps a separate process that imports pymol on its own.
 _NESTED_RUNNER_SOURCE = (
+    "import winstage\n"
+    "winstage.ensure_importable()\n"
     "import os, sys, pytest\n"
     "code = pytest.main([sys.argv[1], '-k', sys.argv[2], '-q'])\n"
     "sys.stdout.flush()\n"
@@ -501,6 +515,17 @@ def run_nested_snapshot_process(
     """
     environment = os.environ.copy()
     environment.update(env)
+    # The child never inherits this process's own sys.path (it is spawned
+    # fresh from sys.executable, not re-run through Bazel's own launcher),
+    # so `_NESTED_RUNNER_SOURCE`'s `import winstage` needs its directory on
+    # PYTHONPATH explicitly. Unlike winstage itself, `harness` reaches the
+    # child for free here: it comes along with `test_file`'s own directory,
+    # which pytest inserts into sys.path automatically while collecting it.
+    environment["PYTHONPATH"] = os.pathsep.join(
+        part
+        for part in (_WINSTAGE_DIR, environment.get("PYTHONPATH", ""))
+        if part
+    )
     return subprocess.run(
         [
             sys.executable,
@@ -523,6 +548,7 @@ def real_pymol() -> Iterator[Any]:
     Yields:
         The real PyMOL cmd module.
     """
+    winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 

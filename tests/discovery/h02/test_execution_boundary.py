@@ -202,15 +202,49 @@ def _scratch_dirs() -> set[Path]:
 def _assert_process_not_running(process: subprocess.Popen[str]) -> None:
     """Assert a spawned child process was reaped and is no longer alive.
 
+    `process.poll() is not None` alone already proves the child was
+    reaped and its exit status collected by this process, on every
+    platform. On POSIX, this assertion goes further: `os.kill(pid, 0)`
+    raising `ProcessLookupError` proves the kernel itself has no process
+    table entry for that PID anymore -- a stronger, independent check
+    than trusting `Popen`'s own bookkeeping.
+
+    That second, stronger check does not have a Windows equivalent.
+    `os.kill(pid, 0)` is POSIX signal semantics that Windows does not
+    implement the same way, and Windows recycles PIDs aggressively
+    enough that probing a PID after reaping is actively unreliable
+    there, not merely unavailable: a probe could pass spuriously against
+    an unrelated process that has since reused the same PID. So on
+    Windows this assertion is deliberately weaker -- it relies on
+    `poll()` alone -- and the "no leaked process" guarantee this helper
+    backs (H02-S3-F3, H02-S3-F10) is correspondingly less independently
+    verified there than on POSIX.
+
     Args:
         process: The Popen handle captured via `on_process_spawned`.
 
     Raises:
-        AssertionError: If the process was never reaped.
+        AssertionError: If the process was never reaped, or if either
+            pipe object was left open.
     """
     assert process.poll() is not None, "child process was not reaped"
-    with pytest.raises(ProcessLookupError):
-        os.kill(process.pid, 0)
+    if sys.platform != "win32":
+        with pytest.raises(ProcessLookupError):
+            os.kill(process.pid, 0)
+    # `_terminate_and_reap`'s own pipe-close fix (H02-S3-F3's Windows
+    # follow-up) has no assertion here otherwise: `pyproject.toml`'s
+    # `filterwarnings = ["error"]` turns a leaked pipe's `ResourceWarning`
+    # into a failure too, but only if and when the garbage collector
+    # happens to run inside pytest's observation window -- GC timing that
+    # varies enough between platforms (and even between runs) that this
+    # exact leak stayed silent on Linux for an entire slice while it broke
+    # Windows CI immediately. Asserting `closed` directly is deterministic
+    # regardless of GC timing, so every one of this helper's call sites
+    # now also proves neither pipe was left open. Deliberately no count
+    # here: a hand-maintained one drifts the moment a caller is added or
+    # removed, which is how this comment was wrong on arrival.
+    assert process.stdout is not None and process.stdout.closed
+    assert process.stderr is not None and process.stderr.closed
 
 
 def _refuse_to_spawn(process: subprocess.Popen[str]) -> None:

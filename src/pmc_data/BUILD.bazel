@@ -26,14 +26,19 @@ py_binary(
     main = "generate_cli.py",
     data = ["//configs/generation:chain_a_red_structures.json"],
     # Launches real Open-Source PyMOL to (re)generate the checked-in
-    # gold_cases/*.json records; see issue #12 for why this and every other
-    # real-PyMOL target in this repository excludes Windows.
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
+    # gold_cases/*.json records, so it hit the same MAX_PATH failure as
+    # every other real-PyMOL target here (issue #12). It runs on Windows
+    # now: //tools/winstage stages the wheel to a short path before the
+    # import below. The shim lives under tools/ rather than tests/ exactly
+    # so this target can use it -- src may not depend on tests, per
+    # src/BUILD.bazel's own package groups -- and nothing ships from
+    # tools/. This is a developer data-generation binary, not runtime:
+    # tools/bazel/check_dependency_boundaries.py forbids pmc_data from
+    # every runtime closure it enforces, so the shim cannot reach one
+    # through here.
     deps = [
         "@pypi//pymol_open_source_whl",
         "//src/pmc_data:pmc_data",
+        "//tools/winstage:winstage",
     ],
 )
