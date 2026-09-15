@@ -59,6 +59,7 @@ py_test(
     srcs = ["test_real_pymol_command.py"],
     main = "test_real_pymol_command.py",
     data = ["testdata/two_chain_fixture.pdb"],
+    tags = ["exclusive"],
     # No longer excluded on Windows: pymol-open-source-whl's Windows wheel
     # bundles delvewheel-repaired DLLs with long hash-suffixed names, and
     # combined with Bazel's generated repository name for this dependency,

@@ -13,6 +13,7 @@ py_test(
     srcs = ["test_card_candidate.py"],
     data = ["conftest.py"],
     main = "test_card_candidate.py",
+    tags = ["exclusive"],
     deps = [
         ":card_candidate",
         "//tests/discovery/h02:harness",
