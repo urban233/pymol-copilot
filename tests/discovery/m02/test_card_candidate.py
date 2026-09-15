@@ -18,8 +18,6 @@ from harness import ObjectSnapshot
 from harness import StateSnapshot
 from harness import extract
 
-pytest_plugins = ("harness",)
-
 
 def _snapshot() -> ObjectSnapshot:
     atom_a = AtomRecord(

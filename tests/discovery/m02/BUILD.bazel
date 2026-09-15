@@ -11,6 +11,7 @@ py_library(
 py_test(
     name = "card_candidate_test",
     srcs = ["test_card_candidate.py"],
+    data = ["conftest.py"],
     main = "test_card_candidate.py",
     deps = [
         ":card_candidate",

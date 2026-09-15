@@ -1,0 +1,14 @@
+{
+  "correctness": {
+    "evidence": "Malformed snapshots fail closed, and truncation omits bonds whose endpoints are not emitted.",
+    "passed": true
+  },
+  "error_handling": {
+    "evidence": "Invalid bond endpoints and malformed structural values return stable malformed-snapshot bytes.",
+    "passed": true
+  },
+  "test_quality": {
+    "evidence": "Focused tests cover invalid bond endpoints, malformed values, and truncation with omitted bonds; all 29 pass.",
+    "passed": true
+  }
+}
