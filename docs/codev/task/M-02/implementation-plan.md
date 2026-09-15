@@ -1,8 +1,8 @@
 # M-02: Define Full-V1 Card and Dataset Contract Needs
 
 **Status:** Accepted by Martin Urban (`urban233`), 2026-09-14; Candidate A
-card discovery complete, round-8 outer-review corrections implemented,
-independent review pending, contract freeze pending
+discovery and prior corrections complete, outer review ongoing, Windows CI
+rerun outstanding, contract freeze pending
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Risk:** High
@@ -95,8 +95,6 @@ discovery evidence and does not alter H-02 APIs or define a production contract.
 - **Changed:** M-02 task records; `tests/discovery/m02/` candidate renderer
   and test target; narrow H-02 harness visibility; and the Pyrefly discovery
   search path.
-- **Committed head:** Round-5 bond correction validated at
-  `3b5253efb3c10dcce7fece06699367857210059a`.
 - **Validation actually run:** Focused M-02 candidate-card test: 26 passed
   against a synthetic snapshot and H-02's controlled Candidate A fixture;
   repository Pyrefly, Ruff, data tests, and diff checks pass.
@@ -104,6 +102,14 @@ discovery evidence and does not alter H-02 APIs or define a production contract.
   //tests/discovery/m02:card_candidate_test --lockfile_mode=error` passed;
   Ruff check and format check for `tests/discovery/m02`, repository Pyrefly,
   and `git diff --check` passed.
+- **Round-11 validation:** Bazel exclusive scheduling serializes the four
+  real-PyMOL tests: `//tests/data:generate_real_pymol`,
+  `//tests/data:gold_case_verifier`, `//tests/integration:real_pymol_command`,
+  and `//tests/discovery/m02:card_candidate_test`. The four-target local macOS
+  test set and `git diff --check` passed. Windows CI rerun remains outstanding.
+- **Buildifier:** Pre-existing issues remain in the two existing legacy BUILD
+  files, `tests/data/BUILD.bazel` and `tests/integration/BUILD.bazel`; no
+  buildifier formatting changes were made.
 - **Acceptance evidence:** Golden bytes, collection-order determinism,
   canonical bond endpoints across a three-atom permutation, data/runtime caller
   parity, mutations of every rendered field, truncation with explicit omitted
@@ -116,4 +122,4 @@ discovery evidence and does not alter H-02 APIs or define a production contract.
   controlled experiment input, but the joint full-V1 fixture catalog,
   production schema, compatibility policy, and reciprocal contract acceptance
   remain pending.
-- **Review state:** Ready for outer-loop review (`READY_FOR_OUTER_LOOP`).
+- **Review state:** Outer review ongoing; Windows CI rerun remains outstanding.
