@@ -19,6 +19,28 @@ from harness import StateSnapshot
 from harness import extract
 
 
+_IDENTITY_VIEW = (
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    -0.5,
+    0.5,
+    -20.0,
+)
+
+
 def _snapshot() -> ObjectSnapshot:
     atom_a = AtomRecord(
         1,
@@ -60,7 +82,7 @@ def _snapshot() -> ObjectSnapshot:
         False,
         (StateSnapshot((atom_b, atom_a)),),
         (BondRecord(1, 0, 1),),
-        (1.0, 0.0, -20.0),
+        _IDENTITY_VIEW,
         (("sphere_scale", "0.35"), ("cartoon_transparency", "0.25")),
     )
 
@@ -77,7 +99,7 @@ def test_golden_card_has_stable_bytes() -> None:
         "state index=1 atoms=2 emitted=2 truncated=false\n"
         'atom state=1 serial=1 name="CA" alt="" resn="ALA" chain="A" resv=1 ins="" elem="C" hetatm=false occupancy=1 b_factor=20 color=3 reps="lines,sticks" label="CA" coord="1,2,3"\n'
         'atom state=1 serial=2 name="ZN" alt="B" resn="ZN" chain="A" resv=2 ins="A" elem="ZN" hetatm=true occupancy=0.5 b_factor=10 color=7 reps="spheres" label=null coord="4,5,6"\n'
-        'bond from=0 to=1 order=1\nview values="1,0,-20"\n'
+        'bond from=0 to=1 order=1\nview values="1,0,0,0,1,0,0,0,1,0,0,0,0,0,0,-0.5,0.5,-20"\n'
         'setting name="cartoon_transparency" value="0.25"\nsetting name="sphere_scale" value="0.35"\n'
     )
 
@@ -92,6 +114,48 @@ def test_equivalent_collection_order_produces_identical_card() -> None:
     )
 
     assert render(equivalent) == render(snapshot)
+
+
+def test_signed_zero_coordinates_produce_identical_card() -> None:
+    """Coordinate values differing only by signed zero are canonicalized."""
+    original = _snapshot()
+    snapshot = replace(
+        original,
+        states=(
+            StateSnapshot(
+                (
+                    replace(original.states[0].atoms[0], coord=(0.0, 2.0, 3.0)),
+                    original.states[0].atoms[1],
+                )
+            ),
+        ),
+    )
+    signed_zero = replace(
+        snapshot,
+        states=(
+            StateSnapshot(
+                (
+                    replace(
+                        snapshot.states[0].atoms[0], coord=(-0.0, 2.0, 3.0)
+                    ),
+                    snapshot.states[0].atoms[1],
+                )
+            ),
+        ),
+    )
+
+    assert render(signed_zero) == render(snapshot)
+
+
+def test_signed_zero_view_values_produce_identical_card() -> None:
+    """View values differing only by signed zero are canonicalized."""
+    snapshot = _snapshot()
+    signed_zero = replace(
+        snapshot,
+        view=tuple(-0.0 if value == 0.0 else value for value in snapshot.view),
+    )
+
+    assert render(signed_zero) == render(snapshot)
 
 
 def test_atom_permutation_remaps_bonds_to_canonical_positions() -> None:
@@ -215,6 +279,21 @@ def test_invalid_bond_endpoint_returns_stable_malformed_card() -> None:
 def test_malformed_structural_value_returns_stable_malformed_card() -> None:
     """A malformed view value fails closed without changing schema handling."""
     malformed = replace(_snapshot(), view=cast(Any, ("not-a-number",)))
+
+    assert render(malformed) == (
+        "card-version=candidate-1\n"
+        "status=unsupported reason=malformed-snapshot\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "view", [(), _IDENTITY_VIEW[:-1], (*_IDENTITY_VIEW, 0.0)]
+)
+def test_invalid_view_length_returns_stable_malformed_card(
+    view: tuple[float, ...],
+) -> None:
+    """Views must contain exactly the 18 values returned by cmd.get_view()."""
+    malformed = replace(_snapshot(), view=view)
 
     assert render(malformed) == (
         "card-version=candidate-1\n"

@@ -25,7 +25,8 @@ def _text(value: str) -> str:
 
 def _number(value: float | int) -> str:
     """Return one locale-independent normalized number."""
-    return format(value, ".6f").rstrip("0").rstrip(".") or "0"
+    normalized = format(value, ".6f").rstrip("0").rstrip(".") or "0"
+    return "0" if normalized in {"0", "-0"} else normalized
 
 
 def _atom_key(atom: AtomRecord) -> tuple[object, ...]:
@@ -132,8 +133,10 @@ def _valid_snapshot(snapshot: object) -> bool:
                 return False
             if atom.label is not None and not isinstance(atom.label, str):
                 return False
-    if not isinstance(snapshot.view, tuple) or not all(
-        _is_number(value) for value in snapshot.view
+    if (
+        not isinstance(snapshot.view, tuple)
+        or len(snapshot.view) != 18
+        or not all(_is_number(value) for value in snapshot.view)
     ):
         return False
     if not isinstance(snapshot.settings, tuple) or not all(

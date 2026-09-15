@@ -17,12 +17,13 @@ defaulted.
 | Field group | Required fields | Purpose |
 |---|---|---|
 | Identity and split | `sample_id`, `split_id`, `dataset_contract_version` | Stable sample identity and immutable split membership |
-| Structure and context | `structure_artifact_id`, `structure_sha256`, `structure_source`, `snapshot`, `snapshot_contract_version`, `snapshot_digest`, `card`, `card_sha256`, `card_contract_version` | Reproduce the exact structure and model context |
+| Structure and context | `structure_artifact_id`, `structure_sha256`, `structure_source`, `snapshot_date`, `sequence_cluster_30pct`, `snapshot`, `snapshot_contract_version`, `snapshot_digest`, `card`, `card_sha256`, `card_contract_version` | Reproduce the exact structure and model context, including the dated snapshot and immutable 30% sequence-cluster reference |
 | Intent and taxonomy | `intent`, `intent_source`, `category_id`, `difficulty`, `task_id`, `template_id` | Preserve natural-language lineage and coverage category |
 | Plan and policy | `canonical_plan_pml`, `typed_plan_id`, `plan_contract_version`, `parser_contract_version`, `policy_contract_version`, `policy_decisions` | Identify the reviewed executable behavior and its authorization result |
 | Assertions and oracle | `assertions`, `assertion_evaluator_version`, `oracle_status`, `oracle_version`, `task_success` | Preserve the grading claim and distinguish independent, PyMOL-reference, human-reviewed, and unsupported categories |
 | Execution evidence | `execution_request_id`, `execution_report`, `input_fingerprint`, `result_fingerprint`, `command_outcomes`, `normalized_error`, `timing` | Retain bounded success/failure evidence without replacing it with a boolean |
-| Provenance | `fixture_id`, `fixture_sha256`, `fixture_source`, `pymol_version`, `generator_revision`, `generation_seed`, `author_or_generator`, `created_at` | Make controlled-fixture and generation lineage auditable |
+| Provenance | `fixture_id`, `fixture_sha256`, `fixture_source`, `template_ref`, `author_ref`, `teacher_model_ref`, `prompt_ref`, `generation_parameters_ref`, `generation_seed`, `pymol_provenance_ref`, `shared_core_manifest_ref`, `generator_revision`, `author_or_generator`, `created_at` | Make controlled-fixture, generation, PyMOL, and shared-core lineage auditable; each reference is immutable or candidate-only |
+| Decisions | `policy_decisions`, `grammar_decisions`, `parser_decisions` | Retain the per-sample authorization, grammar, and parser decisions required to interpret the plan |
 | Shared contracts | `execution_contract_version`, `error_envelope_version`, `grammar_contract_version`, `manifest_version` | Prevent train/serve use across incompatible contract versions |
 
 `snapshot` and `card` are opaque candidate bytes until H-02 and M-02 freeze
@@ -61,7 +62,9 @@ wire names or serialization.
   "structure": {
     "artifact_id": "controlled-fixture",
     "sha256": "<fixture-sha256>",
-    "source": "self-authored"
+    "source": "self-authored",
+    "snapshot_date": "<snapshot-date>",
+    "sequence_cluster_30pct": "<immutable-cluster-entry>"
   },
   "context": {
     "snapshot_contract_version": "candidate",
@@ -79,7 +82,24 @@ wire names or serialization.
     "plan": "1",
     "policy": "1",
     "execution": "candidate",
-    "oracle": "candidate"
+    "oracle": "candidate",
+    "grammar": "candidate",
+    "parser": "candidate"
+  },
+  "provenance": {
+    "template_ref": "<candidate-template-ref>",
+    "author_ref": "<candidate-author-ref>",
+    "teacher_model_ref": null,
+    "prompt_ref": "<candidate-prompt-ref>",
+    "generation_parameters_ref": "<candidate-generation-parameters-ref>",
+    "generation_seed": "<candidate-seed>",
+    "pymol_provenance_ref": "<candidate-pymol-provenance-ref>",
+    "shared_core_manifest_ref": "<candidate-shared-core-manifest-ref>"
+  },
+  "decisions": {
+    "policy_decisions": [],
+    "grammar_decisions": [],
+    "parser_decisions": []
   },
   "verification": {
     "oracle_status": "independent-required",

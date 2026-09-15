@@ -1,8 +1,8 @@
 # M-02: Define Full-V1 Card and Dataset Contract Needs
 
 **Status:** Accepted by Martin Urban (`urban233`), 2026-09-14; Candidate A
-discovery and prior corrections complete, outer review ongoing, Windows CI
-rerun outstanding, contract freeze pending
+discovery and PR-review corrections M02-PR23-001 through M02-PR23-003
+implemented, independent review and CI pending, contract freeze pending
 **Owner:** Martin Urban (`urban233`)
 **Reviewer:** Hannah Kullik (`kullik01`)
 **Risk:** High
@@ -122,4 +122,11 @@ discovery evidence and does not alter H-02 APIs or define a production contract.
   controlled experiment input, but the joint full-V1 fixture catalog,
   production schema, compatibility policy, and reciprocal contract acceptance
   remain pending.
-- **Review state:** Outer review ongoing; Windows CI rerun remains outstanding.
+- **Round-13 completion evidence:** M02-PR23-001 adds explicit per-sample
+  provenance and decision references plus their Candidate JSON relationships;
+  M02-PR23-002 canonicalizes signed zero after six-decimal rounding and tests
+  coordinate/view byte identity; M02-PR23-003 requires an 18-value finite
+  numeric view and tests empty, 17-value, and 19-value rejection. Independent
+  review and CI remain pending.
+- **Review state:** Outer review ongoing; independent review and CI for the new
+  head are pending; Windows CI rerun remains outstanding.
