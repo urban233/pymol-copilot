@@ -32,8 +32,14 @@ def main() -> int:
         )
         executable.chmod(executable.stat().st_mode | 0o111)
         environment = os.environ.copy()
-        pytest_init = next(runfiles.rglob("pytest/__init__.py"))
-        environment["PYTHONPATH"] = str(pytest_init.parent.parent)
+        site_packages = sorted(
+            {
+                str(path)
+                for path in runfiles.rglob("site-packages")
+                if path.is_dir()
+            }
+        )
+        environment["PYTHONPATH"] = os.pathsep.join(site_packages)
         return subprocess.run(
             [str(executable), *sys.argv[1:]],
             cwd=os.environ.get("BUILD_WORKSPACE_DIRECTORY"),
