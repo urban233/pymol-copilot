@@ -11,3 +11,14 @@ py_test(
         "//src/pmc_server:pmc_server",
     ],
 )
+
+py_test(
+    name = "agent_runtime",
+    size = "small",
+    srcs = ["test_agent_runtime.py"],
+    main = "test_agent_runtime.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+    ],
+)
