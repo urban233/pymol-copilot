@@ -9,6 +9,10 @@ import sys
 FORBIDDEN = {
     "//src/pmc_agent:pmc_agent",
     "//src/pmc_data:pmc_data",
+    # src/pmc_train is out of the Bazel graph (.bazelignore) and can never
+    # appear in a bazel query closure, so this label is inert by
+    # construction. Kept so the entry regains meaning if the package ever
+    # returns to the graph.
     "//src/pmc_train:pmc_train",
     # Test/developer-tooling support: the Windows short-path staging shim
     # (W2-01, issue #12). It is reached from five test targets and one
