@@ -204,6 +204,34 @@ def test_parser_never_raises_on_pathological_repetition() -> None:
         assert_total(text, SEED + 3)
 
 
+def test_the_plan_shape_backstop_never_fires() -> None:
+    """The parser's own checks make ActionPlan's constructor unreachable.
+
+    parse_pml checks plan length, operation types, reference discipline and
+    duplicate names itself, before building the ActionPlan, so that a
+    rejection can name the offending command index -- a constructor error
+    cannot. The try/except around that construction is a backstop against
+    the two sets of rules diverging.
+
+    If this test fails, the backstop has started firing, which means either
+    the parser has a gap or ActionPlan has gained a rule the parser does not
+    enforce. Both are real defects, and both would otherwise surface only as
+    a rejection category with no test explaining it.
+    """
+    generator = random.Random(SEED + 5)
+    produced: set[str] = set()
+
+    for _ in range(CASE_COUNT):
+        length = generator.randint(0, 20)
+        text = "".join(generator.choice(FRAGMENTS) for _ in range(length))
+        result = parse_pml(text)
+        if isinstance(result, ParseRejection):
+            produced.add(result.category)
+
+    assert "invalid_plan_shape" not in produced
+    assert produced, "the generated corpus produced no rejections at all"
+
+
 def test_fuzzing_never_imports_pymol() -> None:
     """No generated input reaches Open-Source PyMOL."""
     assert "pymol" not in sys.modules

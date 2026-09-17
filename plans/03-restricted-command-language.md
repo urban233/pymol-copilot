@@ -390,6 +390,14 @@ second *use* that is wrong; and `invalid_plan_shape` is the belt-and-braces
 category for an `ActionPlan` constructor error the per-command checks did not
 already catch. Seventeen categories ship, not fifteen.
 
+`invalid_plan_shape` turned out to be unreachable: every rule `ActionPlan`
+enforces is already checked in the parser loop, and checked earlier so the
+rejection can name the offending command index. It stays as a backstop
+against the two sets of rules diverging, and
+`tests/adversarial/test_parser_totality.py` asserts across the generated
+corpus that it never actually fires -- so a divergence surfaces as a failing
+test rather than as a category with no test behind it.
+
 **Test that proves it:**
 
 ```text

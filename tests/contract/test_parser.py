@@ -12,7 +12,9 @@ Negative coverage lives in tests/adversarial/.
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_pml
+from pmc_core.parser import parse_selection_expression
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import AndClause
 from pmc_core.plan import ChainTerm
@@ -271,6 +273,116 @@ def test_a_plan_built_by_hand_renders_to_text_the_parser_accepts() -> None:
     )
 
     assert parse_pml(plan.render_pml()) == plan
+
+
+# --- parse_selection_expression -------------------------------------------
+#
+# The wire protocol decodes a target's expression text by handing it back to
+# this function, so it is a public entry point into the typed contract in its
+# own right and not merely a helper parse_pml happens to use. It is tested
+# directly here for that reason: exercising it only through protocol.py would
+# leave its own hygiene checks unproven.
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "chain A",
+        "resi 1-100",
+        "hetatm",
+        "not polymer",
+        "chain A and not hetatm or resn ALA",
+    ],
+    ids=[
+        "single_term",
+        "range_term",
+        "keyword_term",
+        "negated_term",
+        "mixed_precedence",
+    ],
+)
+def test_parse_selection_expression_round_trips(text: str) -> None:
+    """A canonical expression parses and renders back byte for byte.
+
+    Args:
+        text: A canonical selection expression.
+    """
+    expression = parse_selection_expression(text)
+
+    assert isinstance(expression, SelectionExpression)
+    assert expression.render() == text
+
+
+def test_parse_selection_expression_agrees_with_parse_pml() -> None:
+    """The two entry points cannot disagree about what an expression is."""
+    text = "chain A and resi 1-100 or not hetatm"
+
+    standalone = parse_selection_expression(text)
+    plan = parse_pml(f"orient {text}\n")
+
+    assert isinstance(plan, ActionPlan)
+    operation = plan.operations[0]
+    assert isinstance(operation, OrientOperation)
+    assert operation.target == standalone
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        " chain A",
+        "chain A ",
+        "chain  A",
+        "chain\tA",
+        "chain A # comment",
+        "'chain A'",
+        'chain "A"',
+        "chain A\\",
+        "copilot_a",
+        "all",
+        "(chain A)",
+        "chain A\nchain B",
+        "delete everything",
+        "__import__(os)",
+    ],
+    ids=[
+        "empty",
+        "leading_space",
+        "trailing_space",
+        "repeated_space",
+        "tab",
+        "comment",
+        "single_quoted",
+        "double_quoted",
+        "trailing_backslash",
+        "selection_name_is_not_an_expression",
+        "all_keyword",
+        "parenthesised",
+        "embedded_newline",
+        "command_text",
+        "python_evaluating_form",
+    ],
+)
+def test_parse_selection_expression_rejects_non_expressions(
+    text: str,
+) -> None:
+    """Text that is not a canonical expression is rejected, not normalized.
+
+    Args:
+        text: The rejected expression text.
+    """
+    result = parse_selection_expression(text)
+
+    assert isinstance(result, ParseRejection)
+    assert result.command_index is None
+
+
+def test_parse_selection_expression_is_total() -> None:
+    """Like parse_pml, it returns a value for any input rather than raising."""
+    for text in ("", chr(0), "\r\n", "x" * 10000, "chain " + "A" * 5000):
+        result = parse_selection_expression(text)
+
+        assert isinstance(result, (SelectionExpression, ParseRejection))
 
 
 if __name__ == "__main__":

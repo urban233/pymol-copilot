@@ -170,6 +170,16 @@ def parse_pml(text: str) -> PARSE_RESULT:
             defined.add(operation.selection_name)
         operations.append(operation)
 
+    # No input reaches the handler below. Every rule ActionPlan enforces --
+    # length bounds, operation types, reference discipline, duplicate names
+    # -- is already checked above, and checked earlier so the rejection can
+    # name the offending command index, which a constructor error cannot.
+    # This stays as a backstop against the two diverging: if ActionPlan ever
+    # gains a rule the loop above does not enforce, totality must survive it.
+    # tests/adversarial/test_parser_totality.py asserts across the whole
+    # generated corpus that invalid_plan_shape is never actually produced,
+    # so a divergence shows up as a failing test rather than as a category
+    # nothing explains.
     try:
         return ActionPlan(operations=tuple(operations))
     except ValueError as error:
