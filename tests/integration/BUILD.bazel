@@ -76,3 +76,22 @@ py_test(
         "//tools/winstage:winstage",
     ],
 )
+
+py_test(
+    name = "real_pymol_allowlist",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_real_pymol_allowlist.py"],
+    main = "test_real_pymol_allowlist.py",
+    # Launches real headless PyMOL, which supports one finish_launching per
+    # interpreter; excluded from concurrent scheduling for the same reason
+    # as :real_pymol_command. //tools/winstage stages a short-path copy
+    # before this module's own import pymol (issue #12).
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//tools/winstage:winstage",
+    ],
+)
