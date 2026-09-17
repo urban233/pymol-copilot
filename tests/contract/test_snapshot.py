@@ -134,7 +134,9 @@ _ATOMS_STATE_1 = (
     ),
 )
 _ATOMS_STATE_2 = tuple(
-    dataclasses.replace(atom, coord=(atom.coord[0], atom.coord[1], atom.coord[2] + 0.5))
+    dataclasses.replace(
+        atom, coord=(atom.coord[0], atom.coord[1], atom.coord[2] + 0.5)
+    )
     for atom in _ATOMS_STATE_1
 )
 _BONDS = (BondRecord(0, 1, 1), BondRecord(2, 3, 1))
@@ -317,7 +319,10 @@ def test_structure_digest_is_stable_across_display_state_changes() -> None:
     display_changed = dataclasses.replace(
         original,
         view=tuple(v + 1.0 for v in original.view),
-        settings=(("sphere_scale", "0.99000"), ("cartoon_transparency", "0.01000")),
+        settings=(
+            ("sphere_scale", "0.99000"),
+            ("cartoon_transparency", "0.01000"),
+        ),
         enabled=not original.enabled,
     )
 
@@ -350,7 +355,9 @@ def test_structure_digest_is_stable_across_display_state_changes() -> None:
                 states=(
                     StateSnapshot(
                         atoms=(
-                            dataclasses.replace(s.states[0].atoms[0], color=999),
+                            dataclasses.replace(
+                                s.states[0].atoms[0], color=999
+                            ),
                             *s.states[0].atoms[1:],
                         )
                     ),
