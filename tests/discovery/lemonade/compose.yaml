@@ -1,0 +1,28 @@
+# Throwaway rig for the Lemonade capability spike (plans/02-lemonade-capability-spike.md).
+# Not a production deployment artifact -- see README.md.
+services:
+  lemonade:
+    # Route A: the official upstream image. It is linux/amd64 only (confirmed
+    # against the GHCR manifest), so on an arm64 host this runs under
+    # emulation and may fail once a model actually needs to execute --
+    # Rosetta has no AVX2. If it fails, comment this block out and uncomment
+    # the "build:" block below (route B, the local arm64 image).
+    image: ghcr.io/lemonade-sdk/lemonade-server:v11.9.0
+    platform: linux/amd64
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.arm64
+    container_name: lemonade-spike
+    ports:
+      - "13305:13305"
+    volumes:
+      - lemonade-cache:/opt/lemonade/.cache/huggingface
+      - lemonade-llama:/opt/lemonade/llama
+      - lemonade-data:/opt/lemonade/.cache/lemonade
+      - lemonade-config:/opt/lemonade/.config/lemonade
+
+volumes:
+  lemonade-cache:
+  lemonade-llama:
+  lemonade-data:
+  lemonade-config:
