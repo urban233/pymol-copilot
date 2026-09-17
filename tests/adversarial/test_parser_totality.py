@@ -17,11 +17,13 @@ instead.
 
 import random
 import sys
+from typing import Any
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_pml
+from pmc_core.parser import parse_selection_expression
 from pmc_core.plan import ActionPlan
 
 #: The seed every case below draws from. Printed on failure so a red run is
@@ -131,7 +133,14 @@ def test_parser_never_raises_on_generated_fragment_soup() -> None:
 
 
 def test_parser_never_raises_on_random_character_soup() -> None:
-    """Arbitrary character sequences, including control codes, are total."""
+    """Arbitrary character sequences are total, surrogates included.
+
+    The range deliberately spans the whole of Unicode rather than stopping
+    below U+D800. A lone surrogate is an ordinary str that json.loads can
+    produce, and it is the one input class that makes text.encode("utf-8")
+    raise -- so a corpus that stops short of it cannot reach the guard that
+    keeps parse_pml total.
+    """
     generator = random.Random(SEED + 1)
 
     for _ in range(CASE_COUNT):
@@ -140,26 +149,36 @@ def test_parser_never_raises_on_random_character_soup() -> None:
         assert_total(text, SEED + 1)
 
 
-def test_parser_never_raises_on_mutated_valid_plans() -> None:
-    """Single-character edits to valid plans reach the deepest code paths.
+#: Valid plans the mutation generator grows its corpus from.
+SEED_PLANS = (
+    "select copilot_a, chain A and not hetatm or polymer\n"
+    "color marine, copilot_a\n"
+    "show cartoon, resi 1-100\n"
+    "hide lines, resn ALA\n"
+    "orient name CA\n",
+    "orient chain A\n",
+    "select copilot_core, resi 1-100 and chain B\norient copilot_core\n",
+)
 
-    Fragment soup rarely gets past the first few checks. Mutating text the
-    parser already accepts is what exercises term parsing, range parsing and
-    the reference rules.
+
+def mutated_plans(generator: random.Random, count: int) -> list[str]:
+    """Grow a corpus by editing text the parser already accepts.
+
+    Fragment soup almost never gets past the first few checks, so it cannot
+    reach term parsing, range parsing or the reference rules. Mutating valid
+    plans does, and it is the only generator here that reaches acceptance at
+    all.
+
+    Args:
+        generator: The seeded source of randomness.
+        count: How many inputs to produce.
+
+    Returns:
+        The generated inputs.
     """
-    generator = random.Random(SEED + 2)
-    seeds = (
-        "select copilot_a, chain A and not hetatm or polymer\n"
-        "color marine, copilot_a\n"
-        "show cartoon, resi 1-100\n"
-        "hide lines, resn ALA\n"
-        "orient name CA\n",
-        "orient chain A\n",
-        "select copilot_core, resi 1-100 and chain B\norient copilot_core\n",
-    )
-
-    for _ in range(CASE_COUNT):
-        text = generator.choice(seeds)
+    corpus: list[str] = []
+    for _ in range(count):
+        text = generator.choice(SEED_PLANS)
         for _ in range(generator.randint(1, 4)):
             if not text:
                 break
@@ -179,7 +198,38 @@ def test_parser_never_raises_on_mutated_valid_plans() -> None:
                     + generator.choice(FRAGMENTS)
                     + text[position + 1 :]
                 )
+        corpus.append(text)
+    return corpus
+
+
+def test_parser_never_raises_on_mutated_valid_plans() -> None:
+    """Single-character edits to valid plans reach the deepest code paths."""
+    generator = random.Random(SEED + 2)
+
+    for text in mutated_plans(generator, CASE_COUNT):
         assert_total(text, SEED + 2)
+
+
+def test_the_mutation_corpus_actually_reaches_acceptance() -> None:
+    """The canonicality half of assert_total must not be vacuous.
+
+    assert_total only compares a rendering against its input when the parser
+    accepts, so a corpus that never reaches acceptance proves totality and
+    nothing else. This pins the property the other tests rely on.
+    """
+    generator = random.Random(SEED + 2)
+    accepted = 0
+    categories: set[str] = set()
+
+    for text in mutated_plans(generator, CASE_COUNT):
+        result = parse_pml(text)
+        if isinstance(result, ParseRejection):
+            categories.add(result.category)
+        else:
+            accepted += 1
+
+    assert accepted > 0
+    assert len(categories) >= 8
 
 
 def test_parser_never_raises_on_pathological_repetition() -> None:
@@ -207,29 +257,66 @@ def test_parser_never_raises_on_pathological_repetition() -> None:
 def test_the_plan_shape_backstop_never_fires() -> None:
     """The parser's own checks make ActionPlan's constructor unreachable.
 
-    parse_pml checks plan length, operation types, reference discipline and
-    duplicate names itself, before building the ActionPlan, so that a
-    rejection can name the offending command index -- a constructor error
-    cannot. The try/except around that construction is a backstop against
-    the two sets of rules diverging.
+    parse_pml checks plan length, size, operation types, reference
+    discipline and duplicate names itself, before building the ActionPlan,
+    so that a rejection can name the offending command index -- a
+    constructor error cannot. The try/except around that construction is a
+    backstop against the two sets of rules diverging.
 
-    If this test fails, the backstop has started firing, which means either
-    the parser has a gap or ActionPlan has gained a rule the parser does not
-    enforce. Both are real defects, and both would otherwise surface only as
-    a rejection category with no test explaining it.
+    This must use the mutation corpus, not fragment soup. Fragment soup
+    never reaches ActionPlan construction at all, so it cannot observe the
+    backstop firing and the assertion would hold no matter what the parser
+    did.
     """
     generator = random.Random(SEED + 5)
     produced: set[str] = set()
+    accepted = 0
 
-    for _ in range(CASE_COUNT):
-        length = generator.randint(0, 20)
-        text = "".join(generator.choice(FRAGMENTS) for _ in range(length))
+    for text in mutated_plans(generator, CASE_COUNT):
         result = parse_pml(text)
         if isinstance(result, ParseRejection):
             produced.add(result.category)
+        else:
+            accepted += 1
 
+    assert accepted > 0, "corpus never built a plan, so it proves nothing"
     assert "invalid_plan_shape" not in produced
-    assert produced, "the generated corpus produced no rejections at all"
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["orient chain " + chr(0xD800) + "\n", chr(0xDC00), chr(0xD800) * 100],
+    ids=["lone_surrogate_in_a_command", "bare_low_surrogate", "many"],
+)
+def test_lone_surrogates_are_rejected_rather_than_raising(text: str) -> None:
+    """A lone surrogate makes encode("utf-8") raise; the parser must not.
+
+    json.loads happily produces one from an escaped "\\ud800", and the wire
+    protocol feeds JSON-decoded strings to the parser, so this is reachable
+    rather than theoretical.
+
+    Args:
+        text: Input containing an unpaired surrogate.
+    """
+    assert isinstance(parse_pml(text), ParseRejection)
+    assert isinstance(parse_selection_expression(text), ParseRejection)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, 42, b"orient chain A\n", ["orient chain A"], object()],
+    ids=["none", "integer", "bytes", "list", "object"],
+)
+def test_non_text_input_is_rejected_rather_than_raising(value: Any) -> None:
+    """Both public entry points are total for values that are not text.
+
+    Args:
+        value: A non-str value passed where text is expected. Typed Any so
+            the deliberately wrong type reaches the parser rather than being
+            refused by the type checker first.
+    """
+    assert isinstance(parse_pml(value), ParseRejection)
+    assert isinstance(parse_selection_expression(value), ParseRejection)
 
 
 def test_fuzzing_never_imports_pymol() -> None:

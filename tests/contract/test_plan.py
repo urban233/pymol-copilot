@@ -22,6 +22,7 @@ from pmc_core.plan import COLOR_ALLOWLIST
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import MAX_COMMANDS
 from pmc_core.plan import MAX_EXPRESSION_TERMS
+from pmc_core.plan import MAX_INPUT_BYTES
 from pmc_core.plan import REPRESENTATION_ALLOWLIST
 from pmc_core.plan import SELECTION_NAME_PREFIX
 from pmc_core.plan import ActionPlan
@@ -675,6 +676,57 @@ def test_malformed_plan_shapes_are_rejected(
     """
     with pytest.raises(ValueError):
         build()
+
+
+def test_the_resource_bounds_are_the_shipped_values() -> None:
+    """The bounds are pinned as literals, not merely referenced.
+
+    Every other bound test is written relative to these constants, so
+    raising one would leave the whole suite green. SPECIFICATION.md requires
+    these limits to be finite and frozen from measured evidence; changing
+    one is a deliberate act that should have to edit this line.
+    """
+    assert (MAX_COMMANDS, MAX_EXPRESSION_TERMS, MAX_INPUT_BYTES) == (
+        128,
+        32,
+        16384,
+    )
+
+
+def test_a_plan_too_large_to_re_read_cannot_be_built() -> None:
+    """A plan must never render past what the parser will accept.
+
+    MAX_COMMANDS alone does not imply this: 32 maximal commands already
+    render past MAX_INPUT_BYTES, so without a size check ActionPlan would
+    accept plans whose own canonical rendering the parser refuses, breaking
+    the round-trip guarantee render_pml documents.
+    """
+    clause = AndClause(
+        factors=tuple(
+            Factor(ChainTerm("ABCD")) for _ in range(MAX_EXPRESSION_TERMS)
+        )
+    )
+    operations = tuple(
+        SelectOperation(
+            selection_name=f"copilot_{'a' * 21}{index:03d}",
+            expression=SelectionExpression(clauses=(clause,)),
+        )
+        for index in range(32)
+    )
+
+    with pytest.raises(ValueError, match="bytes"):
+        ActionPlan(operations=operations)
+
+
+def test_a_plan_at_the_byte_bound_is_accepted() -> None:
+    """The size rule rejects only what genuinely exceeds the bound."""
+    plan = ActionPlan(
+        operations=tuple(
+            OrientOperation(target=chain_a()) for _ in range(MAX_COMMANDS)
+        )
+    )
+
+    assert len(plan.render_pml().encode("utf-8")) <= MAX_INPUT_BYTES
 
 
 if __name__ == "__main__":

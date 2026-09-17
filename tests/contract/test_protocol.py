@@ -449,9 +449,9 @@ def test_wire_plan_referencing_an_uncreated_selection_is_rejected() -> None:
     [
         {"kind": "name", "value": "sele"},
         {"kind": "expression", "value": "chain A; rm -rf /"},
-        {"kind": "object", "value": "1abc"},
+        {"kind": "object", "value": "chain A"},
         {"kind": "name"},
-        {"kind": "name", "value": "copilot_a", "extra": 1},
+        {"kind": "expression", "value": "chain A", "extra": 1},
     ],
     ids=[
         "unprefixed_name",
@@ -547,6 +547,111 @@ def test_failure_response_rejects_partial_action_plan() -> None:
 
     with pytest.raises(ProtocolDecodeError):
         FailedPlanResponseV1.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        {
+            "verb": "select",
+            "name": "copilot_a",
+            "expression": "chain A",
+            "onSuccess": "delete all",
+        },
+        {
+            "verb": "color",
+            "color": "red",
+            "target": {"kind": "expression", "value": "chain A"},
+            "onSuccess": "delete all",
+        },
+        {
+            "verb": "show",
+            "representation": "cartoon",
+            "target": {"kind": "expression", "value": "chain A"},
+            "onSuccess": "delete all",
+        },
+        {
+            "verb": "hide",
+            "representation": "cartoon",
+            "target": {"kind": "expression", "value": "chain A"},
+            "onSuccess": "delete all",
+        },
+    ],
+    ids=["select", "color", "show", "hide"],
+)
+def test_a_smuggled_extra_field_is_rejected_for_every_verb(
+    command: dict[str, object],
+) -> None:
+    """Each verb declares an exact field set, so nothing rides along.
+
+    Every command here is otherwise valid; only the extra field makes it
+    invalid. A subset check rather than an exact one would let the field
+    through unnoticed.
+
+    Args:
+        command: An otherwise valid command carrying one extra field.
+    """
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = [command]
+
+    with pytest.raises(ProtocolDecodeError):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_an_unsupported_plan_version_is_rejected() -> None:
+    """actionPlan.planVersion is checked, not only the envelope version."""
+    payload = response().to_dict()
+    wire_plan(payload)["planVersion"] = "9"
+
+    with pytest.raises(ProtocolDecodeError, match="unsupported plan version"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "verb",
+    [[], {}, ["select"]],
+    ids=["list", "dict", "list_containing_a_verb"],
+)
+def test_an_unhashable_wire_verb_is_a_decode_error_not_a_crash(
+    verb: object,
+) -> None:
+    """A non-string verb must not escape as TypeError.
+
+    `verb in {"show", "hide"}` raises TypeError for an unhashable JSON
+    value, and the client transport catches only ProtocolDecodeError, so it
+    would surface as an unhandled crash rather than a bounded failure.
+
+    Args:
+        verb: The unhashable value sent as a command verb.
+    """
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = [{"verb": verb}]
+
+    with pytest.raises(ProtocolDecodeError):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "[" * 12000 + "]" * 12000,
+        '{"protocolVersion":' + "9" * 5000 + "}",
+    ],
+    ids=["deeply_nested_arrays", "integer_past_the_digit_limit"],
+)
+def test_hostile_json_is_a_decode_error_not_a_crash(raw: str) -> None:
+    """json.loads raises more than JSONDecodeError on hostile input.
+
+    Deep nesting raises RecursionError and an over-long integer literal
+    raises a plain ValueError. Both fit well inside the transport's payload
+    bound, and the loopback server catches only ProtocolDecodeError -- so
+    unhandled, they drop the connection with no response at all.
+
+    Args:
+        raw: The hostile JSON text.
+    """
+    with pytest.raises(ProtocolDecodeError):
+        decode_json(raw, response=True)
 
 
 if __name__ == "__main__":

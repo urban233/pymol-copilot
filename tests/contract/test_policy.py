@@ -17,6 +17,7 @@ test without updating the sabotage check.
 """
 
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -31,6 +32,7 @@ from pmc_core.plan import Factor
 from pmc_core.plan import HetatmTerm
 from pmc_core.plan import HideOperation
 from pmc_core.plan import MAX_COMMANDS
+from pmc_core.plan import MAX_EXPRESSION_TERMS
 from pmc_core.plan import NamedSelection
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import ResiTerm
@@ -509,6 +511,168 @@ def test_policy_evaluation_does_not_import_pymol() -> None:
 
     assert not decision.allowed
     assert "pymol" not in sys.modules
+
+
+def test_a_value_that_merely_looks_like_a_plan_is_denied() -> None:
+    """Duck typing is not enough: the policy requires the real type.
+
+    The earlier test only passed values with no `operations` field at all,
+    so it was satisfied by the missing-field fallback and never exercised
+    the type check itself.
+    """
+
+    @dataclass(frozen=True)
+    class LooksLikeAPlan:
+        """A value carrying the right field name and the wrong type."""
+
+        operations: tuple[Any, ...]
+
+    looks_like_a_plan: Any = LooksLikeAPlan(
+        operations=(OrientOperation(target=chain_a()),)
+    )
+
+    decision = evaluate_plan(looks_like_a_plan)
+
+    assert not decision.allowed
+
+
+@dataclass(frozen=True)
+class _LooksLikeAFactor:
+    """A value with a Factor's fields and not its type."""
+
+    term: Any
+    negated: bool
+
+
+@dataclass(frozen=True)
+class _LooksLikeAClause:
+    """A value with an AndClause's fields and not its type."""
+
+    factors: tuple[Any, ...]
+
+
+def test_a_duck_typed_clause_is_denied() -> None:
+    """An expression's clauses must be AndClause, not merely clause-shaped.
+
+    The clause here holds a genuine Factor, so the factor guard cannot be
+    what denies it. Isolating the two guards matters: a test whose fake
+    clause also held a fake factor would pass with either guard removed, and
+    would therefore protect neither.
+    """
+    operation = bypass(
+        OrientOperation,
+        target=bypass(
+            SelectionExpression,
+            clauses=(_LooksLikeAClause(factors=(Factor(HetatmTerm()),)),),
+        ),
+    )
+
+    decision = evaluate_operation(operation, operation_index=0)
+
+    assert not decision.allowed
+    assert decision.reason == REASON_UNSUPPORTED_ORIENT_ARGUMENTS
+
+
+def test_a_duck_typed_factor_is_denied() -> None:
+    """A clause's factors must be Factor, not merely factor-shaped.
+
+    The clause here is a genuine AndClause carrying a fake factor, so the
+    clause guard cannot be what denies it.
+    """
+    operation = bypass(
+        OrientOperation,
+        target=bypass(
+            SelectionExpression,
+            clauses=(
+                bypass(
+                    AndClause,
+                    factors=(
+                        _LooksLikeAFactor(term=HetatmTerm(), negated=False),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    decision = evaluate_operation(operation, operation_index=0)
+
+    assert not decision.allowed
+    assert decision.reason == REASON_UNSUPPORTED_ORIENT_ARGUMENTS
+
+
+def test_a_subclass_cannot_supply_its_own_validator() -> None:
+    """A term subclass overriding __post_init__ is denied, not trusted.
+
+    isinstance would admit it and re-running `type(value)`'s own rules would
+    call the override. The policy pins the exact allowlisted type instead,
+    because a value that validates itself makes the module's whole claim
+    false. Without this, the subclass below smuggles a second command line
+    into the rendered .pml.
+    """
+
+    class UnvalidatedChain(ChainTerm):
+        """A ChainTerm that skips its own charset rules."""
+
+        def __post_init__(self) -> None:
+            """Accept anything."""
+
+    smuggled: Any = UnvalidatedChain("A\nrun /tmp/evil.py")
+    plan = bypass(
+        ActionPlan,
+        operations=(
+            OrientOperation(
+                target=SelectionExpression(
+                    clauses=(AndClause(factors=(Factor(smuggled),)),)
+                )
+            ),
+        ),
+    )
+
+    assert "\n" in plan.operations[0].render()
+    assert not evaluate_plan(plan).allowed
+
+
+def test_the_policy_enforces_the_expression_term_bound_itself() -> None:
+    """The policy re-derives the complexity bound, not just the parser.
+
+    This is one of two bounds the policy is meant to enforce independently.
+    A bypassed expression is the only way to reach it, because the parser
+    refuses to build one this large in the first place.
+    """
+    factors = tuple(
+        Factor(HetatmTerm()) for _ in range(MAX_EXPRESSION_TERMS + 1)
+    )
+    operation = bypass(
+        OrientOperation,
+        target=bypass(
+            SelectionExpression,
+            clauses=(bypass(AndClause, factors=factors),),
+        ),
+    )
+
+    decision = evaluate_operation(operation, operation_index=0)
+
+    assert not decision.allowed
+    assert decision.reason == REASON_UNSUPPORTED_ORIENT_ARGUMENTS
+
+
+def test_a_denied_plan_shape_denies_every_operation_individually() -> None:
+    """The shape denial sets each per-operation flag, not only the total."""
+    plan = bypass(ActionPlan, operations=())
+
+    decision = evaluate_plan(
+        bypass(
+            ActionPlan,
+            operations=tuple(
+                OrientOperation(target=chain_a())
+                for _ in range(MAX_COMMANDS + 1)
+            ),
+        )
+    )
+
+    assert not evaluate_plan(plan).allowed
+    assert decision.decisions
+    assert all(not item.allowed for item in decision.decisions)
 
 
 if __name__ == "__main__":

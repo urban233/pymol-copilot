@@ -327,6 +327,101 @@ def test_parse_selection_expression_agrees_with_parse_pml() -> None:
 
 
 @pytest.mark.parametrize(
+    ("chain_id", "joined_by_or", "expected"),
+    [
+        ("or", False, "orient chain or and hetatm\n"),
+        ("and", False, "orient chain and and hetatm\n"),
+        ("not", False, "orient chain not and hetatm\n"),
+        ("or", True, "orient chain or or hetatm\n"),
+        ("and", True, "orient chain and or hetatm\n"),
+    ],
+    ids=[
+        "or_then_and",
+        "and_then_and",
+        "not_then_and",
+        "or_then_or",
+        "and_then_or",
+    ],
+)
+def test_a_chain_named_like_an_operator_round_trips(
+    chain_id: str, joined_by_or: bool, expected: str
+) -> None:
+    """A chain identifier may legally spell `or`, `and` or `not`.
+
+    PDB chain identifiers are case-sensitive and may be several characters,
+    so `chain or` is a real chain and `orient chain or and hetatm` is the
+    canonical rendering of a real plan. The parser reads a term's value
+    positionally -- the token after `chain` is that chain, whatever it
+    spells -- rather than splitting the text on the separator substrings,
+    which would land in the wrong place here and reject a legal plan.
+
+    Args:
+        chain_id: The operator-shaped chain identifier.
+        joined_by_or: Whether the two terms are or-joined rather than
+            and-joined.
+        expected: The canonical text the plan must render to.
+    """
+    chain_factor = Factor(ChainTerm(chain_id))
+    hetatm_factor = Factor(HetatmTerm())
+    if joined_by_or:
+        clauses = (
+            AndClause(factors=(chain_factor,)),
+            AndClause(factors=(hetatm_factor,)),
+        )
+    else:
+        clauses = (AndClause(factors=(chain_factor, hetatm_factor)),)
+    plan = ActionPlan(
+        operations=(
+            OrientOperation(target=SelectionExpression(clauses=clauses)),
+        )
+    )
+
+    assert plan.render_pml() == expected
+    assert parse_pml(expected) == plan
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_category"),
+    [
+        ("", "invalid_selection_expression"),
+        ("chain A # comment", "comment"),
+        ("'chain A'", "quoting"),
+        (" chain A", "alternate_whitespace"),
+        ("chain  A", "alternate_whitespace"),
+        ("chain A" + chr(92), "continuation"),
+        ("copilot_a", "invalid_selection_expression"),
+        ("(chain A)", "invalid_selection_expression"),
+    ],
+    ids=[
+        "empty",
+        "comment",
+        "quoted",
+        "leading_space",
+        "repeated_space",
+        "trailing_backslash",
+        "selection_name",
+        "parenthesised",
+    ],
+)
+def test_parse_selection_expression_reports_its_category(
+    text: str, expected_category: str
+) -> None:
+    """Its hygiene rules are pinned, not merely its accept/reject verdict.
+
+    This is the wire protocol's decode entry point, so losing a lexical rule
+    here would widen what a crafted payload can express.
+
+    Args:
+        text: The rejected expression text.
+        expected_category: The category that must deny it.
+    """
+    result = parse_selection_expression(text)
+
+    assert isinstance(result, ParseRejection)
+    assert result.category == expected_category
+
+
+@pytest.mark.parametrize(
     "text",
     [
         "",
