@@ -9,6 +9,10 @@ import sys
 FORBIDDEN = {
     "//src/pmc_agent:pmc_agent",
     "//src/pmc_data:pmc_data",
+    # src/pmc_train is out of the Bazel graph (.bazelignore) and can never
+    # appear in a bazel query closure, so this label is inert by
+    # construction. Kept so the entry regains meaning if the package ever
+    # returns to the graph.
     "//src/pmc_train:pmc_train",
     # Test/developer-tooling support: the Windows short-path staging shim
     # (W2-01, issue #12). It is reached from five test targets and one
@@ -25,6 +29,14 @@ FORBIDDEN_BY_ROOT = {
 }
 TRAINING_NAMES = ("torch", "transformers", "peft", "trl", "unsloth")
 RUNTIME_NAMES = ("langgraph", "lemonade")
+NAMES_BY_ROOT = {
+    # pmc_core is the shared contract layer the in-PyMOL client imports, so
+    # neither the training stack nor LangGraph orchestration may reach it.
+    "//src/pmc_core:pmc_core": TRAINING_NAMES + RUNTIME_NAMES,
+    # Per SPECIFICATION.md:656, the managed server is exactly where
+    # LangGraph belongs. Only the training stack is forbidden here.
+    "//src/pmc_agent:pmc_agent": TRAINING_NAMES,
+}
 
 
 def closure(label: str) -> set[str]:
@@ -64,9 +76,14 @@ def main() -> int:
         print(f"{label} closure:")
         print("\n".join(sorted(labels)))
         forbidden = labels & FORBIDDEN_BY_ROOT[label]
-        lowered = "\n".join(labels).lower()
+        # Match against each label's repository/package identity (everything
+        # before its first `:`), not the full label text. Otherwise a source
+        # file inside an unrelated package's site-packages tree -- such as
+        # langgraph/stream/transformers.py -- collides with a training-tool
+        # name that was never actually a dependency.
+        identities = "\n".join(lbl.split(":", 1)[0] for lbl in labels).lower()
         forbidden |= {
-            name for name in TRAINING_NAMES + RUNTIME_NAMES if name in lowered
+            name for name in NAMES_BY_ROOT[label] if name in identities
         }
         if forbidden:
             print(

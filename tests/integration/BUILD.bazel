@@ -21,7 +21,6 @@ py_test(
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
-        "//src/pmc_train:pmc_train",
     ],
 )
 

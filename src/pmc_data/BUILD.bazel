@@ -17,7 +17,7 @@ py_library(
     ],
     imports = [".."],
     deps = ["//src/pmc_core:pmc_core"],
-    visibility = ["//src/pmc_data:__pkg__", "//src/pmc_train:__pkg__", "//src:tests"],
+    visibility = ["//src/pmc_data:__pkg__", "//src:tests"],
 )
 
 py_binary(

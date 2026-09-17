@@ -2,8 +2,15 @@ load("@rules_python//python:py_library.bzl", "py_library")
 
 py_library(
     name = "pmc_agent",
-    srcs = ["__init__.py"],
+    srcs = [
+        "__init__.py",
+        "runtime.py",
+    ],
     imports = [".."],
-    deps = ["//src/pmc_core:pmc_core"],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "@pypi//httpx",
+        "@pypi//langgraph",
+    ],
     visibility = ["//src/pmc_agent:__pkg__", "//src:tests"],
 )
