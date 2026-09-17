@@ -52,6 +52,7 @@ from pmc_core.plan import PolymerTerm
 from pmc_core.plan import ResiTerm
 from pmc_core.plan import ResnTerm
 from pmc_core.plan import SelectOperation
+from pmc_core.plan import TERM
 from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_core.plan import referenced_selection_name
@@ -62,14 +63,17 @@ _DIGITS = frozenset("0123456789")
 #: The greatest number of digits accepted in a residue identifier.
 _MAX_RESIDUE_DIGITS = len(str(MAX_RESIDUE_IDENTIFIER))
 
-#: The negation prefix, including its one separating space.
-_NEGATION_PREFIX = "not "
+#: The negation keyword, as one whole token.
+_NEGATION_KEYWORD = "not"
 
-#: The `or` separator, including its surrounding spaces.
-_OR_SEPARATOR = " or "
+#: The `or` separator, as one whole token.
+_OR_KEYWORD = "or"
 
-#: The `and` separator, including its surrounding spaces.
-_AND_SEPARATOR = " and "
+#: The `and` separator, as one whole token.
+_AND_KEYWORD = "and"
+
+#: The term keywords that take a value as the token after them.
+_VALUE_TERM_KEYWORDS = frozenset({"chain", "resi", "resn", "name"})
 
 
 @dataclass(frozen=True)
@@ -535,6 +539,16 @@ def _parse_expression(
 ) -> EXPRESSION_RESULT:
     """Parse one selection expression into its typed, nested form.
 
+    Tokenizing on single spaces and then walking the tokens left to right is
+    load-bearing, not a style choice. Splitting the raw text on the literal
+    separators " or " and " and " instead would be ambiguous, because a
+    chain identifier may legally be the word `or` or `and`: PDB chain
+    identifiers are case-sensitive and may be several characters, so
+    `chain or and hetatm` is the canonical rendering of a real plan. Reading
+    a term's value positionally -- the token after `chain` is always that
+    chain's identifier, whatever it spells -- removes the ambiguity, because
+    a separator can only ever appear where a separator is expected.
+
     Args:
         argument: The candidate expression text.
         command_index: The zero-based index of the command within the input,
@@ -547,70 +561,100 @@ def _parse_expression(
     if argument == "":
         return _expression_rejection(command_index)
 
+    tokens = argument.split(" ")
     clauses: list[AndClause] = []
+    factors: list[Factor] = []
     term_count = 0
-    for clause_text in argument.split(_OR_SEPARATOR):
-        factors: list[Factor] = []
-        for factor_text in clause_text.split(_AND_SEPARATOR):
-            negated = factor_text.startswith(_NEGATION_PREFIX)
-            term_text = (
-                factor_text[len(_NEGATION_PREFIX) :] if negated else factor_text
+    position = 0
+
+    while True:
+        negated = tokens[position] == _NEGATION_KEYWORD
+        if negated:
+            position += 1
+            if position == len(tokens):
+                return _expression_rejection(command_index)
+
+        parsed = _parse_term(tokens, position, command_index=command_index)
+        if isinstance(parsed, ParseRejection):
+            return parsed
+        term, position = parsed
+
+        term_count += 1
+        if term_count > MAX_EXPRESSION_TERMS:
+            return ParseRejection(
+                command_index=command_index,
+                category="expression_too_complex",
+                message=f"expression exceeds {MAX_EXPRESSION_TERMS} terms",
             )
-            term = _parse_term(term_text, command_index=command_index)
-            if isinstance(term, ParseRejection):
-                return term
-            term_count += 1
-            if term_count > MAX_EXPRESSION_TERMS:
-                return ParseRejection(
-                    command_index=command_index,
-                    category="expression_too_complex",
-                    message=f"expression exceeds {MAX_EXPRESSION_TERMS} terms",
-                )
-            factors.append(Factor(term=term, negated=negated))
-        try:
-            clauses.append(AndClause(factors=tuple(factors)))
-        except ValueError:
+        factors.append(Factor(term=term, negated=negated))
+
+        if position == len(tokens):
+            break
+
+        separator = tokens[position]
+        position += 1
+        if position == len(tokens):
+            # A separator with nothing after it.
             return _expression_rejection(command_index)
+        if separator == _AND_KEYWORD:
+            continue
+        if separator == _OR_KEYWORD:
+            try:
+                clauses.append(AndClause(factors=tuple(factors)))
+            except ValueError:
+                return _expression_rejection(command_index)
+            factors = []
+            continue
+        return _expression_rejection(command_index)
 
     try:
+        clauses.append(AndClause(factors=tuple(factors)))
         return SelectionExpression(clauses=tuple(clauses))
     except ValueError:
         return _expression_rejection(command_index)
 
 
-def _parse_term(term_text: str, command_index: int | None) -> TERM_RESULT:
-    """Parse one selection term into its typed form.
+def _parse_term(
+    tokens: list[str], position: int, command_index: int | None
+) -> tuple[TERM, int] | ParseRejection:
+    """Parse one selection term starting at a token position.
 
     Args:
-        term_text: The candidate term text, with any negation removed.
+        tokens: The expression's tokens, split on single spaces.
+        position: The index of the token the term starts at.
         command_index: The zero-based index of the command within the input,
             or None when the term is not part of a plan.
 
     Returns:
-        The immutable term, or a ParseRejection describing why the text was
-        rejected.
+        The immutable term paired with the position just past it, or a
+        ParseRejection describing why the tokens were rejected.
     """
-    if term_text == "hetatm":
-        return HetatmTerm()
-    if term_text == "polymer":
-        return PolymerTerm()
-
-    keyword, separator, value = term_text.partition(" ")
-    if separator == "":
+    keyword = tokens[position]
+    if keyword == "hetatm":
+        return HetatmTerm(), position + 1
+    if keyword == "polymer":
+        return PolymerTerm(), position + 1
+    if keyword not in _VALUE_TERM_KEYWORDS:
+        return _expression_rejection(command_index)
+    if position + 1 == len(tokens):
         return _expression_rejection(command_index)
 
+    value = tokens[position + 1]
     try:
         match keyword:
             case "chain":
-                return ChainTerm(value)
+                return ChainTerm(value), position + 2
             case "resn":
-                return ResnTerm(value)
+                return ResnTerm(value), position + 2
             case "name":
-                return NameTerm(value)
-            case "resi":
-                return _parse_residue_term(value, command_index=command_index)
+                return NameTerm(value), position + 2
             case _:
-                return _expression_rejection(command_index)
+                residue = _parse_residue_term(
+                    value, command_index=command_index
+                )
+                if isinstance(residue, ParseRejection):
+                    return residue
+                return residue, position + 2
     except ValueError:
         return _expression_rejection(command_index)
 

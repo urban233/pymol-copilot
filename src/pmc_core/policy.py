@@ -132,8 +132,8 @@ def _field(value: object, name: str) -> object:
     return getattr(value, name, _MISSING)
 
 
-def _reconstructs(value: object) -> bool:
-    """Re-run a frozen value's own construction rules against its fields.
+def _reconstructs(value: object, expected_type: type) -> bool:
+    """Re-run a value's construction rules, as its allowlisted type defines.
 
     Calling the value's own type with its own current field values runs
     __init__ and therefore __post_init__ again, so a value assembled without
@@ -141,20 +141,39 @@ def _reconstructs(value: object) -> bool:
     rules rather than restating them keeps a charset or range rule from
     drifting between pmc_core.plan and this module.
 
+    The type must match exactly rather than by isinstance, and the rules
+    re-run are the allowlisted type's own. A subclass overriding
+    __post_init__ would otherwise supply its own validator and pass:
+    isinstance admits it, and reconstructing through type(value) would call
+    the override rather than the real check. That is outside this module's
+    primary threat model, which is construction bypass rather than
+    attacker-controlled classes, but the module's claim is that every check
+    is re-derived from the allowlist, and a value choosing its own validator
+    would make that claim false.
+
     Args:
         value: The frozen dataclass value to re-validate.
+        expected_type: The allowlisted type the value must be, exactly.
 
     Returns:
-        True when the value's own rules accept its current fields.
+        True when the allowlisted type's own rules accept these fields.
     """
+    # Both callers today already pin the exact type before calling this, so
+    # mutation testing reports this line as redundant -- removing it alone
+    # changes no test. It stays because this is a general helper and the
+    # next caller may not pin it, and because the cost of the redundancy is
+    # one identity comparison against the cost of a value that validates
+    # itself.
+    if type(value) is not expected_type:
+        return False
     if not is_dataclass(value) or isinstance(value, type):
         return False
-    value_type: Callable[..., object] = type(value)
+    constructor: Callable[..., object] = expected_type
     try:
         arguments = {
             field.name: getattr(value, field.name) for field in fields(value)
         }
-        value_type(**arguments)
+        constructor(**arguments)
     except (AttributeError, TypeError, ValueError):
         return False
     return True
@@ -170,9 +189,10 @@ def _term_is_allowed(term: object) -> bool:
         True when term is an allowlisted term type whose own rules accept
         its current fields.
     """
-    if not isinstance(term, TERM_TYPES):
+    term_type = type(term)
+    if term_type not in TERM_TYPES:
         return False
-    return _reconstructs(term)
+    return _reconstructs(term, term_type)
 
 
 def _expression_is_allowed(expression: object) -> bool:
@@ -185,7 +205,7 @@ def _expression_is_allowed(expression: object) -> bool:
         True when expression is a SelectionExpression of non-empty clauses
         of non-empty factors over allowlisted terms, within the term bound.
     """
-    if not isinstance(expression, SelectionExpression):
+    if type(expression) is not SelectionExpression:
         return False
     clauses = _field(expression, "clauses")
     if not isinstance(clauses, tuple) or not clauses:
@@ -193,13 +213,13 @@ def _expression_is_allowed(expression: object) -> bool:
 
     term_count = 0
     for clause in clauses:
-        if not isinstance(clause, AndClause):
+        if type(clause) is not AndClause:
             return False
         factors = _field(clause, "factors")
         if not isinstance(factors, tuple) or not factors:
             return False
         for factor in factors:
-            if not isinstance(factor, Factor):
+            if type(factor) is not Factor:
                 return False
             if not isinstance(_field(factor, "negated"), bool):
                 return False
@@ -219,8 +239,8 @@ def _target_is_allowed(target: object) -> bool:
         True when target is a well-formed named selection or a well-formed
         selection expression.
     """
-    if isinstance(target, NamedSelection):
-        return _reconstructs(target)
+    if type(target) is NamedSelection:
+        return _reconstructs(target, NamedSelection)
     return _expression_is_allowed(target)
 
 
@@ -234,6 +254,8 @@ def _select_is_allowed(operation: SelectOperation) -> bool:
         True when the created name and the assigned expression are both
         within their accepted forms.
     """
+    if type(operation) is not SelectOperation:
+        return False
     selection_name = _field(operation, "selection_name")
     if not isinstance(selection_name, str):
         return False
@@ -254,6 +276,8 @@ def _color_is_allowed(operation: ColorOperation) -> bool:
         True when the color is in COLOR_ALLOWLIST and the target is
         well formed.
     """
+    if type(operation) is not ColorOperation:
+        return False
     color = _field(operation, "color")
     if not isinstance(color, str):
         return False
@@ -274,6 +298,8 @@ def _representation_is_allowed(
         True when the representation is in REPRESENTATION_ALLOWLIST and the
         target is well formed.
     """
+    if type(operation) not in (ShowOperation, HideOperation):
+        return False
     representation = _field(operation, "representation")
     if not isinstance(representation, str):
         return False
@@ -352,7 +378,8 @@ def evaluate_operation(
         case OrientOperation():
             return _decide(
                 operation_index=operation_index,
-                allowed=_target_is_allowed(_field(operation, "target")),
+                allowed=type(operation) is OrientOperation
+                and _target_is_allowed(_field(operation, "target")),
                 denial_reason=REASON_UNSUPPORTED_ORIENT_ARGUMENTS,
             )
         case _:
@@ -401,7 +428,7 @@ def evaluate_plan(plan: ActionPlan) -> PlanDecision:
         A PlanDecision describing the per-operation decisions and the
         aggregate allow/deny outcome.
     """
-    if not isinstance(plan, ActionPlan):
+    if type(plan) is not ActionPlan:
         return _denied_plan_shape(0)
     operations = _field(plan, "operations")
     if not isinstance(operations, tuple):

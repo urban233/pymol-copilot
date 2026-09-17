@@ -1065,6 +1065,18 @@ class ActionPlan:
                     )
                 defined.add(operation.selection_name)
 
+        # A plan whose own canonical rendering exceeds the parser's input
+        # bound could not be read back, which would break the round-trip
+        # guarantee render_pml documents below. MAX_COMMANDS alone does not
+        # imply it: 32 maximal commands already render past the bound.
+        rendered = "\n".join(
+            operation.render() for operation in self.operations
+        )
+        if len(rendered.encode("utf-8")) + 1 > MAX_INPUT_BYTES:
+            raise ValueError(
+                f"plan renders to more than {MAX_INPUT_BYTES} bytes"
+            )
+
     def render_pml(self) -> str:
         """Render this plan as canonical native .pml text.
 

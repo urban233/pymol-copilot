@@ -486,6 +486,11 @@ def _decode_command(value: object) -> OPERATION:
     """
     item = _object(value, name="actionPlan command")
     verb = item.get("verb")
+    # Checked before any comparison: `verb in {"show", "hide"}` raises
+    # TypeError for an unhashable JSON value such as a list or object, and
+    # that would escape this function rather than becoming a decode error.
+    if not isinstance(verb, str):
+        raise ProtocolDecodeError("action plan command verb must be a string")
     try:
         if verb == "select":
             if set(item) != {"verb", "name", "expression"}:
@@ -812,9 +817,15 @@ def decode_json(
     Raises:
         ProtocolDecodeError: If the JSON or protocol value is invalid.
     """
+    # json.loads raises more than JSONDecodeError on hostile input: deeply
+    # nested arrays raise RecursionError, and an integer literal past
+    # CPython's digit limit raises a plain ValueError. Both arrive well
+    # inside the transport's payload bound, and both would otherwise escape
+    # as unhandled exceptions -- the loopback server catches only
+    # ProtocolDecodeError, so the connection would drop with no response.
     try:
         decoded = json.loads(value)
-    except json.JSONDecodeError as error:
+    except (ValueError, RecursionError) as error:
         raise ProtocolDecodeError("invalid JSON") from error
     match decoded:
         case dict():
