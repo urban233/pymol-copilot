@@ -1,4 +1,35 @@
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
+
+# Shared real-PyMOL test support for pmc_core.snapshot's round-trip
+# evidence: the real_pymol/loaded_fixture fixtures, the fixture PDB, and
+# the nested-subprocess-via-environment-variable technique
+# (run_nested_snapshot_process). Ported from
+# tests/discovery/h02/harness.py once that module's production content
+# moved to src/pmc_core/snapshot.py. Visibility also reaches
+# tests/discovery/h02, whose surviving execution-boundary probes request
+# the same real_pymol fixture (re-exported by that package's own
+# conftest.py) to compute an independent expected value, and
+# tests/discovery/m02, whose card candidate test does the same to extract
+# a real fixture's snapshot.
+py_library(
+    name = "snapshot_support",
+    srcs = ["snapshot_support.py"],
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    imports = ["."],
+    visibility = [
+        "//tests/discovery/h02:__pkg__",
+        "//tests/discovery/m02:__pkg__",
+    ],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//tools/winstage:winstage",
+    ],
+)
 
 py_test(
     name = "command",
@@ -74,5 +105,51 @@ py_test(
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
         "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "snapshot_round_trip",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_snapshot_round_trip.py"],
+    main = "test_snapshot_round_trip.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Spawns a subprocess that launches its own real PyMOL process;
+    # excluded from concurrent scheduling for the same reason as
+    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
+    # never races another subprocess-spawning test under Windows's
+    # unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "snapshot_nested_process",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_snapshot_nested_process.py"],
+    main = "test_snapshot_nested_process.py",
+    data = ["conftest.py"],
+    # Spawns a nested pytest subprocess that launches its own real PyMOL
+    # process and lets it reach shutdown before failing -- the masking
+    # condition run_nested_snapshot_process works around only manifests
+    # once real PyMOL is actually involved, so this target cannot be a
+    # PyMOL-free "small" target. Excluded from concurrent scheduling for
+    # the same reason as tests/data:oracle_sabotage and
+    # tests/contract:policy_sabotage.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
     ],
 )

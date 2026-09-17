@@ -36,8 +36,9 @@ synthetic `ObjectSnapshot` directly, with no name collisions, altlocs, or
 insertion codes -- simple enough for `reconstruct()`'s minimal technique
 without candidate A's tag-based addressing workaround. It computes its
 expected fingerprint independently: not by re-running `execute()` again,
-but by launching real PyMOL directly in this test process (harness.py's
-own `real_pymol` fixture, re-exported by this directory's `conftest.py`)
+but by launching real PyMOL directly in this test process
+(snapshot_support.py's own `real_pymol` fixture, re-exported by this
+directory's `conftest.py`)
 and reconstructing, running the same commands, and extracting there,
 entirely outside the boundary being tested.
 
@@ -77,20 +78,21 @@ import execution_boundary as eb
 from execution_boundary import Command
 from execution_boundary import fingerprint
 from execution_boundary import reconstruct
-from harness import AtomRecord
-from harness import BondRecord
-from harness import ObjectSnapshot
-from harness import SNAPSHOT_SCHEMA_VERSION
-from harness import StateSnapshot
-from harness import extract
-from harness import to_json
+from pmc_core.snapshot import DECLARED_UNSUPPORTED
+from pmc_core.snapshot import SNAPSHOT_VERSION
+from pmc_core.snapshot import AtomRecord
+from pmc_core.snapshot import BondRecord
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import StateSnapshot
+from pmc_core.snapshot import extract
+from pmc_core.snapshot import to_json
 
-# real_pymol (a pytest fixture defined in harness.py) is not imported here:
-# this directory's conftest.py re-exports it so pytest's directory-scoped
-# fixture discovery makes it available by parameter name without a direct
-# import that a same-named test parameter would shadow (ruff's F811,
-# confirmed empirically for this exact pattern -- see conftest.py's own
-# docstring).
+# real_pymol (a pytest fixture defined in snapshot_support.py) is not
+# imported here: this directory's conftest.py re-exports it so pytest's
+# directory-scoped fixture discovery makes it available by parameter name
+# without a direct import that a same-named test parameter would shadow
+# (ruff's F811, confirmed empirically for this exact pattern -- see
+# conftest.py's own docstring).
 
 _IDENTITY_VIEW = (
     1.0,
@@ -160,13 +162,14 @@ def _sample_snapshot() -> ObjectSnapshot:
         ),
     )
     return ObjectSnapshot(
-        schema_version=SNAPSHOT_SCHEMA_VERSION,
+        schema_version=SNAPSHOT_VERSION,
         name="fx",
         enabled=True,
         states=(StateSnapshot(atoms=atoms),),
         bonds=(BondRecord(atom_index_a=0, atom_index_b=1, order=1),),
         view=_IDENTITY_VIEW,
         settings=(("sphere_scale", "1.00000"),),
+        unsupported=DECLARED_UNSUPPORTED,
     )
 
 
@@ -305,7 +308,8 @@ def test_non_object_snapshot_json_is_rejected_with_no_process_spawned(
 ) -> None:
     """Syntactically valid JSON that is not an object fails closed.
 
-    `harness.from_json` parses this text successfully (it is valid JSON)
+    `pmc_core.snapshot.from_json` parses this text successfully (it is
+    valid JSON)
     but then calls `.get("schema_version")` on the result, which raises
     `AttributeError` for a scalar, string, or list -- confirmed empirically,
     not merely a `json.JSONDecodeError` or `ValueError`. `execute()` must
@@ -330,7 +334,8 @@ def test_non_object_snapshot_json_is_rejected_with_no_process_spawned(
 def test_snapshot_missing_a_key_is_rejected_with_no_process_spawned() -> None:
     """A well-formed JSON object missing a required snapshot key fails closed.
 
-    `harness.from_json` reads several required keys (for example `name`)
+    `pmc_core.snapshot.from_json` reads several required keys (for example
+    `name`)
     straight off the parsed dict with `data["name"]`, which raises
     `KeyError` when a key is absent -- confirmed empirically, not a
     `json.JSONDecodeError` or `ValueError`. `execute()` must still fail
@@ -359,7 +364,7 @@ def test_incompatible_schema_version_is_rejected_with_no_process_spawned() -> (
 ):
     """A snapshot whose own schema_version is unsupported fails closed."""
     payload = json.loads(to_json(_sample_snapshot()))
-    payload["schema_version"] = SNAPSHOT_SCHEMA_VERSION + 1
+    payload["schema_version"] = SNAPSHOT_VERSION + 1
     scratch_before = _scratch_dirs()
 
     report = eb.execute(
@@ -624,7 +629,7 @@ def test_positive_path_matches_independently_computed_expected_values(
     design's "deterministic evidence where declared" guarantee requires.
 
     Args:
-        real_pymol: The real PyMOL cmd module (harness.py's fixture,
+        real_pymol: The real PyMOL cmd module (snapshot_support.py's fixture,
             re-exported by this directory's conftest.py), used only for
             this test's own independent verification -- never by the
             boundary itself, which always uses its own spawned child.

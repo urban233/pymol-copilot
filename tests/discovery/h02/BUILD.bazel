@@ -1,121 +1,62 @@
 load("@rules_python//python:py_library.bzl", "py_library")
-load(":build_defs.bzl", "h02_pymol_py_test")
-
-# Slice 2's shared, candidate-agnostic differential harness (extraction
-# format, extract()/_diff(), the fixture, and the nested-subprocess-via-
-# environment-variable pattern), plus this directory's conftest.py, which
-# re-exports harness.py's real_pymol/loaded_fixture fixtures once so every
-# candidate test module below can request them by parameter name without
-# importing them itself (see conftest.py's own docstring for why: ruff's
-# F811, confirmed empirically). Every test target below depends on this
-# library.
-py_library(
-    name = "harness",
-    srcs = ["harness.py"],
-    data = [
-        "conftest.py",
-        "testdata/h02_full_v1_fixture.pdb",
-    ],
-    imports = ["."],
-    # Candidate-private handoff for M-02 card discovery; this does not expose
-    # a production snapshot API beyond the one sibling discovery package.
-    visibility = ["//tests/discovery/m02:__pkg__"],
-    deps = [
-        "@pypi//pymol_open_source_whl",
-        "@pypi//pytest",
-        "//tools/winstage:winstage",
-    ],
-)
+load("@rules_python//python:py_test.bzl", "py_test")
 
 # Slice 3's fresh-process hermetic execution boundary prototype: the
 # request/report shapes and the `execute()` process primitive itself. Its
 # own module code never imports pymol directly (only the child runner
-# script it spawns does), but it does import harness.py for the shared
-# ObjectSnapshot/from_json/to_json/extract it reuses.
+# script it spawns does), but it does import pmc_core.snapshot for the
+# shared ObjectSnapshot/from_json/to_json/extract it reuses.
 py_library(
     name = "execution_boundary",
     srcs = ["execution_boundary.py"],
     imports = ["."],
     deps = [
-        ":harness",
+        "//src/pmc_core:pmc_core",
         "//tools/winstage:winstage",
     ],
 )
 
-# Named "harness_test" rather than "harness" (which this same file already
-# uses for the py_library target above) to avoid a same-package Bazel
-# target-name collision. Spawns a nested pytest subprocess that launches its
-# own real PyMOL process and lets it reach shutdown before failing -- the
-# masking condition run_nested_snapshot_process works around only manifests
-# once real PyMOL is actually involved, so this target can no longer be the
-# PyMOL-free "small" target it started as. Deliberate trade: this target
-# gives up the "runs on Windows" property the old PyMOL-free version had, in
-# exchange for actually being able to detect the regression it exists to
-# guard against.
-h02_pymol_py_test(
-    name = "harness_test",
-    srcs = ["test_harness.py"],
-    deps = [
-        ":harness",
-        "@pypi//pymol_open_source_whl",
-    ],
-)
-
-h02_pymol_py_test(
-    name = "full_v1_snapshot_candidate_a",
-    srcs = ["test_full_v1_snapshot_candidate_a.py"],
-    data = [
-        "conftest.py",
-        "testdata/h02_full_v1_fixture.pdb",
-    ],
-    deps = [
-        ":harness",
-        "@pypi//pymol_open_source_whl",
-    ],
-)
-
-h02_pymol_py_test(
-    name = "full_v1_snapshot_candidate_b",
-    srcs = ["test_full_v1_snapshot_candidate_b.py"],
-    data = [
-        "conftest.py",
-        "testdata/h02_full_v1_fixture.pdb",
-    ],
-    deps = [
-        ":harness",
-        "@pypi//pymol_open_source_whl",
-    ],
-)
-
-h02_pymol_py_test(
-    name = "full_v1_snapshot_candidate_c",
-    srcs = ["test_full_v1_snapshot_candidate_c.py"],
-    data = [
-        "conftest.py",
-        "testdata/h02_full_v1_fixture.pdb",
-    ],
-    deps = [
-        ":harness",
-        "@pypi//pymol_open_source_whl",
-    ],
-)
-
 # Slice 3: the execution boundary's own sabotage and positive-path probes.
-# Unlike candidates A/B/C, this target's own test process never loads the
-# fixture PDB or launches PyMOL itself for most of its probes (the boundary
-# under test does that, in its own spawned child); "conftest.py" is still
-# needed as data because the positive-path test requests harness.py's
-# module-scoped `real_pymol` fixture (re-exported by conftest.py) to compute
-# an independent expected value.
-h02_pymol_py_test(
+# This target's own test process never loads the fixture PDB or launches
+# PyMOL itself for most of its probes (the boundary under test does that,
+# in its own spawned child); "conftest.py" is still needed as data because
+# the positive-path test requests snapshot_support.py's module-scoped
+# `real_pymol` fixture (re-exported by conftest.py) to compute an
+# independent expected value.
+#
+# This is the one target in this directory that spawns a subprocess
+# running real headless PyMOL, now that the H-02 snapshot candidates
+# themselves have shipped as src/pmc_core/snapshot.py; slice 2's own
+# outer-loop review (H02-S2-F9) is what originally justified factoring
+# this shape into a shared build_defs.bzl macro across what were then five
+# near-identical py_test blocks, and that macro is gone along with the
+# other four.
+py_test(
     name = "execution_boundary_probes",
+    size = "large",
+    timeout = "moderate",
     srcs = ["test_execution_boundary.py"],
+    main = "test_execution_boundary.py",
     data = [
         "conftest.py",
     ],
+    # Spawns a subprocess that launches its own real PyMOL process;
+    # excluded from concurrent scheduling for the same reason as
+    # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
+    # never races another subprocess-spawning test under Windows's
+    # unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    # No longer excluded on Windows: pymol-open-source-whl's Windows wheel
+    # bundles delvewheel-repaired DLLs whose long hash-suffixed names,
+    # combined with Bazel's generated repository name, used to exceed
+    # Windows' MAX_PATH. //tools/winstage:winstage now stages a
+    # short-path copy before every real-PyMOL import in this directory
+    # (a no-op on every other platform). See issue #12.
     deps = [
         ":execution_boundary",
-        ":harness",
+        "//src/pmc_core:pmc_core",
+        "//tests/integration:snapshot_support",
         "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
     ],
 )
