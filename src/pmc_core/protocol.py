@@ -1,5 +1,18 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Strict codecs for the initial client-server protocol fixture."""
+"""Strict codecs for the client-server protocol.
+
+A plan crosses the wire as one object per command, carrying the same five
+verbs the command allowlist names. A command's target crosses as a tagged
+value: either the name of a selection an earlier command created, or the
+canonical text of a selection expression.
+
+That expression text is decoded by handing it back to pmc_core.parser rather
+than by rebuilding the term tree from JSON. Rebuilding it here would be a
+second, unaudited way to construct a typed plan, and the wire is the one
+place untrusted bytes arrive already shaped like a plan. Routing it through
+the same total parser means the wire cannot express an operation the parser
+would have refused.
+"""
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
@@ -9,9 +22,18 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
+from pmc_core.parser import ParseRejection
+from pmc_core.parser import parse_selection_expression
+from pmc_core.plan import MAX_COMMANDS
+from pmc_core.plan import OPERATION
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import ColorOperation
+from pmc_core.plan import HideOperation
+from pmc_core.plan import NamedSelection
+from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectOperation
+from pmc_core.plan import SelectionExpression
+from pmc_core.plan import ShowOperation
 
 PROTOCOL_VERSION = "1"
 
@@ -300,7 +322,28 @@ class PlanRequestV1:
         )
 
 
-def _plan_commands(plan: ActionPlan) -> list[dict[str, str]]:
+def _encode_target(target: object) -> dict[str, str]:
+    """Convert a command target to its tagged wire value.
+
+    Args:
+        target: The typed target to encode.
+
+    Returns:
+        The wire object for the target.
+
+    Raises:
+        ProtocolDecodeError: If target is not an accepted target value.
+    """
+    match target:
+        case NamedSelection():
+            return {"kind": "name", "value": target.name}
+        case SelectionExpression():
+            return {"kind": "expression", "value": target.render()}
+        case _:
+            raise ProtocolDecodeError("unsupported action plan target")
+
+
+def _plan_commands(plan: ActionPlan) -> list[dict[str, object]]:
     """Convert a typed action plan to its wire command objects.
 
     Args:
@@ -312,7 +355,7 @@ def _plan_commands(plan: ActionPlan) -> list[dict[str, str]]:
     Raises:
         ProtocolDecodeError: If the plan contains an unsupported operation.
     """
-    commands: list[dict[str, str]] = []
+    commands: list[dict[str, object]] = []
     for operation in plan.operations:
         match operation:
             case SelectOperation():
@@ -320,7 +363,7 @@ def _plan_commands(plan: ActionPlan) -> list[dict[str, str]]:
                     {
                         "verb": "select",
                         "name": operation.selection_name,
-                        "expression": operation.expression,
+                        "expression": operation.expression.render(),
                     }
                 )
             case ColorOperation():
@@ -328,7 +371,30 @@ def _plan_commands(plan: ActionPlan) -> list[dict[str, str]]:
                     {
                         "verb": "color",
                         "color": operation.color,
-                        "target": operation.selection_name,
+                        "target": _encode_target(operation.target),
+                    }
+                )
+            case ShowOperation():
+                commands.append(
+                    {
+                        "verb": "show",
+                        "representation": operation.representation,
+                        "target": _encode_target(operation.target),
+                    }
+                )
+            case HideOperation():
+                commands.append(
+                    {
+                        "verb": "hide",
+                        "representation": operation.representation,
+                        "target": _encode_target(operation.target),
+                    }
+                )
+            case OrientOperation():
+                commands.append(
+                    {
+                        "verb": "orient",
+                        "target": _encode_target(operation.target),
                     }
                 )
             case _:
@@ -359,58 +425,107 @@ def _decode_plan(value: object) -> ActionPlan:
     _string(data["snapshotDigest"], name="snapshotDigest")
     commands = data["commands"]
     match commands:
-        case list() as command_list if len(command_list) == 2:
+        case list() as command_list if 1 <= len(command_list) <= MAX_COMMANDS:
             pass
         case _:
             raise ProtocolDecodeError(
-                "actionPlan.commands must contain two items"
+                "actionPlan.commands length is outside the V1 limit"
             )
     decoded = tuple(_decode_command(command) for command in command_list)
-    match decoded:
-        case (SelectOperation() as select, ColorOperation() as color):
-            return ActionPlan(operations=(select, color))
-        case _:
-            raise ProtocolDecodeError("action plan commands have wrong shape")
+    try:
+        return ActionPlan(operations=decoded)
+    except ValueError as error:
+        raise ProtocolDecodeError(
+            "action plan commands have wrong shape"
+        ) from error
 
 
-def _decode_command(value: object) -> SelectOperation | ColorOperation:
+def _decode_target(value: object) -> NamedSelection | SelectionExpression:
+    """Decode a strictly shaped command target.
+
+    Args:
+        value: JSON-like value containing a tagged target.
+
+    Returns:
+        The decoded named selection or selection expression.
+
+    Raises:
+        ProtocolDecodeError: If value is not an accepted target.
+    """
+    item = _strict_object(
+        value, name="command target", required={"kind", "value"}
+    )
+    text = _string(item["value"], name="target value")
+    if item["kind"] == "name":
+        try:
+            return NamedSelection(text)
+        except ValueError as error:
+            raise ProtocolDecodeError(
+                "unsupported target selection name"
+            ) from error
+    if item["kind"] == "expression":
+        expression = parse_selection_expression(text)
+        if isinstance(expression, ParseRejection):
+            raise ProtocolDecodeError("unsupported target selection expression")
+        return expression
+    raise ProtocolDecodeError("unsupported action plan target")
+
+
+def _decode_command(value: object) -> OPERATION:
     """Decode one strictly shaped action-plan command.
 
     Args:
         value: JSON-like value containing an action-plan command.
 
     Returns:
-        The decoded select or color operation.
+        The decoded operation.
 
     Raises:
-        ProtocolDecodeError: If value does not match a supported command shape.
+        ProtocolDecodeError: If value does not match a supported command
+            shape, or carries a value the typed contract refuses.
     """
     item = _object(value, name="actionPlan command")
     verb = item.get("verb")
-    if verb == "select":
-        if set(item) != {"verb", "name", "expression"}:
-            raise ProtocolDecodeError("invalid select command fields")
-        try:
+    try:
+        if verb == "select":
+            if set(item) != {"verb", "name", "expression"}:
+                raise ProtocolDecodeError("invalid select command fields")
+            expression = parse_selection_expression(
+                _string(item["expression"], name="expression")
+            )
+            if isinstance(expression, ParseRejection):
+                raise ProtocolDecodeError("unsupported select command values")
             return SelectOperation(
                 selection_name=_string(item["name"], name="name"),
-                expression=_string(item["expression"], name="expression"),
+                expression=expression,
             )
-        except ValueError as error:
-            raise ProtocolDecodeError(
-                "unsupported select command values"
-            ) from error
-    if verb == "color":
-        if set(item) != {"verb", "color", "target"}:
-            raise ProtocolDecodeError("invalid color command fields")
-        try:
+        if verb == "color":
+            if set(item) != {"verb", "color", "target"}:
+                raise ProtocolDecodeError("invalid color command fields")
             return ColorOperation(
                 color=_string(item["color"], name="color"),
-                selection_name=_string(item["target"], name="target"),
+                target=_decode_target(item["target"]),
             )
-        except ValueError as error:
-            raise ProtocolDecodeError(
-                "unsupported color command values"
-            ) from error
+        if verb in {"show", "hide"}:
+            if set(item) != {"verb", "representation", "target"}:
+                raise ProtocolDecodeError(f"invalid {verb} command fields")
+            operation_type = ShowOperation if verb == "show" else HideOperation
+            return operation_type(
+                representation=_string(
+                    item["representation"], name="representation"
+                ),
+                target=_decode_target(item["target"]),
+            )
+        if verb == "orient":
+            if set(item) != {"verb", "target"}:
+                raise ProtocolDecodeError("invalid orient command fields")
+            return OrientOperation(target=_decode_target(item["target"]))
+    except ValueError as error:
+        if isinstance(error, ProtocolDecodeError):
+            raise
+        raise ProtocolDecodeError(
+            f"unsupported {verb} command values"
+        ) from error
     raise ProtocolDecodeError("unsupported action plan command")
 
 

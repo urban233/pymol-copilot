@@ -1,9 +1,22 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Contract tests for strict V1 client-server protocol codecs."""
 
+from dataclasses import replace
+
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-from pmc_core.plan import initial_fixture_plan
+from pmc_core.plan import MAX_COMMANDS
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import AndClause
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import Factor
+from pmc_core.plan import NamedSelection
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import SelectionExpression
+from pmc_core.plan import ShowOperation
+from pmc_core.plan import HideOperation
+from pmc_core.plan import OrientOperation
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
@@ -19,6 +32,32 @@ REQUEST_IDS = {
     "requestId": "11111111-1111-4111-8111-111111111111",
     "sessionId": "22222222-2222-4222-8222-222222222222",
 }
+
+
+def fixture_plan() -> ActionPlan:
+    """Build the two-command plan these protocol fixtures carry.
+
+    pmc_core no longer ships a fixture plan of its own, and this module
+    must not reach into pmc_data or pmc_server for one, so it builds the
+    plan from the typed values directly.
+
+    Returns:
+        select copilot_selection, chain A followed by
+        color red, copilot_selection.
+    """
+    return ActionPlan(
+        operations=(
+            SelectOperation(
+                selection_name="copilot_selection",
+                expression=SelectionExpression(
+                    clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+                ),
+            ),
+            ColorOperation(
+                color="red", target=NamedSelection("copilot_selection")
+            ),
+        )
+    )
 
 
 def request() -> PlanRequestV1:
@@ -50,7 +89,7 @@ def response() -> ValidatedPlanResponseV1:
         session_id=REQUEST_IDS["sessionId"],
         received_at="2026-08-26T14:22:03.124Z",
         validated_at="2026-08-26T14:22:03.220Z",
-        action_plan=initial_fixture_plan(),
+        action_plan=fixture_plan(),
         validation=ValidationReportV1(
             "passed", "sha256:example-chain-a-digest", ()
         ),
@@ -235,7 +274,11 @@ def _response_payload_with_command(
             "name": "copilot_selection",
             "expression": "chain A",
         },
-        {"verb": "color", "color": "red", "target": "copilot_selection"},
+        {
+            "verb": "color",
+            "color": "red",
+            "target": {"kind": "name", "value": "copilot_selection"},
+        },
     ]
     commands[index] = {**commands[index], field: value}
     return {
@@ -259,23 +302,214 @@ def _response_payload_with_command(
     }
 
 
-def test_validated_response_rejects_unsupported_command_value_as_decode_error() -> (
+def wire_plan(payload: dict[str, object]) -> dict[str, object]:
+    """Reach the actionPlan object inside a decoded response payload.
+
+    Args:
+        payload: A full response payload.
+
+    Returns:
+        The payload's actionPlan object, narrowed so its commands list can
+        be replaced in place.
+    """
+    action_plan = payload["actionPlan"]
+
+    assert isinstance(action_plan, dict)
+    return action_plan
+
+
+def test_validated_response_rejects_a_denied_expression_as_decode_error() -> (
     None
 ):
-    """An out-of-fixture command value raises ProtocolDecodeError, not ValueError."""
-    payload = _response_payload_with_command(0, "expression", "chain B")
+    """An expression the parser refuses raises ProtocolDecodeError."""
+    payload = _response_payload_with_command(0, "expression", "__import__(os)")
 
     with pytest.raises(ProtocolDecodeError, match="unsupported select"):
         ValidatedPlanResponseV1.from_dict(payload)
 
 
-def test_validated_response_rejects_unsupported_color_value_as_decode_error() -> (
-    None
-):
-    """An out-of-fixture color value raises ProtocolDecodeError, not ValueError."""
-    payload = _response_payload_with_command(1, "color", "blue")
+def test_validated_response_rejects_a_denied_color_as_decode_error() -> None:
+    """A color outside the allowlist raises ProtocolDecodeError."""
+    payload = _response_payload_with_command(1, "color", "blurple")
 
     with pytest.raises(ProtocolDecodeError, match="unsupported color"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_the_wire_cannot_express_a_plan_the_parser_would_refuse() -> None:
+    """Expression text on the wire is re-parsed, not trusted.
+
+    This is the property that keeps the protocol from becoming a second way
+    to build a typed plan. The expression below is well-formed JSON and the
+    right type; it is refused because the parser refuses it.
+    """
+    payload = _response_payload_with_command(
+        0, "expression", "chain A or (chain B and polymer)"
+    )
+
+    with pytest.raises(ProtocolDecodeError, match="unsupported select"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_every_verb_round_trips_across_the_wire() -> None:
+    """A plan using all five verbs encodes and decodes unchanged."""
+    expression = SelectionExpression(
+        clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+    )
+    plan = ActionPlan(
+        operations=(
+            SelectOperation(
+                selection_name="copilot_core", expression=expression
+            ),
+            ColorOperation(
+                color="marine", target=NamedSelection("copilot_core")
+            ),
+            ShowOperation(representation="cartoon", target=expression),
+            HideOperation(
+                representation="nb_spheres",
+                target=NamedSelection("copilot_core"),
+            ),
+            OrientOperation(target=expression),
+        )
+    )
+    payload = replace(response(), action_plan=plan).to_dict()
+
+    decoded = ValidatedPlanResponseV1.from_dict(payload)
+
+    assert decoded.action_plan == plan
+    assert decoded.action_plan.render_pml() == plan.render_pml()
+
+
+def test_a_single_command_plan_round_trips_across_the_wire() -> None:
+    """The wire no longer requires exactly two commands."""
+    plan = ActionPlan(
+        operations=(
+            OrientOperation(
+                target=SelectionExpression(
+                    clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+                )
+            ),
+        )
+    )
+    payload = replace(response(), action_plan=plan).to_dict()
+
+    assert ValidatedPlanResponseV1.from_dict(payload).action_plan == plan
+
+
+def test_wire_plan_past_the_command_limit_is_rejected() -> None:
+    """The wire enforces the same finite command bound as the parser."""
+    payload = response().to_dict()
+    command = {
+        "verb": "orient",
+        "target": {"kind": "expression", "value": "chain A"},
+    }
+    wire_plan(payload)["commands"] = [command] * (MAX_COMMANDS + 1)
+
+    with pytest.raises(ProtocolDecodeError, match="length is outside"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_wire_plan_with_no_commands_is_rejected() -> None:
+    """An empty command list is refused rather than decoded as a no-op."""
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = []
+
+    with pytest.raises(ProtocolDecodeError, match="length is outside"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_wire_plan_with_an_unknown_verb_is_rejected() -> None:
+    """A verb outside the allowlist cannot arrive over the wire either."""
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = [
+        {"verb": "delete", "target": {"kind": "name", "value": "copilot_a"}}
+    ]
+
+    with pytest.raises(ProtocolDecodeError, match="unsupported action plan"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+def test_wire_plan_referencing_an_uncreated_selection_is_rejected() -> None:
+    """The plan-shape rule is enforced on decode, not only on parse."""
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = [
+        {
+            "verb": "color",
+            "color": "red",
+            "target": {"kind": "name", "value": "copilot_missing"},
+        }
+    ]
+
+    with pytest.raises(ProtocolDecodeError, match="wrong shape"):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"kind": "name", "value": "sele"},
+        {"kind": "expression", "value": "chain A; rm -rf /"},
+        {"kind": "object", "value": "1abc"},
+        {"kind": "name"},
+        {"kind": "name", "value": "copilot_a", "extra": 1},
+    ],
+    ids=[
+        "unprefixed_name",
+        "denied_expression",
+        "unknown_kind",
+        "missing_value",
+        "unknown_field",
+    ],
+)
+def test_malformed_wire_targets_are_rejected(
+    target: dict[str, object],
+) -> None:
+    """A target that is not one of the two tagged forms is refused.
+
+    Args:
+        target: The malformed wire target under test.
+    """
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = [{"verb": "orient", "target": target}]
+
+    with pytest.raises(ProtocolDecodeError):
+        ValidatedPlanResponseV1.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        {"verb": "orient"},
+        {"verb": "select", "name": "copilot_a"},
+        {
+            "verb": "show",
+            "target": {"kind": "expression", "value": "chain A"},
+        },
+        {
+            "verb": "orient",
+            "target": {"kind": "expression", "value": "chain A"},
+            "extra": 1,
+        },
+    ],
+    ids=[
+        "orient_without_target",
+        "select_without_expression",
+        "show_without_representation",
+        "orient_with_unknown_field",
+    ],
+)
+def test_wire_commands_with_wrong_field_sets_are_rejected(
+    command: dict[str, object],
+) -> None:
+    """Each verb declares an exact field set on the wire.
+
+    Args:
+        command: The malformed wire command under test.
+    """
+    payload = response().to_dict()
+    wire_plan(payload)["commands"] = [command]
+
+    with pytest.raises(ProtocolDecodeError):
         ValidatedPlanResponseV1.from_dict(payload)
 
 
