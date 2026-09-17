@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Protocol
 
 import pytest
-from pmc_core.plan import initial_fixture_plan
+from pmc_data.gold_case import CHAIN_A_RED_PLAN
 from pmc_data.gold_case import DEFAULT_GOLD_CASE_PATH
 from pmc_data.gold_case import Assertion
 from pmc_data.gold_case import ContractVersions
@@ -208,7 +208,7 @@ def test_chain_membership_matches_by_real_serial_not_session_ordinal(
         contract_versions=ContractVersions(
             plan_version="1", pymol_version="3.2.0.2"
         ),
-        canonical_plan_pml=initial_fixture_plan().render_pml(),
+        canonical_plan_pml=CHAIN_A_RED_PLAN.render_pml(),
         target_chain="A",
         non_target_chains=("B",),
         assertions=(

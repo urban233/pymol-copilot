@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 import pytest
-from pmc_core.plan import initial_fixture_plan
+from pmc_data.gold_case import CHAIN_A_RED_PLAN
 from pmc_data.gold_case import GoldCase
 from pmc_data.generate import GenerationRejectedError
 from pmc_data.generate import GenerationRequest
@@ -391,7 +391,7 @@ def test_build_candidate_gold_case_reuses_the_one_accepted_canonical_plan() -> (
     """The candidate's canonical plan is exactly pmc_core's own rendering, not a re-derivation, so drift there is caught the same way the hand-authored gold record is checked."""
     candidate = build_candidate_gold_case(_sample_request())
 
-    assert candidate.canonical_plan_pml == initial_fixture_plan().render_pml()
+    assert candidate.canonical_plan_pml == CHAIN_A_RED_PLAN.render_pml()
     assert candidate.target_chain == "A"
     assert candidate.non_target_chains == ("C",)
     kinds = {assertion.kind for assertion in candidate.assertions}

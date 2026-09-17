@@ -13,7 +13,7 @@ import copy
 import json
 
 import pytest
-from pmc_core.plan import initial_fixture_plan
+from pmc_data.gold_case import CHAIN_A_RED_PLAN
 from pmc_data.gold_case import DEFAULT_GOLD_CASE_PATH
 from pmc_data.gold_case import Assertion
 from pmc_data.gold_case import GoldCase
@@ -42,7 +42,7 @@ def test_gold_case_round_trip_preserves_provenance_assertions_and_plan() -> (
     assert restored == case
     assert restored.provenance == case.provenance
     assert restored.assertions == case.assertions
-    assert restored.canonical_plan_pml == initial_fixture_plan().render_pml()
+    assert restored.canonical_plan_pml == CHAIN_A_RED_PLAN.render_pml()
 
 
 @pytest.mark.parametrize(

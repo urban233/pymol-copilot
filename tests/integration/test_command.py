@@ -11,7 +11,14 @@ from dataclasses import dataclass
 from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import CopilotCommandClient
 from pmc_client.transport import TransportError
-from pmc_core.plan import initial_fixture_plan
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import AndClause
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import Factor
+from pmc_core.plan import NamedSelection
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
@@ -74,6 +81,32 @@ class RecordingCmd:
         self.callback = callback
 
 
+def fixture_plan() -> ActionPlan:
+    """Build the two-command plan these protocol fixtures carry.
+
+    pmc_core no longer ships a fixture plan of its own, and this module
+    must not reach into pmc_data or pmc_server for one, so it builds the
+    plan from the typed values directly.
+
+    Returns:
+        select copilot_selection, chain A followed by
+        color red, copilot_selection.
+    """
+    return ActionPlan(
+        operations=(
+            SelectOperation(
+                selection_name="copilot_selection",
+                expression=SelectionExpression(
+                    clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+                ),
+            ),
+            ColorOperation(
+                color="red", target=NamedSelection("copilot_selection")
+            ),
+        )
+    )
+
+
 def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
     """Build a successful response correlated to a request.
 
@@ -88,7 +121,7 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
         session_id=request.session_id,
         received_at=CREATED_AT,
         validated_at=CREATED_AT,
-        action_plan=initial_fixture_plan(),
+        action_plan=fixture_plan(),
         validation=ValidationReportV1("passed", request.snapshot.digest, ()),
         plan_id="55555555-5555-4555-8555-555555555555",
         snapshot_digest=request.snapshot.digest,
