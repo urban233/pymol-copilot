@@ -380,7 +380,15 @@ continuation             unknown_verb             invalid_syntax
 unsupported_color        unsupported_representation
 invalid_selection_name   invalid_selection_expression
 expression_too_complex   undefined_selection
+duplicate_selection_name invalid_plan_shape
 ```
+
+The last two were added during implementation. A plan creating one selection
+name twice needs its own category rather than being folded into
+`invalid_selection_name`, because the name is well formed and it is the
+second *use* that is wrong; and `invalid_plan_shape` is the belt-and-braces
+category for an `ActionPlan` constructor error the per-command checks did not
+already catch. Seventeen categories ship, not fifteen.
 
 **Test that proves it:**
 
