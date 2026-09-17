@@ -201,9 +201,9 @@ otherwise `resi 5-40`, with `first <= last` enforced.
 Precedence is encoded **structurally** rather than re-derived at render time:
 
 ```python
-Factor(term, negated)                    # "not chain A" | "chain A"
-AndClause(factors)                       # joined with " and "
-SelectionExpression(clauses)             # joined with " or "
+Factor(term, negated)  # "not chain A" | "chain A"
+AndClause(factors)  # joined with " and "
+SelectionExpression(clauses)  # joined with " or "
 ```
 
 `not` > `and` > `or` falls out of the nesting, and `render()` is a two-level
@@ -214,7 +214,7 @@ to be tested into existence.
 Then the tables, as module constants:
 
 ```python
-COLOR_ALLOWLIST: tuple[str, ...]           # 177 names, sorted
+COLOR_ALLOWLIST: tuple[str, ...]  # 177 names, sorted
 REPRESENTATION_ALLOWLIST: tuple[str, ...]  # the 14 from REP_NAMES, in order
 SELECTION_NAME_PREFIX = "copilot_"
 MAX_COMMANDS = 128
@@ -267,15 +267,20 @@ starting with `_`; `REPRESENTATION_ALLOWLIST` equals the harness tuple.
 `tests/contract/test_plan.py` (continued).
 
 ```python
-SelectOperation(selection_name, expression)   # expression only, never a name
+SelectOperation(selection_name, expression)  # expression only, never a name
 ColorOperation(color, target)
 ShowOperation(representation, target)
 HideOperation(representation, target)
 OrientOperation(target)
 
 type TARGET = NamedSelection | SelectionExpression
-type OPERATION = (SelectOperation | ColorOperation | ShowOperation
-                  | HideOperation | OrientOperation)
+type OPERATION = (
+    SelectOperation
+    | ColorOperation
+    | ShowOperation
+    | HideOperation
+    | OrientOperation
+)
 ```
 
 Keep the house alias convention exactly as
@@ -292,10 +297,11 @@ The explicit allowlist table the master plan asks for, keyed by verb:
 @dataclass(frozen=True)
 class VerbRule:
     verb: str
-    argument_forms: tuple[str, ...]   # e.g. ("representation", "target")
+    argument_forms: tuple[str, ...]  # e.g. ("representation", "target")
     operation_type: type
 
-COMMAND_ALLOWLIST: Mapping[str, VerbRule]   # MappingProxyType, 5 entries
+
+COMMAND_ALLOWLIST: Mapping[str, VerbRule]  # MappingProxyType, 5 entries
 ```
 
 `argument_forms` is the declarative part: `select` is
@@ -386,8 +392,8 @@ bazel test //tests/contract:parser --lockfile_mode=error
 both directions:
 
 ```python
-assert parse_pml(text).render_pml() == text          # text -> plan -> text
-assert parse_pml(plan.render_pml()) == plan          # plan -> text -> plan
+assert parse_pml(text).render_pml() == text  # text -> plan -> text
+assert parse_pml(plan.render_pml()) == plan  # plan -> text -> plan
 ```
 
 Cover: each verb; a name target and an expression target for each of
@@ -569,9 +575,7 @@ CHAIN_A_RED_PLAN: ActionPlan = ActionPlan(
                 clauses=(AndClause(factors=(Factor(ChainTerm("A"), False),)),)
             ),
         ),
-        ColorOperation(
-            color="red", target=NamedSelection("copilot_selection")
-        ),
+        ColorOperation(color="red", target=NamedSelection("copilot_selection")),
     )
 )
 ```
