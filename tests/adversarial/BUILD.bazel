@@ -10,7 +10,33 @@ py_test(
     ],
 )
 
+py_test(
+    name = "denied_forms",
+    size = "small",
+    srcs = ["test_denied_forms.py"],
+    main = "test_denied_forms.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "parser_totality",
+    size = "small",
+    srcs = ["test_parser_totality.py"],
+    main = "test_parser_totality.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
 test_suite(
     name = "all",
-    tests = [":parser_rejections"],
+    tests = [
+        ":denied_forms",
+        ":parser_rejections",
+        ":parser_totality",
+    ],
 )
