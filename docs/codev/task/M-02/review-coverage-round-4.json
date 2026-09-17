@@ -1,6 +1,0 @@
-{
-  "correctness": {
-    "evidence": "Independent review confirmed the exact base/head and reran focused M-02, broader data/H-02/M-02, Ruff, Pyrefly, and diff checks. Bond endpoint semantics are incorrect after atom sorting.",
-    "passed": false
-  }
-}
