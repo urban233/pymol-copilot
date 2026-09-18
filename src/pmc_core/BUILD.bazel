@@ -8,6 +8,7 @@ py_library(
         "plan.py",
         "policy.py",
         "protocol.py",
+        "snapshot.py",
     ],
     imports = [".."],
     visibility = ["//src:subsystems", "//src:tests"],

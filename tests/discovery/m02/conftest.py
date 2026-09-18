@@ -3,5 +3,5 @@
 
 from __future__ import annotations
 
-from harness import loaded_fixture  # noqa: F401
-from harness import real_pymol  # noqa: F401
+from snapshot_support import loaded_fixture  # noqa: F401
+from snapshot_support import real_pymol  # noqa: F401

@@ -5,7 +5,7 @@ py_library(
     name = "card_candidate",
     srcs = ["card_candidate.py"],
     imports = ["."],
-    deps = ["//tests/discovery/h02:harness"],
+    deps = ["//src/pmc_core:pmc_core"],
 )
 
 py_test(
@@ -16,7 +16,8 @@ py_test(
     tags = ["exclusive"],
     deps = [
         ":card_candidate",
-        "//tests/discovery/h02:harness",
+        "//src/pmc_core:pmc_core",
+        "//tests/integration:snapshot_support",
         "@pypi//pytest",
     ],
 )

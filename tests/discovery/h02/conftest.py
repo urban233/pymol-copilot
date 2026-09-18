@@ -1,11 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Shared pytest fixtures for every H-02 slice-2 candidate test module.
+"""Shared pytest fixtures for this directory's execution-boundary probes.
 
-`real_pymol` and `loaded_fixture` are defined once in harness.py (slice 2's
-shared, candidate-agnostic differential harness) and re-exported here so
-pytest's own directory-scoped conftest.py discovery makes them available
-to every candidate test module in this directory, without any of those
-modules importing the fixture names into their own namespace.
+`real_pymol` and `loaded_fixture` are defined once in
+tests/integration/snapshot_support.py -- the promoted home of what was
+this directory's own harness.py before H-02's snapshot format shipped as
+`pmc_core.snapshot` -- and re-exported here so pytest's own
+directory-scoped conftest.py discovery makes them available to every test
+module in this directory, without any of those modules importing the
+fixture names into their own namespace.
 
 That per-module import was tried first and rejected: every test function
 in this directory takes a same-named parameter (`loaded_fixture`) by
@@ -21,8 +23,8 @@ from __future__ import annotations
 
 import winstage
 
-from harness import loaded_fixture  # noqa: F401
-from harness import real_pymol  # noqa: F401
+from snapshot_support import loaded_fixture  # noqa: F401
+from snapshot_support import real_pymol  # noqa: F401
 
 # Stage `pymol` to a short path before any test module in this directory
 # gets a chance to import it -- a no-op everywhere but Windows, and inert
