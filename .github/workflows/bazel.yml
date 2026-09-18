@@ -27,7 +27,16 @@ jobs:
       - run: bazel version
       - run: bazel mod graph --lockfile_mode=error
       - run: bazel build //... --lockfile_mode=error
-      - run: bazel test //... --lockfile_mode=error
+      # Windows Bazel has no real sandbox, so concurrent local test actions
+      # share one execroot and can race on Bazel's own per-action
+      # local-spawn-runner temp markers there (observed CI flake hitting an
+      # unrelated small test, not just the subprocess-spawning ones already
+      # tagged "exclusive"). Serializing test execution on Windows only
+      # avoids the race; ubuntu/macos keep their sandboxed concurrency.
+      - if: matrix.os == 'windows-2025'
+        run: bazel test //... --lockfile_mode=error --local_test_jobs=1
+      - if: matrix.os != 'windows-2025'
+        run: bazel test //... --lockfile_mode=error
       - run: bazel run //tools/bazel:check_dependency_boundaries --lockfile_mode=error
       - run: bazel run //tools/quality:ruff --lockfile_mode=error -- check .
       - run: bazel run //tools/quality:ruff --lockfile_mode=error -- format --check .
