@@ -11,6 +11,17 @@ py_test(
 )
 
 py_test(
+    name = "parser",
+    size = "small",
+    srcs = ["test_parser.py"],
+    main = "test_parser.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "policy",
     srcs = ["test_policy.py"],
     main = "test_policy.py",
@@ -59,5 +70,12 @@ py_test(
 
 test_suite(
     name = "all",
-    tests = [":plan", ":policy", ":policy_sabotage", ":protocol", ":snapshot"],
+    tests = [
+        ":parser",
+        ":plan",
+        ":policy",
+        ":policy_sabotage",
+        ":protocol",
+        ":snapshot",
+    ],
 )

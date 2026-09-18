@@ -2,7 +2,7 @@
 """Bounded, no-teacher program-first generation of new gold cases.
 
 This module reapplies the one accepted, unchanged canonical plan (chain A
-selected and colored red -- see pmc_core.plan.initial_fixture_plan) to
+selected and colored red -- see pmc_data.gold_case.CHAIN_A_RED_PLAN) to
 additional controlled structures, and verifies each candidate through the
 same real-PyMOL, independent-oracle path that grades the hand-authored gold
 case in pmc_data.verifier. A candidate is never written as a gold record
@@ -21,10 +21,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from pmc_core.plan import initial_fixture_plan
 from pmc_data.gold_case import ASSERTION_KIND_CHAIN_MEMBERSHIP
 from pmc_data.gold_case import ASSERTION_KIND_COLOR_STATE
 from pmc_data.gold_case import ASSERTION_KIND_NO_UNINTENDED_CHANGE
+from pmc_data.gold_case import CHAIN_A_RED_PLAN
 from pmc_data.gold_case import Assertion
 from pmc_data.gold_case import ContractVersions
 from pmc_data.gold_case import GoldCase
@@ -195,7 +195,7 @@ def build_candidate_gold_case(request: GenerationRequest) -> GoldCase:
         difficulty=request.difficulty,
         provenance=provenance,
         contract_versions=request.contract_versions,
-        canonical_plan_pml=initial_fixture_plan().render_pml(),
+        canonical_plan_pml=CHAIN_A_RED_PLAN.render_pml(),
         target_chain=_TARGET_CHAIN,
         non_target_chains=request.non_target_chains,
         assertions=assertions,

@@ -20,11 +20,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from pmc_core.plan import initial_fixture_plan
 from pmc_core.policy import evaluate_plan
 from pmc_data.gold_case import ASSERTION_KIND_CHAIN_MEMBERSHIP
 from pmc_data.gold_case import ASSERTION_KIND_COLOR_STATE
 from pmc_data.gold_case import ASSERTION_KIND_NO_UNINTENDED_CHANGE
+from pmc_data.gold_case import CHAIN_A_RED_PLAN
 from pmc_data.gold_case import Assertion
 from pmc_data.gold_case import GoldCase
 from pmc_data.oracle import expected_chain_atom_ids
@@ -337,7 +337,7 @@ def verify_gold_case(
         The complete VerifierResult for case.
     """
     try:
-        plan = initial_fixture_plan()
+        plan = CHAIN_A_RED_PLAN
         if plan.render_pml() != case.canonical_plan_pml:
             raise VerifierError(
                 "canonical plan drifted from pmc_core's own rendering"

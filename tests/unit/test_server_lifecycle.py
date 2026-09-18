@@ -5,13 +5,13 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import pytest
 
-from pmc_core.plan import initial_fixture_plan
 from pmc_core.policy import PlanDecision
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_server.lifecycle import FIXTURE_PLAN
 from pmc_server.lifecycle import PlanRequestLifecycle
 
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
@@ -54,7 +54,7 @@ def test_exact_fixture_returns_correlated_validated_plan() -> None:
     assert response.validated_at == "2026-08-26T14:22:03.220Z"
     assert response.plan_id == "33333333-3333-4333-8333-333333333333"
     assert response.snapshot_digest == "sha256:example-chain-a-digest"
-    assert response.action_plan == initial_fixture_plan()
+    assert response.action_plan == FIXTURE_PLAN
     assert response.validation.status == "passed"
     assert (
         response.validation.snapshot_digest == "sha256:example-chain-a-digest"

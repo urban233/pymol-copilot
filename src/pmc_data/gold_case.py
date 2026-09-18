@@ -19,7 +19,33 @@ from dataclasses import field
 from pathlib import Path
 from typing import Any
 
-from pmc_core.plan import initial_fixture_plan
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import AndClause
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import Factor
+from pmc_core.plan import NamedSelection
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import SelectionExpression
+
+#: The one canonical plan every gold case in this package is built
+#: around: select chain A, then color it red. It lives here, in the package
+#: that owns fixtures, rather than in pmc_core, which owns the language and
+#: no longer ships a fixture of its own. It is assembled from pmc_core's
+#: typed values so that GoldCase.__post_init__ below still compares checked-in
+#: records against pmc_core's own rendering -- that drift guard is the reason
+#: this is built rather than written out as a string.
+CHAIN_A_RED_PLAN: ActionPlan = ActionPlan(
+    operations=(
+        SelectOperation(
+            selection_name="copilot_selection",
+            expression=SelectionExpression(
+                clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+            ),
+        ),
+        ColorOperation(color="red", target=NamedSelection("copilot_selection")),
+    )
+)
 
 #: Assertion kinds this schema and the verifier both understand.
 ASSERTION_KIND_CHAIN_MEMBERSHIP = "chain_membership"
@@ -248,10 +274,10 @@ class GoldCase:
 
         Raises:
             InvalidGoldCaseError: If canonical_plan_pml no longer matches
-                pmc_core.plan.initial_fixture_plan().render_pml(), or if
+                CHAIN_A_RED_PLAN.render_pml(), or if
                 assertions is empty.
         """
-        expected_plan_pml = initial_fixture_plan().render_pml()
+        expected_plan_pml = CHAIN_A_RED_PLAN.render_pml()
         if self.canonical_plan_pml != expected_plan_pml:
             raise InvalidGoldCaseError(
                 "canonical_plan_pml does not match pmc_core's canonical "

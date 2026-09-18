@@ -15,12 +15,12 @@ from pmc_client.transport import MAX_MESSAGE_BYTES
 from pmc_client.transport import PLAN_PATH
 from pmc_client.transport import LoopbackPlanClient
 from pmc_client.transport import TransportError
-from pmc_core.plan import initial_fixture_plan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_server.lifecycle import FIXTURE_PLAN
 from pmc_server.transport import LoopbackPlanServer
 
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
@@ -59,7 +59,7 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
         session_id=request.session_id,
         received_at="2026-08-26T14:22:03.124Z",
         validated_at="2026-08-26T14:22:03.220Z",
-        action_plan=initial_fixture_plan(),
+        action_plan=FIXTURE_PLAN,
         validation=ValidationReportV1(
             "passed", "sha256:example-chain-a-digest", ()
         ),

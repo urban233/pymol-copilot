@@ -9,7 +9,13 @@ from datetime import UTC
 from datetime import datetime
 
 from pmc_core.plan import ActionPlan
-from pmc_core.plan import initial_fixture_plan
+from pmc_core.plan import AndClause
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import Factor
+from pmc_core.plan import NamedSelection
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import SelectionExpression
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import PROTOCOL_VERSION
@@ -22,6 +28,23 @@ from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 
 FIXTURE_INTENT = "Select chain A and color it red."
+
+#: The plan this fixture lifecycle answers with, built from pmc_core's typed
+#: values. It is local to this module on purpose: master_plan.md item 8
+#: replaces this whole lifecycle with the LangGraph request graph, which will
+#: generate a plan rather than return a constant, so there is nothing here
+#: worth sharing with another package first.
+FIXTURE_PLAN = ActionPlan(
+    operations=(
+        SelectOperation(
+            selection_name="copilot_selection",
+            expression=SelectionExpression(
+                clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+            ),
+        ),
+        ColorOperation(color="red", target=NamedSelection("copilot_selection")),
+    )
+)
 FIXTURE_SNAPSHOT = StructureSnapshotV1(
     "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
 )
@@ -99,7 +122,7 @@ class PlanRequestLifecycle:
                 message="request does not match the accepted V1 fixture",
             )
 
-        plan = initial_fixture_plan()
+        plan = FIXTURE_PLAN
         decision = self._policy_validator(plan)
         if not decision.allowed:
             return self._failure(
