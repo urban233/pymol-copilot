@@ -16,6 +16,7 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
+from pmc_core.snapshot import ATOM_REP_NAMES
 from pmc_core.snapshot import AtomRecord
 from pmc_core.snapshot import BondRecord
 from pmc_core.snapshot import ObjectSnapshot
@@ -311,6 +312,13 @@ def test_declared_unsupported_matches_the_structure_card_markers() -> None:
         "unsupported state=explicit-polymer-classification "
         "route=contract-freeze",
     )
+
+
+def test_atom_rep_names_exclude_object_only_display_modes() -> None:
+    """Per-atom snapshots never query PyMOL's object-only display modes."""
+    assert "slice" not in ATOM_REP_NAMES
+    assert "volume" not in ATOM_REP_NAMES
+    assert "ellipsoids" in ATOM_REP_NAMES
 
 
 def test_structure_digest_is_stable_across_display_state_changes() -> None:

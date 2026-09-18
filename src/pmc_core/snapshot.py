@@ -31,10 +31,14 @@ from typing import Any
 #: from_json rather than partially decoded.
 SNAPSHOT_VERSION = 1
 
-#: PyMOL's named representations, in the order membership is queried --
-#: there is no documented Python-level bit layout for the raw per-atom
-#: `reps` integer, so extraction records membership by name instead.
-REP_NAMES = (
+#: PyMOL's atom-backed named representations, in the order membership is
+#: queried. PyMOL also accepts object-only display modes such as `slice` and
+#: `volume` as representation names, but those cannot be expressed as
+#: per-atom membership and therefore do not belong in an `AtomRecord`.
+#: `ellipsoids` is atom-backed (`cRepEllipsoid` in PyMOL's `cRepsAtomMask`).
+#: There is no documented Python-level bit layout for the raw per-atom `reps`
+#: integer, so extraction records membership by name instead.
+ATOM_REP_NAMES = (
     "lines",
     "sticks",
     "spheres",
@@ -46,9 +50,7 @@ REP_NAMES = (
     "cartoon",
     "ribbon",
     "labels",
-    "slice",
     "ellipsoids",
-    "volume",
 )
 
 #: The bounded set of "safe" display settings this module tracks at object
@@ -205,7 +207,7 @@ def extract(cmd: Any, object_name: str) -> ObjectSnapshot:
         # Per-atom membership in each named representation, keyed by ID
         # (stable regardless of atom-array order) rather than position.
         reps_by_id: dict[int, list[str]] = {}
-        for rep_name in REP_NAMES:
+        for rep_name in ATOM_REP_NAMES:
             ids: list[int] = []
             cmd.iterate(
                 f"{object_name} and rep {rep_name}",
@@ -307,7 +309,7 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
       internal reordering.
     - The per-atom `reps` integer has no documented Python-level bit
       layout. Querying membership by name through the `rep <name>`
-      selection keyword (REP_NAMES) is the robust, stable alternative.
+      selection keyword (ATOM_REP_NAMES) is the robust, stable alternative.
 
     Args:
         cmd: The real PyMOL cmd module, in a fresh process with no
