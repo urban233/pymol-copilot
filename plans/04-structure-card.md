@@ -269,7 +269,7 @@ The Bazel target follows `:snapshot` exactly — `size = "small"`, **no `tags`**
 PyMOL, and nothing here spawns anything), and this file's local `deps` order of
 pytest first:
 
-```python
+```text
 py_test(
     name = "card",
     size = "small",
@@ -336,7 +336,10 @@ with a new case:
 ```python
 def test_undeclared_unsupported_set_returns_stable_malformed_card() -> None:
     """A snapshot may not author its own unsupported markers."""
-    malformed = replace(_snapshot(), unsupported=("unsupported state=invented route=nowhere",))
+    malformed = replace(
+        _snapshot(),
+        unsupported=("unsupported state=invented route=nowhere",),
+    )
 
     assert render(malformed) == (
         "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
@@ -371,7 +374,7 @@ here would reintroduce it.
 
 The target mirrors `:snapshot_round_trip`:
 
-```python
+```text
 py_test(
     name = "card_real_pymol",
     size = "large",

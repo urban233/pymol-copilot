@@ -303,8 +303,7 @@ def test_invalid_bond_endpoint_returns_stable_malformed_card() -> None:
     malformed = replace(_snapshot(), bonds=(BondRecord(0, 2, 1),))
 
     assert render(malformed) == (
-        "card-version=1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
@@ -316,8 +315,7 @@ def test_undeclared_unsupported_set_returns_stable_malformed_card() -> None:
     )
 
     assert render(malformed) == (
-        "card-version=1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
@@ -326,8 +324,7 @@ def test_malformed_structural_value_returns_stable_malformed_card() -> None:
     malformed = replace(_snapshot(), view=cast(Any, ("not-a-number",)))
 
     assert render(malformed) == (
-        "card-version=1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
@@ -345,8 +342,7 @@ def test_invalid_view_length_returns_stable_malformed_card(
     malformed = replace(_snapshot(), view=view)
 
     assert render(malformed) == (
-        "card-version=1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
