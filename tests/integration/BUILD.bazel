@@ -9,9 +9,7 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # moved to src/pmc_core/snapshot.py. Visibility also reaches
 # tests/discovery/h02, whose surviving execution-boundary probes request
 # the same real_pymol fixture (re-exported by that package's own
-# conftest.py) to compute an independent expected value, and
-# tests/discovery/m02, whose card candidate test does the same to extract
-# a real fixture's snapshot.
+# conftest.py) to compute an independent expected value.
 py_library(
     name = "snapshot_support",
     srcs = ["snapshot_support.py"],
@@ -22,7 +20,6 @@ py_library(
     imports = ["."],
     visibility = [
         "//tests/discovery/h02:__pkg__",
-        "//tests/discovery/m02:__pkg__",
     ],
     deps = [
         "@pypi//pymol_open_source_whl",
