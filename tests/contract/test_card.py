@@ -308,6 +308,19 @@ def test_invalid_bond_endpoint_returns_stable_malformed_card() -> None:
     )
 
 
+def test_undeclared_unsupported_set_returns_stable_malformed_card() -> None:
+    """A snapshot may not author its own unsupported markers."""
+    malformed = replace(
+        _snapshot(),
+        unsupported=("unsupported state=invented route=nowhere",),
+    )
+
+    assert render(malformed) == (
+        "card-version=1\n"
+        "status=unsupported reason=malformed-snapshot\n"
+    )
+
+
 def test_malformed_structural_value_returns_stable_malformed_card() -> None:
     """A malformed view value fails closed without changing schema handling."""
     malformed = replace(_snapshot(), view=cast(Any, ("not-a-number",)))

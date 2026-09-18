@@ -13,6 +13,12 @@ that exist to be proved byte-identical, not because they differ -- the
 dataset writer (master plan item 14) and the runtime prompt builder
 (master plan item 13) each call one, and a parity test fails if they ever
 diverge.
+
+The card's `unsupported` lines are a pure pass-through of
+`pmc_core.snapshot.DECLARED_UNSUPPORTED`, never independently authored: a
+snapshot claiming a different unsupported set is rejected as malformed
+rather than rendered, so this module never becomes a second place that
+could drift from that declaration.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -20,6 +26,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 import json
 import math
 
+from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import AtomRecord
 from pmc_core.snapshot import BondRecord
@@ -162,6 +169,11 @@ def _valid_snapshot(snapshot: object) -> bool:
         card rather than raising or emitting partial output.
     """
     if not isinstance(snapshot, ObjectSnapshot):
+        return False
+    # A snapshot may not author its own unsupported markers -- the card's
+    # unsupported lines are a pass-through of pmc_core.snapshot's one
+    # declaration, never an independent claim rendered as-is.
+    if snapshot.unsupported != DECLARED_UNSUPPORTED:
         return False
     if not isinstance(snapshot.name, str) or not isinstance(
         snapshot.enabled, bool
