@@ -1,0 +1,21 @@
+# Route B fallback for the Lemonade capability spike
+# (plans/02-lemonade-capability-spike.md), used only if the official
+# linux/amd64 image (route A, compose.yaml) fails under emulation on this
+# arm64 host. Builds a native linux/arm64 image from Lemonade's own Debian 13
+# arm64 package. Not a production deployment artifact -- see README.md.
+FROM debian:13
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ADD https://github.com/lemonade-sdk/lemonade/releases/download/v11.9.0/lemonade-server_11.9.0-debian13_arm64.deb /tmp/lemonade-server.deb
+
+RUN apt-get update \
+    && apt-get install -y /tmp/lemonade-server.deb \
+    && rm -f /tmp/lemonade-server.deb \
+    && rm -rf /var/lib/apt/lists/*
+
+EXPOSE 13305
+
+CMD ["lemonade-server", "serve", "--host", "0.0.0.0", "--port", "13305"]

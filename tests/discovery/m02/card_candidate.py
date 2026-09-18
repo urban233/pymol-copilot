@@ -1,8 +1,11 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Candidate-private deterministic card renderer for H-02 ObjectSnapshot.
+"""Candidate-private deterministic card renderer for pmc_core.snapshot.
 
-This is discovery evidence only. It does not select H-02's serialization or
-define a production structure-card contract.
+This is discovery evidence only. It does not define a production
+structure-card contract -- that ships as `pmc_core.card` (master plan item
+5), which this candidate's golden-byte, permutation-invariance,
+signed-zero, truncation, and per-field-mutation tests are meant to carry
+forward into tests/contract/ at that point.
 """
 
 from __future__ import annotations
@@ -10,10 +13,11 @@ from __future__ import annotations
 import json
 import math
 
-from harness import AtomRecord
-from harness import BondRecord
-from harness import ObjectSnapshot
-from harness import StateSnapshot
+from pmc_core.snapshot import AtomRecord
+from pmc_core.snapshot import BondRecord
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import SNAPSHOT_VERSION
+from pmc_core.snapshot import StateSnapshot
 
 CARD_VERSION = "candidate-1"
 
@@ -167,7 +171,7 @@ def _malformed_card() -> str:
 
 def render(snapshot: ObjectSnapshot, *, max_atoms_per_state: int = 256) -> str:
     """Render a deterministic, bounded card for one H-02 candidate snapshot."""
-    if getattr(snapshot, "schema_version", None) != 1:
+    if getattr(snapshot, "schema_version", None) != SNAPSHOT_VERSION:
         return (
             f"card-version={CARD_VERSION}\n"
             "status=unsupported reason=snapshot-schema-version\n"
@@ -180,8 +184,7 @@ def render(snapshot: ObjectSnapshot, *, max_atoms_per_state: int = 256) -> str:
     lines = [
         f"card-version={CARD_VERSION}",
         "status=complete",
-        "unsupported state=measurement-objects route=plan-report",
-        "unsupported state=explicit-polymer-classification route=contract-freeze",
+        *snapshot.unsupported,
         "object "
         f"name={_text(snapshot.name)} enabled={str(snapshot.enabled).lower()} "
         f"states={_number(len(snapshot.states))}",

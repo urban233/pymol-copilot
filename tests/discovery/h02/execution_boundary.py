@@ -13,12 +13,13 @@ prototype shapes for this discovery task only, not the contract-freeze
 checkpoint's accepted contract.
 
 This is deliberately its own process primitive, not an extension of
-`harness.run_nested_snapshot_process`: that helper is a nested-pytest runner
-with no deadline and no kill path, built for the fresh-process *round-trip*
-tests in candidates A/B/C. Slice 2's outer-loop review called out explicitly
-that growing it with timeout/kill flags would overload one function and put
-this slice's failure modes inside the harness every candidate test depends
-on. `execute()` below spawns its own child via a small inline runner script
+`snapshot_support.run_nested_snapshot_process`: that helper is a
+nested-pytest runner with no deadline and no kill path, built for the
+fresh-process *round-trip* tests candidates A/B/C originally used it for.
+Slice 2's outer-loop review called out explicitly that growing it with
+timeout/kill flags would overload one function and put this slice's
+failure modes inside test support every round-trip test depends on.
+`execute()` below spawns its own child via a small inline runner script
 (`_CHILD_RUNNER_SOURCE`), not pytest, and owns its own deadline enforcement,
 hard kill, reap, and scratch-directory cleanup.
 
@@ -36,10 +37,10 @@ timeout and crash.
 The child runner reuses this module's own `reconstruct()` (a minimal,
 candidate-agnostic builder good enough for this slice's own small synthetic
 snapshots -- not a full-fidelity contender for slice 4's candidate
-selection) and `harness.py`'s existing `from_json`/`to_json`/`extract()`, so
-the exact same reconstruction code also runs directly, in-process, wherever
-a test wants an independently computed expected value without going through
-the boundary at all.
+selection) and `pmc_core.snapshot`'s existing `from_json`/`to_json`/
+`extract()`, so the exact same reconstruction code also runs directly,
+in-process, wherever a test wants an independently computed expected value
+without going through the boundary at all.
 """
 
 from __future__ import annotations
@@ -60,15 +61,14 @@ from pathlib import Path
 from typing import Any
 from typing import IO
 
-from harness import ObjectSnapshot
-from harness import from_json
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import from_json
 
 import winstage
 
 #: This module's own schema versions for the request/report shapes below --
 #: candidate-private prototype versions, not a production contract, exactly
-#: like harness.SNAPSHOT_SCHEMA_VERSION and candidate B's own manifest
-#: schema version.
+#: like pmc_core.snapshot.SNAPSHOT_VERSION.
 EXECUTION_REQUEST_SCHEMA_VERSION = 1
 #: Bumped from 1 to 2 when `ExecutionReport` gained `child_pid` and
 #: `child_terminated` (H02-S3-F10): the report shape itself changed, so its
@@ -150,8 +150,8 @@ class ExecutionRequest:
     Attributes:
         schema_version: This request shape's own schema version.
         snapshot_json: The candidate snapshot to reconstruct from, as
-            `harness.to_json` serialized it -- validated and parsed inside
-            `execute()`, never trusted as already-well-formed.
+            `pmc_core.snapshot.to_json` serialized it -- validated and
+            parsed inside `execute()`, never trusted as already-well-formed.
         commands: The ordered commands to execute against the reconstructed
             object.
         max_input_bytes: The maximum allowed size, in bytes, of
@@ -234,7 +234,7 @@ def fingerprint(text: str) -> str:
 
     Args:
         text: The text to fingerprint (a snapshot's or an extraction's
-            JSON, as produced by `harness.to_json`).
+            JSON, as produced by `pmc_core.snapshot.to_json`).
 
     Returns:
         A stable, deterministic hex digest.
@@ -314,29 +314,31 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
 
 #: The child's entire program, passed via `python -c`, followed by
 #: `snapshot_path`, `commands_path`, and `output_path` in argv. Reuses this
-#: module's own `reconstruct()` and harness.py's `from_json`/`extract` --
-#: both importable in the child because `execute()` puts this directory on
-#: `PYTHONPATH` before spawning. Unlike harness.py's
-#: `run_nested_snapshot_process` (which reuses pytest's own automatic
-#: sys.path insertion for a real test-file argv path), this child is a bare
-#: script with no test-file argument at all, so that automatic insertion
-#: does not apply here and PYTHONPATH must be set explicitly -- including
-#: for winstage.py's own directory, needed for this source's `import
-#: winstage` immediately before its `import pymol`, staging pymol to a
-#: short path first on Windows (a no-op everywhere else).
+#: module's own `reconstruct()` and pmc_core.snapshot's `from_json`/
+#: `extract` -- both importable in the child because `execute()` puts this
+#: directory, and pmc_core's own parent directory, on `PYTHONPATH` before
+#: spawning. Unlike snapshot_support.py's `run_nested_snapshot_process`
+#: (which reuses pytest's own automatic sys.path insertion for a real
+#: test-file argv path), this child is a bare script with no test-file
+#: argument at all, so that automatic insertion does not apply here and
+#: PYTHONPATH must be set explicitly -- including for winstage.py's own
+#: directory, needed for this source's `import winstage` immediately
+#: before its `import pymol`, staging pymol to a short path first on
+#: Windows (a no-op everywhere else).
 #:
 #: The child always exits through `os._exit` after flushing stdout/stderr,
-#: for the same reason every candidate module's own `__main__` block and
-#: harness.py's nested pytest runner do: real PyMOL's headless shutdown can
-#: otherwise run long enough to interfere with a trustworthy exit code. This
-#: child does not rely on its own exit code for pass/fail signaling at all
+#: for the same reason every real-PyMOL test module's own `__main__` block
+#: and snapshot_support.py's nested pytest runner do: real PyMOL's headless
+#: shutdown can otherwise run long enough to interfere with a trustworthy
+#: exit code. This child does not rely on its own exit code for pass/fail
+#: signaling at all
 #: (the parent reads the JSON `output_path` file instead, or treats a
 #: missing file as a crash) -- but `os._exit` still matters here, because
 #: without it the child could hang past the parent's deadline inside
 #: PyMOL's own shutdown sequence instead of actually terminating.
 _CHILD_RUNNER_SOURCE = (
     "import hashlib, json, os, sys, time\n"
-    "import harness\n"
+    "import pmc_core.snapshot as snapshot_module\n"
     "import execution_boundary as eb\n"
     "\n"
     "snapshot_path, commands_path, output_path = sys.argv[1:4]\n"
@@ -357,7 +359,7 @@ _CHILD_RUNNER_SOURCE = (
     "pymol.finish_launching(['pymol', '-qc'])\n"
     "\n"
     "try:\n"
-    "    snapshot = harness.from_json(snapshot_text)\n"
+    "    snapshot = snapshot_module.from_json(snapshot_text)\n"
     "    eb.reconstruct(cmd, snapshot)\n"
     "except Exception as exc:\n"
     "    _write({\n"
@@ -418,8 +420,8 @@ _CHILD_RUNNER_SOURCE = (
     "resulting_fingerprint = None\n"
     "if overall_status == 'ok':\n"
     "    try:\n"
-    "        extracted = harness.extract(cmd, snapshot.name)\n"
-    "        resulting_fingerprint = eb.fingerprint(harness.to_json(extracted))\n"
+    "        extracted = snapshot_module.extract(cmd, snapshot.name)\n"
+    "        resulting_fingerprint = eb.fingerprint(snapshot_module.to_json(extracted))\n"
     "    except Exception as exc:\n"
     "        overall_status = 'failed'\n"
     "        overall_reason = eb.REASON_COMMAND_FAILURE\n"

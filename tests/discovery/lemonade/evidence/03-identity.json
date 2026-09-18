@@ -1,0 +1,81 @@
+{
+  "catalog_entry": {
+    "checkpoint": "unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf",
+    "checkpoints": {
+      "main": "unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf"
+    },
+    "components": [],
+    "context_length": 4096,
+    "created": 1234567890,
+    "downloaded": true,
+    "id": "Llama-3.2-1B-Instruct-GGUF",
+    "labels": [
+      "chat",
+      "tool-calling"
+    ],
+    "max_context_window": 131072,
+    "object": "model",
+    "owned_by": "lemonade",
+    "recipe": "llamacpp",
+    "recipe_options": {},
+    "registry_source": "huggingface",
+    "size": 0.777,
+    "source": "huggingface",
+    "suggested": true,
+    "update_available": false
+  },
+  "health_model_block": {
+    "backend_alive": true,
+    "backend_health": "ready",
+    "backend_url": "http://127.0.0.1:8001/v1",
+    "checkpoint": "unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf",
+    "device": "cpu",
+    "is_busy": false,
+    "is_streaming": false,
+    "last_use": 1695039,
+    "launch_command": [
+      "/opt/lemonade/.cache/lemonade/bin/llamacpp/cpu/llama-server",
+      "-m",
+      "/opt/lemonade/.cache/huggingface/hub/models--unsloth--Llama-3.2-1B-Instruct-GGUF/snapshots/b69aef112e9f895e6f98d7ae0949f72ff09aa401/Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf",
+      "--ctx-size",
+      "4096",
+      "--port",
+      "8001",
+      "--jinja",
+      "--metrics",
+      "--parallel",
+      "1"
+    ],
+    "loaded": true,
+    "max_context_window": 131072,
+    "model_name": "Llama-3.2-1B-Instruct-GGUF",
+    "pid": 127,
+    "pinned": false,
+    "recipe": "llamacpp",
+    "recipe_options": {
+      "ctx_size": 4096,
+      "llamacpp_args": "--parallel 1",
+      "llamacpp_backend": "cpu"
+    },
+    "residency_class": "standard",
+    "slot_pool": "standard/llm",
+    "status": "ready",
+    "type": "llm",
+    "watchdog_reset": false
+  },
+  "chat_response_model_field": "Llama-3.2-1B-Instruct-GGUF",
+  "echo_test": {
+    "requested_model": "llama-3.2-1b-instruct-gguf",
+    "status": 404,
+    "body": {
+      "error": {
+        "code": "model_not_found",
+        "message": "Model 'llama-3.2-1b-instruct-gguf' was not found. Available models include: 'Bert-Phishing-ONNX', 'Bonsai-1.7B-gguf', 'Bonsai-4B-gguf', and 69 more. Use 'lemonade list' or GET /api/v1/models?show_all=true to see all available models.",
+        "param": "model",
+        "requested_model": "llama-3.2-1b-instruct-gguf",
+        "type": "model_not_found"
+      }
+    },
+    "rejected": true
+  }
+}

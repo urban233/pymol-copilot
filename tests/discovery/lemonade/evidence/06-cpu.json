@@ -1,0 +1,78 @@
+{
+  "all_models_loaded": [
+    {
+      "backend_alive": true,
+      "backend_health": "ready",
+      "backend_url": "http://127.0.0.1:8001/v1",
+      "checkpoint": "unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf",
+      "device": "cpu",
+      "is_busy": false,
+      "is_streaming": false,
+      "last_use": 1713024,
+      "launch_command": [
+        "/opt/lemonade/.cache/lemonade/bin/llamacpp/cpu/llama-server",
+        "-m",
+        "/opt/lemonade/.cache/huggingface/hub/models--unsloth--Llama-3.2-1B-Instruct-GGUF/snapshots/b69aef112e9f895e6f98d7ae0949f72ff09aa401/Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf",
+        "--ctx-size",
+        "4096",
+        "--port",
+        "8001",
+        "--jinja",
+        "--metrics",
+        "--parallel",
+        "1"
+      ],
+      "loaded": true,
+      "max_context_window": 131072,
+      "model_name": "Llama-3.2-1B-Instruct-GGUF",
+      "pid": 205,
+      "pinned": false,
+      "recipe": "llamacpp",
+      "recipe_options": {
+        "ctx_size": 4096,
+        "llamacpp_args": "--parallel 1",
+        "llamacpp_backend": "cpu"
+      },
+      "residency_class": "standard",
+      "slot_pool": "standard/llm",
+      "status": "ready",
+      "type": "llm",
+      "watchdog_reset": false
+    }
+  ],
+  "max_models": {
+    "classification": 1,
+    "embedding": 1,
+    "image": 1,
+    "llm": 1,
+    "reranking": 1,
+    "transcription": 1,
+    "tts": 1
+  },
+  "model_loaded": "Llama-3.2-1B-Instruct-GGUF",
+  "pinned_helper_models": {
+    "classification": 0,
+    "embedding": 0,
+    "image": 0,
+    "llm": 0,
+    "reranking": 0,
+    "transcription": 0,
+    "tts": 0
+  },
+  "pinned_models": {
+    "classification": 0,
+    "embedding": 0,
+    "image": 0,
+    "llm": 0,
+    "reranking": 0,
+    "transcription": 0,
+    "tts": 0
+  },
+  "status": "ok",
+  "telemetry": {
+    "enabled": false
+  },
+  "update_check_done": true,
+  "version": "11.9.0",
+  "websocket_port": 9000
+}

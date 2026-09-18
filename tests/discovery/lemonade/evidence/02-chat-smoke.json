@@ -1,0 +1,36 @@
+{
+    "choices": [
+        {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+                "content": "Hi",
+                "role": "assistant"
+            }
+        }
+    ],
+    "created": 1789665021,
+    "id": "chatcmpl-4nfheKHRT7pi8HVsP70h28Q3aGO9wxEm",
+    "model": "Llama-3.2-1B-Instruct-GGUF",
+    "object": "chat.completion",
+    "system_fingerprint": "b10723-010be9683",
+    "timings": {
+        "cache_n": 0,
+        "predicted_ms": 90.223,
+        "predicted_n": 2,
+        "predicted_per_second": 11.083648293672345,
+        "predicted_per_token_ms": 90.223,
+        "prompt_ms": 1071.55,
+        "prompt_n": 41,
+        "prompt_per_second": 38.26233026923616,
+        "prompt_per_token_ms": 26.135365853658534
+    },
+    "usage": {
+        "completion_tokens": 2,
+        "prompt_tokens": 41,
+        "prompt_tokens_details": {
+            "cached_tokens": 0
+        },
+        "total_tokens": 43
+    }
+}

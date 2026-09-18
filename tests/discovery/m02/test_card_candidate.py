@@ -12,11 +12,12 @@ import pytest
 from card_candidate import render
 from card_candidate import render_for_data
 from card_candidate import render_for_runtime
-from harness import AtomRecord
-from harness import BondRecord
-from harness import ObjectSnapshot
-from harness import StateSnapshot
-from harness import extract
+from pmc_core.snapshot import DECLARED_UNSUPPORTED
+from pmc_core.snapshot import AtomRecord
+from pmc_core.snapshot import BondRecord
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import StateSnapshot
+from pmc_core.snapshot import extract
 
 
 _IDENTITY_VIEW = (
@@ -84,6 +85,7 @@ def _snapshot() -> ObjectSnapshot:
         (BondRecord(1, 0, 1),),
         _IDENTITY_VIEW,
         (("sphere_scale", "0.35"), ("cartoon_transparency", "0.25")),
+        DECLARED_UNSUPPORTED,
     )
 
 

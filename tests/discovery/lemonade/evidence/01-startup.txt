@@ -1,0 +1,68 @@
+Route used: A (official upstream image, unmodified)
+Image: ghcr.io/lemonade-sdk/lemonade-server:v11.9.0
+Image platform (per `docker inspect`): linux/amd64 (confirmed: GHCR manifest lists
+  only one platform entry, linux/amd64; `docker exec lemonade-spike uname -m`
+  reports x86_64 while the Docker host is aarch64 -- this container runs
+  entirely under QEMU/Rosetta emulation, no native arm64 code path).
+Host: Apple M2 Pro (arm64), OrbStack Docker Desktop replacement, Linux
+  7.0.14-orbstack (Ubuntu 24.04 userspace inside the VM).
+
+Outcome: contrary to the plan's prior expectation of a likely SIGILL under
+emulation (Rosetta historically lacks AVX2), the emulated x86_64
+lemonade-server manager process AND the downloaded llama-server (llama.cpp,
+build b10723) binary both started and ran a real model load and chat
+completion without crashing. See evidence/02-load.json and
+evidence/02-chat-smoke.json (a 2-token sample from this first container boot,
+~11 tokens/sec) -- workable for a spike, not a throughput number to plan
+production capacity around, both because the sample is tiny and because it is
+CPU inference under full-system emulation. FINDINGS.md's Q4 section uses a
+better estimate from a later container boot's ~2000-token cancellation probe
+(~12-13 tokens/sec); the two are consistent.
+
+Because route A worked cleanly, route B (the local arm64 Dockerfile) was not
+needed and was not built. Dockerfile.arm64 is kept in this directory,
+unbuilt, as the documented fallback for a host where route A does not work.
+
+`docker exec lemonade-spike lemonade-server --version` failed initially:
+`lemonade-server` is not on PATH inside this image. The actual binaries are
+at /opt/lemonade/lemond (the server manager) and /opt/lemonade/lemonade (the
+CLI client). `lemond --version` -> "lemond version 11.9.0", matching
+/api/v1/health's "version": "11.9.0".
+
+Startup log warnings, both worth carrying into the real adapter design:
+  - "Serving on non-loopback host '0.0.0.0' without an API key. All
+    endpoints ... are reachable from other machines unauthenticated."
+  - llama-server itself: "CORS is set to allow all origins ('*') and no API
+    key is set."
+Neither blocks the spike (loopback-only in this rig via the compose port
+mapping), but a real deployment must not serve on 0.0.0.0 without
+LEMONADE_API_KEY.
+
+Download validation: pulling the model a second time (container recreated,
+named volumes -- and so the Hugging Face cache -- persisted) logged, for both
+downloaded files:
+  "(Download) File already exists and hash verified:
+  /opt/lemonade/.cache/huggingface/hub/models--unsloth--Llama-3.2-1B-Instruct-GGUF/
+  snapshots/b69aef112e9f895e6f98d7ae0949f72ff09aa401/Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf"
+followed by "(ModelManager) All files downloaded and validated from Hugging
+Face". The snapshot directory name, b69aef112e9f895e6f98d7ae0949f72ff09aa401,
+is that Hugging Face repo revision's commit hash -- so the chain from a
+human-readable model name down to a content-verified file is inspectable, not
+just a label.
+
+Full startup log: evidence/01-startup-full.txt (`docker logs lemonade-spike`,
+captured after this second pull so the hash-verification lines above are
+included; a first pull against a cold cache instead logs a normal streamed
+download with a "Hash verified for ..." line once the transfer completes).
+
+Model catalog / selection: `GET /api/v1/models` (no query params) only lists
+already-downloaded models, so evidence/02-models.json was initially captured
+empty (`{"data":[],"object":"list"}`) before anything was pulled. The catalog
+was actually asked for two ways: `docker exec lemonade-spike lemonade list`
+(the CLI, which lists the full built-in catalog including undownloaded
+models) to pick Llama-3.2-1B-Instruct-GGUF as a small non-reasoning instruct
+model, and `GET /api/v1/models?show_all=true`, which returns the same full
+72-model catalog over HTTP -- evidence/02-models.json now holds that
+`show_all=true` response, re-fetched after the model was already pulled (so
+its `"downloaded": true` and `"context_length"` fields are populated; the
+other 71 entries show `"downloaded": false`, as they were never pulled).
