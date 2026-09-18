@@ -31,26 +31,23 @@ from typing import Any
 #: from_json rather than partially decoded.
 SNAPSHOT_VERSION = 1
 
-#: PyMOL's atom-backed named representations, in the order membership is
-#: queried. PyMOL also accepts object-only display modes such as `slice` and
-#: `volume` as representation names, but those cannot be expressed as
-#: per-atom membership and therefore do not belong in an `AtomRecord`.
-#: `ellipsoids` is atom-backed (`cRepEllipsoid` in PyMOL's `cRepsAtomMask`).
+#: The product's supported atomic and molecular representations, in the order
+#: membership is queried. This is an intentional allowlist, not every display
+#: mode PyMOL happens to expose: object/camera-adjacent modes and specialized
+#: representations outside the product scope are not snapshot fields.
 #: There is no documented Python-level bit layout for the raw per-atom `reps`
-#: integer, so extraction records membership by name instead.
-ATOM_REP_NAMES = (
+#: integer, so extraction records supported membership by name instead.
+MOLECULE_REP_NAMES = (
     "lines",
     "sticks",
-    "spheres",
-    "dots",
-    "surface",
-    "mesh",
-    "nonbonded",
-    "nb_spheres",
     "cartoon",
     "ribbon",
+    "spheres",
+    "surface",
+    "mesh",
+    "dots",
+    "nb_spheres",
     "labels",
-    "ellipsoids",
 )
 
 #: The bounded set of "safe" display settings this module tracks at object
@@ -103,7 +100,8 @@ class AtomRecord:
         q: The occupancy.
         b: The temperature factor.
         color: The PyMOL color index.
-        reps: The names of every representation this atom is shown in.
+        reps: The supported atomic and molecular representations this atom is
+            shown in.
         label: The atom label text, or None when it is not labeled.
         coord: The (x, y, z) coordinate for this state.
     """
@@ -204,10 +202,11 @@ def extract(cmd: Any, object_name: str) -> ObjectSnapshot:
             "colors.append(color); labels.append(label)",
             space={"colors": colors, "labels": labels},
         )
-        # Per-atom membership in each named representation, keyed by ID
-        # (stable regardless of atom-array order) rather than position.
+        # Per-atom membership in each supported molecular representation,
+        # keyed by ID (stable regardless of atom-array order) rather than
+        # position.
         reps_by_id: dict[int, list[str]] = {}
-        for rep_name in ATOM_REP_NAMES:
+        for rep_name in MOLECULE_REP_NAMES:
             ids: list[int] = []
             cmd.iterate(
                 f"{object_name} and rep {rep_name}",
@@ -309,7 +308,7 @@ def reconstruct(cmd: Any, snapshot: ObjectSnapshot) -> None:
       internal reordering.
     - The per-atom `reps` integer has no documented Python-level bit
       layout. Querying membership by name through the `rep <name>`
-      selection keyword (ATOM_REP_NAMES) is the robust, stable alternative.
+      selection keyword (MOLECULE_REP_NAMES) is the robust, stable alternative.
 
     Args:
         cmd: The real PyMOL cmd module, in a fresh process with no
