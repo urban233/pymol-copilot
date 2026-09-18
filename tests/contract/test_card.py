@@ -256,7 +256,7 @@ def _with_atom(snapshot: ObjectSnapshot, **changes: object) -> ObjectSnapshot:
     [
         lambda value: replace(value, name="other"),
         lambda value: replace(value, enabled=True),
-        lambda value: replace(value, view=(2.0, 0.0, -20.0)),
+        lambda value: replace(value, view=(2.0, *value.view[1:])),
         lambda value: replace(value, settings=(("sphere_scale", "0.5"),)),
         lambda value: replace(value, bonds=(BondRecord(0, 1, 2),)),
         lambda value: _with_atom(value, serial=9),
