@@ -24,7 +24,6 @@ py_library(
         "//src/pmc_data:__pkg__",
         "//src/pmc_sidecar:__pkg__",
         "//tests/data:__pkg__",
-        "//tests/discovery/h02:__pkg__",
         "//tests/integration:__pkg__",
     ],
     deps = ["@pypi//pymol_open_source_whl"],
