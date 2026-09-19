@@ -286,6 +286,39 @@ def test_forced_child_crash_leaves_no_live_process_or_scratch_data() -> None:
     assert _scratch_dirs() == scratch_before
 
 
+def test_malformed_child_output_fails_closed_like_a_crash() -> None:
+    """A child that writes garbage instead of a report is a crash too.
+
+    Distinct from `test_forced_child_crash_leaves_no_live_process_or_
+    scratch_data` above: that child writes no output file at all, while
+    this one writes a syntactically valid JSON value that is not the
+    well-formed report `execute()` expects (simulating a crash mid-write,
+    or a corrupt write). Both must fail closed with a typed reason rather
+    than let a parse exception escape `execute()` itself.
+    """
+    scratch_before = _scratch_dirs()
+    spawned: list[subprocess.Popen[str]] = []
+    os.environ[SABOTAGE_MODE_ENV_VAR] = "malformed_output"
+    try:
+        report = execute(
+            _base_request(),
+            runner_module=_SABOTAGE_RUNNER,
+            on_process_spawned=spawned.append,
+        )
+    finally:
+        del os.environ[SABOTAGE_MODE_ENV_VAR]
+
+    assert report.status == STATUS_FAILED
+    assert report.reason == REASON_CHILD_CRASH
+    assert report.command_outcomes == ()
+    assert report.resulting_fingerprint is None
+    assert len(spawned) == 1
+    assert report.child_pid == spawned[0].pid
+    assert report.child_terminated is True
+    _assert_process_not_running(spawned[0])
+    assert _scratch_dirs() == scratch_before
+
+
 def test_child_that_escapes_before_communicate_is_terminated_and_reaped() -> (
     None
 ):

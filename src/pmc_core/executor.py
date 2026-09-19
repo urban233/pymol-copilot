@@ -386,6 +386,51 @@ def _terminate_and_reap(process: subprocess.Popen[str]) -> None:
     _close_pipe(process.stderr)
 
 
+def _crashed(
+    *,
+    input_digest: str | None,
+    child_pid: int,
+    child_terminated: bool,
+    elapsed_seconds: float,
+    warnings: tuple[str, ...] = (),
+) -> ExecutionReport:
+    """Build a report for a child that produced no trustworthy evidence.
+
+    Covers both a child that exited without ever writing an output file,
+    and one that wrote output this module cannot parse as a well-formed
+    report -- corrupt JSON, a non-object payload, or one missing a
+    required key. Both mean the same thing to a caller: this attempt
+    produced nothing safe to trust, and REASON_CHILD_CRASH covers both
+    rather than letting the parse failure escape as an unhandled
+    exception (execute() itself never raises for its own documented
+    failure modes).
+
+    Args:
+        input_digest: The request snapshot's structure digest.
+        child_pid: The spawned child's OS process ID.
+        child_terminated: Whether the child was confirmed no longer
+            running by the time this report is built.
+        elapsed_seconds: Wall-clock time this execute() call took.
+        warnings: Bounded diagnostic text, such as captured child stderr.
+
+    Returns:
+        A report with STATUS_FAILED and REASON_CHILD_CRASH.
+    """
+    return ExecutionReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_FAILED,
+        reason=REASON_CHILD_CRASH,
+        input_digest=input_digest,
+        resulting_fingerprint=None,
+        selection_counts=(),
+        command_outcomes=(),
+        child_pid=child_pid,
+        child_terminated=child_terminated,
+        elapsed_seconds=elapsed_seconds,
+        warnings=warnings,
+    )
+
+
 def execute(
     request: ExecutionRequest,
     *,
@@ -452,7 +497,15 @@ def execute(
         # unsupported-but-recognized schema version.
         return _rejected(REASON_MALFORMED_INPUT, time.monotonic() - start)
 
-    input_digest = structure_digest(snapshot)
+    try:
+        input_digest = structure_digest(snapshot)
+    except ValueError:
+        # structure_digest documents raising ValueError for a NaN or
+        # infinite float field -- from_json performs no numeric-range
+        # validation of its own, so a snapshot with such a value survives
+        # parsing and only fails here. Not a valid finite structure, so
+        # this is malformed input, not a process-worthy request.
+        return _rejected(REASON_MALFORMED_INPUT, time.monotonic() - start)
 
     if not evaluate_plan(request.plan).allowed:
         return _rejected(
@@ -554,37 +607,46 @@ def execute(
                 # The child never reached its own output write -- a crash
                 # rather than a reported failure. communicate() above
                 # already waited for it, so it is reaped either way.
-                return ExecutionReport(
-                    executor_version=EXECUTOR_VERSION,
-                    status=STATUS_FAILED,
-                    reason=REASON_CHILD_CRASH,
+                return _crashed(
                     input_digest=input_digest,
-                    resulting_fingerprint=None,
-                    selection_counts=(),
-                    command_outcomes=(),
                     child_pid=child_pid,
                     child_terminated=process.poll() is not None,
                     elapsed_seconds=time.monotonic() - start,
                     warnings=(f"child stderr: {stderr}",) if stderr else (),
                 )
 
-            payload = json.loads(output_path.read_text())
-            command_outcomes = tuple(
-                CommandOutcome(
-                    index=outcome["index"],
-                    verb=outcome["verb"],
-                    status=outcome["status"],
-                    error=outcome.get("error"),
+            try:
+                payload = json.loads(output_path.read_text())
+                command_outcomes = tuple(
+                    CommandOutcome(
+                        index=outcome["index"],
+                        verb=outcome["verb"],
+                        status=outcome["status"],
+                        error=outcome.get("error"),
+                    )
+                    for outcome in payload.get("command_outcomes", [])
                 )
-                for outcome in payload.get("command_outcomes", [])
-            )
-            selection_counts = tuple(
-                SelectionCount(name=item["name"], atom_count=item["atom_count"])
-                for item in payload.get("selection_counts", [])
-            )
-            resulting_fingerprint = payload.get("resulting_fingerprint")
-            status = payload["status"]
-            reason = payload["reason"]
+                selection_counts = tuple(
+                    SelectionCount(
+                        name=item["name"], atom_count=item["atom_count"]
+                    )
+                    for item in payload.get("selection_counts", [])
+                )
+                resulting_fingerprint = payload.get("resulting_fingerprint")
+                status = payload["status"]
+                reason = payload["reason"]
+            except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+                # The output file exists but is not the well-formed report
+                # this module's own child always writes -- truncated by a
+                # crash mid-write, or corrupt. Exactly as untrustworthy as
+                # no output file at all.
+                return _crashed(
+                    input_digest=input_digest,
+                    child_pid=child_pid,
+                    child_terminated=process.poll() is not None,
+                    elapsed_seconds=time.monotonic() - start,
+                    warnings=(f"child stderr: {stderr}",) if stderr else (),
+                )
 
             if (
                 status == STATUS_OK

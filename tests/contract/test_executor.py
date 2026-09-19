@@ -3,13 +3,13 @@
 
 Covers every failure mode `pmc_core.executor.execute()` rejects before any
 process is spawned: an unsupported executor version, an oversized or
-malformed snapshot, an incompatible snapshot schema version, and a plan the
-default-deny policy denies. Each case asserts a typed `reason` (never a raw
-exception string), that no child-process evidence is ever produced for a
-rejected request, and that no scratch directory this module's own executor
-would create ever appears -- trivially true today since no such code exists
-yet, and still asserted so the property is pinned before the spawn path
-(added in a later step of this promotion) can regress it.
+malformed snapshot (including one that parses but carries a non-finite
+float, which only fails later at digest time), an incompatible snapshot
+schema version, and a plan the default-deny policy denies. Each case
+asserts a typed `reason` (never a raw exception string), that no
+child-process evidence is ever produced for a rejected request, and that
+no scratch directory `execute()`'s own spawn path would create ever
+appears.
 
 The real-PyMOL spawn, deadline, kill, and reap evidence lives in
 tests/integration/test_executor_boundary.py, since it needs a real PyMOL
@@ -33,7 +33,9 @@ from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
+from pmc_core.snapshot import AtomRecord
 from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import StateSnapshot
 from pmc_core.snapshot import to_json
 
 
@@ -112,6 +114,43 @@ def _minimal_snapshot() -> ObjectSnapshot:
         name="fx",
         enabled=True,
         states=(),
+        bonds=(),
+        view=(),
+        settings=(),
+        unsupported=DECLARED_UNSUPPORTED,
+    )
+
+
+def _one_atom_snapshot() -> ObjectSnapshot:
+    """Build the smallest snapshot with at least one real atom.
+
+    Returns:
+        A one-atom, one-state snapshot -- needed for a test that corrupts
+        one field's numeric value, since a zero-atom snapshot has no such
+        field to corrupt.
+    """
+    atom = AtomRecord(
+        serial=1,
+        name="CA",
+        alt="",
+        resn="ALA",
+        chain="A",
+        resv=1,
+        ins_code="",
+        elem="C",
+        hetatm=False,
+        q=1.0,
+        b=0.0,
+        color=0,
+        reps=(),
+        label=None,
+        coord=(0.0, 0.0, 0.0),
+    )
+    return ObjectSnapshot(
+        schema_version=SNAPSHOT_VERSION,
+        name="fx",
+        enabled=True,
+        states=(StateSnapshot(atoms=(atom,)),),
         bonds=(),
         view=(),
         settings=(),
@@ -239,6 +278,31 @@ def test_incompatible_snapshot_schema_version_is_rejected() -> None:
     report = executor.execute(_base_request(snapshot_json=json.dumps(payload)))
 
     _assert_rejected(report, executor.REASON_UNSUPPORTED_SCHEMA_VERSION)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_a_snapshot_with_a_nan_coordinate_is_rejected() -> None:
+    """A snapshot that parses but carries a non-finite float fails closed.
+
+    `from_json` performs no numeric-range validation of its own, so a
+    snapshot with a NaN coordinate survives parsing and only fails at
+    `structure_digest`'s own `json.dumps(..., allow_nan=False)` call --
+    which documents raising `ValueError` for exactly this. execute() must
+    map that into a typed rejection rather than let it escape as an
+    unhandled exception.
+    """
+    payload = json.loads(to_json(_one_atom_snapshot()))
+    payload["states"][0]["atoms"][0]["coord"] = [float("nan"), 0.0, 0.0]
+    # json.dumps's default allow_nan=True is what lets this reach
+    # execute() as syntactically valid (if non-standard) JSON at all --
+    # to_json's own allow_nan=False could never produce this text.
+    snapshot_json = json.dumps(payload)
+    scratch_before = _scratch_dirs()
+
+    report = executor.execute(_base_request(snapshot_json=snapshot_json))
+
+    _assert_rejected(report, executor.REASON_MALFORMED_INPUT)
     assert report.input_digest is None
     assert _scratch_dirs() == scratch_before
 

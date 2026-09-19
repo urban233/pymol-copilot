@@ -29,6 +29,10 @@ Modes, a single string in `PMC_SABOTAGE_MODE`:
         write a single-command `REASON_COMMAND_FAILURE` report. The
         counter file, not the report, is what proves a caller invoked
         this exactly once rather than silently retrying it.
+    `"malformed_output"` -- write a syntactically valid JSON value that is
+        not a well-formed report at all (JSON `null`), simulating a crash
+        mid-write or a corrupt write, as distinct from writing no output
+        file at all.
 """
 
 from __future__ import annotations
@@ -83,6 +87,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         _write(
             {"status": STATUS_OK, "reason": REASON_OK, "command_outcomes": []}
         )
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+
+    if mode == "malformed_output":
+        with Path(output_path).open("w") as handle:
+            json.dump(None, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
         sys.stdout.flush()
         sys.stderr.flush()
         os._exit(0)
