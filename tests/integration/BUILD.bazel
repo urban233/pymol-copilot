@@ -128,6 +128,30 @@ py_test(
 )
 
 py_test(
+    name = "sidecar_child",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_sidecar_child.py"],
+    main = "test_sidecar_child.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Drives pmc_sidecar.child.run_plan() against the module-scoped
+    # real_pymol/loaded_fixture fixtures; excluded from concurrent
+    # scheduling for the same reason as :real_pymol_command and
+    # :real_pymol_allowlist.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+py_test(
     name = "snapshot_round_trip",
     size = "large",
     timeout = "moderate",

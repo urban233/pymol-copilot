@@ -343,8 +343,13 @@ def _encode_target(target: object) -> dict[str, str]:
             raise ProtocolDecodeError("unsupported action plan target")
 
 
-def _plan_commands(plan: ActionPlan) -> list[dict[str, object]]:
+def encode_plan(plan: ActionPlan) -> list[dict[str, object]]:
     """Convert a typed action plan to its wire command objects.
+
+    Promoted from the module-private `_plan_commands` (docs/master_plan.md
+    item 4, the sidecar executor) so `src/pmc_sidecar/child.py` can reuse
+    this exact encoding to cross its own parent-child process boundary,
+    rather than inventing a second plan wire format.
 
     Args:
         plan: Action plan to encode.
@@ -402,8 +407,13 @@ def _plan_commands(plan: ActionPlan) -> list[dict[str, object]]:
     return commands
 
 
-def _decode_plan(value: object) -> ActionPlan:
+def decode_plan(value: object) -> ActionPlan:
     """Decode a strictly shaped action plan.
+
+    Promoted from the module-private `_decode_plan` (docs/master_plan.md
+    item 4, the sidecar executor) so `src/pmc_sidecar/child.py` can reuse
+    this exact decoding to cross its own parent-child process boundary,
+    rather than inventing a second plan wire format.
 
     Args:
         value: JSON-like value containing an action plan.
@@ -622,7 +632,7 @@ class ValidatedPlanResponseV1:
                 "planId": self.plan_id,
                 "planVersion": self.protocol_version,
                 "snapshotDigest": self.snapshot_digest,
-                "commands": _plan_commands(self.action_plan),
+                "commands": encode_plan(self.action_plan),
             },
             "validation": self.validation.to_dict(),
         }
@@ -659,7 +669,7 @@ class ValidatedPlanResponseV1:
         if data["status"] != "validated":
             raise ProtocolDecodeError("response status is not validated")
         action_plan_data = _object(data["actionPlan"], name="actionPlan")
-        plan = _decode_plan(action_plan_data)
+        plan = decode_plan(action_plan_data)
         validation = ValidationReportV1.from_dict(data["validation"])
         snapshot_digest = _string(
             action_plan_data["snapshotDigest"], name="snapshotDigest"

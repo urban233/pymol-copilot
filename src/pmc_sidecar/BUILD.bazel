@@ -13,7 +13,10 @@ load("@rules_python//python:py_library.bzl", "py_library")
 # every real-PyMOL import here must call first.
 py_library(
     name = "pmc_sidecar",
-    srcs = ["__init__.py"],
+    srcs = [
+        "__init__.py",
+        "child.py",
+    ],
     imports = [".."],
     visibility = ["//src:subsystems", "//src:tests"],
     deps = [
