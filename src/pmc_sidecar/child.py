@@ -23,10 +23,18 @@ PyMOL command actually runs. Its `case _` arm is unreachable while
 `pmc_core.plan.OPERATION` stays exhaustive; it exists so that a verb added
 to the language without a corresponding branch here fails closed with a
 typed outcome instead of silently doing nothing or crashing the child.
+
+Once every command succeeds, `main()` collects the atom count of every
+selection the plan created or referenced (`cmd.count_atoms`, the same
+technique `pmc_core.snapshot.extract` uses for per-representation
+membership) and computes a resulting fingerprint over the reconstructed
+object's full canonical re-extraction, so a caller can detect a fidelity
+mismatch even when every command reported success.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import hashlib
 import json
 import os
 import sys
@@ -51,9 +59,12 @@ from pmc_core.plan import OPERATION
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectOperation
 from pmc_core.plan import ShowOperation
+from pmc_core.plan import referenced_selection_name
 from pmc_core.protocol import decode_plan
+from pmc_core.snapshot import extract
 from pmc_core.snapshot import from_json
 from pmc_core.snapshot import reconstruct
+from pmc_core.snapshot import to_json
 
 import winstage
 
@@ -162,6 +173,25 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
     return PlanRunResult(STATUS_OK, REASON_OK, tuple(outcomes))
 
 
+def _selection_names(plan: ActionPlan) -> tuple[str, ...]:
+    """Collect every distinct selection name a plan creates or references.
+
+    Args:
+        plan: The typed plan whose selection names to collect.
+
+    Returns:
+        Each distinct name, in first-appearance order.
+    """
+    seen: dict[str, None] = {}
+    for operation in plan.operations:
+        if isinstance(operation, SelectOperation):
+            seen.setdefault(operation.selection_name, None)
+        referenced = referenced_selection_name(operation)
+        if referenced is not None:
+            seen.setdefault(referenced, None)
+    return tuple(seen)
+
+
 def _outcome_to_dict(outcome: CommandOutcome) -> dict[str, object]:
     """Convert one command outcome to its JSON-serializable form.
 
@@ -222,14 +252,49 @@ def main(argv: Sequence[str] | None = None) -> None:
         os._exit(0)
 
     result = run_plan(cmd, plan)
+    status = result.status
+    reason = result.reason
+    command_outcomes = list(result.command_outcomes)
+    selection_counts: list[dict[str, object]] = []
+    resulting_fingerprint: str | None = None
+
+    if status == STATUS_OK:
+        try:
+            for name in _selection_names(plan):
+                selection_counts.append(
+                    {"name": name, "atom_count": cmd.count_atoms(name)}
+                )
+            extracted = extract(cmd, parsed_snapshot.name)
+            resulting_fingerprint = (
+                "sha256:"
+                + hashlib.sha256(to_json(extracted).encode("utf-8")).hexdigest()
+            )
+        except Exception as error:
+            # A command each reported OUTCOME_OK, but the state they left
+            # behind cannot even be re-extracted -- fails closed the same
+            # way a command failure does, with a synthetic outcome at the
+            # first index past the plan's own operations.
+            status = STATUS_FAILED
+            reason = REASON_COMMAND_FAILURE
+            selection_counts = []
+            command_outcomes.append(
+                CommandOutcome(
+                    index=len(plan.operations),
+                    verb="__extract__",
+                    status=OUTCOME_ERROR,
+                    error=str(error),
+                )
+            )
 
     _write(
         {
-            "status": result.status,
-            "reason": result.reason,
+            "status": status,
+            "reason": reason,
             "command_outcomes": [
-                _outcome_to_dict(outcome) for outcome in result.command_outcomes
+                _outcome_to_dict(outcome) for outcome in command_outcomes
             ],
+            "selection_counts": selection_counts,
+            "resulting_fingerprint": resulting_fingerprint,
         }
     )
     sys.stdout.flush()

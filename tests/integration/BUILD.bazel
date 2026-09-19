@@ -186,6 +186,30 @@ py_test(
 )
 
 py_test(
+    name = "executor_round_trip",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_executor_round_trip.py"],
+    main = "test_executor_round_trip.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Uses the module-scoped real_pymol fixture to compute an independent
+    # expected value, and separately spawns the real production child via
+    # execute(); excluded from concurrent scheduling for the same reason
+    # as :sidecar_child and :executor_boundary.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+py_test(
     name = "snapshot_round_trip",
     size = "large",
     timeout = "moderate",
