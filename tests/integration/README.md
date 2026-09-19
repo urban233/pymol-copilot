@@ -16,5 +16,7 @@ holds the deliberately broken commands, shared as a bare sibling module by
 `capture_pymol_errors.py` (which regenerates
 `tests/contract/testdata/pymol_errors/`) and `test_errors_real_pymol.py`
 (which re-drives them and fails when the checked-in strings stop matching),
-so the two can never disagree about what was driven. The hermetic
-normalization evidence stays in `tests/contract`.
+so the two can never disagree about what was driven, and by
+`//tests/contract:errors`, which checks each captured envelope's command
+index and verb against it. The hermetic normalization evidence stays in
+`tests/contract`.

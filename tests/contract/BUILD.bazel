@@ -18,6 +18,7 @@ py_test(
     main = "test_errors.py",
     data = [":pymol_error_corpus"],
     deps = [
+        "//tests/integration:pymol_error_cases",
         "@pypi//pytest",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",

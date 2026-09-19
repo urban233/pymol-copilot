@@ -178,10 +178,17 @@ py_test(
 # shared by the capture binary and the conformance test below so the two
 # can never drive different commands. Imported as a bare sibling module,
 # the same arrangement snapshot_support.py already uses in this package.
+#
+# Visibility also reaches //tests/contract, whose hermetic errors test
+# checks each captured envelope's command index and verb against this
+# table rather than against the envelope itself. That target stays
+# PyMOL-free: this library imports no pymol and depends only on
+# //src/pmc_core.
 py_library(
     name = "pymol_error_cases",
     srcs = ["pymol_error_cases.py"],
     imports = ["."],
+    visibility = ["//tests/contract:__pkg__"],
     deps = ["//src/pmc_core:pmc_core"],
 )
 

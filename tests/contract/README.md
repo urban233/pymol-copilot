@@ -15,3 +15,9 @@ against a live PyMOL, and so fails when an upgrade rewords a message, is
 `//tests/integration:errors_real_pymol`. The corpus is exported to it by
 the `pymol_error_corpus` filegroup, since Bazel's `glob` cannot reach
 across a package boundary.
+
+`test_errors.py` also imports `//tests/integration:pymol_error_cases`, the
+broken-command table the capture drove. Each captured envelope's command
+index and verb are checked against that table rather than read back out of
+the envelope under test, which would make those two fields assert nothing.
+The table imports no PyMOL, so the target stays hermetic.
