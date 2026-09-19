@@ -151,6 +151,40 @@ py_test(
     ],
 )
 
+# A test-owned sidecar child pmc_core.executor.execute() can spawn in place
+# of the production src/pmc_sidecar/child.py, so test_executor_boundary.py
+# can exercise execute()'s own process-management guarantees without
+# needing a genuinely pathological PyMOL failure for every scenario. See
+# its own module docstring.
+py_library(
+    name = "sabotage_child",
+    srcs = ["sabotage_child.py"],
+    imports = ["."],
+    visibility = ["//tests/integration:__pkg__"],
+    deps = ["//src/pmc_core:pmc_core"],
+)
+
+py_test(
+    name = "executor_boundary",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_executor_boundary.py"],
+    main = "test_executor_boundary.py",
+    # Spawns subprocesses (both the real production child and the
+    # sabotage child above), some of which launch real PyMOL; excluded
+    # from concurrent scheduling for the same reason as :real_pymol_command
+    # and :sidecar_child.
+    tags = ["exclusive"],
+    deps = [
+        ":sabotage_child",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+        "//tools/winstage:winstage",
+    ],
+)
+
 py_test(
     name = "snapshot_round_trip",
     size = "large",
