@@ -5,7 +5,9 @@ Covers pmc_core.card's deterministic renderer: the golden card bytes, its
 invariance to semantically unordered collection order and signed-zero
 value differences, canonical bond remapping under atom permutation, the
 byte parity between its two caller seams, per-field-mutation sensitivity,
-and its fail-closed handling of truncation, undeclared-unsupported,
+the explicit markers behind each of its three size bounds, and its
+fail-closed handling of truncation, undeclared-unsupported,
+indistinguishable atoms, out-of-range or unbounded field values,
 schema-version mismatch and malformed input. The real-PyMOL extraction-
 then-render path lives in
 tests/integration/test_card_real_pymol.py, since it needs a real PyMOL
@@ -104,6 +106,25 @@ def _snapshot() -> ObjectSnapshot:
     )
 
 
+def _multi_bond_snapshot() -> ObjectSnapshot:
+    """Build a three-atom snapshot whose bonds are genuinely reorderable.
+
+    Returns:
+        A snapshot carrying two bonds stored in the opposite of the
+        card's canonical bond order, so that dropping the renderer's bond
+        sort changes its bytes. _snapshot()'s single bond cannot show
+        that: reversing a one-element tuple is a no-op.
+    """
+    base = _snapshot()
+    atom_b, atom_a = base.states[0].atoms
+    atom_c = replace(atom_a, serial=3, name="CB", coord=(7.0, 8.0, 9.0))
+    return replace(
+        base,
+        states=(StateSnapshot((atom_b, atom_a, atom_c)),),
+        bonds=(BondRecord(0, 2, 2), BondRecord(1, 2, 1)),
+    )
+
+
 def test_golden_card_has_stable_bytes() -> None:
     """A representative snapshot renders fixed card bytes."""
     card = render(_snapshot())
@@ -136,16 +157,61 @@ def test_every_card_carries_the_version_on_its_first_line() -> None:
         assert card.startswith(f"card-version={CARD_VERSION}\n")
 
 
-def test_equivalent_collection_order_produces_identical_card() -> None:
-    """Semantically unordered collections do not affect card bytes."""
-    snapshot = _snapshot()
-    equivalent = replace(
-        snapshot,
-        bonds=tuple(reversed(snapshot.bonds)),
-        settings=tuple(reversed(snapshot.settings)),
-    )
+def test_equivalent_bond_order_produces_identical_card() -> None:
+    """Bond order in the snapshot does not affect card bytes."""
+    snapshot = _multi_bond_snapshot()
+    equivalent = replace(snapshot, bonds=tuple(reversed(snapshot.bonds)))
 
     assert render(equivalent) == render(snapshot)
+    assert "bond from=0 to=1 order=1\nbond from=1 to=2 order=2\n" in render(
+        snapshot
+    )
+
+
+def test_equivalent_setting_order_produces_identical_card() -> None:
+    """Setting order in the snapshot does not affect card bytes."""
+    snapshot = _snapshot()
+    equivalent = replace(snapshot, settings=tuple(reversed(snapshot.settings)))
+
+    assert render(equivalent) == render(snapshot)
+
+
+def test_atoms_sharing_identity_fields_are_ordered_by_content() -> None:
+    """Two atoms with one identity sort by what distinguishes them.
+
+    The canonical atom order leads with the seven identity fields, but it
+    cannot stop there: atoms agreeing on all seven and differing only in
+    coordinates, color or label would otherwise keep their input order,
+    and permuting the input would move their lines.
+    """
+    base = _snapshot()
+    atom_b, atom_a = base.states[0].atoms
+    twin = replace(atom_a, coord=(9.0, 9.0, 9.0), color=4, label=None)
+    snapshot = replace(
+        base, states=(StateSnapshot((atom_a, twin, atom_b)),), bonds=()
+    )
+    permuted = replace(
+        snapshot, states=(StateSnapshot((twin, atom_b, atom_a)),)
+    )
+
+    assert render(snapshot).startswith("card-version=1\nstatus=complete\n")
+    assert render(permuted) == render(snapshot)
+
+
+def test_indistinguishable_atoms_return_stable_malformed_card() -> None:
+    """Atoms equal in every rendered field have no canonical order.
+
+    Their lines would be identical, but the canonical index of a bond
+    ending on one of them would still be decided by input position, so
+    the snapshot fails closed rather than rendering permutable bytes.
+    """
+    base = _snapshot()
+    atom_b, atom_a = base.states[0].atoms
+    malformed = replace(base, states=(StateSnapshot((atom_b, atom_a, atom_a)),))
+
+    assert render(malformed) == (
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
+    )
 
 
 def test_signed_zero_coordinates_produce_identical_card() -> None:
@@ -296,6 +362,124 @@ def test_truncation_and_unsupported_schema_are_explicit() -> None:
     assert render(replace(snapshot, schema_version=2)) == (
         "card-version=1\nstatus=unsupported reason=snapshot-schema-version\n"
     )
+
+
+@pytest.mark.parametrize("version", [True, 1.0])
+def test_non_integer_schema_version_returns_unsupported_card(
+    version: object,
+) -> None:
+    """A version merely equal to 1 is not snapshot schema version 1.
+
+    True == 1 and 1.0 == 1 in Python, so an equality test alone would let
+    a JSON snapshot carrying either be rendered as a complete card.
+
+    Args:
+        version: A non-int value that compares equal to SNAPSHOT_VERSION.
+    """
+    snapshot = replace(_snapshot(), schema_version=cast(Any, version))
+
+    assert render(snapshot) == (
+        "card-version=1\nstatus=unsupported reason=snapshot-schema-version\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda value: _with_atom(value, q=10**400),
+        lambda value: _with_atom(value, serial=10**400),
+        lambda value: _with_atom(value, coord=(10**400, 2.0, 3.0)),
+        lambda value: replace(
+            value, view=cast(Any, (10**400, *value.view[1:]))
+        ),
+        lambda value: replace(value, bonds=(BondRecord(1, 0, 10**400),)),
+    ],
+)
+def test_unrenderable_number_returns_stable_malformed_card(
+    mutation: Any,
+) -> None:
+    """A number too large to render fails closed instead of raising.
+
+    An integer beyond float range is not merely large: math.isfinite()
+    raises OverflowError on one, so the validator has to answer without
+    calling it.
+
+    Args:
+        mutation: A one-argument callable returning a snapshot with one
+            numeric field set beyond the renderable range.
+    """
+    assert render(mutation(_snapshot())) == (
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda value: replace(value, name="x" * 10_000),
+        lambda value: _with_atom(value, label="x" * 10_000),
+        lambda value: _with_atom(value, reps=("x" * 10_000,)),
+        lambda value: _with_atom(
+            value, reps=tuple(f"r{index}" for index in range(10_000))
+        ),
+        lambda value: replace(
+            value, settings=(("sphere_scale", "0" * 10_000),)
+        ),
+        lambda value: replace(
+            value,
+            settings=tuple((f"s{index}", "0") for index in range(10_000)),
+        ),
+    ],
+)
+def test_unbounded_field_returns_stable_malformed_card(mutation: Any) -> None:
+    """A field large enough to unbound the card fails closed.
+
+    Names, labels, representations and settings are the card's only
+    caller-sized fields, and the card is spent from a model's context
+    budget, so an oversized one is rejected rather than shortened: a
+    silently truncated name is one the model would read as whole.
+
+    Args:
+        mutation: A one-argument callable returning a snapshot with one
+            text or collection field grown past its bound.
+    """
+    assert render(mutation(_snapshot())) == (
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
+    )
+
+
+def test_state_limit_is_explicit() -> None:
+    """States past the bound are omitted behind their own marker."""
+    snapshot = _snapshot()
+    trajectory = replace(snapshot, states=snapshot.states * 3)
+
+    card = render(trajectory, max_states=1)
+
+    assert 'object name="fx" enabled=false states=3\n' in card
+    assert card.count("\nstate index=") == 1
+    assert "omitted-states reason=state-limit count=2\n" in card
+
+
+def test_bond_limit_is_explicit() -> None:
+    """Bonds past the bound are omitted behind their own marker."""
+    card = render(_multi_bond_snapshot(), max_bonds=1)
+
+    assert "bond from=0 to=1 order=1\n" in card
+    assert "bond from=1 to=2 order=2\n" not in card
+    assert "omitted-bonds reason=bond-limit count=1\n" in card
+
+
+@pytest.mark.parametrize(
+    "bound", ["max_atoms_per_state", "max_states", "max_bonds"]
+)
+def test_non_positive_bound_is_rejected(bound: str) -> None:
+    """Each of the three size bounds must be positive.
+
+    Args:
+        bound: The name of the bound keyword to set to zero.
+    """
+    with pytest.raises(ValueError, match="must be positive"):
+        render(_snapshot(), **cast(Any, {bound: 0}))
 
 
 def test_invalid_bond_endpoint_returns_stable_malformed_card() -> None:
