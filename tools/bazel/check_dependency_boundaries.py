@@ -22,6 +22,12 @@ FORBIDDEN = {
     # this entry is defence in depth behind that, and makes W2-01's own
     # "Stop if" clause enforceable rather than merely stated.
     "//tools/winstage:winstage",
+    # The sidecar executor's PyMOL-touching child (docs/master_plan.md item
+    # 4). pmc_core.executor spawns it by module name
+    # ("python -m pmc_sidecar.child"), never by import, so this package must
+    # never enter pmc_core's or pmc_agent's own dependency closure -- only
+    # pmc_server (which actually spawns the child process) depends on it.
+    "//src/pmc_sidecar:pmc_sidecar",
 }
 FORBIDDEN_BY_ROOT = {
     "//src/pmc_core:pmc_core": FORBIDDEN,

@@ -22,6 +22,7 @@ py_library(
     imports = ["."],
     visibility = [
         "//src/pmc_data:__pkg__",
+        "//src/pmc_sidecar:__pkg__",
         "//tests/data:__pkg__",
         "//tests/discovery/h02:__pkg__",
         "//tests/integration:__pkg__",
