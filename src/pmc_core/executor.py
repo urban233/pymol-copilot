@@ -25,24 +25,40 @@ that actually touches PyMOL is a separate module,
 Bazel dependency closure never acquires either dependency (enforced by
 `tools/bazel/check_dependency_boundaries.py`).
 
-This module does not yet spawn a child process: that lands in a later step
-of the same promotion (see `plans/05-sidecar-executor.md`, step 4). Today it
-owns the typed contract and the parent-side validation that must happen
-before any process is ever created -- an unsupported request version, an
-oversized snapshot, malformed or version-mismatched snapshot JSON, and a
-plan the default-deny policy denies are all rejected here, with no scratch
-data ever written for any of them.
+`execute()` validates a request entirely in this process first -- an
+unsupported request version, an oversized snapshot, malformed or
+version-mismatched snapshot JSON, and a plan the default-deny policy denies
+are all rejected here, with no process ever spawned and no scratch data
+ever written. Only a request that passes every check spawns a fresh child,
+gives it a hard wall-clock deadline, and reaps it on every exit path --
+success, timeout, crash, and an exception raised between spawn and the
+child's own completion -- with its scratch directory removed only after
+that termination and reap.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import contextlib
+import importlib.util
 import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
 import time
+import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
+from typing import IO
 
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import encode_plan
 from pmc_core.snapshot import from_json
 from pmc_core.snapshot import structure_digest
 
@@ -243,7 +259,139 @@ def _rejected(
     )
 
 
-def execute(request: ExecutionRequest) -> ExecutionReport:
+def _failed_with_no_process(
+    reason: str, elapsed_seconds: float, *, input_digest: str | None
+) -> ExecutionReport:
+    """Build a report for a failure discovered before any process spawned.
+
+    Unlike `_rejected`, this reports `STATUS_FAILED`, not
+    `STATUS_REJECTED`: it shares `REASON_SPAWN_OR_LOAD_FAILURE` with the
+    case where a process was genuinely spawned but failed to load the
+    snapshot inside the child, and that reason already means
+    `STATUS_FAILED` there. `child_pid`/`child_terminated` are still both
+    None -- no process was ever created for either case.
+
+    Args:
+        reason: The typed failure reason.
+        elapsed_seconds: Time spent before the failure was discovered.
+        input_digest: The request snapshot's structure digest.
+
+    Returns:
+        A report with `STATUS_FAILED` and no fingerprints, outcomes, or
+        process evidence.
+    """
+    return ExecutionReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_FAILED,
+        reason=reason,
+        input_digest=input_digest,
+        resulting_fingerprint=None,
+        selection_counts=(),
+        command_outcomes=(),
+        child_pid=None,
+        child_terminated=None,
+        elapsed_seconds=elapsed_seconds,
+        warnings=(),
+    )
+
+
+def _close_pipe(pipe: IO[str] | None) -> None:
+    """Close a `Popen` pipe object defensively.
+
+    `stdout`/`stderr` are None whenever a caller does not pipe that stream,
+    and may already be closed by the time this runs (`communicate()`
+    closes both as a side effect). Closing an already-closed file object is
+    a documented no-op, but the underlying OS handle can still raise on
+    some platforms, so `OSError` is swallowed too: this runs from a
+    `finally` whose whole purpose is cleanup, and raising here would
+    replace -- not add to -- whatever is already in flight.
+
+    Args:
+        pipe: The pipe object to close, or None if that stream was never
+            piped.
+    """
+    if pipe is None:
+        return
+    with contextlib.suppress(OSError):
+        pipe.close()
+
+
+def _terminate(process: subprocess.Popen[str]) -> None:
+    """Send a plain termination signal to a spawned child's process group.
+
+    On POSIX, the child was spawned with `start_new_session=True`, so its
+    process group ID equals its own PID and `os.killpg` reaches it and
+    every descendant it may have spawned (PyMOL's own subprocesses, if
+    any) in one call. Windows exposes no equivalent group-signal API in
+    the standard library, so there this reaches only the child process
+    itself; closing that gap would need Job Objects, out of scope here
+    (H02-S3-F5).
+
+    Args:
+        process: The spawned child's `Popen` handle.
+    """
+    if sys.platform == "win32":
+        process.terminate()
+        return
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
+
+def _kill(process: subprocess.Popen[str]) -> None:
+    """Send a hard kill signal to a spawned child's whole process group.
+
+    Falls back to killing the process alone when its group is already
+    gone (it may have exited between the caller's own liveness check and
+    this call) -- see `_terminate`'s own docstring for the same POSIX/
+    Windows asymmetry.
+
+    Args:
+        process: The spawned child's `Popen` handle.
+    """
+    if sys.platform == "win32":
+        process.kill()
+        return
+    try:
+        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+    except ProcessLookupError:
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+
+
+def _terminate_and_reap(process: subprocess.Popen[str]) -> None:
+    """Ensure a spawned child is stopped, reaped, and its pipes closed.
+
+    Safe -- and a near no-op -- when the child has already exited and been
+    waited on, which is true on every one of `execute()`'s own documented
+    return paths: `communicate()` itself already waits for the child, and
+    the timeout branch already kills and drains before returning. This
+    function's own terminate-and-wait branch exists for the one path none
+    of those returns covers at all: an exception raised between `Popen`
+    and `communicate()` -- for example, the test-only `on_process_spawned`
+    hook itself raising -- which would otherwise leave the child neither
+    terminated nor reaped while its scratch directory is deleted out from
+    under it (H02-S3-F3).
+
+    Args:
+        process: The spawned child's `Popen` handle.
+    """
+    if process.poll() is None:
+        _terminate(process)
+        try:
+            process.wait(timeout=DEFAULT_KILL_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            _kill(process)
+            process.wait()
+    _close_pipe(process.stdout)
+    _close_pipe(process.stderr)
+
+
+def execute(
+    request: ExecutionRequest,
+    *,
+    runner_module: str = "pmc_sidecar.child",
+    on_process_spawned: Callable[[subprocess.Popen[str]], None] | None = None,
+) -> ExecutionReport:
     """Validate a request and execute its plan in a fresh sidecar process.
 
     Validates the request in this process first, in a fixed order: an
@@ -251,20 +399,28 @@ def execute(request: ExecutionRequest) -> ExecutionReport:
     version-mismatched snapshot JSON, and a plan the default-deny policy
     denies are all rejected here, with no process ever spawned and no
     scratch data ever written. Only a request that passes every check
-    proceeds to execution.
+    spawns a fresh child, gives it request.deadline_seconds to run, and
+    reaps it -- on every exit path, including timeout, an unhandled crash,
+    and an exception raised between spawn and the child's own completion --
+    with its scratch directory removed only after that termination and
+    reap.
 
     Args:
         request: The execution request to run.
+        runner_module: The child module to spawn by name
+            (`python -m <runner_module>`), never by import. Overridable so
+            a test can spawn a sabotage runner instead of the production
+            `pmc_sidecar.child` without this module ever importing it.
+        on_process_spawned: An optional test-only hook invoked with the
+            spawned child's `subprocess.Popen` handle immediately after it
+            is created, so a sabotage test can independently confirm the
+            process is later reaped and no longer running. Never used by
+            `execute()` itself for anything but this notification.
 
     Returns:
         The execution report. Never raises for any of this module's own
         documented failure modes; every one of them is reported through the
         returned report's status/reason instead.
-
-    Raises:
-        NotImplementedError: Always, once a request passes every check
-            above -- spawning a sidecar process is not implemented yet. See
-            `plans/05-sidecar-executor.md` step 4.
     """
     start = time.monotonic()
 
@@ -305,7 +461,160 @@ def execute(request: ExecutionRequest) -> ExecutionReport:
             input_digest=input_digest,
         )
 
-    raise NotImplementedError(
-        "execute() does not yet spawn a sidecar process; added in "
-        "plans/05-sidecar-executor.md step 4"
-    )
+    try:
+        spec_found = importlib.util.find_spec(runner_module) is not None
+    except (ImportError, ValueError, ModuleNotFoundError, AttributeError):
+        spec_found = False
+    if not spec_found:
+        return _failed_with_no_process(
+            REASON_SPAWN_OR_LOAD_FAILURE,
+            time.monotonic() - start,
+            input_digest=input_digest,
+        )
+
+    scratch_dir = Path(tempfile.mkdtemp(prefix=SCRATCH_DIR_PREFIX))
+    try:
+        snapshot_path = scratch_dir / "snapshot.json"
+        snapshot_path.write_text(request.snapshot_json)
+
+        plan_path = scratch_dir / "plan.json"
+        plan_path.write_text(
+            json.dumps(
+                {
+                    "planId": str(uuid.uuid4()),
+                    "planVersion": PROTOCOL_VERSION,
+                    "snapshotDigest": input_digest,
+                    "commands": encode_plan(request.plan),
+                }
+            )
+        )
+        output_path = scratch_dir / "output.json"
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(path for path in sys.path if path)
+
+        # Puts the child in its own process group (POSIX) or its own
+        # process-group ID (Windows), so _terminate/_kill can reach it and
+        # any descendant it spawns, not just the immediate child -- see
+        # their own docstrings for the platform asymmetry this leaves.
+        creation_flags = 0
+        start_new_session = False
+        if sys.platform == "win32":
+            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            start_new_session = True
+
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                runner_module,
+                str(snapshot_path),
+                str(plan_path),
+                str(output_path),
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=creation_flags,
+            start_new_session=start_new_session,
+        )
+        child_pid = process.pid
+        try:
+            if on_process_spawned is not None:
+                on_process_spawned(process)
+
+            try:
+                _stdout, stderr = process.communicate(
+                    timeout=request.deadline_seconds
+                )
+            except subprocess.TimeoutExpired:
+                # Hard kill, then best-effort drain: the guaranteed reap
+                # happens in the outer finally's _terminate_and_reap
+                # regardless of whether this drain itself times out.
+                _kill(process)
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    process.communicate(timeout=DEFAULT_KILL_GRACE_SECONDS)
+                return ExecutionReport(
+                    executor_version=EXECUTOR_VERSION,
+                    status=STATUS_FAILED,
+                    reason=REASON_TIMEOUT,
+                    input_digest=input_digest,
+                    resulting_fingerprint=None,
+                    selection_counts=(),
+                    command_outcomes=(),
+                    child_pid=child_pid,
+                    child_terminated=process.poll() is not None,
+                    elapsed_seconds=time.monotonic() - start,
+                    warnings=(),
+                )
+
+            if not output_path.exists():
+                # The child never reached its own output write -- a crash
+                # rather than a reported failure. communicate() above
+                # already waited for it, so it is reaped either way.
+                return ExecutionReport(
+                    executor_version=EXECUTOR_VERSION,
+                    status=STATUS_FAILED,
+                    reason=REASON_CHILD_CRASH,
+                    input_digest=input_digest,
+                    resulting_fingerprint=None,
+                    selection_counts=(),
+                    command_outcomes=(),
+                    child_pid=child_pid,
+                    child_terminated=process.poll() is not None,
+                    elapsed_seconds=time.monotonic() - start,
+                    warnings=(f"child stderr: {stderr}",) if stderr else (),
+                )
+
+            payload = json.loads(output_path.read_text())
+            command_outcomes = tuple(
+                CommandOutcome(
+                    index=outcome["index"],
+                    verb=outcome["verb"],
+                    status=outcome["status"],
+                    error=outcome.get("error"),
+                )
+                for outcome in payload.get("command_outcomes", [])
+            )
+            selection_counts = tuple(
+                SelectionCount(name=item["name"], atom_count=item["atom_count"])
+                for item in payload.get("selection_counts", [])
+            )
+            resulting_fingerprint = payload.get("resulting_fingerprint")
+            status = payload["status"]
+            reason = payload["reason"]
+
+            if (
+                status == STATUS_OK
+                and request.expected_resulting_fingerprint is not None
+                and resulting_fingerprint
+                != request.expected_resulting_fingerprint
+            ):
+                status = STATUS_FAILED
+                reason = REASON_FIDELITY_MISMATCH
+
+            return ExecutionReport(
+                executor_version=EXECUTOR_VERSION,
+                status=status,
+                reason=reason,
+                input_digest=input_digest,
+                resulting_fingerprint=resulting_fingerprint,
+                selection_counts=selection_counts,
+                command_outcomes=command_outcomes,
+                child_pid=child_pid,
+                child_terminated=process.poll() is not None,
+                elapsed_seconds=time.monotonic() - start,
+                warnings=(),
+            )
+        finally:
+            # H02-S3-F3: guarantee the child is terminated and reaped
+            # before the outer finally below deletes the scratch directory
+            # it may still be reading from -- including the exception path
+            # between Popen and communicate() (for example,
+            # on_process_spawned itself raising), which none of the
+            # returns above run at all.
+            _terminate_and_reap(process)
+    finally:
+        shutil.rmtree(scratch_dir, ignore_errors=True)
