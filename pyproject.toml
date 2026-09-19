@@ -127,6 +127,11 @@ check-unannotated-defs = true
 # module (`from snapshot_support import ...`) imported by that package's
 # own conftest.py, and by tests/discovery/h02 and tests/discovery/m02's
 # own conftest.py files, which re-export its fixtures.
+# tests/integration/pymol_error_cases.py is the same situation again for
+# pmc_core.errors: one bare sibling module (`from pymol_error_cases
+# import ...`) holding the broken-command table that both
+# capture_pymol_errors.py and test_errors_real_pymol.py import, so the
+# corpus writer and the conformance test cannot drift apart.
 search-path = [
     "tests/discovery/h02",
     "tests/discovery/m02",
