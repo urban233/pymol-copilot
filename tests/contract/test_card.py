@@ -1,24 +1,32 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Golden, parity, mutation, and boundedness tests for M-02's card candidate."""
+"""Contract tests for the structure card format: no PyMOL required.
 
-from __future__ import annotations
+Covers pmc_core.card's deterministic renderer: the golden card bytes, its
+invariance to semantically unordered collection order and signed-zero
+value differences, canonical bond remapping under atom permutation, the
+byte parity between its two caller seams, per-field-mutation sensitivity,
+and its fail-closed handling of truncation, undeclared-unsupported,
+schema-version mismatch and malformed input. The real-PyMOL extraction-
+then-render path lives in
+tests/integration/test_card_real_pymol.py, since it needs a real PyMOL
+process to produce a snapshot worth rendering.
+"""
 
 from dataclasses import replace
-import os
-import sys
-from typing import Any, cast
+from typing import Any
+from typing import cast
 
-import pytest
-from card_candidate import render
-from card_candidate import render_for_data
-from card_candidate import render_for_runtime
+import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
+
+from pmc_core.card import CARD_VERSION
+from pmc_core.card import render
+from pmc_core.card import render_for_data
+from pmc_core.card import render_for_runtime
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import AtomRecord
 from pmc_core.snapshot import BondRecord
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import StateSnapshot
-from pmc_core.snapshot import extract
-
 
 _IDENTITY_VIEW = (
     1.0,
@@ -43,6 +51,13 @@ _IDENTITY_VIEW = (
 
 
 def _snapshot() -> ObjectSnapshot:
+    """Build a representative two-atom, one-state, one-bond snapshot.
+
+    Returns:
+        A hand-constructed snapshot exercising every card field: a
+        polymer atom and a hetero atom, one bond between them, a
+        non-identity display setting pair, and a non-default view.
+    """
     atom_a = AtomRecord(
         1,
         "CA",
@@ -90,11 +105,11 @@ def _snapshot() -> ObjectSnapshot:
 
 
 def test_golden_card_has_stable_bytes() -> None:
-    """A representative candidate snapshot renders fixed card bytes."""
+    """A representative snapshot renders fixed card bytes."""
     card = render(_snapshot())
 
     assert card == (
-        "card-version=candidate-1\nstatus=complete\n"
+        "card-version=1\nstatus=complete\n"
         "unsupported state=measurement-objects route=plan-report\n"
         "unsupported state=explicit-polymer-classification route=contract-freeze\n"
         'object name="fx" enabled=false states=1\n'
@@ -106,8 +121,23 @@ def test_golden_card_has_stable_bytes() -> None:
     )
 
 
+def test_every_card_carries_the_version_on_its_first_line() -> None:
+    """A rejected card is still attributable to a card version.
+
+    Covers all three card outcomes -- complete, malformed-snapshot, and
+    snapshot-schema-version -- so a caller can always read CARD_VERSION
+    off the first line regardless of whether rendering succeeded.
+    """
+    snapshot = _snapshot()
+    malformed = replace(snapshot, bonds=(BondRecord(0, 2, 1),))
+    wrong_version = replace(snapshot, schema_version=2)
+
+    for card in (render(snapshot), render(malformed), render(wrong_version)):
+        assert card.startswith(f"card-version={CARD_VERSION}\n")
+
+
 def test_equivalent_collection_order_produces_identical_card() -> None:
-    """Semantically unordered collections do not affect candidate bytes."""
+    """Semantically unordered collections do not affect card bytes."""
     snapshot = _snapshot()
     equivalent = replace(
         snapshot,
@@ -197,15 +227,23 @@ def test_atom_permutation_remaps_bonds_to_canonical_positions() -> None:
     assert "bond from=1 to=2 order=1\n" in render(base)
 
 
-def test_data_and_runtime_candidate_callers_have_byte_parity() -> None:
-    """Both candidate callers delegate to the same pure renderer."""
+def test_data_and_runtime_callers_have_byte_parity() -> None:
+    """Both caller seams delegate to the same pure renderer."""
     snapshot = _snapshot()
 
     assert render_for_data(snapshot) == render_for_runtime(snapshot)
 
 
 def _with_atom(snapshot: ObjectSnapshot, **changes: object) -> ObjectSnapshot:
-    """Return snapshot with one model-relevant atom field changed."""
+    """Return snapshot with one model-relevant atom field changed.
+
+    Args:
+        snapshot: The snapshot to derive from.
+        **changes: The AtomRecord field(s) to replace on the first atom.
+
+    Returns:
+        A new snapshot with the first atom of its first state changed.
+    """
     first, second = snapshot.states[0].atoms
     return replace(
         snapshot,
@@ -218,7 +256,7 @@ def _with_atom(snapshot: ObjectSnapshot, **changes: object) -> ObjectSnapshot:
     [
         lambda value: replace(value, name="other"),
         lambda value: replace(value, enabled=True),
-        lambda value: replace(value, view=(2.0, 0.0, -20.0)),
+        lambda value: replace(value, view=(2.0, *value.view[1:])),
         lambda value: replace(value, settings=(("sphere_scale", "0.5"),)),
         lambda value: replace(value, bonds=(BondRecord(0, 1, 2),)),
         lambda value: _with_atom(value, serial=9),
@@ -239,32 +277,24 @@ def _with_atom(snapshot: ObjectSnapshot, **changes: object) -> ObjectSnapshot:
     ],
 )
 def test_model_relevant_field_mutation_changes_card(mutation: Any) -> None:
-    """Each tracked snapshot field changes the candidate card."""
+    """Each tracked snapshot field changes the rendered card.
+
+    Args:
+        mutation: A one-argument callable returning a snapshot with one
+            model-relevant field changed from _snapshot()'s baseline.
+    """
     snapshot = _snapshot()
 
     assert render(mutation(snapshot)) != render(snapshot)
 
 
-def test_h02_candidate_a_snapshot_renders_as_a_complete_card(
-    loaded_fixture: Any,
-) -> None:
-    """Candidate A's real extracted fixture feeds the same pure renderer."""
-    card = render(extract(loaded_fixture, "fx"))
-
-    assert "status=complete" in card
-    assert "unsupported state=measurement-objects route=plan-report" in card
-    assert "states=2" in card
-    assert 'chain="A"' in card
-    assert 'resn="ZN"' in card
-
-
 def test_truncation_and_unsupported_schema_are_explicit() -> None:
-    """Bounded and unknown candidate inputs carry visible state markers."""
+    """Bounded and unknown inputs carry visible state markers."""
     snapshot = _snapshot()
 
     assert "emitted=1 truncated=true" in render(snapshot, max_atoms_per_state=1)
     assert render(replace(snapshot, schema_version=2)) == (
-        "card-version=candidate-1\nstatus=unsupported reason=snapshot-schema-version\n"
+        "card-version=1\nstatus=unsupported reason=snapshot-schema-version\n"
     )
 
 
@@ -273,8 +303,19 @@ def test_invalid_bond_endpoint_returns_stable_malformed_card() -> None:
     malformed = replace(_snapshot(), bonds=(BondRecord(0, 2, 1),))
 
     assert render(malformed) == (
-        "card-version=candidate-1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
+    )
+
+
+def test_undeclared_unsupported_set_returns_stable_malformed_card() -> None:
+    """A snapshot may not author its own unsupported markers."""
+    malformed = replace(
+        _snapshot(),
+        unsupported=("unsupported state=invented route=nowhere",),
+    )
+
+    assert render(malformed) == (
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
@@ -283,8 +324,7 @@ def test_malformed_structural_value_returns_stable_malformed_card() -> None:
     malformed = replace(_snapshot(), view=cast(Any, ("not-a-number",)))
 
     assert render(malformed) == (
-        "card-version=candidate-1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
@@ -294,12 +334,15 @@ def test_malformed_structural_value_returns_stable_malformed_card() -> None:
 def test_invalid_view_length_returns_stable_malformed_card(
     view: tuple[float, ...],
 ) -> None:
-    """Views must contain exactly the 18 values returned by cmd.get_view()."""
+    """Views must contain exactly the 18 values returned by cmd.get_view().
+
+    Args:
+        view: A malformed view tuple, either too short, too long, or empty.
+    """
     malformed = replace(_snapshot(), view=view)
 
     assert render(malformed) == (
-        "card-version=candidate-1\n"
-        "status=unsupported reason=malformed-snapshot\n"
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
     )
 
 
@@ -312,9 +355,4 @@ def test_truncation_omits_bonds_with_missing_endpoint_atoms() -> None:
 
 
 if __name__ == "__main__":
-    # PyMOL's shutdown can replace pytest's nonzero result with zero. Flush
-    # before os._exit so Bazel receives both the real result and test output.
-    _exit_code = pytest.main([__file__])
-    sys.stdout.flush()
-    sys.stderr.flush()
-    os._exit(_exit_code)
+    raise SystemExit(pytest.main([__file__]))

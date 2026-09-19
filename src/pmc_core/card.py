@@ -1,39 +1,87 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Candidate-private deterministic card renderer for pmc_core.snapshot.
+"""Deterministic structure-card rendering for pmc_core.snapshot.
 
-This is discovery evidence only. It does not define a production
-structure-card contract -- that ships as `pmc_core.card` (master plan item
-5), which this candidate's golden-byte, permutation-invariance,
-signed-zero, truncation, and per-field-mutation tests are meant to carry
-forward into tests/contract/ at that point.
+This is the production promotion of M-02's discovery work (originally
+`tests/discovery/m02/card_candidate.py`): a pure, bounded, deterministic
+text rendering of one canonical `ObjectSnapshot` into the compact card
+format the model sees. `render()` takes an already-extracted
+`ObjectSnapshot` and never imports `pymol` itself, so this module has no
+PyMOL dependency, exactly like `pmc_core.snapshot` it is built on.
+
+`render_for_data()` and `render_for_runtime()` are separate caller seams
+that exist to be proved byte-identical, not because they differ -- the
+dataset writer (master plan item 14) and the runtime prompt builder
+(master plan item 13) each call one, and a parity test fails if they ever
+diverge.
+
+The card's `unsupported` lines are a pure pass-through of
+`pmc_core.snapshot.DECLARED_UNSUPPORTED`, never independently authored: a
+snapshot claiming a different unsupported set is rejected as malformed
+rather than rendered, so this module never becomes a second place that
+could drift from that declaration.
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import json
 import math
 
+from pmc_core.snapshot import DECLARED_UNSUPPORTED
+from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import AtomRecord
 from pmc_core.snapshot import BondRecord
 from pmc_core.snapshot import ObjectSnapshot
-from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import StateSnapshot
 
-CARD_VERSION = "candidate-1"
+#: This module's own structure-card contract version, stamped as the
+#: first line of every card -- including both failure cards, so a
+#: rejected card is still attributable to a version. Both caller seams
+#: below emit it; the dataset writer (master plan item 14) and the
+#: prompt builder (item 13) stamp it into their own records by calling
+#: them.
+CARD_VERSION = 1
 
 
 def _text(value: str) -> str:
-    """Return an ASCII-stable quoted string."""
+    """Return an ASCII-stable quoted string.
+
+    Args:
+        value: The string to encode.
+
+    Returns:
+        The JSON-quoted, ASCII-escaped form of value.
+    """
     return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
 
 
 def _number(value: float | int) -> str:
-    """Return one locale-independent normalized number."""
+    """Return one locale-independent normalized number.
+
+    Trailing zeros and a trailing decimal point are stripped, and both
+    positive and negative zero normalize to "0", so structurally equal
+    numeric values always render identical text regardless of their
+    original float representation.
+
+    Args:
+        value: The number to normalize.
+
+    Returns:
+        The normalized decimal text.
+    """
     normalized = format(value, ".6f").rstrip("0").rstrip(".") or "0"
     return "0" if normalized in {"0", "-0"} else normalized
 
 
 def _atom_key(atom: AtomRecord) -> tuple[object, ...]:
+    """Return the canonical sort key for one atom.
+
+    Args:
+        atom: The atom to key.
+
+    Returns:
+        A tuple ordering atoms by identity fields rather than array
+        position, so permuted atom collections sort identically.
+    """
     return (
         atom.chain,
         atom.resv,
@@ -46,6 +94,16 @@ def _atom_key(atom: AtomRecord) -> tuple[object, ...]:
 
 
 def _atom_line(state_index: int, atom: AtomRecord) -> str:
+    """Render one atom's card line for one state.
+
+    Args:
+        state_index: The 1-based state number this atom belongs to.
+        atom: The atom to render.
+
+    Returns:
+        One newline-free "atom ..." line covering every model-relevant
+        atom field.
+    """
     fields = (
         ("serial", _number(atom.serial)),
         ("name", _text(atom.name)),
@@ -72,6 +130,14 @@ def _atom_line(state_index: int, atom: AtomRecord) -> str:
 
 
 def _is_number(value: object) -> bool:
+    """Return whether value is a finite, non-bool numeric value.
+
+    Args:
+        value: The value to check.
+
+    Returns:
+        True if value is an int or float, is not a bool, and is finite.
+    """
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
@@ -80,11 +146,34 @@ def _is_number(value: object) -> bool:
 
 
 def _is_int(value: object) -> bool:
+    """Return whether value is a non-bool int.
+
+    Args:
+        value: The value to check.
+
+    Returns:
+        True if value is an int and not a bool.
+    """
     return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _valid_snapshot(snapshot: object) -> bool:
+    """Return whether snapshot has the shape render() can safely render.
+
+    Args:
+        snapshot: The candidate value to validate.
+
+    Returns:
+        True if every field render() reads has the type and range render()
+        assumes; False otherwise, in which case render() emits a malformed
+        card rather than raising or emitting partial output.
+    """
     if not isinstance(snapshot, ObjectSnapshot):
+        return False
+    # A snapshot may not author its own unsupported markers -- the card's
+    # unsupported lines are a pass-through of pmc_core.snapshot's one
+    # declaration, never an independent claim rendered as-is.
+    if snapshot.unsupported != DECLARED_UNSUPPORTED:
         return False
     if not isinstance(snapshot.name, str) or not isinstance(
         snapshot.enabled, bool
@@ -166,11 +255,31 @@ def _valid_snapshot(snapshot: object) -> bool:
 
 
 def _malformed_card() -> str:
+    """Return the fixed, stable card for a malformed snapshot.
+
+    Returns:
+        The single "malformed-snapshot" status card, identical for every
+        malformed input so a caller cannot infer anything about why a
+        snapshot was rejected from a diff.
+    """
     return f"card-version={CARD_VERSION}\nstatus=unsupported reason=malformed-snapshot\n"
 
 
 def render(snapshot: ObjectSnapshot, *, max_atoms_per_state: int = 256) -> str:
-    """Render a deterministic, bounded card for one H-02 candidate snapshot."""
+    """Render a deterministic, bounded card for one canonical snapshot.
+
+    Args:
+        snapshot: The canonical snapshot to render.
+        max_atoms_per_state: The maximum number of atoms emitted per
+            state; atoms past this bound are omitted and the state line
+            records the truncation explicitly.
+
+    Returns:
+        The rendered card text, ending in a single trailing newline.
+
+    Raises:
+        ValueError: If max_atoms_per_state is not positive.
+    """
     if getattr(snapshot, "schema_version", None) != SNAPSHOT_VERSION:
         return (
             f"card-version={CARD_VERSION}\n"
@@ -259,10 +368,26 @@ def render(snapshot: ObjectSnapshot, *, max_atoms_per_state: int = 256) -> str:
 
 
 def render_for_data(snapshot: ObjectSnapshot) -> str:
-    """Return candidate card bytes for the dataset caller seam."""
+    """Return card bytes for the dataset writer caller seam.
+
+    Args:
+        snapshot: The canonical snapshot to render.
+
+    Returns:
+        The same bytes render() returns, through the seam the dataset
+        writer (master plan item 14) calls.
+    """
     return render(snapshot)
 
 
 def render_for_runtime(snapshot: ObjectSnapshot) -> str:
-    """Return candidate card bytes for the runtime caller seam."""
+    """Return card bytes for the runtime prompt builder caller seam.
+
+    Args:
+        snapshot: The canonical snapshot to render.
+
+    Returns:
+        The same bytes render() returns, through the seam the runtime
+        prompt builder (master plan item 13) calls.
+    """
     return render(snapshot)
