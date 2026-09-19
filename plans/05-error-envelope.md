@@ -406,3 +406,49 @@ issue #12.
   decision — it owns the repair-attempt budget — not this module's.
 - **Empty-selection reporting.** Finding 4: an outcome, not an error, and
   item 4's to report.
+
+---
+
+## What implementation changed
+
+Recorded after the fact, as `plans/03` records its own divergences. Nothing
+here contradicts the four answered questions; each is something driving real
+PyMOL settled that the plan had guessed at.
+
+- **`orient` has no selection failure that raises.** Step 4 assumed each verb
+  would yield an undefined-selection case and a malformed-selector case.
+  Measured against PyMOL 3.2.0a, `cmd.orient` returns `None` for an undefined
+  selection name, for a malformed selector and for `None` itself. Its only
+  raising failure is an argument PyMOL cannot coerce, so `orient.json` holds
+  exactly that one case — which conveniently is also the corpus's only
+  `unknown` entry, satisfying step 4's requirement that the catch-all be
+  corpus-backed rather than hypothetical. The finding is carried in
+  `pymol_error_cases.py`'s docstring as a hand-off to item 4.
+- **Redaction covers single quotes as well as double.** The plan said
+  double-quoted spans. PyMOL quotes selection names with `"` but representation
+  names with `'`, and both are plan-derived, so redacting only one would have
+  been a leak the `copilot_`-substring test could not catch. Both styles now
+  redact, and both normalize to the same double-quoted `"<redacted>"` spelling.
+  An unterminated quote redacts to end of text rather than being left alone.
+- **`MAX_MESSAGE_BYTES = 256` no longer claims to be exercised by a real
+  case.** The 291-byte figure was the *raw* `show` message; once whitespace is
+  collapsed it is 226 bytes, comfortably inside the bound. The bound stays at
+  256 deliberately — item 8 feeds this message to a repair attempt, and the
+  list of valid representations is the part that makes the repair succeed — and
+  the truncation path is covered by an explicitly synthetic case instead.
+- **A shared case table, not an import of the capture script.** Steps 4 and 6
+  would have had the conformance test import the capture binary. The broken
+  commands now live in their own `tests/integration/pymol_error_cases.py`,
+  imported as a bare sibling module by both, so a case added to the capture is
+  covered by the conformance test without a second edit. `pyproject.toml`'s
+  pyrefly `search-path` comment records it alongside `snapshot_support.py`.
+- **The corpus crosses packages as a filegroup.** Step 6 assumed
+  `tests/integration` could `glob` the corpus by relative path. Bazel forbids
+  `..` in a glob, so `tests/contract` exports it as `:pymol_error_corpus`.
+- **The conformance test must exit through `os._exit`.** With the ordinary
+  `raise SystemExit(pytest.main(...))` ending, a deliberately corrupted corpus
+  message made pytest report `1 failed` while Bazel still reported the target
+  `PASSED` — real PyMOL's shutdown overrides the process status. The other
+  real-PyMOL modules in this package already end with `os._exit` for this
+  reason; this one now does too. Caught by step 6's sabotage check, which is
+  the only reason it was caught at all.
