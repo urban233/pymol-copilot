@@ -554,3 +554,55 @@ sequence it is. Steps 1 and 2 may share a commit.
 Cross-review afterwards goes to Hannah, read-only, using the master plan's
 review prompt at
 [docs/master_plan.md:51-57](docs/master_plan.md#L51-L57).
+
+---
+
+## What review changed
+
+Hannah's cross-review requested changes on five points, four of them in
+`src/pmc_core/card.py` and one in the contract test. All five were real, and
+all five are fixed on this branch. None of them moves a byte of the golden
+card: `test_golden_card_has_stable_bytes` is unchanged and still green, which
+is what keeps "the rendered bytes, apart from the version line" above true.
+
+- **"Bounded" was only ever true per state.** `render()` emitted every state,
+  and names, labels, representations and settings were unbounded too, so a
+  trajectory or a fabricated snapshot could produce a card of any size no
+  matter what `max_atoms_per_state` said. The bound is now real and stated in
+  the module docstring: `max_states` (default 8) and `max_bonds` (default
+  1024) join `max_atoms_per_state`, each omission carrying its own explicit
+  marker line (`omitted-states reason=state-limit`, `omitted-bonds
+  reason=bond-limit`) exactly as atom truncation already did. The
+  caller-sized fields fail closed instead of being shortened: a text field
+  over `_MAX_TEXT_CHARS`, more than `_MAX_REPS_PER_ATOM` representations or
+  more than `_MAX_SETTINGS` settings renders the malformed card. Shortening
+  was rejected as the alternative because a silently truncated name is one
+  the model reads as whole.
+- **The canonical atom order was not total.** Two atoms agreeing on all seven
+  identity fields but differing in coordinates, color, label or
+  representations kept their input order under Python's stable sort, so
+  permuting the input moved their lines and could move canonical bond
+  indices — the exact invariance the card claims. `_atom_key` now continues
+  past the seven identity fields through every remaining rendered field.
+  Atoms that agree on the *whole* key would render identical lines but still
+  leave a bond's canonical endpoint decided by input position, so a state
+  containing two of them is now rejected as malformed rather than rendered.
+- **The schema-version gate accepted `True` and `1.0`.** `True == 1` and
+  `1.0 == 1` in Python, and `_valid_snapshot` never checked the field's type,
+  so a JSON snapshot with `"schema_version": true` rendered as
+  `status=complete`. The gate now requires `_is_int` before equality.
+- **`_is_number` could raise instead of answering.** `math.isfinite()` raises
+  `OverflowError` for an int too large to convert to a float, and
+  `from_json()` accepts such an int, so an occupancy of `10**400` crashed the
+  renderer that exists to fail closed. The predicate is now written as a
+  magnitude comparison against `_MAX_ABS_NUMBER`, which is exact and cannot
+  overflow for any int, with `math.isfinite()` reached only for floats. This
+  is also what bounds a number's rendered length.
+- **The bond half of the ordering test was vacuous.** `_snapshot()` has one
+  bond, so reversing its bond tuple was a no-op and the simultaneous settings
+  reversal masked the gap — removing the renderer's bond sort left all 35
+  cases green. Bonds and settings now have a test each, and the bond one uses
+  a new three-atom, two-bond `_multi_bond_snapshot()` stored in the opposite
+  of canonical order, asserting the canonical bond lines directly. Every fix
+  above was sabotage-checked the way step 3 prescribes: each one removed in
+  turn, confirming exactly the intended test goes red and no other.
