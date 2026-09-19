@@ -28,9 +28,12 @@ does not recognize.
 Raw messages are multi-line and quote the input back. A bad representation
 reports PyMOL's entire 24-entry representation table across five lines; an
 invalid selection name reports the name and then repeats it on a caret
-line. Both would leak plan text into an error, which
+line, and an unrecognized failure can name a selection without quoting it
+at all. All three would leak plan text into an error, which
 `pmc_core.parser.ParseRejection` already refuses to do and which item 11 of
-the master plan forbids outright.
+the master plan forbids outright. Quoted spans redact, caret lines drop,
+and any token carrying `pmc_core.plan.SELECTION_NAME_PREFIX` redacts
+whole.
 
 `cmd.do()` cannot surface a failure at all: it returns None for every
 failure and writes its text from C at the file-descriptor level on PyMOL's
@@ -44,6 +47,7 @@ from dataclasses import dataclass
 
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import MAX_COMMANDS
+from pmc_core.plan import SELECTION_NAME_PREFIX
 
 #: This module's own envelope schema version, stamped into every envelope.
 #: An int, matching pmc_core.snapshot.SNAPSHOT_VERSION: both version a
@@ -105,6 +109,12 @@ TRUNCATION_MARKER = "..."
 #: never empty, because an empty message is indistinguishable from a
 #: missing one.
 UNSPECIFIED_MESSAGE = "unspecified pymol failure"
+
+#: Reported for an exception whose own type refuses to name itself. Spelled
+#: so it cannot collide with a real module-qualified type name, since a
+#: type that raises while being named is still a failure worth recording
+#: rather than one worth propagating.
+UNSPECIFIED_TYPE_NAME = "<unknown>.<unknown>"
 
 #: The quote characters a raw message may use around input it echoes back.
 #: PyMOL uses double quotes for selection names and single quotes for
@@ -190,15 +200,24 @@ def exception_type_name(error: BaseException) -> str:
     identity the captured corpus records, so the corpus and the table
     always speak about a type the same way.
 
+    Like everything else on this boundary, naming cannot fail: a type
+    whose `__module__` or `__qualname__` is a property that raises reports
+    UNSPECIFIED_TYPE_NAME rather than propagating, because a caller in an
+    except block would otherwise lose the failure it was handed.
+
     Args:
         error: The raised failure to name.
 
     Returns:
         The type name, qualified by its defining module, for example
-        "pymol.CmdException".
+        "pymol.CmdException", or UNSPECIFIED_TYPE_NAME if the type refuses
+        to name itself.
     """
-    kind = type(error)
-    return f"{kind.__module__}.{kind.__qualname__}"
+    try:
+        kind = type(error)
+        return f"{kind.__module__}.{kind.__qualname__}"
+    except BaseException:  # A type that will not name itself is still data.
+        return UNSPECIFIED_TYPE_NAME
 
 
 def _redact_quoted(text: str) -> str:
@@ -233,6 +252,34 @@ def _redact_quoted(text: str) -> str:
             break
         index = closing + 1
     return "".join(pieces)
+
+
+def _redact_plan_tokens(text: str) -> str:
+    """Replace every space-delimited token carrying the plan's name prefix.
+
+    Quoting is not the only way PyMOL echoes plan text back. A message can
+    name a selection without quoting it at all -- "command copilot_x
+    failed" -- and the `unknown` category deliberately preserves text it
+    does not recognize, so an unquoted name would survive to a log or a
+    prompt. SELECTION_NAME_PREFIX is the one token a plan is guaranteed to
+    contribute, since `pmc_core.plan` accepts no selection name without
+    it, so any token carrying it is redacted whole.
+
+    The whole token goes, punctuation included, rather than the prefixed
+    span alone: over-redacting costs a few characters of context, while
+    under-redacting leaks the name this exists to keep out.
+
+    Args:
+        text: The single-line, lowercased message text, whose whitespace
+            runs have already been collapsed to one space each.
+
+    Returns:
+        The text with every prefixed token replaced.
+    """
+    return " ".join(
+        REDACTION if SELECTION_NAME_PREFIX in token else token
+        for token in text.split(" ")
+    )
 
 
 def _drop_caret_lines(text: str) -> str:
@@ -299,6 +346,31 @@ def _substitute_unprintable(text: str) -> str:
     )
 
 
+def _truncation_boundary(text: str) -> int:
+    """Report the longest prefix length that cannot split a REDACTION.
+
+    Cutting inside `"<redacted>"` leaves a stray quote behind, and a
+    second normalization pass would redact that partial token again --
+    turning the same failure into different bytes at the next boundary and
+    breaking the idempotence this module's docstring promises. The cut
+    therefore moves back to the start of a token it would have split.
+
+    Args:
+        text: The printable-ASCII message text.
+
+    Returns:
+        The index to cut at, never past the nominal bound and never
+        negative.
+    """
+    boundary = MAX_MESSAGE_BYTES - len(TRUNCATION_MARKER)
+    start = text.find(REDACTION)
+    while start != -1 and start < boundary:
+        if start + len(REDACTION) > boundary:
+            return start
+        start = text.find(REDACTION, start + len(REDACTION))
+    return boundary
+
+
 def _truncate(text: str) -> str:
     """Bound the text to MAX_MESSAGE_BYTES, marker included.
 
@@ -313,11 +385,10 @@ def _truncate(text: str) -> str:
     """
     if len(text.encode("ascii")) <= MAX_MESSAGE_BYTES:
         return text
-    keep = MAX_MESSAGE_BYTES - len(TRUNCATION_MARKER)
-    return text[:keep] + TRUNCATION_MARKER
+    return text[: _truncation_boundary(text)] + TRUNCATION_MARKER
 
 
-def normalize_message(raw: str) -> str:
+def normalize_message(raw: str | None) -> str:
     """Normalize a raw PyMOL message into a bounded, single-line form.
 
     The pipeline is total, deterministic and idempotent: normalizing an
@@ -327,11 +398,13 @@ def normalize_message(raw: str) -> str:
 
     Args:
         raw: The raw message text, as PyMOL raised it. A value that is not
-            a str is treated as having no message at all.
+            a str -- including the None an exception that cannot describe
+            itself yields -- is treated as having no message at all.
 
     Returns:
         A non-empty, single-line, printable-ASCII message of at most
-        MAX_MESSAGE_BYTES bytes, carrying no quoted plan text.
+        MAX_MESSAGE_BYTES bytes, carrying neither a quoted span nor a
+        token bearing the plan's selection-name prefix.
     """
     if not isinstance(raw, str):
         return UNSPECIFIED_MESSAGE
@@ -339,6 +412,7 @@ def normalize_message(raw: str) -> str:
     text = _drop_caret_lines(text)
     text = _collapse_whitespace(text)
     text = _strip_prefixes(text.lower())
+    text = _redact_plan_tokens(text)
     text = _substitute_unprintable(text)
     text = _truncate(text)
     if not text:
@@ -373,12 +447,24 @@ class ExecutionErrorV1:
     def __post_init__(self) -> None:
         """Reject an envelope outside the accepted shape.
 
+        The numeric fields are checked for their declared type before
+        their value. Equality alone would accept True, 1.0 and 1+0j as
+        version 1, and the last of those makes to_dict() something json
+        cannot encode.
+
         Raises:
-            ValueError: If envelope_version is not ERROR_ENVELOPE_VERSION,
+            ValueError: If envelope_version is not the int
+                ERROR_ENVELOPE_VERSION,
                 command_index is not an int in range, verb is not an
                 allowlisted verb, category is not in CATEGORIES, or
                 message is empty, over-long, or not printable ASCII.
         """
+        if isinstance(self.envelope_version, bool) or not isinstance(
+            self.envelope_version, int
+        ):
+            raise ValueError(
+                f"unsupported envelope version: {self.envelope_version!r}"
+            )
         if self.envelope_version != ERROR_ENVELOPE_VERSION:
             raise ValueError(
                 f"unsupported envelope version: {self.envelope_version!r}"
@@ -422,6 +508,28 @@ class ExecutionErrorV1:
             "category": self.category,
             "message": self.message,
         }
+
+
+def _message_text(error: BaseException) -> str | None:
+    """Read an exception's message text without trusting it to succeed.
+
+    `str(error)` runs `__str__`, which is user-defined and may raise.
+    Letting that propagate out of an except block would lose the original
+    failure entirely, which is the one thing this boundary exists to
+    prevent.
+
+    Args:
+        error: The raised failure whose text is wanted.
+
+    Returns:
+        The text, or None if the exception would not produce any -- which
+        normalize_message turns into UNSPECIFIED_MESSAGE, exactly as it
+        does for any other non-str.
+    """
+    try:
+        return str(error)
+    except BaseException:  # An exception that cannot describe itself.
+        return None
 
 
 def classify(error: BaseException, normalized_message: str) -> str:
@@ -473,7 +581,7 @@ def normalize(
         ValueError: If command_index or verb is not one an envelope
             accepts.
     """
-    message = normalize_message(str(error))
+    message = normalize_message(_message_text(error))
     return ExecutionErrorV1(
         envelope_version=ERROR_ENVELOPE_VERSION,
         command_index=command_index,
