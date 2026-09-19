@@ -159,6 +159,62 @@ def _timestamp(value: object, *, name: str) -> str:
     return text
 
 
+def _int(value: object, *, name: str) -> int:
+    """Require a protocol value to be an integer, not a bool.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to an int.
+
+    Raises:
+        ProtocolDecodeError: If value is not an int, or is a bool (JSON's
+            true/false decode to Python's bool, itself an int subclass).
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProtocolDecodeError(f"{name} must be an integer")
+    return value
+
+
+def _float(value: object, *, name: str) -> float:
+    """Require a protocol value to be a real number.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to a float. An int value is accepted and
+        widened, since JSON has no separate integer/float wire types.
+
+    Raises:
+        ProtocolDecodeError: If value is not a real number, or is a bool.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolDecodeError(f"{name} must be a number")
+    return float(value)
+
+
+def _optional_string(value: object, *, name: str) -> str | None:
+    """Require a protocol value to be a string or JSON null.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to a string, or None for JSON null.
+
+    Raises:
+        ProtocolDecodeError: If value is neither a string nor None.
+    """
+    if value is None:
+        return None
+    return _string(value, name=name)
+
+
 @dataclass(frozen=True)
 class ContractManifestV1:
     """Versions of the shared contracts used by a request."""
@@ -343,8 +399,13 @@ def _encode_target(target: object) -> dict[str, str]:
             raise ProtocolDecodeError("unsupported action plan target")
 
 
-def _plan_commands(plan: ActionPlan) -> list[dict[str, object]]:
+def encode_plan(plan: ActionPlan) -> list[dict[str, object]]:
     """Convert a typed action plan to its wire command objects.
+
+    Promoted from the module-private `_plan_commands` (docs/master_plan.md
+    item 4, the sidecar executor) so `src/pmc_sidecar/child.py` can reuse
+    this exact encoding to cross its own parent-child process boundary,
+    rather than inventing a second plan wire format.
 
     Args:
         plan: Action plan to encode.
@@ -402,8 +463,13 @@ def _plan_commands(plan: ActionPlan) -> list[dict[str, object]]:
     return commands
 
 
-def _decode_plan(value: object) -> ActionPlan:
+def decode_plan(value: object) -> ActionPlan:
     """Decode a strictly shaped action plan.
+
+    Promoted from the module-private `_decode_plan` (docs/master_plan.md
+    item 4, the sidecar executor) so `src/pmc_sidecar/child.py` can reuse
+    this exact decoding to cross its own parent-child process boundary,
+    rather than inventing a second plan wire format.
 
     Args:
         value: JSON-like value containing an action plan.
@@ -622,7 +688,7 @@ class ValidatedPlanResponseV1:
                 "planId": self.plan_id,
                 "planVersion": self.protocol_version,
                 "snapshotDigest": self.snapshot_digest,
-                "commands": _plan_commands(self.action_plan),
+                "commands": encode_plan(self.action_plan),
             },
             "validation": self.validation.to_dict(),
         }
@@ -659,7 +725,7 @@ class ValidatedPlanResponseV1:
         if data["status"] != "validated":
             raise ProtocolDecodeError("response status is not validated")
         action_plan_data = _object(data["actionPlan"], name="actionPlan")
-        plan = _decode_plan(action_plan_data)
+        plan = decode_plan(action_plan_data)
         validation = ValidationReportV1.from_dict(data["validation"])
         snapshot_digest = _string(
             action_plan_data["snapshotDigest"], name="snapshotDigest"
@@ -788,6 +854,289 @@ class FailedPlanResponseV1:
         )
 
 
+@dataclass(frozen=True)
+class CommandOutcomeV1:
+    """One command's observed outcome, indexed by its plan position."""
+
+    index: int
+    verb: str
+    status: str
+    error: str | None
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this outcome using its V1 wire-field names.
+
+        Returns:
+            The outcome represented with wire-field names.
+        """
+        return {
+            "index": self.index,
+            "verb": self.verb,
+            "status": self.status,
+            "error": self.error,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> CommandOutcomeV1:
+        """Decode and validate a V1 command outcome.
+
+        Args:
+            value: JSON-like value containing a command outcome.
+
+        Returns:
+            The validated command outcome.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the outcome schema.
+        """
+        data = _strict_object(
+            value,
+            name="commandOutcome",
+            required={"index", "verb", "status", "error"},
+        )
+        return cls(
+            index=_int(data["index"], name="index"),
+            verb=_string(data["verb"], name="verb"),
+            status=_string(data["status"], name="status"),
+            error=_optional_string(data["error"], name="error"),
+        )
+
+
+@dataclass(frozen=True)
+class SelectionCountV1:
+    """One selection's atom count after a plan executed."""
+
+    name: str
+    atom_count: int
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this selection count using its V1 wire-field names.
+
+        Returns:
+            The selection count represented with wire-field names.
+        """
+        return {"name": self.name, "atomCount": self.atom_count}
+
+    @classmethod
+    def from_dict(cls, value: object) -> SelectionCountV1:
+        """Decode and validate a V1 selection count.
+
+        Args:
+            value: JSON-like value containing a selection count.
+
+        Returns:
+            The validated selection count.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the schema.
+        """
+        data = _strict_object(
+            value, name="selectionCount", required={"name", "atomCount"}
+        )
+        return cls(
+            name=_string(data["name"], name="name"),
+            atom_count=_int(data["atomCount"], name="atomCount"),
+        )
+
+
+@dataclass(frozen=True)
+class ExecutionReportV1:
+    """The sidecar executor's report, on the wire.
+
+    Unlike ValidationReportV1, this type's status and reason can represent
+    any of pmc_core.executor's STATUS_*/REASON_* values, including a
+    failure -- a report that can only represent success is not a
+    fail-closed contract. See docs/master_plan.md item 4, the sidecar
+    executor.
+    """
+
+    executor_version: int
+    status: str
+    reason: str
+    input_digest: str | None
+    resulting_fingerprint: str | None
+    selection_counts: tuple[SelectionCountV1, ...]
+    command_outcomes: tuple[CommandOutcomeV1, ...]
+    elapsed_seconds: float
+    warnings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this report using its V1 wire-field names.
+
+        Returns:
+            The report represented with wire-field names.
+        """
+        return {
+            "executorVersion": self.executor_version,
+            "status": self.status,
+            "reason": self.reason,
+            "inputDigest": self.input_digest,
+            "resultingFingerprint": self.resulting_fingerprint,
+            "selectionCounts": [
+                item.to_dict() for item in self.selection_counts
+            ],
+            "commandOutcomes": [
+                item.to_dict() for item in self.command_outcomes
+            ],
+            "elapsedSeconds": self.elapsed_seconds,
+            "warnings": list(self.warnings),
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ExecutionReportV1:
+        """Decode and validate a V1 execution report.
+
+        Args:
+            value: JSON-like value containing an execution report.
+
+        Returns:
+            The validated execution report.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the report schema.
+        """
+        data = _strict_object(
+            value,
+            name="executionReport",
+            required={
+                "executorVersion",
+                "status",
+                "reason",
+                "inputDigest",
+                "resultingFingerprint",
+                "selectionCounts",
+                "commandOutcomes",
+                "elapsedSeconds",
+                "warnings",
+            },
+        )
+        match data["selectionCounts"]:
+            case list() as items:
+                selection_counts = tuple(
+                    SelectionCountV1.from_dict(item) for item in items
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "executionReport.selectionCounts must be a list"
+                )
+        match data["commandOutcomes"]:
+            case list() as items:
+                command_outcomes = tuple(
+                    CommandOutcomeV1.from_dict(item) for item in items
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "executionReport.commandOutcomes must be a list"
+                )
+        match data["warnings"]:
+            case list() as items:
+                warnings = tuple(
+                    _string(item, name="warning") for item in items
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "executionReport.warnings must be strings"
+                )
+        return cls(
+            executor_version=_int(
+                data["executorVersion"], name="executorVersion"
+            ),
+            status=_string(data["status"], name="status"),
+            reason=_string(data["reason"], name="reason"),
+            input_digest=_optional_string(
+                data["inputDigest"], name="inputDigest"
+            ),
+            resulting_fingerprint=_optional_string(
+                data["resultingFingerprint"], name="resultingFingerprint"
+            ),
+            selection_counts=selection_counts,
+            command_outcomes=command_outcomes,
+            elapsed_seconds=_float(
+                data["elapsedSeconds"], name="elapsedSeconds"
+            ),
+            warnings=warnings,
+        )
+
+
+@dataclass(frozen=True)
+class ExecutionRequestV1:
+    """A request to execute one typed plan against one canonical snapshot.
+
+    On the wire, this reuses the same tagged `actionPlan` object
+    `ValidatedPlanResponseV1` carries (`planId`/`planVersion`/
+    `snapshotDigest`/`commands`), so there is exactly one plan wire shape
+    in the repository -- the sidecar executor's own request/report
+    contract is otherwise unrelated to that response type. `planId` and
+    the `actionPlan`-level `snapshotDigest` exist only to satisfy that
+    shared envelope's own schema and play no further role here: this
+    request's plan and snapshot travel independently, and
+    `pmc_core.executor` computes its own `input_digest` from
+    `snapshot_json` directly.
+    """
+
+    plan: ActionPlan
+    plan_id: str
+    snapshot_digest: str
+    snapshot_json: str
+    expected_resulting_fingerprint: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "actionPlan": {
+                "planId": self.plan_id,
+                "planVersion": PROTOCOL_VERSION,
+                "snapshotDigest": self.snapshot_digest,
+                "commands": encode_plan(self.plan),
+            },
+            "snapshotJson": self.snapshot_json,
+            "expectedResultingFingerprint": (
+                self.expected_resulting_fingerprint
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ExecutionRequestV1:
+        """Decode and validate a V1 execution request.
+
+        Args:
+            value: JSON-like value containing an execution request.
+
+        Returns:
+            The validated execution request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="executionRequest",
+            required={
+                "actionPlan",
+                "snapshotJson",
+                "expectedResultingFingerprint",
+            },
+        )
+        action_plan_data = _object(data["actionPlan"], name="actionPlan")
+        plan = decode_plan(action_plan_data)
+        return cls(
+            plan=plan,
+            plan_id=_uuid4(action_plan_data["planId"], name="planId"),
+            snapshot_digest=_string(
+                action_plan_data["snapshotDigest"], name="snapshotDigest"
+            ),
+            snapshot_json=_string(data["snapshotJson"], name="snapshotJson"),
+            expected_resulting_fingerprint=_optional_string(
+                data["expectedResultingFingerprint"],
+                name="expectedResultingFingerprint",
+            ),
+        )
+
+
 def encode_json(
     value: PlanRequestV1 | ValidatedPlanResponseV1 | FailedPlanResponseV1,
 ) -> str:
@@ -837,3 +1186,37 @@ def decode_json(
     if decoded.get("status") == "failed":
         return FailedPlanResponseV1.from_dict(decoded)
     return ValidatedPlanResponseV1.from_dict(decoded)
+
+
+def encode_execution_response_json(value: ExecutionReportV1) -> str:
+    """Encode an execution report as compact JSON.
+
+    Args:
+        value: Execution report to encode.
+
+    Returns:
+        The compact JSON representation.
+    """
+    return json.dumps(value.to_dict(), separators=(",", ":"))
+
+
+def decode_execution_request_json(value: str) -> ExecutionRequestV1:
+    """Decode JSON strictly as a V1 execution request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed execution request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    # Same hostile-JSON handling as decode_json: deeply nested arrays raise
+    # RecursionError and an over-long integer literal raises a plain
+    # ValueError, neither of which is ProtocolDecodeError on its own.
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return ExecutionRequestV1.from_dict(decoded)

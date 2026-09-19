@@ -47,6 +47,17 @@ py_test(
 )
 
 py_test(
+    name = "executor",
+    size = "small",
+    srcs = ["test_executor.py"],
+    main = "test_executor.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "protocol",
     size = "small",
     srcs = ["test_protocol.py"],
@@ -71,6 +82,7 @@ py_test(
 test_suite(
     name = "all",
     tests = [
+        ":executor",
         ":parser",
         ":plan",
         ":policy",

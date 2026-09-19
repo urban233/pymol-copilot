@@ -2,8 +2,20 @@ load("@rules_python//python:py_library.bzl", "py_library")
 
 py_library(
     name = "pmc_server",
-    srcs = ["__init__.py", "lifecycle.py", "transport.py"],
+    srcs = [
+        "__init__.py",
+        "lifecycle.py",
+        "transport.py",
+        "validation.py",
+    ],
     imports = [".."],
-    deps = ["//src/pmc_core:pmc_core"],
+    # //src/pmc_sidecar is the sidecar executor's PyMOL-touching child
+    # (docs/master_plan.md item 4): pmc_server is the process that actually
+    # spawns it via pmc_core.executor.execute(), so it needs the child
+    # present in its own runfiles for that spawn to find it at runtime.
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
     visibility = ["//src/pmc_server:__pkg__", "//src:tests"],
 )

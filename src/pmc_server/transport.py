@@ -10,15 +10,24 @@ from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from threading import Thread
 
+from pmc_core.protocol import ExecutionReportV1
+from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import decode_execution_request_json
 from pmc_core.protocol import decode_json
+from pmc_core.protocol import encode_execution_response_json
 from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
 PLAN_PATH = "/v1/plan"
+#: The sidecar executor's endpoint (docs/master_plan.md item 4). Routed
+#: only when a server is constructed with an execution_handler; a server
+#: with none (every caller before this endpoint existed) returns 404 here,
+#: exactly as it did when this path was not routed at all.
+VALIDATE_PATH = "/v1/validate"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 REQUEST_TIMEOUT_SECONDS = 5.0
@@ -27,21 +36,35 @@ LOGGER = logging.getLogger(__name__)
 
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
 type PLAN_HANDLER = Callable[[PlanRequestV1], PLAN_RESPONSE]
+type EXECUTION_HANDLER = Callable[[ExecutionRequestV1], ExecutionReportV1]
 
 # Preserve the original public type-alias names.
 globals()["PlanResponse"] = PLAN_RESPONSE
 globals()["PlanHandler"] = PLAN_HANDLER
+globals()["ExecutionHandler"] = EXECUTION_HANDLER
 
 
 class LoopbackPlanServer:
     """Serve authenticated V1 plan requests on an ephemeral loopback port."""
 
-    def __init__(self, credential: str, handler: PLAN_HANDLER) -> None:
+    def __init__(
+        self,
+        credential: str,
+        handler: PLAN_HANDLER,
+        *,
+        execution_handler: EXECUTION_HANDLER | None = None,
+    ) -> None:
         """Create a server that authenticates requests before decoding JSON.
 
         Args:
             credential: The ephemeral credential expected in every request.
-            handler: The server request lifecycle invoked after strict decoding.
+            handler: The server request lifecycle invoked after strict
+                decoding of a PLAN_PATH request.
+            execution_handler: The sidecar executor's own request lifecycle
+                (docs/master_plan.md item 4), invoked after strict decoding
+                of a VALIDATE_PATH request. None -- the default, and every
+                caller before this endpoint existed -- routes VALIDATE_PATH
+                to 404, exactly as an unrouted path already does.
 
         Raises:
             ValueError: If credential is empty.
@@ -50,6 +73,7 @@ class LoopbackPlanServer:
             raise ValueError("credential must not be empty")
         self._credential = credential
         self._handler = handler
+        self._execution_handler = execution_handler
         self._httpd = ThreadingHTTPServer(
             (LOOPBACK_HOST, 0), self._make_request_handler()
         )
@@ -140,30 +164,26 @@ class LoopbackPlanServer:
             """Handle one authenticated plan request."""
 
             def do_post(self) -> None:
-                """Decode and dispatch the sole V1 endpoint.
+                """Route by path to the plan or the execution endpoint.
 
                 Returns:
                     None. The response is written to the client connection.
                 """
-                if self.path != PLAN_PATH:
-                    self._send_empty(HTTPStatus.NOT_FOUND)
+                if self.path == PLAN_PATH:
+                    self._handle_plan()
                     return
-                if self.headers.get(CREDENTIAL_HEADER) != server._credential:
-                    self._send_empty(HTTPStatus.UNAUTHORIZED)
+                if (
+                    self.path == VALIDATE_PATH
+                    and server._execution_handler is not None
+                ):
+                    self._handle_validate()
                     return
-                if self.headers.get("Content-Type") != "application/json":
-                    self._send_empty(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
-                    return
-                content_length = self._content_length()
-                if content_length is None:
-                    return
-                try:
-                    payload = self.rfile.read(content_length)
-                except TimeoutError:
-                    self._send_empty(HTTPStatus.REQUEST_TIMEOUT)
-                    return
-                if len(payload) != content_length:
-                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                self._send_empty(HTTPStatus.NOT_FOUND)
+
+            def _handle_plan(self) -> None:
+                """Decode, dispatch, and answer one PLAN_PATH request."""
+                payload = self._authorized_json_body()
+                if payload is None:
                     return
                 try:
                     request = decode_json(payload.decode("utf-8"))
@@ -179,14 +199,76 @@ class LoopbackPlanServer:
                 except (ProtocolDecodeError, ValueError):
                     self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
                     return
-                if len(response_payload) > MAX_MESSAGE_BYTES:
+                self._send_json(response_payload)
+
+            def _handle_validate(self) -> None:
+                """Decode, dispatch, and answer one VALIDATE_PATH request."""
+                payload = self._authorized_json_body()
+                if payload is None:
+                    return
+                try:
+                    request = decode_execution_request_json(
+                        payload.decode("utf-8")
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    execution_handler = server._execution_handler
+                    assert execution_handler is not None
+                    response = execution_handler(request)
+                    response_payload = encode_execution_response_json(
+                        response
+                    ).encode("utf-8")
+                except (ProtocolDecodeError, ValueError):
+                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+                self._send_json(response_payload)
+
+            def _authorized_json_body(self) -> bytes | None:
+                """Authenticate a request and read its bounded JSON body.
+
+                Shared by every endpoint this handler serves: the
+                credential, content-type, and content-length checks, and
+                the bounded read itself, are identical regardless of which
+                endpoint's own decode/encode runs afterward.
+
+                Returns:
+                    The request body, or None after sending an error.
+                """
+                if self.headers.get(CREDENTIAL_HEADER) != server._credential:
+                    self._send_empty(HTTPStatus.UNAUTHORIZED)
+                    return None
+                if self.headers.get("Content-Type") != "application/json":
+                    self._send_empty(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
+                    return None
+                content_length = self._content_length()
+                if content_length is None:
+                    return None
+                try:
+                    payload = self.rfile.read(content_length)
+                except TimeoutError:
+                    self._send_empty(HTTPStatus.REQUEST_TIMEOUT)
+                    return None
+                if len(payload) != content_length:
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return None
+                return payload
+
+            def _send_json(self, payload: bytes) -> None:
+                """Send a successful bounded JSON response.
+
+                Args:
+                    payload: The encoded response body.
+                """
+                if len(payload) > MAX_MESSAGE_BYTES:
                     self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
                     return
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(response_payload)))
+                self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
-                self.wfile.write(response_payload)
+                self.wfile.write(payload)
 
             def _content_length(self) -> int | None:
                 """Read and validate the request content length.
