@@ -159,6 +159,62 @@ def _timestamp(value: object, *, name: str) -> str:
     return text
 
 
+def _int(value: object, *, name: str) -> int:
+    """Require a protocol value to be an integer, not a bool.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to an int.
+
+    Raises:
+        ProtocolDecodeError: If value is not an int, or is a bool (JSON's
+            true/false decode to Python's bool, itself an int subclass).
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProtocolDecodeError(f"{name} must be an integer")
+    return value
+
+
+def _float(value: object, *, name: str) -> float:
+    """Require a protocol value to be a real number.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to a float. An int value is accepted and
+        widened, since JSON has no separate integer/float wire types.
+
+    Raises:
+        ProtocolDecodeError: If value is not a real number, or is a bool.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ProtocolDecodeError(f"{name} must be a number")
+    return float(value)
+
+
+def _optional_string(value: object, *, name: str) -> str | None:
+    """Require a protocol value to be a string or JSON null.
+
+    Args:
+        value: Value to validate.
+        name: Field name used in the error message.
+
+    Returns:
+        The value narrowed to a string, or None for JSON null.
+
+    Raises:
+        ProtocolDecodeError: If value is neither a string nor None.
+    """
+    if value is None:
+        return None
+    return _string(value, name=name)
+
+
 @dataclass(frozen=True)
 class ContractManifestV1:
     """Versions of the shared contracts used by a request."""
@@ -795,6 +851,210 @@ class FailedPlanResponseV1:
             request_id=_uuid4(data["requestId"], name="requestId"),
             session_id=_uuid4(data["sessionId"], name="sessionId"),
             failure=FailureEnvelopeV1.from_dict(data["failure"]),
+        )
+
+
+@dataclass(frozen=True)
+class CommandOutcomeV1:
+    """One command's observed outcome, indexed by its plan position."""
+
+    index: int
+    verb: str
+    status: str
+    error: str | None
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this outcome using its V1 wire-field names.
+
+        Returns:
+            The outcome represented with wire-field names.
+        """
+        return {
+            "index": self.index,
+            "verb": self.verb,
+            "status": self.status,
+            "error": self.error,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> CommandOutcomeV1:
+        """Decode and validate a V1 command outcome.
+
+        Args:
+            value: JSON-like value containing a command outcome.
+
+        Returns:
+            The validated command outcome.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the outcome schema.
+        """
+        data = _strict_object(
+            value,
+            name="commandOutcome",
+            required={"index", "verb", "status", "error"},
+        )
+        return cls(
+            index=_int(data["index"], name="index"),
+            verb=_string(data["verb"], name="verb"),
+            status=_string(data["status"], name="status"),
+            error=_optional_string(data["error"], name="error"),
+        )
+
+
+@dataclass(frozen=True)
+class SelectionCountV1:
+    """One selection's atom count after a plan executed."""
+
+    name: str
+    atom_count: int
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this selection count using its V1 wire-field names.
+
+        Returns:
+            The selection count represented with wire-field names.
+        """
+        return {"name": self.name, "atomCount": self.atom_count}
+
+    @classmethod
+    def from_dict(cls, value: object) -> SelectionCountV1:
+        """Decode and validate a V1 selection count.
+
+        Args:
+            value: JSON-like value containing a selection count.
+
+        Returns:
+            The validated selection count.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the schema.
+        """
+        data = _strict_object(
+            value, name="selectionCount", required={"name", "atomCount"}
+        )
+        return cls(
+            name=_string(data["name"], name="name"),
+            atom_count=_int(data["atomCount"], name="atomCount"),
+        )
+
+
+@dataclass(frozen=True)
+class ExecutionReportV1:
+    """The sidecar executor's report, on the wire.
+
+    Unlike ValidationReportV1, this type's status and reason can represent
+    any of pmc_core.executor's STATUS_*/REASON_* values, including a
+    failure -- a report that can only represent success is not a
+    fail-closed contract. See docs/master_plan.md item 4, the sidecar
+    executor.
+    """
+
+    executor_version: int
+    status: str
+    reason: str
+    input_digest: str | None
+    resulting_fingerprint: str | None
+    selection_counts: tuple[SelectionCountV1, ...]
+    command_outcomes: tuple[CommandOutcomeV1, ...]
+    elapsed_seconds: float
+    warnings: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this report using its V1 wire-field names.
+
+        Returns:
+            The report represented with wire-field names.
+        """
+        return {
+            "executorVersion": self.executor_version,
+            "status": self.status,
+            "reason": self.reason,
+            "inputDigest": self.input_digest,
+            "resultingFingerprint": self.resulting_fingerprint,
+            "selectionCounts": [
+                item.to_dict() for item in self.selection_counts
+            ],
+            "commandOutcomes": [
+                item.to_dict() for item in self.command_outcomes
+            ],
+            "elapsedSeconds": self.elapsed_seconds,
+            "warnings": list(self.warnings),
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ExecutionReportV1:
+        """Decode and validate a V1 execution report.
+
+        Args:
+            value: JSON-like value containing an execution report.
+
+        Returns:
+            The validated execution report.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the report schema.
+        """
+        data = _strict_object(
+            value,
+            name="executionReport",
+            required={
+                "executorVersion",
+                "status",
+                "reason",
+                "inputDigest",
+                "resultingFingerprint",
+                "selectionCounts",
+                "commandOutcomes",
+                "elapsedSeconds",
+                "warnings",
+            },
+        )
+        match data["selectionCounts"]:
+            case list() as items:
+                selection_counts = tuple(
+                    SelectionCountV1.from_dict(item) for item in items
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "executionReport.selectionCounts must be a list"
+                )
+        match data["commandOutcomes"]:
+            case list() as items:
+                command_outcomes = tuple(
+                    CommandOutcomeV1.from_dict(item) for item in items
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "executionReport.commandOutcomes must be a list"
+                )
+        match data["warnings"]:
+            case list() as items:
+                warnings = tuple(
+                    _string(item, name="warning") for item in items
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "executionReport.warnings must be strings"
+                )
+        return cls(
+            executor_version=_int(
+                data["executorVersion"], name="executorVersion"
+            ),
+            status=_string(data["status"], name="status"),
+            reason=_string(data["reason"], name="reason"),
+            input_digest=_optional_string(
+                data["inputDigest"], name="inputDigest"
+            ),
+            resulting_fingerprint=_optional_string(
+                data["resultingFingerprint"], name="resultingFingerprint"
+            ),
+            selection_counts=selection_counts,
+            command_outcomes=command_outcomes,
+            elapsed_seconds=_float(
+                data["elapsedSeconds"], name="elapsedSeconds"
+            ),
+            warnings=warnings,
         )
 
 
