@@ -1,0 +1,47 @@
+{
+  "cases": [
+    {
+      "case": "unknown_color",
+      "exception_type": "pymol.CmdException",
+      "expected": {
+        "category": "unknown_color",
+        "command_index": 1,
+        "envelope_version": 1,
+        "message": "unknown color.",
+        "verb": "color"
+      },
+      "raw_message": " Error: Unknown color.",
+      "reachable": false,
+      "verb": "color"
+    },
+    {
+      "case": "undefined_selection",
+      "exception_type": "pymol.CmdException",
+      "expected": {
+        "category": "invalid_selection_name",
+        "command_index": 1,
+        "envelope_version": 1,
+        "message": "invalid selection name \"<redacted>\".",
+        "verb": "color"
+      },
+      "raw_message": " Error: Invalid selection name \"copilot_undefined\".\ncopilot_undefined<--",
+      "reachable": false,
+      "verb": "color"
+    },
+    {
+      "case": "malformed_selector",
+      "exception_type": "pymol.CmdException",
+      "expected": {
+        "category": "selection_syntax",
+        "command_index": 1,
+        "envelope_version": 1,
+        "message": "invalid selection.",
+        "verb": "color"
+      },
+      "raw_message": " Error: Invalid selection.",
+      "reachable": false,
+      "verb": "color"
+    }
+  ],
+  "pymol_version": "3.2.0a"
+}
