@@ -3,6 +3,7 @@
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import json
 import logging
 from http import HTTPStatus
 from http.client import HTTPConnection
@@ -15,13 +16,27 @@ from pmc_client.transport import MAX_MESSAGE_BYTES
 from pmc_client.transport import PLAN_PATH
 from pmc_client.transport import LoopbackPlanClient
 from pmc_client.transport import TransportError
+from pmc_core.executor import EXECUTOR_VERSION
+from pmc_core.executor import CommandOutcome
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import AndClause
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import Factor
+from pmc_core.plan import OrientOperation
+from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import ContractManifestV1
+from pmc_core.protocol import ExecutionReportV1
+from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 from pmc_server.lifecycle import FIXTURE_PLAN
+from pmc_server.transport import VALIDATE_PATH
 from pmc_server.transport import LoopbackPlanServer
+from pmc_server.validation import PlanValidationService
 
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
 SESSION_ID = "22222222-2222-4222-8222-222222222222"
@@ -280,6 +295,152 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
         pytest.raises(TransportError, match="snapshot identity"),
     ):
         LoopbackPlanClient(server.port, "secret").submit(plan_request())
+
+
+# --- /v1/validate: the sidecar executor's endpoint (item 4) ---------------
+
+
+def chain_a() -> SelectionExpression:
+    """Build the expression `chain A`.
+
+    Returns:
+        A one-term expression matching chain A.
+    """
+    return SelectionExpression(
+        clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+    )
+
+
+def execution_request() -> ExecutionRequestV1:
+    """Build an accepted execution request fixture.
+
+    Returns:
+        A well-formed request for the /v1/validate endpoint.
+    """
+    return ExecutionRequestV1(
+        plan=ActionPlan(operations=(OrientOperation(target=chain_a()),)),
+        plan_id="55555555-5555-4555-8555-555555555555",
+        snapshot_digest="sha256:example-digest",
+        snapshot_json='{"schema_version":1,"name":"fx"}',
+    )
+
+
+def fake_executor(_request: ExecutionRequest) -> ExecutionReport:
+    """Return a fixed successful report, without spawning anything.
+
+    Args:
+        _request: The built ExecutionRequest, unused by this fake.
+
+    Returns:
+        A fixed successful report.
+    """
+    return ExecutionReport(
+        executor_version=EXECUTOR_VERSION,
+        status="ok",
+        reason="ok",
+        input_digest="sha256:example-digest",
+        resulting_fingerprint="sha256:" + "1" * 64,
+        selection_counts=(),
+        command_outcomes=(CommandOutcome(0, "orient", "ok", None),),
+        child_pid=12345,
+        child_terminated=True,
+        elapsed_seconds=0.05,
+        warnings=(),
+    )
+
+
+def test_validate_endpoint_round_trips_over_loopback() -> None:
+    """A real HTTP round trip through PlanValidationService's own mapping."""
+    service = PlanValidationService(executor=fake_executor)
+    with LoopbackPlanServer(
+        "secret", validated_response, execution_handler=service
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(execution_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            VALIDATE_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response_body = response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.OK
+    report = ExecutionReportV1.from_dict(json.loads(response_body))
+    assert report.status == "ok"
+    assert report.reason == "ok"
+    assert report.resulting_fingerprint == "sha256:" + "1" * 64
+    assert len(report.command_outcomes) == 1
+    assert report.command_outcomes[0].verb == "orient"
+
+
+def test_validate_endpoint_is_404_with_no_execution_handler_configured() -> (
+    None
+):
+    """A server built without an execution_handler still 404s the path."""
+    with LoopbackPlanServer("secret", validated_response) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(execution_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            VALIDATE_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+def test_validate_endpoint_rejects_wrong_credential() -> None:
+    """A wrong credential cannot reach the execution handler."""
+    calls: list[ExecutionRequestV1] = []
+
+    def counting_service(request: ExecutionRequestV1) -> ExecutionReportV1:
+        """Record and forward to the real service.
+
+        Args:
+            request: The decoded execution request.
+
+        Returns:
+            The service's own mapped report.
+        """
+        calls.append(request)
+        return PlanValidationService(executor=fake_executor)(request)
+
+    with LoopbackPlanServer(
+        "secret", validated_response, execution_handler=counting_service
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(execution_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            VALIDATE_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "wrong-secret",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.UNAUTHORIZED
+    assert calls == []
 
 
 if __name__ == "__main__":

@@ -1058,6 +1058,85 @@ class ExecutionReportV1:
         )
 
 
+@dataclass(frozen=True)
+class ExecutionRequestV1:
+    """A request to execute one typed plan against one canonical snapshot.
+
+    On the wire, this reuses the same tagged `actionPlan` object
+    `ValidatedPlanResponseV1` carries (`planId`/`planVersion`/
+    `snapshotDigest`/`commands`), so there is exactly one plan wire shape
+    in the repository -- the sidecar executor's own request/report
+    contract is otherwise unrelated to that response type. `planId` and
+    the `actionPlan`-level `snapshotDigest` exist only to satisfy that
+    shared envelope's own schema and play no further role here: this
+    request's plan and snapshot travel independently, and
+    `pmc_core.executor` computes its own `input_digest` from
+    `snapshot_json` directly.
+    """
+
+    plan: ActionPlan
+    plan_id: str
+    snapshot_digest: str
+    snapshot_json: str
+    expected_resulting_fingerprint: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode this request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "actionPlan": {
+                "planId": self.plan_id,
+                "planVersion": PROTOCOL_VERSION,
+                "snapshotDigest": self.snapshot_digest,
+                "commands": encode_plan(self.plan),
+            },
+            "snapshotJson": self.snapshot_json,
+            "expectedResultingFingerprint": (
+                self.expected_resulting_fingerprint
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ExecutionRequestV1:
+        """Decode and validate a V1 execution request.
+
+        Args:
+            value: JSON-like value containing an execution request.
+
+        Returns:
+            The validated execution request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="executionRequest",
+            required={
+                "actionPlan",
+                "snapshotJson",
+                "expectedResultingFingerprint",
+            },
+        )
+        action_plan_data = _object(data["actionPlan"], name="actionPlan")
+        plan = decode_plan(action_plan_data)
+        return cls(
+            plan=plan,
+            plan_id=_uuid4(action_plan_data["planId"], name="planId"),
+            snapshot_digest=_string(
+                action_plan_data["snapshotDigest"], name="snapshotDigest"
+            ),
+            snapshot_json=_string(data["snapshotJson"], name="snapshotJson"),
+            expected_resulting_fingerprint=_optional_string(
+                data["expectedResultingFingerprint"],
+                name="expectedResultingFingerprint",
+            ),
+        )
+
+
 def encode_json(
     value: PlanRequestV1 | ValidatedPlanResponseV1 | FailedPlanResponseV1,
 ) -> str:
@@ -1107,3 +1186,37 @@ def decode_json(
     if decoded.get("status") == "failed":
         return FailedPlanResponseV1.from_dict(decoded)
     return ValidatedPlanResponseV1.from_dict(decoded)
+
+
+def encode_execution_response_json(value: ExecutionReportV1) -> str:
+    """Encode an execution report as compact JSON.
+
+    Args:
+        value: Execution report to encode.
+
+    Returns:
+        The compact JSON representation.
+    """
+    return json.dumps(value.to_dict(), separators=(",", ":"))
+
+
+def decode_execution_request_json(value: str) -> ExecutionRequestV1:
+    """Decode JSON strictly as a V1 execution request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed execution request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    # Same hostile-JSON handling as decode_json: deeply nested arrays raise
+    # RecursionError and an over-long integer literal raises a plain
+    # ValueError, neither of which is ProtocolDecodeError on its own.
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return ExecutionRequestV1.from_dict(decoded)
