@@ -452,3 +452,59 @@ PyMOL settled that the plan had guessed at.
   real-PyMOL modules in this package already end with `os._exit` for this
   reason; this one now does too. Caught by step 6's sabotage check, which is
   the only reason it was caught at all.
+
+## What review changed
+
+Seven findings from the review on #31, each reproduced before it was fixed and
+each re-checked by sabotaging the fix and watching the new test fail.
+
+- **The capture binary reported success after detecting failure.** `main`
+  returned 1 for a case that stopped failing, but `sys.exit(1)` after
+  `cmd.do("quit")` is overridden by real PyMOL's shutdown, so `bazel run`
+  printed success and left a partial corpus behind. The binary now exits
+  through `os._exit`, like every other real-PyMOL module in the package, and
+  writes nothing at all when a case went silent — a corpus missing a case it
+  claims to cover is worse than no new corpus.
+- **Truncation could split the redaction token, breaking idempotence.**
+  `"x" * 243 + '"secret"' + "y" * 10` normalized to 256 bytes ending in
+  `"<redacted`, whose stray quote a second pass redacted again into a
+  different 255-byte string. `_truncation_boundary` now moves the cut back to
+  the start of a token it would have split, so the documented cross-boundary
+  byte stability holds. The all-`x` truncation case could never have caught
+  this; the interaction has its own cases now.
+- **Unquoted plan text survived.** Redaction covered quoted spans and caret
+  lines only, so `normalize(RuntimeError("command copilot_secret failed"), …)`
+  kept `copilot_secret` — and the `unknown` category deliberately preserves
+  text, which is exactly where such a message lands. Any space-delimited token
+  carrying `SELECTION_NAME_PREFIX` now redacts whole. The prefix is the one
+  token a plan is guaranteed to contribute, since `pmc_core.plan` accepts no
+  selection name without it.
+- **`str(error)` could raise.** `__str__` is user-defined; a `BaseException`
+  whose `__str__` raised propagated out of `normalize` and lost the original
+  failure — the one thing this boundary exists to prevent. `_message_text`
+  now returns None instead, which `normalize_message` already handles.
+  `exception_type_name` is total for the same reason, since a metaclass can
+  make `__module__` raise too; it reports `UNSPECIFIED_TYPE_NAME`.
+- **The envelope version was checked by equality, not by type.** `True`,
+  `1.0` and `1+0j` all compare equal to 1 and constructed, and the last made
+  `to_dict()` something `json` cannot encode. `envelope_version` is now
+  type-checked exactly as `command_index` already was.
+- **The consumer assertion was tautological.** Asserting that two imported
+  modules are not None, and that `pmc_core.errors.normalize` is the
+  `normalize` imported from `pmc_core.errors`, could not fail. Neither
+  consumer references the normalizer yet, so no test here can prove both
+  *reach* it; what is provable now is that neither has grown a second one, so
+  the contract test scans both packages' sources for a competing `normalize`,
+  `normalize_message` or `ExecutionErrorV1`, and requires any consumer that
+  does call `normalize(` to name `pmc_core.errors`. That second assertion is
+  vacuous until item 14 and item 8 land, and turns into the real
+  cross-subsystem check the moment either does.
+- **The captured index and verb were fed back as the normalizer's input.**
+  `test_the_normalizer_reproduces_the_captured_envelope` read
+  `expected["command_index"]` and `expected["verb"]` out of the very envelope
+  it then compared against, so two of the five recorded fields asserted
+  nothing: a corpus edited from index 1 to 0 stayed green. Both now come from
+  `pymol_error_cases.cases()`, the same table the capture drove and the
+  conformance test re-drives, which `tests/contract` reaches through a
+  widened `visibility` on that PyMOL-free `py_library`. Both sabotages now
+  fail the target.
