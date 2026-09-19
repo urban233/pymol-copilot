@@ -12,6 +12,10 @@ This plan assumes Opus for planning and Sonnet for implementation, with one deve
 
 ## Starting state
 
+> **Note, 2026-09-19.** This section describes the repository on the day the
+> plan was written. For what has landed since, see
+> [State and dependency graph](#state-and-dependency-graph).
+
 The repository implements one hard-coded fixture end to end — `select copilot_selection, chain A` followed by `color red, copilot_selection` — inside genuinely hardened safety scaffolding.
 
 - **pmc_core** has a total parser, typed plan, default-deny policy and a strict wire protocol, but all of it is pinned to that one fixture. There is no general verb allowlist anywhere in the code.
@@ -60,13 +64,174 @@ with file:line.
 
 ---
 
+---
+
+## State and dependency graph
+
+**Written:** 2026-09-16 · **State as of:** 2026-09-19
+
+Every item carries a **State**. The values are:
+
+| State | Meaning |
+| --- | --- |
+| `done` | merged into `main` |
+| `in review` | open pull request, CI green, not yet merged |
+| `in progress` | branch exists, no pull request yet |
+| `ready` | every prerequisite is `done`; nobody has started it |
+| `blocked` | at least one prerequisite is not `done` yet |
+
+### Blockers
+
+`Blocked by` lists prerequisites; a check mark means that prerequisite is already `done`.
+
+| # | Item | Owner | State | Blocked by | Blocks |
+| --- | --- | --- | --- | --- | --- |
+| 0 | Dependency split | Martin | **done** — PR #24 | — | 8, 9, 17 |
+| 1 | Lemonade spike | Hannah | **done** — PR #25 | — | 9, 17 |
+| 2 | Command language | Martin | **done** — PR #27 | — | 4, 6, 7, 8, 10, 13, 14 |
+| 3 | Snapshot | Hannah | **done** — PR #28 | — | 4, 7, 10 |
+| 4 | Sidecar executor | Hannah | **ready** | 2 ✓, 3 ✓ | 7, 8, 14, 16 |
+| 5 | Structure card | Martin | **in review** — PR #29 | — | 13, 14 |
+| 6 | Error envelope | Martin | **ready** | 2 ✓ | 8, 11 |
+| 7 | Live extraction and fidelity gate | Hannah | **blocked** | 3 ✓, 4 | 10, 11 |
+| 8 | LangGraph request graph | Hannah | **blocked** | 0 ✓, 2 ✓, 4, 6 | 9, 10, 11, 12 |
+| 9 | Inference abstraction and Lemonade | Hannah | **blocked** | 0 ✓, 1 ✓, 8 | 12, 16, 19 |
+| 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7, 8 | 11, 12 |
+| 11 | Output and diagnostics | Hannah | **blocked** | 6, 7, 8, 10 | 12 |
+| 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
+| 13 | Prompt builder | Martin | **blocked** | 2 ✓, 5 | 14, 16 |
+| 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4, 5, 13 | 15, 16 |
+| 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
+| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4, 13, 14, 15, 9 | 17, 18 |
+| 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
+| 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
+| 19 | Integration | Joint | **blocked** | 12, 17 | — |
+
+### The graph
+
+```mermaid
+flowchart LR
+  classDef done fill:#1f6f3f,stroke:#0d3d22,color:#fff
+  classDef review fill:#8a6d1a,stroke:#4d3c0c,color:#fff
+  classDef ready fill:#1f4f8f,stroke:#0d2a4d,color:#fff
+  classDef blocked fill:#3a3a3a,stroke:#1a1a1a,color:#ddd
+
+  I0["0 · dependency split"]:::done
+  I1["1 · Lemonade spike"]:::done
+  I2["2 · command language"]:::done
+  I3["3 · snapshot"]:::done
+  I4["4 · sidecar executor"]:::ready
+  I5["5 · structure card"]:::review
+  I6["6 · error envelope"]:::ready
+  I7["7 · fidelity gate"]:::blocked
+  I8["8 · request graph"]:::blocked
+  I9["9 · inference"]:::blocked
+  I10["10 · apply and recovery"]:::blocked
+  I11["11 · output"]:::blocked
+  I12["12 · end-to-end suite"]:::blocked
+  I13["13 · prompt builder"]:::blocked
+  I14["14 · dataset"]:::blocked
+  I15["15 · gold set"]:::blocked
+  I16["16 · eval and baseline"]:::blocked
+  I17["17 · fine-tuning"]:::blocked
+  I18["18 · notebook"]:::blocked
+  I19["19 · integration"]:::blocked
+
+  I2 --> I4
+  I3 --> I4
+  I2 --> I6
+  I0 --> I8
+  I4 --> I8
+  I6 --> I8
+  I3 --> I7
+  I4 --> I7
+  I0 --> I9
+  I1 --> I9
+  I8 --> I9
+  I7 --> I10
+  I8 --> I10
+  I6 --> I11
+  I7 --> I11
+  I10 --> I11
+  I9 --> I12
+  I10 --> I12
+  I11 --> I12
+  I2 --> I13
+  I5 --> I13
+  I4 --> I14
+  I5 --> I14
+  I13 --> I14
+  I14 --> I15
+  I15 --> I16
+  I13 --> I16
+  I4 --> I16
+  I9 -.-> I16
+  I1 --> I17
+  I0 --> I17
+  I15 --> I17
+  I16 --> I17
+  I16 --> I18
+  I17 --> I18
+  I12 --> I19
+  I17 --> I19
+```
+
+The dashed edge is soft: item 16 needs *some* way to run the untuned base model,
+and item 9's engine interface is the obvious one, but item 16 could also drive
+Lemonade directly and adopt the interface later. Every other edge is hard.
+
+### What this graph says today
+
+- **Week 1 is four fifths done.** Items 0, 1, 2 and 3 are merged; item 5 is an
+  open pull request with green CI on all three operating systems.
+- **The critical path runs through item 4.** The sidecar executor is unblocked,
+  unstarted, and it gates items 7, 8, 14 and 16 — that is, most of both
+  developers' remaining work. It is the single highest-value thing to start.
+- **Item 6 is the other unblocked item** and it gates items 8 and 11. It is
+  small and it is Martin's, so it can run alongside item 5's review.
+- **Nothing downstream of week 1 has begun.** `src/pmc_core/executor.py`,
+  `src/pmc_core/errors.py`, `src/pmc_agent/inference/` and the prompt builder do
+  not exist; `src/pmc_train/` is still an empty package; `tests/recovery/` holds
+  only a readme.
+
+### Cross-owner hand-offs
+
+The week 1 note below is now more specific:
+
+- **Hannah → Martin:** item 4 gates Martin's items 14 and 16. This is the one
+  hand-off that blocks the entire data and model half, and it is outstanding.
+- **Martin → Hannah:** item 2 is delivered; item 6 is not, and it gates
+  Hannah's items 8 and 11.
+- **Martin → Hannah, later:** item 13 emits the grammar that item 9's engine
+  enforces at runtime. Item 9 can be built and tested without it against the
+  fake adapter, so this is a hand-off rather than a blocker.
+- **Hannah → Martin, later:** item 9's engine interface is what item 16 runs
+  the untuned baseline through — the dashed edge above.
+
+### Risks carried out of week 1
+
+The Lemonade spike answered its four questions; two answers constrain later
+items and neither is a clean no.
+
+- **Cancellation is partial** — streaming requests can be cancelled
+  mid-generation, non-streaming ones cannot. Items 8 and 9 have to design
+  around that rather than assume it away.
+- **Integrated-GPU execution is unproven on this machine** — Docker on an
+  Apple M2 Pro has no GPU passthrough into a Linux container. CPU execution is
+  proven. This bears on item 17's base-model choice.
+
+See [tests/discovery/lemonade/FINDINGS.md](../tests/discovery/lemonade/FINDINGS.md)
+for the evidence behind both.
+
+---
+
 ## Week 1 — everyone on the shared core
 
 Nothing downstream is safe until these land. This is the one week that cannot be parallelized away.
 
------ PR#24 ### 0. Dependency split
+### 0. Dependency split
 
-**Owner:** Martin · **Size:** ~1 day
+**Owner:** Martin · **Size:** ~1 day · **State:** done (PR #24)
 
 ```
 Split this repo's dependencies in two. Runtime: add langgraph and an HTTP
@@ -81,7 +246,7 @@ operating systems before you stop.
 
 ### 1. Lemonade spike
 
-**Owner:** Hannah · **Size:** ~1 day · **Do this on day one**
+**Owner:** Hannah · **Size:** ~1 day · **Do this on day one** · **State:** done (PR #25)
 
 ```
 Throwaway spike, no production code. Install Lemonade locally, load any
@@ -97,7 +262,7 @@ This is the largest external unknown in the project. Find out before it is load-
 
 ### 2. Command language
 
-**Owner:** Martin · **Size:** ~4–6 days · **Biggest single item**
+**Owner:** Martin · **Size:** ~4–6 days · **Biggest single item** · **State:** done (PR #27)
 
 ```
 Replace the fixture-literal plan language in src/pmc_core/plan.py,
@@ -122,7 +287,7 @@ pass.
 
 ### 3. Snapshot
 
-**Owner:** Hannah · **Size:** ~3 days
+**Owner:** Hannah · **Size:** ~3 days · **State:** done (PR #28)
 
 ```
 Promote tests/discovery/h02/harness.py into src/pmc_core/snapshot.py as
@@ -138,7 +303,7 @@ real-PyMOL/exclusive Bazel tags.
 
 ### 4. Sidecar executor
 
-**Owner:** Hannah · **Size:** ~3 days
+**Owner:** Hannah · **Size:** ~3 days · **State:** ready — blocks 7, 8, 14, 16
 
 ```
 Promote tests/discovery/h02/execution_boundary.py into
@@ -154,7 +319,7 @@ tests — they're the valuable part of that prototype.
 
 ### 5. Structure card
 
-**Owner:** Martin · **Size:** ~2 days
+**Owner:** Martin · **Size:** ~2 days · **State:** in review (PR #29)
 
 ```
 Promote tests/discovery/m02/card_candidate.py into src/pmc_core/card.py.
@@ -166,7 +331,7 @@ writer and the runtime prompt builder stamp into their output.
 
 ### 6. Error envelope
 
-**Owner:** Martin · **Size:** ~2 days
+**Owner:** Martin · **Size:** ~2 days · **State:** ready — blocks 8, 11
 
 ```
 Add src/pmc_core/errors.py: a normalizer turning a raw PyMOL execution
@@ -179,7 +344,13 @@ tests/data/. Add byte-equality tests so the same PyMOL failure normalizes
 identically in the dataset pipeline and at runtime.
 ```
 
-> **Hand-off after week 1.** Martin needs item 4 from Hannah before he can generate data. Hannah needs items 2 and 6 from Martin before her graph is meaningful. Everything after this runs in parallel.
+> **Caution.** Neither consumer of that byte-equality test exists yet — the
+> dataset pipeline generalizes in item 14, the runtime path in item 8. The test
+> is still writable today as a single-normalizer assertion over the captured
+> fixture corpus, which is what makes it meaningful once both call sites land.
+> Decide that up front rather than discovering it mid-implementation.
+
+> **Hand-off after week 1.** Martin needs item 4 from Hannah before he can generate data. Hannah needs items 2 and 6 from Martin before her graph is meaningful. Everything after this runs in parallel. See [Cross-owner hand-offs](#cross-owner-hand-offs) for where those hand-offs actually stand.
 
 ---
 
@@ -189,7 +360,7 @@ identically in the dataset pipeline and at runtime.
 
 ### 7. Live extraction and fidelity gate
 
-**Size:** ~3 days
+**Size:** ~3 days · **State:** blocked on 4
 
 ```
 In src/pmc_client/, extract the live PyMOL session into a canonical snapshot
@@ -204,7 +375,7 @@ hetero atoms.
 
 ### 8. LangGraph request graph
 
-**Size:** ~4 days
+**Size:** ~4 days · **State:** blocked on 4, 6
 
 ```
 Build the request graph in src/pmc_agent/ using LangGraph. States: received,
@@ -221,7 +392,7 @@ terminal state against a fake inference adapter.
 
 ### 9. Inference abstraction and Lemonade
 
-**Size:** ~4 days
+**Size:** ~4 days · **State:** blocked on 8
 
 ```
 Add src/pmc_agent/inference/: a narrow engine interface — bounded completion
@@ -237,7 +408,7 @@ than pretending.
 
 ### 10. Approval, apply, recovery — the safety centerpiece
 
-**Size:** ~5 days
+**Size:** ~5 days · **State:** blocked on 7, 8
 
 ```
 Implement the approval path in src/pmc_client/: copilot_apply <plan-id>,
@@ -259,7 +430,7 @@ a deliberately injected mutation makes the no-mutation check fail.
 
 ### 11. Output and diagnostics
 
-**Size:** ~2 days
+**Size:** ~2 days · **State:** blocked on 6, 7, 8, 10
 
 ```
 Make copilot print what the specification promises: plan id and expiry,
@@ -273,7 +444,7 @@ text leaking through an error.
 
 ### 12. End-to-end suite
 
-**Size:** ~3 days
+**Size:** ~3 days · **State:** blocked on 9, 10, 11
 
 ```
 Write end-to-end scenarios against real headless PyMOL: one intent through
@@ -293,7 +464,7 @@ this machine.
 
 ### 13. Prompt builder
 
-**Size:** ~2 days
+**Size:** ~2 days · **State:** blocked on 5
 
 ```
 Add the prompt builder that turns a structure card plus a user intent into
@@ -305,7 +476,7 @@ they ever diverge.
 
 ### 14. Dataset generation
 
-**Size:** ~5 days
+**Size:** ~5 days · **State:** blocked on 4, 5, 13
 
 ```
 Generalize src/pmc_data/ from the one chain-A/red fixture to the full
@@ -323,7 +494,7 @@ guessed.
 
 ### 15. Gold set, split, audit
 
-**Size:** ~3 days
+**Size:** ~3 days · **State:** blocked on 14
 
 ```
 Hand-author a gold set spanning every supported category, with
@@ -337,7 +508,7 @@ and report the observed error rate as a number.
 
 ### 16. Eval harness and untuned baseline
 
-**Size:** ~3 days
+**Size:** ~3 days · **State:** blocked on 4, 13, 14, 15, 9
 
 ```
 Build the offline eval harness: per sample, generate a plan, parse it,
@@ -351,7 +522,7 @@ rests on.
 
 ### 17. Fine-tuning
 
-**Size:** ~5 days
+**Size:** ~5 days · **State:** blocked on 15, 16
 
 ```
 Fine-tune in src/pmc_train/, in the separate virtual environment, outside
@@ -366,7 +537,7 @@ result — don't chase it.
 
 ### 18. Notebook
 
-**Size:** ~3 days
+**Size:** ~3 days · **State:** blocked on 14, 15, 16, 17
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
@@ -383,7 +554,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days
+**Size:** ~3 days · **State:** blocked on 12, 17
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
