@@ -88,6 +88,22 @@ DEFAULT_KILL_GRACE_SECONDS = 5.0
 #: scratch data is left behind after execute() returns.
 SCRATCH_DIR_PREFIX = "pmc-executor-"
 
+#: `os.killpg`, `os.getpgid`, and `signal.SIGKILL` exist only on POSIX.
+#: Resolved dynamically here, rather than referenced directly in
+#: `_terminate`/`_kill` below, because pyrefly checks this project against
+#: whichever platform actually runs it: a direct reference is a genuine
+#: `missing-attribute` error on Windows CI, but a pyrefly ignore comment
+#: on that same line becomes an `unused-ignore` error on Linux/macOS CI
+#: instead, where the attributes genuinely exist. No single ignore
+#: comment is correct on all three CI platforms at once; a dynamic
+#: lookup sidesteps the static attribute check entirely, on every
+#: platform, the same way `getattr` already does for `os.add_dll_directory`
+#: in `tools/winstage/winstage.py` -- except that one is missing
+#: everywhere except Windows, so a plain ignore comment is enough there.
+_killpg = getattr(os, "killpg", None)
+_getpgid = getattr(os, "getpgid", None)
+_SIGKILL = getattr(signal, "SIGKILL", None)
+
 #: Top-level report outcomes.
 STATUS_OK = "ok"
 STATUS_REJECTED = "rejected"
@@ -333,8 +349,10 @@ def _terminate(process: subprocess.Popen[str]) -> None:
     if sys.platform == "win32":
         process.terminate()
         return
+    assert _killpg is not None
+    assert _getpgid is not None
     with contextlib.suppress(ProcessLookupError):
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        _killpg(_getpgid(process.pid), signal.SIGTERM)
 
 
 def _kill(process: subprocess.Popen[str]) -> None:
@@ -351,8 +369,11 @@ def _kill(process: subprocess.Popen[str]) -> None:
     if sys.platform == "win32":
         process.kill()
         return
+    assert _killpg is not None
+    assert _getpgid is not None
+    assert _SIGKILL is not None
     try:
-        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        _killpg(_getpgid(process.pid), _SIGKILL)
     except ProcessLookupError:
         with contextlib.suppress(ProcessLookupError):
             process.kill()
