@@ -66,7 +66,8 @@ def main() -> int:
 
     Returns:
         0 when every case failed as expected, 1 when any case did not
-        fail at all.
+        fail at all -- in which case nothing is written, because a corpus
+        missing a case it claims to cover is worse than no new corpus.
 
     Raises:
         RuntimeError: If the source root cannot be determined.
@@ -87,6 +88,11 @@ def main() -> int:
             continue
         by_verb.setdefault(case.verb, []).append(recorded)
 
+    if silent:
+        print(f"these cases did not fail at all: {', '.join(silent)}")
+        cmd.do("quit")
+        return 1
+
     directory = corpus_directory()
     directory.mkdir(parents=True, exist_ok=True)
     for verb, verb_cases in sorted(by_verb.items()):
@@ -97,11 +103,19 @@ def main() -> int:
         print(f"wrote {path} ({len(verb_cases)} cases)")
 
     cmd.do("quit")
-    if silent:
-        print(f"these cases did not fail at all: {', '.join(silent)}")
-        return 1
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # Real PyMOL's headless shutdown can complete after this process would
+    # otherwise exit and override the status with 0, so a `sys.exit(1)` for
+    # a case that stopped failing would be reported by `bazel run` as
+    # success -- leaving a partial corpus behind and saying nothing. The
+    # conformance test and the other real-PyMOL modules in this package end
+    # with os._exit for the same reason; reproduced here by raising
+    # SystemExit(7) through the same launch/quit lifecycle and observing
+    # exit 0.
+    _exit_code = main()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(_exit_code)
