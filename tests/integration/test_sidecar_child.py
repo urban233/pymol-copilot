@@ -90,6 +90,49 @@ def _plan(operation_type: type, **fields: object) -> ActionPlan:
     return _bypass(ActionPlan, operations=(_bypass(operation_type, **fields),))
 
 
+class _CountingCmd:
+    """Wrap a real PyMOL `cmd`, counting genuine calls to one method.
+
+    Every other attribute forwards straight to the wrapped `cmd`
+    unchanged, so this stands in for `cmd` in `run_plan()` without
+    changing any dispatched command's actual behavior -- only the method
+    named at construction is ever counted.
+    """
+
+    def __init__(self, real_cmd: Any, counted_method: str) -> None:
+        """Wrap a real cmd, counting calls to one of its methods.
+
+        Args:
+            real_cmd: The real PyMOL `cmd` module to wrap.
+            counted_method: The one method name whose genuine invocations
+                to record.
+        """
+        self._real_cmd = real_cmd
+        self._counted_method = counted_method
+        self.calls: list[str] = []
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward an attribute access, counting the target method's calls.
+
+        Args:
+            name: The attribute name being accessed.
+
+        Returns:
+            The wrapped cmd's own attribute, wrapped to record a call only
+            when name is the counted method.
+        """
+        attribute = getattr(self._real_cmd, name)
+        if name != self._counted_method:
+            return attribute
+
+        def _counting_call(*args: Any, **kwargs: Any) -> Any:
+            """Record one genuine invocation, then call the real method."""
+            self.calls.append(name)
+            return attribute(*args, **kwargs)
+
+        return _counting_call
+
+
 @dataclass(frozen=True)
 class _UnknownOperation:
     """A synthetic operation type with no dispatch branch in child.py."""
@@ -185,6 +228,44 @@ def test_an_unknown_pymol_error_stops_at_that_index(
     assert result.command_outcomes[1].verb == "color"
     assert result.command_outcomes[1].status == OUTCOME_ERROR
     assert result.command_outcomes[1].error
+
+
+def test_a_failing_command_is_dispatched_exactly_once_with_no_retry(
+    loaded_fixture: Any,
+) -> None:
+    """run_plan()'s own dispatch loop never retries a failing command.
+
+    Unlike `test_an_unknown_pymol_error_stops_at_that_index` above, which
+    only asserts on the recorded `command_outcomes`, this wraps the real
+    `cmd.color` call and counts genuine invocations directly. A silent
+    retry loop wrapped around `_dispatch`'s own call would still leave
+    `command_outcomes` looking identical -- one recorded failure, same
+    index, same error text -- while calling `cmd.color` more than once;
+    confirmed empirically by temporarily adding exactly such a loop, which
+    left every other test in this promotion (including the one above)
+    passing. This test's own counted call list is what closes that gap.
+
+    Args:
+        loaded_fixture: The real PyMOL cmd module with "fx" loaded.
+    """
+    counting_cmd = _CountingCmd(loaded_fixture, "color")
+    plan = _bypass(
+        ActionPlan,
+        operations=(
+            SelectOperation(selection_name="copilot_sel", expression=chain_a()),
+            _bypass(
+                ColorOperation,
+                color="not_a_real_color_zzz",
+                target=NamedSelection("copilot_sel"),
+            ),
+        ),
+    )
+
+    result = run_plan(counting_cmd, plan)
+
+    assert result.status == STATUS_FAILED
+    assert result.reason == REASON_COMMAND_FAILURE
+    assert counting_cmd.calls == ["color"]
 
 
 def test_a_synthetic_operation_type_fails_closed(loaded_fixture: Any) -> None:

@@ -169,10 +169,13 @@ def test_service_enforces_its_own_max_snapshot_bytes_and_deadline() -> None:
 def test_service_maps_every_fail_closed_reason() -> None:
     """Every one of execute()'s own fail-closed outcomes maps through."""
     for status, reason in [
+        ("rejected", "malformed_input"),
         ("rejected", "oversized_input"),
+        ("rejected", "unsupported_schema_version"),
         ("rejected", "policy_denied"),
         ("failed", "spawn_or_load_failure"),
         ("failed", "timeout"),
+        ("failed", "child_crash"),
         ("failed", "command_failure"),
         ("failed", "fidelity_mismatch"),
     ]:

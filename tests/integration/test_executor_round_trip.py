@@ -29,6 +29,7 @@ from pmc_core.plan import ChainTerm
 from pmc_core.plan import ColorOperation
 from pmc_core.plan import Factor
 from pmc_core.plan import NamedSelection
+from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
@@ -214,6 +215,54 @@ def test_positive_path_matches_independently_computed_expected_values(
     assert first_report.child_pid == spawned[0].pid
     assert second_report.child_pid == spawned[1].pid
     assert first_report.child_pid != second_report.child_pid
+
+
+def test_orient_changes_the_resulting_fingerprint() -> None:
+    """An orient-only step still changes the resulting fingerprint.
+
+    `pmc_core.snapshot.structure_digest` deliberately excludes `view` (see
+    its own docstring), but `resulting_fingerprint` hashes the full
+    canonical extraction, including `view` -- so a plan that only
+    reorients the camera must still be distinguishable from one that does
+    not. Otherwise a caller's own `expected_resulting_fingerprint` could
+    never catch a wrongly skipped, or wrongly applied, orient.
+    """
+    snapshot = _sample_snapshot()
+    select_only = ActionPlan(
+        operations=(
+            SelectOperation(selection_name="copilot_sel", expression=chain_a()),
+        )
+    )
+    select_then_orient = ActionPlan(
+        operations=(
+            SelectOperation(selection_name="copilot_sel", expression=chain_a()),
+            OrientOperation(target=NamedSelection("copilot_sel")),
+        )
+    )
+
+    without_orient = execute(
+        ExecutionRequest(
+            executor_version=EXECUTOR_VERSION,
+            plan=select_only,
+            snapshot_json=to_json(snapshot),
+        )
+    )
+    with_orient = execute(
+        ExecutionRequest(
+            executor_version=EXECUTOR_VERSION,
+            plan=select_then_orient,
+            snapshot_json=to_json(snapshot),
+        )
+    )
+
+    assert without_orient.status == STATUS_OK
+    assert with_orient.status == STATUS_OK
+    assert with_orient.resulting_fingerprint is not None
+    assert without_orient.resulting_fingerprint is not None
+    assert (
+        with_orient.resulting_fingerprint
+        != without_orient.resulting_fingerprint
+    )
 
 
 if __name__ == "__main__":
