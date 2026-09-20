@@ -335,6 +335,69 @@ def test_malformed_child_output_fails_closed_like_a_crash() -> None:
     assert _scratch_dirs() == scratch_before
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "status": 1,
+            "reason": "ok",
+            "resulting_fingerprint": None,
+            "command_outcomes": [],
+            "selection_counts": [],
+        },
+        {
+            "status": "ok",
+            "reason": 1,
+            "resulting_fingerprint": None,
+            "command_outcomes": [],
+            "selection_counts": [],
+        },
+        {
+            "status": "ok",
+            "reason": "ok",
+            "resulting_fingerprint": 42,
+            "command_outcomes": [],
+            "selection_counts": [],
+        },
+        {
+            "status": "ok",
+            "reason": "policy_denied",
+            "resulting_fingerprint": None,
+            "command_outcomes": [],
+            "selection_counts": [],
+        },
+    ],
+    ids=[
+        "non-string-status",
+        "non-string-reason",
+        "non-string-fingerprint",
+        "inconsistent-status-and-reason",
+    ],
+)
+def test_untrustworthy_child_report_fields_fail_closed_like_a_crash(
+    payload: dict[str, object],
+) -> None:
+    """Invalid scalar fields cannot escape in a nominal report.
+
+    Args:
+        payload: The otherwise well-shaped sabotage report to write.
+    """
+    scratch_before = _scratch_dirs()
+    os.environ[SABOTAGE_MODE_ENV_VAR] = "report:" + json.dumps(payload)
+    try:
+        report = execute(_base_request(), runner_module=_SABOTAGE_RUNNER)
+    finally:
+        del os.environ[SABOTAGE_MODE_ENV_VAR]
+
+    assert report.status == STATUS_FAILED
+    assert report.reason == REASON_CHILD_CRASH
+    assert report.command_outcomes == ()
+    assert report.selection_counts == ()
+    assert report.resulting_fingerprint is None
+    assert report.child_terminated is True
+    assert _scratch_dirs() == scratch_before
+
+
 def test_child_that_escapes_before_communicate_is_terminated_and_reaped() -> (
     None
 ):

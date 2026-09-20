@@ -109,7 +109,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyrefly]
-project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/winstage"]
+project-includes = ["src/pmc_client", "src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/winstage"]
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true

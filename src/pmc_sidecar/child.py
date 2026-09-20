@@ -52,7 +52,7 @@ from pmc_core.executor import REASON_SPAWN_OR_LOAD_FAILURE
 from pmc_core.executor import STATUS_FAILED
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import CommandOutcome
-from pmc_core.executor import _bounded_diagnostic
+from pmc_core.executor import bounded_diagnostic
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import ColorOperation
@@ -170,7 +170,7 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
                     index,
                     verb,
                     OUTCOME_ERROR,
-                    _bounded_diagnostic(
+                    bounded_diagnostic(
                         str(error), maximum_bytes=MAX_COMMAND_ERROR_BYTES
                     ),
                 )
@@ -291,7 +291,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                     index=len(plan.operations),
                     verb="__extract__",
                     status=OUTCOME_ERROR,
-                    error=_bounded_diagnostic(
+                    error=bounded_diagnostic(
                         str(error), maximum_bytes=MAX_COMMAND_ERROR_BYTES
                     ),
                 )

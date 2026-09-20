@@ -17,6 +17,7 @@ from pmc_client.transport import PLAN_PATH
 from pmc_client.transport import LoopbackPlanClient
 from pmc_client.transport import TransportError
 from pmc_core.executor import EXECUTOR_VERSION
+from pmc_core.executor import REASON_OK
 from pmc_core.executor import CommandOutcome
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
@@ -26,9 +27,11 @@ from pmc_core.plan import ChainTerm
 from pmc_core.plan import Factor
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectionExpression
+from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
+from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
@@ -56,7 +59,17 @@ def plan_request() -> PlanRequestV1:
         contract_manifest=ContractManifestV1("1", "1", "1"),
         intent="Select chain A and color it red.",
         snapshot=StructureSnapshotV1(
-            "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
+            schema_version="1",
+            digest="sha256:example-chain-a-digest",
+            object_name="one-object-chain-a-v1",
+            atom_count=2,
+            state_count=1,
+        ),
+        fidelity=FidelityOutcomeV1(
+            status=FIDELITY_EXACT,
+            reason=REASON_OK,
+            mismatch_count=0,
+            mismatches=(),
         ),
     )
 
@@ -77,7 +90,7 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
         validated_at="2026-08-26T14:22:03.220Z",
         action_plan=FIXTURE_PLAN,
         validation=ValidationReportV1(
-            "passed", "sha256:example-chain-a-digest", ()
+            "passed", "sha256:example-chain-a-digest", True, ()
         ),
         plan_id="33333333-3333-4333-8333-333333333333",
         snapshot_digest="sha256:example-chain-a-digest",
@@ -285,6 +298,7 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
             validation=ValidationReportV1(
                 response.validation.status,
                 "sha256:different-snapshot",
+                response.validation.applicable,
                 response.validation.warnings,
             ),
             plan_id=response.plan_id,
