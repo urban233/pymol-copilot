@@ -18,6 +18,7 @@ from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
@@ -152,12 +153,15 @@ class PlanRequestLifecycle:
             validation=ValidationReportV1(
                 status="passed",
                 snapshot_digest=request.snapshot.digest,
-                # A fixed True, not yet derived from request.fidelity: this
-                # fixture lifecycle predates docs/master_plan.md item 7's
-                # fidelity gate. Deriving it for real
-                # (`applicable = request.fidelity.status == FIDELITY_EXACT`)
-                # is step 8 of plans/06-live-extraction-and-fidelity-gate.md.
-                applicable=True,
+                # The server's whole share of orchestration rule 9
+                # (SPECIFICATION.md:539): never upgrade or re-derive the
+                # request's own fidelity outcome -- this lifecycle has no
+                # live session to compare against, only what the client
+                # already reported. A request that claims "exact" while
+                # the client's own local gate disagrees still fails at
+                # the client's own AND
+                # (pmc_client.command._report_validated).
+                applicable=request.fidelity.status == FIDELITY_EXACT,
                 warnings=(),
             ),
             plan_id=self._plan_id_source(),

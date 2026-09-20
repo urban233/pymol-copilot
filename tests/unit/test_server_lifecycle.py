@@ -5,9 +5,15 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import pytest
 
+import dataclasses
+
+from pmc_core.executor import REASON_CHILD_CRASH
+from pmc_core.executor import REASON_FIDELITY_MISMATCH
 from pmc_core.executor import REASON_OK
 from pmc_core.policy import PlanDecision
 from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import FIDELITY_NOT_EXACT
+from pmc_core.protocol import FIDELITY_UNAVAILABLE
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FidelityOutcomeV1
@@ -74,6 +80,48 @@ def test_exact_fixture_returns_correlated_validated_plan() -> None:
     )
     assert response.validation.applicable is True
     assert response.validation.warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("status", "reason", "expected_applicable"),
+    [
+        (FIDELITY_EXACT, REASON_OK, True),
+        (FIDELITY_NOT_EXACT, REASON_FIDELITY_MISMATCH, False),
+        (FIDELITY_UNAVAILABLE, REASON_CHILD_CRASH, False),
+    ],
+)
+def test_applicable_is_derived_from_the_requests_own_fidelity_status(
+    status: str, reason: str, expected_applicable: bool
+) -> None:
+    """`applicable` is set from request.fidelity.status alone.
+
+    The server's whole share of orchestration rule 9
+    (SPECIFICATION.md:539): it never upgrades or re-derives an outcome,
+    since it has no live session of its own to check fidelity against.
+
+    Args:
+        status: The request's own fidelity status under test.
+        reason: The request's own fidelity reason under test.
+        expected_applicable: The applicable value this status must
+            produce.
+    """
+    fidelity_gated_request = dataclasses.replace(
+        request(),
+        fidelity=FidelityOutcomeV1(
+            status=status, reason=reason, mismatch_count=0, mismatches=()
+        ),
+    )
+    lifecycle = PlanRequestLifecycle(
+        plan_id_source=lambda: "33333333-3333-4333-8333-333333333333",
+        timestamp_source=iter(
+            ("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z")
+        ).__next__,
+    )
+
+    response = lifecycle(fidelity_gated_request)
+
+    assert isinstance(response, ValidatedPlanResponseV1)
+    assert response.validation.applicable is expected_applicable
 
 
 def test_semantic_request_mismatch_returns_typed_failure_without_plan() -> None:
