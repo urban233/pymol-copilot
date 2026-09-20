@@ -13,7 +13,12 @@ py_library(
     # (docs/master_plan.md item 4): pmc_server is the process that actually
     # spawns it via pmc_core.executor.execute(), so it needs the child
     # present in its own runfiles for that spawn to find it at runtime.
+    # //src/pmc_agent is the LangGraph request graph (item 8): the server
+    # owns the graph's lifetime -- constructing it, holding its
+    # checkpointer, routing HTTP requests into it -- while the graph itself
+    # owns the request states.
     deps = [
+        "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",
         "//src/pmc_sidecar:pmc_sidecar",
     ],
