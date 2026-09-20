@@ -109,26 +109,26 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyrefly]
-project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "tests", "tools/winstage"]
+project-includes = ["src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/winstage"]
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true
-# tests/discovery/h02/execution_boundary.py and
-# tests/discovery/m02/card_candidate.py are each imported as a bare
-# sibling module (`import execution_boundary`/`from card_candidate import
-# ...`) by their own directory's test module -- resolved at runtime by
-# pytest/Bazel via sys.path, but not otherwise visible to pyrefly without
-# this search path. tools/winstage/winstage.py is the same situation, one
-# level up: a bare top-level module reached via Bazel's py_library
-# `imports = ["."]`, imported the same way by every process that imports
-# real PyMOL on Windows (W2-01, issue #12).
+# tests/discovery/m02/card_candidate.py is imported as a bare sibling
+# module (`from card_candidate import ...`) by its own directory's test
+# module -- resolved at runtime by pytest/Bazel via sys.path, but not
+# otherwise visible to pyrefly without this search path.
+# tools/winstage/winstage.py is the same situation, one level up: a bare
+# top-level module reached via Bazel's py_library `imports = ["."]`,
+# imported the same way by every process that imports real PyMOL on
+# Windows (W2-01, issue #12).
 # tests/integration/snapshot_support.py is the same situation for
 # pmc_core.snapshot's real-PyMOL round-trip evidence: a bare sibling
 # module (`from snapshot_support import ...`) imported by that package's
-# own conftest.py, and by tests/discovery/h02 and tests/discovery/m02's
-# own conftest.py files, which re-export its fixtures.
+# own conftest.py, and by tests/discovery/m02's own conftest.py, which
+# re-exports its fixtures. tests/discovery/h02 used to do the same for
+# its now-promoted execution-boundary prototype (docs/master_plan.md
+# item 4); that directory no longer exists.
 search-path = [
-    "tests/discovery/h02",
     "tests/discovery/m02",
     "tests/integration",
     "tools/winstage",

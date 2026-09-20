@@ -17,16 +17,22 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_core.plan import HideOperation
 from pmc_core.plan import OrientOperation
+from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import CommandOutcomeV1
 from pmc_core.protocol import ContractManifestV1
+from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
+from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 from pmc_core.protocol import decode_json
+from pmc_core.protocol import decode_plan
 from pmc_core.protocol import encode_json
+from pmc_core.protocol import encode_plan
 
 REQUEST_IDS = {
     "requestId": "11111111-1111-4111-8111-111111111111",
@@ -652,6 +658,151 @@ def test_hostile_json_is_a_decode_error_not_a_crash(raw: str) -> None:
     """
     with pytest.raises(ProtocolDecodeError):
         decode_json(raw, response=True)
+
+
+# --- executor wire types (docs/master_plan.md item 4) ---------------------
+
+
+def five_verb_plan() -> ActionPlan:
+    """Build a plan exercising all five allowlisted verbs.
+
+    Returns:
+        select, color, show, hide, orient, in that order.
+    """
+    expression = SelectionExpression(
+        clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+    )
+    return ActionPlan(
+        operations=(
+            SelectOperation(
+                selection_name="copilot_selection", expression=expression
+            ),
+            ColorOperation(
+                color="red", target=NamedSelection("copilot_selection")
+            ),
+            ShowOperation(
+                representation="spheres",
+                target=NamedSelection("copilot_selection"),
+            ),
+            HideOperation(
+                representation="sticks",
+                target=NamedSelection("copilot_selection"),
+            ),
+            OrientOperation(target=NamedSelection("copilot_selection")),
+        )
+    )
+
+
+def test_encode_plan_decode_plan_round_trips_every_verb() -> None:
+    """encode_plan/decode_plan round-trip a plan covering every verb."""
+    plan = five_verb_plan()
+    envelope = {
+        "planId": REQUEST_IDS["requestId"],
+        "planVersion": PROTOCOL_VERSION,
+        "snapshotDigest": "sha256:example-digest",
+        "commands": encode_plan(plan),
+    }
+
+    assert decode_plan(envelope) == plan
+
+
+def sample_execution_report() -> ExecutionReportV1:
+    """Build a fully populated, successful execution report fixture.
+
+    Returns:
+        An accepted execution report exercising every field.
+    """
+    return ExecutionReportV1(
+        executor_version=1,
+        status="ok",
+        reason="ok",
+        input_digest="sha256:example-digest",
+        resulting_fingerprint="sha256:" + "1" * 64,
+        selection_counts=(SelectionCountV1("copilot_selection", 4),),
+        command_outcomes=(
+            CommandOutcomeV1(0, "select", "ok", None),
+            CommandOutcomeV1(1, "color", "ok", None),
+        ),
+        elapsed_seconds=0.125,
+        warnings=("a bounded diagnostic",),
+    )
+
+
+def test_execution_report_round_trips() -> None:
+    """A fully populated execution report survives to_dict/from_dict."""
+    report = sample_execution_report()
+
+    assert ExecutionReportV1.from_dict(report.to_dict()) == report
+
+
+@pytest.mark.parametrize(
+    "status,reason",
+    [
+        ("rejected", "oversized_input"),
+        ("rejected", "malformed_input"),
+        ("rejected", "unsupported_schema_version"),
+        ("rejected", "policy_denied"),
+        ("failed", "spawn_or_load_failure"),
+        ("failed", "timeout"),
+        ("failed", "child_crash"),
+        ("failed", "command_failure"),
+        ("failed", "fidelity_mismatch"),
+    ],
+)
+def test_execution_report_round_trips_every_fail_closed_reason(
+    status: str, reason: str
+) -> None:
+    """Unlike ValidationReportV1, this report can represent any failure.
+
+    Args:
+        status: The report status under test.
+        reason: The report reason under test.
+    """
+    report = ExecutionReportV1(
+        executor_version=1,
+        status=status,
+        reason=reason,
+        input_digest=None,
+        resulting_fingerprint=None,
+        selection_counts=(),
+        command_outcomes=(),
+        elapsed_seconds=0.01,
+        warnings=(),
+    )
+
+    assert ExecutionReportV1.from_dict(report.to_dict()) == report
+
+
+def test_execution_report_rejects_unknown_fields() -> None:
+    """Execution reports with unknown fields are rejected."""
+    payload = sample_execution_report().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        ExecutionReportV1.from_dict(payload)
+
+
+def test_execution_report_rejects_a_missing_field() -> None:
+    """Execution reports missing a required field are rejected."""
+    payload = sample_execution_report().to_dict()
+    del payload["resultingFingerprint"]
+
+    with pytest.raises(ProtocolDecodeError):
+        ExecutionReportV1.from_dict(payload)
+
+
+def test_command_outcome_round_trips_including_none_error() -> None:
+    """A successful command outcome's error field round-trips as None."""
+    outcome = CommandOutcomeV1(0, "orient", "ok", None)
+
+    assert CommandOutcomeV1.from_dict(outcome.to_dict()) == outcome
+
+
+def test_selection_count_round_trips_a_zero_count() -> None:
+    """A selection matching zero atoms round-trips, not an error."""
+    count = SelectionCountV1("copilot_empty", 0)
+
+    assert SelectionCountV1.from_dict(count.to_dict()) == count
 
 
 if __name__ == "__main__":
