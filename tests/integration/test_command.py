@@ -122,7 +122,9 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
         received_at=CREATED_AT,
         validated_at=CREATED_AT,
         action_plan=fixture_plan(),
-        validation=ValidationReportV1("passed", request.snapshot.digest, ()),
+        validation=ValidationReportV1(
+            "passed", request.snapshot.digest, True, ()
+        ),
         plan_id="55555555-5555-4555-8555-555555555555",
         snapshot_digest=request.snapshot.digest,
     )
@@ -171,7 +173,9 @@ def test_command_builds_fixture_request_and_reports_canonical_plan() -> None:
     assert request.snapshot.to_dict() == {
         "schemaVersion": "1",
         "digest": "sha256:example-chain-a-digest",
-        "fixtureId": "one-object-chain-a-v1",
+        "objectName": "one-object-chain-a-v1",
+        "atomCount": 2,
+        "stateCount": 1,
     }
     assert output == [
         "copilot validation: passed",
@@ -302,7 +306,7 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
             validated_at=response.validated_at,
             action_plan=response.action_plan,
             validation=ValidationReportV1(
-                "failed", request.snapshot.digest, ()
+                "failed", request.snapshot.digest, False, ()
             ),
             plan_id=response.plan_id,
             snapshot_digest=response.snapshot_digest,

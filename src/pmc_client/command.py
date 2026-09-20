@@ -11,16 +11,38 @@ from typing import Protocol
 
 from pmc_client.transport import LoopbackPlanClient
 from pmc_client.transport import TransportError
+from pmc_core.executor import REASON_OK
+from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 
 FIXTURE_INTENT = "Select chain A and color it red."
 FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
+#: docs/master_plan.md item 7 replaces this placeholder with a real,
+#: per-session snapshot identity computed by
+#: `pmc_client.session.extract_live_snapshot` (not yet wired here -- see
+#: that module's own docstring). Kept for the fixture lifecycle
+#: (`pmc_server.lifecycle.PlanRequestLifecycle`) this client still talks
+#: to, which item 8's LangGraph request graph replaces wholesale.
 FIXTURE_SNAPSHOT = StructureSnapshotV1(
-    "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
+    schema_version="1",
+    digest="sha256:example-chain-a-digest",
+    object_name="one-object-chain-a-v1",
+    atom_count=2,
+    state_count=1,
+)
+#: Likewise a placeholder: item 7 replaces this with a real
+#: `pmc_client.fidelity.check_fidelity` outcome computed against the live
+#: session, never a constant.
+FIXTURE_FIDELITY = FidelityOutcomeV1(
+    status=FIDELITY_EXACT,
+    reason=REASON_OK,
+    mismatch_count=0,
+    mismatches=(),
 )
 
 
@@ -120,6 +142,7 @@ class CopilotCommandClient:
             contract_manifest=FIXTURE_MANIFEST,
             intent=intent,
             snapshot=FIXTURE_SNAPSHOT,
+            fidelity=FIXTURE_FIDELITY,
         )
         try:
             response = self._transport.submit(request)

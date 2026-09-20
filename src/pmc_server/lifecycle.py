@@ -45,8 +45,18 @@ FIXTURE_PLAN = ActionPlan(
         ColorOperation(color="red", target=NamedSelection("copilot_selection")),
     )
 )
+#: Must stay byte-identical to pmc_client.command.FIXTURE_SNAPSHOT: this
+#: fixture lifecycle still gates on exact snapshot equality
+#: (_matches_fixture below), which docs/master_plan.md item 7 has not yet
+#: replaced with real per-session data on the client side -- that is item
+#: 7's own step 7 in plans/06-live-extraction-and-fidelity-gate.md, and
+#: item 8's LangGraph request graph replaces this whole lifecycle in turn.
 FIXTURE_SNAPSHOT = StructureSnapshotV1(
-    "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
+    schema_version="1",
+    digest="sha256:example-chain-a-digest",
+    object_name="one-object-chain-a-v1",
+    atom_count=2,
+    state_count=1,
 )
 FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
 
@@ -140,6 +150,12 @@ class PlanRequestLifecycle:
             validation=ValidationReportV1(
                 status="passed",
                 snapshot_digest=request.snapshot.digest,
+                # A fixed True, not yet derived from request.fidelity: this
+                # fixture lifecycle predates docs/master_plan.md item 7's
+                # fidelity gate. Deriving it for real
+                # (`applicable = request.fidelity.status == FIDELITY_EXACT`)
+                # is step 8 of plans/06-live-extraction-and-fidelity-gate.md.
+                applicable=True,
                 warnings=(),
             ),
             plan_id=self._plan_id_source(),

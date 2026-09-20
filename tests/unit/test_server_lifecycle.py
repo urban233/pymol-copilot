@@ -5,9 +5,12 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import pytest
 
+from pmc_core.executor import REASON_OK
 from pmc_core.policy import PlanDecision
+from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
@@ -31,7 +34,17 @@ def request() -> PlanRequestV1:
         contract_manifest=ContractManifestV1("1", "1", "1"),
         intent="Select chain A and color it red.",
         snapshot=StructureSnapshotV1(
-            "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
+            schema_version="1",
+            digest="sha256:example-chain-a-digest",
+            object_name="one-object-chain-a-v1",
+            atom_count=2,
+            state_count=1,
+        ),
+        fidelity=FidelityOutcomeV1(
+            status=FIDELITY_EXACT,
+            reason=REASON_OK,
+            mismatch_count=0,
+            mismatches=(),
         ),
     )
 
@@ -59,6 +72,7 @@ def test_exact_fixture_returns_correlated_validated_plan() -> None:
     assert (
         response.validation.snapshot_digest == "sha256:example-chain-a-digest"
     )
+    assert response.validation.applicable is True
     assert response.validation.warnings == ()
 
 
@@ -72,6 +86,7 @@ def test_semantic_request_mismatch_returns_typed_failure_without_plan() -> None:
         contract_manifest=invalid_request.contract_manifest,
         intent="Select chain B and color it red.",
         snapshot=invalid_request.snapshot,
+        fidelity=invalid_request.fidelity,
     )
 
     response = PlanRequestLifecycle()(invalid_request)

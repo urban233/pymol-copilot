@@ -968,3 +968,28 @@ something driving real PyMOL settled that the plan had guessed at.
   `"fx_probe"` first (`dataclasses.replace(snapshot, name=...)`) and deletes
   it in a `finally`. This is purely a test-construction detail; step 9's
   real-PyMOL categories (client-owned, one object per test) are unaffected.
+
+- **Step 4's actual footprint is wider than its own "Files" list.**
+  `StructureSnapshotV1`, `PlanRequestV1`, and `ValidationReportV1` are
+  constructed directly (not only decoded) by `src/pmc_client/command.py`,
+  `src/pmc_server/lifecycle.py`, and four test modules
+  (`tests/integration/test_command.py`, `tests/integration/
+  test_loopback_transport.py`, `tests/unit/test_server_lifecycle.py`, and
+  `tests/contract/test_protocol.py` itself). Hannah's own standing
+  instruction for this session is that `bazel test //...` must pass after
+  every step, not only each step's own named target, so step 4 updates
+  every one of those construction sites to the new required fields rather
+  than leaving the tree red until step 7. Each fixture literal keeps its
+  existing values under the new field names (`object_name` in place of
+  `fixture_id`, plus placeholder `atom_count`/`state_count`, plus a
+  `FidelityOutcomeV1` fixed at `FIDELITY_EXACT`); nothing about what any
+  existing test asserts was weakened.
+- **`PlanRequestLifecycle._matches_fixture`'s exact snapshot-equality
+  check is left alone in this step, on purpose.** It still compares
+  `request.snapshot == FIXTURE_SNAPSHOT` byte-for-byte. That is fine as
+  long as the client also sends a fixed literal (true through step 4-6),
+  but it will reject every real request once step 7 makes the client send
+  a genuine per-session snapshot identity -- since a real digest/atom
+  count essentially never equals the fixture's placeholder values. That is
+  step 7's own problem to solve where the client-side change actually
+  happens, not step 4's; step 7's own section below records the fix.
