@@ -27,15 +27,24 @@ direction is not, because a grammar narrower than the parser would make
 legal plans unreachable and the model would never learn it could write
 them. `tests/contract/test_grammar.py` pins the direction.
 
-Every terminal is read from `pmc_core.plan` at build time. Nothing here
-restates a verb, a color, a representation or a term spelling as a
-literal, so adding a color to the allowlist cannot leave this module
-behind, and removing one cannot leave it advertising a color the parser
+Every terminal is read from `pmc_core.plan` at build time: the verbs and
+their argument forms from `COMMAND_ALLOWLIST`, the colors and
+representations from their allowlists, the six selection terms from
+`TERM_TYPES` and each one's own `KEYWORD`, and `not`/`and`/`or` from the
+constants the canonical renderings themselves use. Nothing here restates
+a spelling as a literal, so adding a color cannot leave this module
+behind and removing one cannot leave it advertising something the parser
 now rejects.
+
+A term added to `pmc_core.plan` that this module has no argument spelling
+for raises at build time rather than being quietly omitted from the
+grammar, which would otherwise make the new term unreachable for a
+constrained model while every existing test stayed green.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+from pmc_core.plan import AND_KEYWORD
 from pmc_core.plan import COLOR_ALLOWLIST
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import MAX_ATOM_NAME
@@ -43,8 +52,17 @@ from pmc_core.plan import MAX_CHAIN_IDENTIFIER
 from pmc_core.plan import MAX_RESIDUE_IDENTIFIER
 from pmc_core.plan import MAX_RESIDUE_NAME
 from pmc_core.plan import MAX_SELECTION_NAME_BODY
+from pmc_core.plan import NOT_KEYWORD
+from pmc_core.plan import OR_KEYWORD
 from pmc_core.plan import REPRESENTATION_ALLOWLIST
 from pmc_core.plan import SELECTION_NAME_PREFIX
+from pmc_core.plan import TERM_TYPES
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import HetatmTerm
+from pmc_core.plan import NameTerm
+from pmc_core.plan import PolymerTerm
+from pmc_core.plan import ResiTerm
+from pmc_core.plan import ResnTerm
 
 #: This module's own grammar contract version, stamped into every prompt by
 #: pmc_core.prompt and recorded with a model or evaluation artifact
@@ -125,6 +143,56 @@ def _command_rule(verb: str) -> str:
     return f'"{verb} " {arguments} "\\n"'
 
 
+#: How each term that takes an argument spells that argument in GBNF,
+#: keyed by the term type itself rather than by its keyword, so a term
+#: renamed in pmc_core.plan follows automatically. A term in TERM_TYPES
+#: and absent here is a bare keyword; a term in neither is a build error,
+#: which is what stops pmc_core.plan from growing a term this module
+#: silently leaves out of the grammar.
+_TERM_ARGUMENTS = {
+    ChainTerm: lambda: _repeat("chain-char", MAX_CHAIN_IDENTIFIER),
+    ResiTerm: lambda: 'residue ("-" residue)?',
+    ResnTerm: lambda: _repeat("resn-char", MAX_RESIDUE_NAME),
+    NameTerm: lambda: _repeat("name-char", MAX_ATOM_NAME),
+}
+
+#: Terms with no argument at all: their whole spelling is the keyword.
+_BARE_TERMS = (HetatmTerm, PolymerTerm)
+
+
+def _term_rule_reference(term: type) -> str:
+    """Return how one term appears in the `term` alternation.
+
+    Args:
+        term: A member of pmc_core.plan.TERM_TYPES.
+
+    Returns:
+        A rule reference for a term that takes an argument, or the
+        quoted keyword for a bare one.
+
+    Raises:
+        ValueError: If the term is neither, which means pmc_core.plan
+            grew a term this module has no spelling for.
+    """
+    if term in _TERM_ARGUMENTS:
+        return f"{term.KEYWORD}-term"
+    if term in _BARE_TERMS:
+        return f'"{term.KEYWORD}"'
+    raise ValueError(f"no GBNF spelling for selection term {term.__name__}")
+
+
+def _term_rule(term: type) -> str:
+    """Return the rule body for one term that takes an argument.
+
+    Args:
+        term: A member of _TERM_ARGUMENTS.
+
+    Returns:
+        The keyword, a space, and the argument's own spelling.
+    """
+    return f'"{term.KEYWORD} " ' + _TERM_ARGUMENTS[term]()
+
+
 def build_grammar() -> str:
     """Return the GBNF grammar for the restricted command language.
 
@@ -144,20 +212,24 @@ def build_grammar() -> str:
             f'sel-name ::= "{SELECTION_NAME_PREFIX}" '
             + _repeat("sel-char", MAX_SELECTION_NAME_BODY),
             "sel-char ::= [a-z0-9_]",
-            'expression ::= and-clause (" or " and-clause)*',
-            'and-clause ::= factor (" and " factor)*',
-            'factor ::= ("not ")? term',
-            "term ::= chain-term | resi-term | resn-term | name-term"
-            ' | "hetatm" | "polymer"',
-            'chain-term ::= "chain " '
-            + _repeat("chain-char", MAX_CHAIN_IDENTIFIER),
+            f'expression ::= and-clause (" {OR_KEYWORD} " and-clause)*',
+            f'and-clause ::= factor (" {AND_KEYWORD} " factor)*',
+            f'factor ::= ("{NOT_KEYWORD} ")? term',
+            "term ::= "
+            + " | ".join(_term_rule_reference(t) for t in TERM_TYPES),
+        ]
+    )
+    rules.extend(
+        f"{term.KEYWORD}-term ::= {_term_rule(term)}"
+        for term in TERM_TYPES
+        if term in _TERM_ARGUMENTS
+    )
+    rules.extend(
+        [
             "chain-char ::= [a-zA-Z0-9]",
-            'resi-term ::= "resi " residue ("-" residue)?',
             "residue ::= " + _repeat("digit", _RESIDUE_DIGITS),
             "digit ::= [0-9]",
-            'resn-term ::= "resn " ' + _repeat("resn-char", MAX_RESIDUE_NAME),
             "resn-char ::= [A-Z0-9]",
-            'name-term ::= "name " ' + _repeat("name-char", MAX_ATOM_NAME),
             "name-char ::= [A-Z0-9]",
             "color ::= " + _alternation(COLOR_ALLOWLIST),
             "representation ::= " + _alternation(REPRESENTATION_ALLOWLIST),

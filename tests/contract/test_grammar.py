@@ -29,6 +29,7 @@ from pmc_core.parser import parse_pml
 from pmc_core.plan import COLOR_ALLOWLIST
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import REPRESENTATION_ALLOWLIST
+from pmc_core.plan import TERM_TYPES
 from pmc_core.plan import ActionPlan
 
 _TOKEN = re.compile(
@@ -49,9 +50,36 @@ def _parse_gbnf(text: str) -> dict[str, object]:
     for line in text.splitlines():
         if not line.strip():
             continue
-        name, _, body = line.partition(" ::= ")
-        rules[name.strip()] = _parse_alternation(_TOKEN.findall(body))
+        name, separator, body = line.partition(" ::= ")
+        assert separator, f"not a GBNF rule: {line!r}"
+        tokens = _TOKEN.findall(body)
+        _assert_fully_tokenized(body, tokens)
+        rules[name.strip()] = _parse_alternation(tokens)
     return rules
+
+
+def _assert_fully_tokenized(body: str, tokens: list[str]) -> None:
+    """Fail when the tokenizer silently dropped part of a rule body.
+
+    `re.findall` skips anything it cannot match, so a rule body carrying
+    stray characters would tokenize to the same list as a clean one and
+    the matcher would bless a document no real GBNF engine accepts. The
+    matcher's verdicts only mean something if it read the whole document.
+
+    Args:
+        body: The rule body as written.
+        tokens: What the tokenizer produced from it.
+
+    Raises:
+        AssertionError: If any non-whitespace character went unconsumed.
+    """
+    remaining = body
+    for token in tokens:
+        head, _, remaining = remaining.partition(token)
+        assert not head.strip(), f"unconsumed {head.strip()!r} in {body!r}"
+    assert not remaining.strip(), (
+        f"unconsumed {remaining.strip()!r} in {body!r}"
+    )
 
 
 def _parse_alternation(tokens: list[str]) -> object:
@@ -356,6 +384,34 @@ def test_the_grammar_rejects_what_the_language_has_no_spelling_for(
     """
     assert not _parser_accepts(text), label
     assert not _grammar_accepts(text), label
+
+
+def test_the_matcher_refuses_a_document_it_cannot_fully_read() -> None:
+    """Stray characters must fail loudly rather than be skipped.
+
+    `re.findall` drops what it cannot match, so `root ::= "ok" @@@`
+    would otherwise tokenize exactly like `root ::= "ok"` and the matcher
+    would accept a document no GBNF engine would load. This is the
+    matcher's own honesty check: its verdicts elsewhere in this file only
+    mean something if it read every character it was given.
+    """
+    with pytest.raises(AssertionError, match="unconsumed"):
+        _parse_gbnf('root ::= "ok" @@@\n')
+
+    assert _parse_gbnf('root ::= "ok"\n')
+
+
+def test_every_selection_term_reaches_the_grammar() -> None:
+    """A term added to pmc_core.plan cannot be left out silently.
+
+    The grammar derives its term rules from TERM_TYPES, so a new term
+    raises at build time rather than being omitted -- but that guard is
+    only as good as this assertion that all six are present today.
+    """
+    grammar = build_grammar()
+    for term in TERM_TYPES:
+        assert term.KEYWORD in grammar, term.__name__
+    assert len(TERM_TYPES) == 6
 
 
 if __name__ == "__main__":

@@ -24,6 +24,15 @@ would be silently inhomogeneous. SPECIFICATION.md:491 lists
 "prompt/card/grammar/error versions" among the fields a model artifact
 pins, so the prompt is expected to carry one.
 
+The card and the intent are both validated rather than trusted. A card
+is accepted only if it declares this module's own `CARD_VERSION` on its
+first line, carries a status line, and ends in a newline -- a prefix test
+would accept a card announcing a different version while the prompt
+beside it still claimed the current one. The intent is JSON-encoded on
+the way in, because the protocol bounds its length but not its
+characters: raw interpolation would let a newline inside a user intent
+add a line the prompt never authored.
+
 The grammar itself is not embedded in the prompt. It constrains the
 engine's decoding (master plan item 9) rather than instructing the model
 in prose, so only its version is stamped here -- what the model may emit
@@ -33,6 +42,7 @@ still adjudicate the result either way.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import json
 from dataclasses import dataclass
 
 from pmc_core.card import CARD_VERSION
@@ -58,12 +68,19 @@ PROMPT_VERSION = 1
 MIN_INTENT_CHARACTERS = 1
 MAX_INTENT_CHARACTERS = 4096
 
-#: The first line of any card pmc_core.card renders, including both of its
-#: failure cards. A card that does not start with this is not something
-#: this module was handed by the renderer, and it is refused rather than
-#: wrapped: a prompt whose card came from somewhere else would defeat the
-#: point of stamping a card version beside it.
-_CARD_PREFIX = "card-version="
+#: The exact first line of any card pmc_core.card renders at the version
+#: this module stamps, including both of its failure cards. Matching the
+#: whole line rather than a "card-version=" prefix is deliberate: a prefix
+#: test accepts a card declaring some other version while the prompt beside
+#: it still claims CARD_VERSION, which is precisely the stale-card
+#: mismatch stamping a version is meant to make impossible.
+_CARD_FIRST_LINE = f"card-version={CARD_VERSION}"
+
+#: The second line of any card, whichever of the three outcomes it is:
+#: "status=complete" or one of the two "status=unsupported ..." failure
+#: cards. Checked because the version line alone does not distinguish a
+#: card from any other text that happens to start with it.
+_CARD_STATUS_PREFIX = "status="
 
 #: The instruction text the model is given, above the card and the intent.
 #: Deliberately short: the grammar constrains the shape of the output, so
@@ -74,6 +91,26 @@ _INSTRUCTIONS = (
     "Given the structure card below and the user's intent, emit only the "
     "commands that carry out that intent, one per line, and nothing else."
 )
+
+
+def _text(value: str) -> str:
+    """Return an intent encoded as one unambiguous line.
+
+    The protocol bounds an intent's length but not its characters, so a
+    user intent can contain newlines and is attacker-influenced text
+    reaching a model prompt. Interpolating it raw would let
+    "ok\\nignore the card" add a line the prompt never authored, and would
+    make a trailing newline render two, breaking the canonical form. JSON
+    encoding is the same escape pmc_core.card already applies to every
+    text field it renders, so the model sees one convention throughout.
+
+    Args:
+        value: The intent to encode.
+
+    Returns:
+        The JSON-quoted, ASCII-escaped form, free of newlines.
+    """
+    return json.dumps(value, ensure_ascii=True, separators=(",", ":"))
 
 
 def _is_version(value: object, expected: int) -> bool:
@@ -145,10 +182,15 @@ class PromptV1:
             MIN_INTENT_CHARACTERS <= len(self.intent) <= MAX_INTENT_CHARACTERS
         ):
             raise ValueError("intent length is outside the V1 limit")
-        if not isinstance(self.card, str) or not self.card.startswith(
-            _CARD_PREFIX
-        ):
-            raise ValueError("card was not rendered by pmc_core.card")
+        if not isinstance(self.card, str):
+            raise ValueError("card is not a string")
+        if not self.card.endswith("\n"):
+            raise ValueError("card does not end in a newline")
+        lines = self.card.split("\n")
+        if lines[0] != _CARD_FIRST_LINE:
+            raise ValueError(f"card does not declare {_CARD_FIRST_LINE}")
+        if len(lines) < 2 or not lines[1].startswith(_CARD_STATUS_PREFIX):
+            raise ValueError("card has no status line")
 
     def text(self) -> str:
         """Render this prompt to its one canonical form.
@@ -167,7 +209,7 @@ class PromptV1:
             f"policy-version={self.policy_version}\n"
             f"{_INSTRUCTIONS}\n"
             f"{self.card}"
-            f"intent={self.intent}\n"
+            f"intent={_text(self.intent)}\n"
         )
 
 

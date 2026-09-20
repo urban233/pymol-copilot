@@ -31,6 +31,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import ClassVar
 
 #: The required prefix for every selection name a plan creates. It keeps a
 #: plan from replacing a selection the user built by hand, and it is what
@@ -66,6 +67,14 @@ MAX_RESIDUE_NAME = 3
 #: C1' are unsupported in V1: the apostrophe is denied by the parser's quoting
 #: rule, and admitting it would reopen quote handling across the parser.
 MAX_ATOM_NAME = 4
+
+#: The three boolean keywords of a selection expression, named here
+#: because the canonical renderings below are the authority on how a plan
+#: is spelled, and pmc_core.grammar derives its GBNF from them rather than
+#: keeping a second copy that could drift.
+NOT_KEYWORD = "not"
+AND_KEYWORD = "and"
+OR_KEYWORD = "or"
 
 _LOWERCASE = frozenset("abcdefghijklmnopqrstuvwxyz")
 _UPPERCASE = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -156,6 +165,10 @@ class ChainTerm:
         chain_id: The chain identifier this term matches.
     """
 
+    #: This term's leading keyword, the one spelling render()
+    #: emits and pmc_core.grammar derives its rule from.
+    KEYWORD: ClassVar[str] = "chain"
+
     chain_id: str
 
     def __post_init__(self) -> None:
@@ -177,7 +190,7 @@ class ChainTerm:
         Returns:
             The canonical term text.
         """
-        return f"chain {self.chain_id}"
+        return f"{self.KEYWORD} {self.chain_id}"
 
 
 @dataclass(frozen=True)
@@ -188,6 +201,10 @@ class ResiTerm:
         first: The residue identifier, or the start of the range.
         last: The inclusive end of the range, or None for a single residue.
     """
+
+    #: This term's leading keyword, the one spelling render()
+    #: emits and pmc_core.grammar derives its rule from.
+    KEYWORD: ClassVar[str] = "resi"
 
     first: int
     last: int | None = None
@@ -218,8 +235,8 @@ class ResiTerm:
             The canonical term text.
         """
         if self.last is None:
-            return f"resi {self.first}"
-        return f"resi {self.first}-{self.last}"
+            return f"{self.KEYWORD} {self.first}"
+        return f"{self.KEYWORD} {self.first}-{self.last}"
 
 
 @dataclass(frozen=True)
@@ -229,6 +246,10 @@ class ResnTerm:
     Attributes:
         residue_name: The residue name this term matches.
     """
+
+    #: This term's leading keyword, the one spelling render()
+    #: emits and pmc_core.grammar derives its rule from.
+    KEYWORD: ClassVar[str] = "resn"
 
     residue_name: str
 
@@ -251,7 +272,7 @@ class ResnTerm:
         Returns:
             The canonical term text.
         """
-        return f"resn {self.residue_name}"
+        return f"{self.KEYWORD} {self.residue_name}"
 
 
 @dataclass(frozen=True)
@@ -261,6 +282,10 @@ class NameTerm:
     Attributes:
         atom_name: The atom name this term matches.
     """
+
+    #: This term's leading keyword, the one spelling render()
+    #: emits and pmc_core.grammar derives its rule from.
+    KEYWORD: ClassVar[str] = "name"
 
     atom_name: str
 
@@ -283,33 +308,41 @@ class NameTerm:
         Returns:
             The canonical term text.
         """
-        return f"name {self.atom_name}"
+        return f"{self.KEYWORD} {self.atom_name}"
 
 
 @dataclass(frozen=True)
 class HetatmTerm:
     """A selection term matching every hetero atom."""
 
+    #: This term's leading keyword, the one spelling render()
+    #: emits and pmc_core.grammar derives its rule from.
+    KEYWORD: ClassVar[str] = "hetatm"
+
     def render(self) -> str:
         """Render this term as its one canonical spelling.
 
         Returns:
             The canonical term text.
         """
-        return "hetatm"
+        return self.KEYWORD
 
 
 @dataclass(frozen=True)
 class PolymerTerm:
     """A selection term matching every polymer atom."""
 
+    #: This term's leading keyword, the one spelling render()
+    #: emits and pmc_core.grammar derives its rule from.
+    KEYWORD: ClassVar[str] = "polymer"
+
     def render(self) -> str:
         """Render this term as its one canonical spelling.
 
         Returns:
             The canonical term text.
         """
-        return "polymer"
+        return self.KEYWORD
 
 
 #: The accepted selection-expression terms.
@@ -362,7 +395,7 @@ class Factor:
             The canonical factor text.
         """
         if self.negated:
-            return f"not {self.term.render()}"
+            return f"{NOT_KEYWORD} {self.term.render()}"
         return self.term.render()
 
 
@@ -394,7 +427,9 @@ class AndClause:
         Returns:
             The canonical clause text.
         """
-        return " and ".join(factor.render() for factor in self.factors)
+        return f" {AND_KEYWORD} ".join(
+            factor.render() for factor in self.factors
+        )
 
 
 @dataclass(frozen=True)
@@ -442,7 +477,9 @@ class SelectionExpression:
         Returns:
             The canonical expression text.
         """
-        return " or ".join(clause.render() for clause in self.clauses)
+        return f" {OR_KEYWORD} ".join(
+            clause.render() for clause in self.clauses
+        )
 
 
 @dataclass(frozen=True)
