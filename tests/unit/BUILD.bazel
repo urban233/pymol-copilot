@@ -13,6 +13,18 @@ py_test(
 )
 
 py_test(
+    name = "validation_service",
+    size = "small",
+    srcs = ["test_validation_service.py"],
+    main = "test_validation_service.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)
+
+py_test(
     name = "agent_runtime",
     size = "small",
     srcs = ["test_agent_runtime.py"],

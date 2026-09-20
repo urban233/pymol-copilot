@@ -8,11 +8,14 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # (run_nested_snapshot_process). Ported from
 # tests/discovery/h02/harness.py once that module's production content
 # moved to src/pmc_core/snapshot.py. Visibility also reaches
-# tests/discovery/h02, whose surviving execution-boundary probes request
-# the same real_pymol fixture (re-exported by that package's own
-# conftest.py) to compute an independent expected value, and
 # tests/discovery/m02, whose card candidate test does the same to extract
-# a real fixture's snapshot.
+# a real fixture's snapshot. tests/discovery/h02 used to reach it too, for
+# its own execution-boundary prototype's positive-path test
+# (docs/master_plan.md item 4); that prototype is now promoted to
+# src/pmc_core/executor.py and src/pmc_sidecar/child.py, with its own
+# real-PyMOL evidence in this package's own :sidecar_child and
+# :executor_round_trip targets below, and tests/discovery/h02 no longer
+# exists.
 py_library(
     name = "snapshot_support",
     srcs = ["snapshot_support.py"],
@@ -22,7 +25,6 @@ py_library(
     ],
     imports = ["."],
     visibility = [
-        "//tests/discovery/h02:__pkg__",
         "//tests/discovery/m02:__pkg__",
     ],
     deps = [
@@ -125,6 +127,88 @@ py_test(
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
         "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "sidecar_child",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_sidecar_child.py"],
+    main = "test_sidecar_child.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Drives pmc_sidecar.child.run_plan() against the module-scoped
+    # real_pymol/loaded_fixture fixtures; excluded from concurrent
+    # scheduling for the same reason as :real_pymol_command and
+    # :real_pymol_allowlist.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# A test-owned sidecar child pmc_core.executor.execute() can spawn in place
+# of the production src/pmc_sidecar/child.py, so test_executor_boundary.py
+# can exercise execute()'s own process-management guarantees without
+# needing a genuinely pathological PyMOL failure for every scenario. See
+# its own module docstring.
+py_library(
+    name = "sabotage_child",
+    srcs = ["sabotage_child.py"],
+    imports = ["."],
+    visibility = ["//tests/integration:__pkg__"],
+    deps = ["//src/pmc_core:pmc_core"],
+)
+
+py_test(
+    name = "executor_boundary",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_executor_boundary.py"],
+    main = "test_executor_boundary.py",
+    # Spawns subprocesses (both the real production child and the
+    # sabotage child above), some of which launch real PyMOL; excluded
+    # from concurrent scheduling for the same reason as :real_pymol_command
+    # and :sidecar_child.
+    tags = ["exclusive"],
+    deps = [
+        ":sabotage_child",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "executor_round_trip",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_executor_round_trip.py"],
+    main = "test_executor_round_trip.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Uses the module-scoped real_pymol fixture to compute an independent
+    # expected value, and separately spawns the real production child via
+    # execute(); excluded from concurrent scheduling for the same reason
+    # as :sidecar_child and :executor_boundary.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
     ],
 )
 

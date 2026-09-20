@@ -11,6 +11,19 @@ guard -- promoted from `tests/discovery/h02` once that candidate
 comparison shipped as production code. The snapshot format's own
 PyMOL-free codec/digest/diff evidence stays in `tests/contract` instead.
 
+Also owns the sidecar executor's own real-process evidence
+(docs/master_plan.md item 4), promoted from that same `tests/discovery/h02`
+prototype once it shipped as `src/pmc_core/executor.py` and
+`src/pmc_sidecar/child.py`: `test_sidecar_child.py` (the closed verb
+dispatch and bounded command diagnostics against real PyMOL, no subprocess),
+`test_executor_boundary.py` (the spawn/deadline/kill/reap/cleanup and bounded
+stderr/error sabotage suite, built on this directory's own test-owned
+`sabotage_child.py`), and
+`test_executor_round_trip.py` (the positive path, against an
+independently computed expected value). `tests/discovery/h02` no longer
+exists; its differential evidence and its execution-boundary prototype are
+both fully promoted.
+
 Also owns the real-PyMOL half of the error envelope. `pymol_error_cases.py`
 holds the deliberately broken commands, shared as a bare sibling module by
 `capture_pymol_errors.py` (which regenerates
