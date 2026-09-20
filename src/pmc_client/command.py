@@ -174,10 +174,12 @@ def _fidelity_block(
         The multi-line fidelity block.
     """
     if outcome.status == FIDELITY_EXACT:
+        atom_plural = "" if atom_count == 1 else "s"
+        state_plural = "" if state_count == 1 else "s"
         return (
             "copilot fidelity: exact on the declared state scope "
-            f"(object {object_name}, {atom_count} atoms, {state_count} "
-            "states)"
+            f"(object {object_name}, {atom_count} atom{atom_plural}, "
+            f"{state_count} state{state_plural})"
         )
     if outcome.status == FIDELITY_NOT_EXACT:
         count = len(outcome.mismatches)

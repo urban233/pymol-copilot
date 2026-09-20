@@ -1057,3 +1057,28 @@ something driving real PyMOL settled that the plan had guessed at.
   real-PyMOL invocations passed repeatedly at 15.0; step 9's own dedicated
   fidelity categories may refine this further with more direct
   measurement.
+
+- **`src/pmc_server/lifecycle.py`'s `FIXTURE_SNAPSHOT` was simplified to a
+  bare `FIXTURE_SNAPSHOT_SCHEMA_VERSION = "1"` string during step 10's own
+  verification pass.** Step 7's `_matches_fixture` fix (above) already
+  stopped reading anything from `FIXTURE_SNAPSHOT` except
+  `.schema_version`; the digest/object-name/atom-count/state-count fields
+  became genuinely dead literals nothing ever read. Verification item 1
+  in this plan's own end-to-end checklist expects
+  `grep -rn "example-chain-a-digest" src/` to return nothing, and the
+  dead literal was the one remaining hit -- a stale value is worse than
+  no value, so it was removed rather than left as an unread historical
+  artifact.
+- **The fidelity summary line's "1 states" grammar was fixed on sight**,
+  found while doing the plan's own closing "cold read" of the actual
+  console text a user sees. Cheap, already identified, fixed rather than
+  deferred.
+- **Verification item 8 ("CI green on all three operating systems")
+  could not be executed from this environment** -- it requires pushing a
+  branch and running GitHub Actions on macOS and Windows runners, which
+  is outside this session's scope unless asked for. Every other
+  end-to-end verification item (1-7) was run directly, including both
+  mutation-testing checks (hard-wiring `check_fidelity` to always report
+  exact, and injecting a real mutation into `copilot_apply`), each
+  confirmed to fail exactly the tests it should and nothing else, then
+  reverted with no trace in the diff.

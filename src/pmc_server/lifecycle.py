@@ -24,7 +24,6 @@ from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
-from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 
@@ -46,21 +45,17 @@ FIXTURE_PLAN = ActionPlan(
         ColorOperation(color="red", target=NamedSelection("copilot_selection")),
     )
 )
-#: `_matches_fixture` below no longer compares this wholesale against a
-#: request's own snapshot: docs/master_plan.md item 7 makes the client
-#: send a real, per-session snapshot identity
+#: `_matches_fixture` below no longer compares a whole `StructureSnapshotV1`
+#: against a request's own snapshot: docs/master_plan.md item 7 makes the
+#: client send a real, per-session snapshot identity
 #: (`pmc_client.session.extract_live_snapshot`), which varies with
-#: whatever object is actually loaded and essentially never equals a
-#: fixed literal. Only `schema_version` is still checked. Item 8's
-#: LangGraph request graph replaces this whole lifecycle, snapshot
-#: handling included.
-FIXTURE_SNAPSHOT = StructureSnapshotV1(
-    schema_version="1",
-    digest="sha256:example-chain-a-digest",
-    object_name="one-object-chain-a-v1",
-    atom_count=2,
-    state_count=1,
-)
+#: whatever object is actually loaded and essentially never equals a fixed
+#: literal. Only the schema version is still checked, so that is all this
+#: module still declares -- a stale digest/object-name/atom-count literal
+#: nothing reads is worse than no literal at all. Item 8's LangGraph
+#: request graph replaces this whole lifecycle, snapshot handling
+#: included.
+FIXTURE_SNAPSHOT_SCHEMA_VERSION = "1"
 FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
 
 type PLAN_ID_SOURCE = Callable[[], str]
@@ -185,7 +180,7 @@ class PlanRequestLifecycle:
             and request.contract_manifest == FIXTURE_MANIFEST
             and request.intent == FIXTURE_INTENT
             and request.snapshot.schema_version
-            == FIXTURE_SNAPSHOT.schema_version
+            == FIXTURE_SNAPSHOT_SCHEMA_VERSION
         )
 
     @staticmethod
