@@ -105,9 +105,35 @@ py_test(
     ],
 )
 
+py_test(
+    name = "client_session",
+    size = "small",
+    srcs = ["test_client_session.py"],
+    main = "test_client_session.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "client_fidelity",
+    size = "small",
+    srcs = ["test_client_fidelity.py"],
+    main = "test_client_fidelity.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
 test_suite(
     name = "all",
     tests = [
+        ":client_fidelity",
+        ":client_session",
         ":errors",
         ":executor",
         ":parser",

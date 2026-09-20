@@ -17,12 +17,19 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_core.plan import HideOperation
 from pmc_core.plan import OrientOperation
+from pmc_core.executor import REASON_OK
 from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import FIDELITY_NOT_EXACT
+from pmc_core.protocol import FIDELITY_UNAVAILABLE
+from pmc_core.protocol import MAX_FIDELITY_MISMATCH_BYTES
+from pmc_core.protocol import MAX_FIDELITY_MISMATCHES
 from pmc_core.protocol import CommandOutcomeV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import SelectionCountV1
@@ -79,7 +86,17 @@ def request() -> PlanRequestV1:
         contract_manifest=ContractManifestV1("1", "1", "1"),
         intent="Select chain A and color it red.",
         snapshot=StructureSnapshotV1(
-            "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
+            schema_version="1",
+            digest="sha256:example-chain-a-digest",
+            object_name="one-object-chain-a-v1",
+            atom_count=2,
+            state_count=1,
+        ),
+        fidelity=FidelityOutcomeV1(
+            status=FIDELITY_EXACT,
+            reason=REASON_OK,
+            mismatch_count=0,
+            mismatches=(),
         ),
     )
 
@@ -97,7 +114,7 @@ def response() -> ValidatedPlanResponseV1:
         validated_at="2026-08-26T14:22:03.220Z",
         action_plan=fixture_plan(),
         validation=ValidationReportV1(
-            "passed", "sha256:example-chain-a-digest", ()
+            "passed", "sha256:example-chain-a-digest", True, ()
         ),
         plan_id="33333333-3333-4333-8333-333333333333",
         snapshot_digest="sha256:example-chain-a-digest",
@@ -228,7 +245,7 @@ def test_validated_response_rejects_mismatched_snapshot_digests() -> None:
     """A response whose plan and report digests disagree is rejected."""
     payload = response().to_dict()
     payload["validation"] = ValidationReportV1(
-        "passed", "sha256:different-digest", ()
+        "passed", "sha256:different-digest", True, ()
     ).to_dict()
 
     with pytest.raises(ProtocolDecodeError, match="snapshot digests"):
@@ -247,7 +264,7 @@ def test_validated_response_accepts_matching_snapshot_digests_from_another_reque
         validated_at=fixture.validated_at,
         action_plan=fixture.action_plan,
         validation=ValidationReportV1(
-            "passed", "sha256:another-request-digest", ()
+            "passed", "sha256:another-request-digest", True, ()
         ),
         plan_id=fixture.plan_id,
         snapshot_digest="sha256:another-request-digest",
@@ -803,6 +820,154 @@ def test_selection_count_round_trips_a_zero_count() -> None:
     count = SelectionCountV1("copilot_empty", 0)
 
     assert SelectionCountV1.from_dict(count.to_dict()) == count
+
+
+@pytest.mark.parametrize(
+    ("status", "mismatch_count", "mismatches"),
+    [
+        (FIDELITY_EXACT, 0, ()),
+        (FIDELITY_NOT_EXACT, 2, ("state0.atom0.q expected=1.0 actual=0.5",)),
+        (FIDELITY_UNAVAILABLE, 0, ()),
+    ],
+)
+def test_fidelity_outcome_round_trips_every_status(
+    status: str, mismatch_count: int, mismatches: tuple[str, ...]
+) -> None:
+    """Each of the three fidelity statuses round-trips through JSON.
+
+    Args:
+        status: The fidelity status under test.
+        mismatch_count: The declared mismatch count.
+        mismatches: The carried mismatch strings.
+    """
+    outcome = FidelityOutcomeV1(
+        status=status,
+        reason=REASON_OK,
+        mismatch_count=mismatch_count,
+        mismatches=mismatches,
+    )
+
+    assert FidelityOutcomeV1.from_dict(outcome.to_dict()) == outcome
+
+
+def test_fidelity_outcome_rejects_an_unrecognized_status() -> None:
+    """A fidelity status outside the three recognized values is rejected."""
+    payload = FidelityOutcomeV1(FIDELITY_EXACT, REASON_OK, 0, ()).to_dict()
+    payload["status"] = "somewhat_exact"
+
+    with pytest.raises(ProtocolDecodeError, match="recognized value"):
+        FidelityOutcomeV1.from_dict(payload)
+
+
+def test_fidelity_outcome_rejects_exact_status_carrying_a_mismatch() -> None:
+    """An exact status may never carry a nonzero mismatch count."""
+    payload = FidelityOutcomeV1(FIDELITY_EXACT, REASON_OK, 0, ()).to_dict()
+    payload["mismatchCount"] = 1
+
+    with pytest.raises(ProtocolDecodeError, match="exact"):
+        FidelityOutcomeV1.from_dict(payload)
+
+
+def test_fidelity_outcome_rejects_more_mismatches_than_the_declared_count() -> (
+    None
+):
+    """A carried mismatch list may never outnumber its own declared count."""
+    payload = FidelityOutcomeV1(
+        FIDELITY_NOT_EXACT, "child_crash", 1, ("one mismatch",)
+    ).to_dict()
+    payload["mismatchCount"] = 0
+
+    with pytest.raises(ProtocolDecodeError, match="mismatchCount"):
+        FidelityOutcomeV1.from_dict(payload)
+
+
+def test_fidelity_outcome_rejects_more_than_the_maximum_mismatches() -> None:
+    """A mismatch list longer than MAX_FIDELITY_MISMATCHES is rejected."""
+    payload = FidelityOutcomeV1(
+        FIDELITY_NOT_EXACT,
+        "child_crash",
+        MAX_FIDELITY_MISMATCHES + 1,
+        tuple(f"mismatch {i}" for i in range(MAX_FIDELITY_MISMATCHES + 1)),
+    ).to_dict()
+
+    with pytest.raises(ProtocolDecodeError, match="exceeds the V1 limit"):
+        FidelityOutcomeV1.from_dict(payload)
+
+
+def test_fidelity_outcome_rejects_unknown_fields() -> None:
+    """Fidelity outcomes with unknown fields are rejected."""
+    payload = FidelityOutcomeV1(FIDELITY_EXACT, REASON_OK, 0, ()).to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        FidelityOutcomeV1.from_dict(payload)
+
+
+def test_structure_snapshot_round_trips_its_computed_identity() -> None:
+    """A real computed snapshot identity round-trips through JSON."""
+    snapshot = StructureSnapshotV1(
+        schema_version="1",
+        digest="sha256:a-real-computed-digest",
+        object_name="fx",
+        atom_count=13,
+        state_count=2,
+    )
+
+    assert StructureSnapshotV1.from_dict(snapshot.to_dict()) == snapshot
+
+
+def test_validation_report_round_trips_applicable_both_ways() -> None:
+    """`applicable` round-trips true and false independently of status."""
+    applicable_report = ValidationReportV1("passed", "sha256:digest", True, ())
+    non_applicable_report = ValidationReportV1(
+        "passed", "sha256:digest", False, ()
+    )
+
+    assert (
+        ValidationReportV1.from_dict(applicable_report.to_dict())
+        == applicable_report
+    )
+    assert (
+        ValidationReportV1.from_dict(non_applicable_report.to_dict())
+        == non_applicable_report
+    )
+
+
+def test_validation_report_rejects_a_non_boolean_applicable() -> None:
+    """A non-boolean applicable value is rejected, not coerced."""
+    payload = ValidationReportV1("passed", "sha256:digest", True, ()).to_dict()
+    payload["applicable"] = "true"
+
+    with pytest.raises(ProtocolDecodeError, match="applicable"):
+        ValidationReportV1.from_dict(payload)
+
+
+def test_request_with_a_full_mismatch_list_stays_well_under_the_transport_cap() -> (
+    None
+):
+    """A ten-mismatch fidelity outcome leaves the 64 KiB request cap intact.
+
+    Mirrors pmc_client.transport.MAX_MESSAGE_BYTES without importing
+    pmc_client from a pmc_core-only contract test: this is evidence about
+    the protocol's own encoded size, not about the transport itself.
+    """
+    max_message_bytes = 64 * 1024
+    full_request = replace(
+        request(),
+        fidelity=FidelityOutcomeV1(
+            status=FIDELITY_NOT_EXACT,
+            reason="child_crash",
+            mismatch_count=MAX_FIDELITY_MISMATCHES,
+            mismatches=tuple(
+                "x" * MAX_FIDELITY_MISMATCH_BYTES
+                for _ in range(MAX_FIDELITY_MISMATCHES)
+            ),
+        ),
+    )
+
+    encoded = encode_json(full_request).encode("utf-8")
+
+    assert len(encoded) < max_message_bytes
 
 
 if __name__ == "__main__":

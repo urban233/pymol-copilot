@@ -33,3 +33,29 @@ so the two can never disagree about what was driven, and by
 `//tests/contract:errors`, which checks each captured envelope's command
 index and verb against it. The hermetic normalization evidence stays in
 `tests/contract`.
+
+Also owns the live-extraction-and-fidelity-gate's real-process evidence
+(docs/master_plan.md item 7): `test_sidecar_fidelity.py` (`src/pmc_sidecar
+/fidelity.py`'s reconstruct-and-re-extract logic against real PyMOL, no
+subprocess -- the fresh-process spawn evidence for that same child lives
+here too, in `test_client_fidelity_real_pymol.py` below) and
+`test_client_fidelity_real_pymol.py` (`pmc_client.fidelity.check_fidelity()`
+gated on a real sidecar spawn: modified coordinates, multiple states,
+alternate locations, hetero atoms, and all four combined, each asserting an
+exact reconstruction with an empty diff and equal structure digest, built on
+this directory's own test-owned `fidelity_sabotage_child.py` -- unlike
+`sabotage_child.py` above, a real-PyMOL-touching sabotage that reconstructs
+and re-extracts honestly, then perturbs one field of its own re-extraction,
+so the fidelity gate is proven to catch a real, named discrepancy rather
+than merely to pass when nothing is checked). `test_client_fidelity_real
+_pymol.py` also covers a fake timeout probe becoming `FIDELITY_UNAVAILABLE`,
+with no subprocess involved. `test_command.py` and `test_client_server
+_command.py` cover `pmc_client.command`'s own real request, pending plan,
+and `copilot_apply` refusal logic against fake sessions and fake probes,
+never spawning anything; `test_real_pymol_command.py`'s own happy-path test
+covers the full real-PyMOL, real-server, real-sidecar `copilot` then
+`copilot_apply` round trip, with a recording lifecycle proving the request
+carried a computed digest and `assert_session_unchanged` held across both
+commands. The client's own PyMOL-free session-resolution and fidelity-gate
+adjudication logic stays in `tests/contract` instead, matching how the
+snapshot format's codec/digest/diff evidence is split above.
