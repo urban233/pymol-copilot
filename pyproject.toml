@@ -125,6 +125,11 @@ check-unannotated-defs = true
 # to re-export its fixtures for their own prototype; both are now
 # promoted (docs/master_plan.md items 4 and 5) and neither directory
 # exists, so tests/integration is the only package that reaches it.
+# tests/integration/pymol_error_cases.py is the same situation again for
+# pmc_core.errors: one bare sibling module (`from pymol_error_cases
+# import ...`) holding the broken-command table that both
+# capture_pymol_errors.py and test_errors_real_pymol.py import, so the
+# corpus writer and the conformance test cannot drift apart.
 search-path = [
     "tests/integration",
     "tools/winstage",

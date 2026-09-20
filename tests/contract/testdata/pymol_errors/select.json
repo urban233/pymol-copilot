@@ -1,0 +1,37 @@
+{
+  "cases": [
+    {
+      "case": "malformed_selector",
+      "exception_type": "pymol.CmdException",
+      "expected": {
+        "category": "selection_syntax",
+        "command_index": 0,
+        "envelope_version": 1,
+        "message": "invalid selection.",
+        "verb": "select"
+      },
+      "raw_message": " Error: Invalid selection.",
+      "reachable": false,
+      "verb": "select"
+    },
+    {
+      "case": "unparsable_selector",
+      "exception_type": "pymol.CmdException",
+      "expected": {
+        "category": "selection_syntax",
+        "command_index": 0,
+        "envelope_version": 1,
+        "message": "malformed selection.",
+        "verb": "select"
+      },
+      "raw_message": " Error: Malformed selection.",
+      "reachable": false,
+      "verb": "select"
+    }
+  ],
+  "launch_arguments": [
+    "pymol",
+    "-qck"
+  ],
+  "pymol_version": "3.2.0a"
+}

@@ -1,0 +1,37 @@
+{
+  "cases": [
+    {
+      "case": "unknown_representation",
+      "exception_type": "pymol.parsing.QuietException",
+      "expected": {
+        "category": "unknown_representation",
+        "command_index": 2,
+        "envelope_version": 1,
+        "message": "unknown representation: \"<redacted>\". choices: angles cgo ellipsoids licorice nonbonded sticks callback dashes everything lines ribbon surface cartoon dihedrals extent mesh slice volume cell dots labels nb_spheres spheres wire",
+        "verb": "show"
+      },
+      "raw_message": "Error: unknown representation: 'notarep'. Choices:\n  angles      cgo         ellipsoids  licorice    nonbonded   sticks    \n  callback    dashes      everything  lines       ribbon      surface   \n  cartoon     dihedrals   extent      mesh        slice       volume    \n  cell        dots        labels      nb_spheres  spheres     wire      ",
+      "reachable": false,
+      "verb": "show"
+    },
+    {
+      "case": "undefined_selection",
+      "exception_type": "pymol.CmdException",
+      "expected": {
+        "category": "invalid_selection_name",
+        "command_index": 2,
+        "envelope_version": 1,
+        "message": "invalid selection name \"<redacted>\".",
+        "verb": "show"
+      },
+      "raw_message": " Error: Invalid selection name \"copilot_undefined\".\ncopilot_undefined<--",
+      "reachable": false,
+      "verb": "show"
+    }
+  ],
+  "launch_arguments": [
+    "pymol",
+    "-qck"
+  ],
+  "pymol_version": "3.2.0a"
+}

@@ -24,6 +24,16 @@ independently computed expected value). `tests/discovery/h02` no longer
 exists; its differential evidence and its execution-boundary prototype are
 both fully promoted.
 
+Also owns the real-PyMOL half of the error envelope. `pymol_error_cases.py`
+holds the deliberately broken commands, shared as a bare sibling module by
+`capture_pymol_errors.py` (which regenerates
+`tests/contract/testdata/pymol_errors/`) and `test_errors_real_pymol.py`
+(which re-drives them and fails when the checked-in strings stop matching),
+so the two can never disagree about what was driven, and by
+`//tests/contract:errors`, which checks each captured envelope's command
+index and verb against it. The hermetic normalization evidence stays in
+`tests/contract`.
+
 Also owns the live-extraction-and-fidelity-gate's real-process evidence
 (docs/master_plan.md item 7): `test_sidecar_fidelity.py` (`src/pmc_sidecar
 /fidelity.py`'s reconstruct-and-re-extract logic against real PyMOL, no

@@ -1,5 +1,31 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
+# The captured PyMOL error corpus. Owned by this package, where the
+# hermetic test that consumes it lives, and exported so
+# //tests/integration:errors_real_pymol can re-derive it from a live
+# PyMOL. Bazel's glob cannot reach across a package boundary, so the
+# dependency is spelled as this filegroup rather than as a relative path.
+filegroup(
+    name = "pymol_error_corpus",
+    srcs = glob(["testdata/pymol_errors/*.json"]),
+    visibility = ["//tests/integration:__pkg__"],
+)
+
+py_test(
+    name = "errors",
+    size = "small",
+    srcs = ["test_errors.py"],
+    main = "test_errors.py",
+    data = [":pymol_error_corpus"],
+    deps = [
+        "//tests/integration:pymol_error_cases",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
 py_test(
     name = "card",
     size = "small",
@@ -120,6 +146,7 @@ test_suite(
         ":card",
         ":client_fidelity",
         ":client_session",
+        ":errors",
         ":executor",
         ":parser",
         ":plan",

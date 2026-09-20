@@ -1,3 +1,4 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
@@ -337,5 +338,54 @@ py_test(
         ":snapshot_support",
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
+    ],
+)
+
+# The deliberately broken commands behind the captured error corpus,
+# shared by the capture binary and the conformance test below so the two
+# can never drive different commands. Imported as a bare sibling module,
+# the same arrangement snapshot_support.py already uses in this package.
+#
+# Visibility also reaches //tests/contract, whose hermetic errors test
+# checks each captured envelope's command index and verb against this
+# table rather than against the envelope itself. That target stays
+# PyMOL-free: this library imports no pymol and depends only on
+# //src/pmc_core.
+py_library(
+    name = "pymol_error_cases",
+    srcs = ["pymol_error_cases.py"],
+    imports = ["."],
+    visibility = ["//tests/contract:__pkg__"],
+    deps = ["//src/pmc_core:pmc_core"],
+)
+
+# Regenerates tests/contract/testdata/pymol_errors/ from real PyMOL. Not a
+# test: it writes into the source tree via BUILD_WORKSPACE_DIRECTORY and is
+# run by hand when PyMOL changes. test_errors_real_pymol.py below is the
+# target that fails when the checked-in corpus stops matching live PyMOL.
+py_binary(
+    name = "capture_pymol_errors",
+    srcs = ["capture_pymol_errors.py"],
+    main = "capture_pymol_errors.py",
+    deps = [
+        ":pymol_error_cases",
+        "@pypi//pymol_open_source_whl",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "errors_real_pymol",
+    size = "small",
+    srcs = ["test_errors_real_pymol.py"],
+    main = "test_errors_real_pymol.py",
+    data = ["//tests/contract:pymol_error_corpus"],
+    tags = ["exclusive"],
+    deps = [
+        ":pymol_error_cases",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//tools/winstage:winstage",
     ],
 )

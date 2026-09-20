@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "case": "uncoercible_state",
+      "exception_type": "builtins.ValueError",
+      "expected": {
+        "category": "unknown",
+        "command_index": 4,
+        "envelope_version": 1,
+        "message": "invalid literal for int() with base 10: \"<redacted>\"",
+        "verb": "orient"
+      },
+      "raw_message": "invalid literal for int() with base 10: 'notanint'",
+      "reachable": false,
+      "verb": "orient"
+    }
+  ],
+  "launch_arguments": [
+    "pymol",
+    "-qck"
+  ],
+  "pymol_version": "3.2.0a"
+}
