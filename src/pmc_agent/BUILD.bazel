@@ -4,6 +4,7 @@ py_library(
     name = "pmc_agent",
     srcs = [
         "__init__.py",
+        "graph.py",
         "runtime.py",
     ],
     imports = [".."],
