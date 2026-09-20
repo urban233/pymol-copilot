@@ -6,15 +6,12 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # the nested-subprocess-via-environment-variable technique
 # (run_nested_snapshot_process). Ported from
 # tests/discovery/h02/harness.py once that module's production content
-# moved to src/pmc_core/snapshot.py. Visibility also reaches
-# tests/discovery/m02, whose card candidate test does the same to extract
-# a real fixture's snapshot. tests/discovery/h02 used to reach it too, for
-# its own execution-boundary prototype's positive-path test
-# (docs/master_plan.md item 4); that prototype is now promoted to
-# src/pmc_core/executor.py and src/pmc_sidecar/child.py, with its own
-# real-PyMOL evidence in this package's own :sidecar_child and
-# :executor_round_trip targets below, and tests/discovery/h02 no longer
-# exists.
+# moved to src/pmc_core/snapshot.py. tests/discovery/h02 and
+# tests/discovery/m02 each used to reach this library for their own
+# prototype's real-PyMOL evidence, which is what its visibility grant
+# was for; both prototypes are now promoted (docs/master_plan.md items 4
+# and 5) and neither directory exists, so this target is private to its
+# own package again and carries no grant at all.
 py_library(
     name = "snapshot_support",
     srcs = ["snapshot_support.py"],
@@ -23,9 +20,6 @@ py_library(
         "testdata/h02_full_v1_fixture.pdb",
     ],
     imports = ["."],
-    visibility = [
-        "//tests/discovery/m02:__pkg__",
-    ],
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
@@ -293,6 +287,28 @@ py_test(
     # tests/data:oracle_sabotage and tests/contract:policy_sabotage, so it
     # never races another subprocess-spawning test under Windows's
     # unsandboxed local execution strategy (observed CI flake).
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "card_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_card_real_pymol.py"],
+    main = "test_card_real_pymol.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Launches real headless PyMOL, which supports one finish_launching
+    # per interpreter; excluded from concurrent scheduling for the same
+    # reason as :real_pymol_command.
     tags = ["exclusive"],
     deps = [
         ":snapshot_support",

@@ -4,6 +4,7 @@ py_library(
     name = "pmc_core",
     srcs = [
         "__init__.py",
+        "card.py",
         "executor.py",
         "parser.py",
         "plan.py",

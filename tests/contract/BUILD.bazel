@@ -1,6 +1,17 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "card",
+    size = "small",
+    srcs = ["test_card.py"],
+    main = "test_card.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "plan",
     srcs = ["test_plan.py"],
     main = "test_plan.py",
@@ -106,6 +117,7 @@ py_test(
 test_suite(
     name = "all",
     tests = [
+        ":card",
         ":client_fidelity",
         ":client_session",
         ":executor",
