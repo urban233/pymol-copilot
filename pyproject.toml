@@ -130,7 +130,13 @@ check-unannotated-defs = true
 # import ...`) holding the broken-command table that both
 # capture_pymol_errors.py and test_errors_real_pymol.py import, so the
 # corpus writer and the conformance test cannot drift apart.
+# tests/adversarial/denied_forms.py is the same situation again for
+# src/pmc_core/screen.py (docs/master_plan.md item 8): one bare sibling
+# module holding the denied-form corpus that both test_denied_forms.py and
+# test_hostile_screen.py import, so the parser/policy denial suite and the
+# repair-eligibility screen's own suite cannot drift apart.
 search-path = [
+    "tests/adversarial",
     "tests/integration",
     "tools/winstage",
 ]
