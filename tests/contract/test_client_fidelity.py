@@ -12,6 +12,7 @@ lives in tests/integration/test_client_fidelity_real_pymol.py.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import dataclasses
+import json
 from collections.abc import Callable
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -243,6 +244,66 @@ def test_undecodable_reconstructed_json_becomes_unavailable() -> None:
 
     assert outcome.status == FIDELITY_UNAVAILABLE
     assert outcome.reason == REASON_MALFORMED_INPUT
+    assert outcome.reconstructed_digest is None
+
+
+def test_non_finite_reconstructed_coordinate_becomes_unavailable() -> None:
+    """A parsed reconstruction that cannot be digested fails closed."""
+    live = _one_atom_snapshot()
+    malformed = json.loads(to_json(live))
+    malformed["states"][0]["atoms"][0]["coord"][0] = float("nan")
+    report = FidelityReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest=structure_digest(live),
+        reconstructed_snapshot_json=json.dumps(malformed),
+        child_pid=4321,
+        child_terminated=True,
+        elapsed_seconds=0.5,
+        warnings=(),
+    )
+
+    outcome = check_fidelity(live, probe=_fake_probe(report))
+
+    assert outcome.status == FIDELITY_UNAVAILABLE
+    assert outcome.reason == REASON_MALFORMED_INPUT
+    assert outcome.mismatches == ()
+    assert outcome.reconstructed_digest is None
+
+
+@pytest.mark.parametrize("malformed_field", ["coord", "view"])
+def test_wrong_length_reconstructed_sequence_becomes_unavailable(
+    malformed_field: str,
+) -> None:
+    """A parsed reconstruction that diff() cannot compare fails closed.
+
+    Args:
+        malformed_field: The fixed-length sequence to truncate.
+    """
+    live = _one_atom_snapshot()
+    malformed = json.loads(to_json(live))
+    if malformed_field == "coord":
+        malformed["states"][0]["atoms"][0]["coord"] = [1.0, 2.0]
+    else:
+        malformed["view"] = [0.0]
+    report = FidelityReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest=structure_digest(live),
+        reconstructed_snapshot_json=json.dumps(malformed),
+        child_pid=4321,
+        child_terminated=True,
+        elapsed_seconds=0.5,
+        warnings=(),
+    )
+
+    outcome = check_fidelity(live, probe=_fake_probe(report))
+
+    assert outcome.status == FIDELITY_UNAVAILABLE
+    assert outcome.reason == REASON_MALFORMED_INPUT
+    assert outcome.mismatches == ()
     assert outcome.reconstructed_digest is None
 
 

@@ -167,6 +167,8 @@ def check_fidelity(
         )
     try:
         reconstructed = from_json(report.reconstructed_snapshot_json)
+        reconstructed_digest = structure_digest(reconstructed)
+        mismatches = list(diff(live, reconstructed))
     except (
         json.JSONDecodeError,
         SnapshotDecodeError,
@@ -186,8 +188,6 @@ def check_fidelity(
             reconstructed_digest=None,
         )
 
-    reconstructed_digest = structure_digest(reconstructed)
-    mismatches = list(diff(live, reconstructed))
     if not mismatches and reconstructed_digest != resolved_live_digest:
         # The two comparisons are computed by different code over
         # different field sets (structure_digest excludes view/settings/

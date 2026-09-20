@@ -1155,11 +1155,29 @@ def execute(
         resulting_fingerprint = payload.get("resulting_fingerprint")
         status = payload["status"]
         reason = payload["reason"]
+        if (
+            not isinstance(status, str)
+            or status not in (STATUS_OK, STATUS_FAILED)
+            or not isinstance(reason, str)
+            or reason
+            not in (
+                REASON_OK,
+                REASON_SPAWN_OR_LOAD_FAILURE,
+                REASON_COMMAND_FAILURE,
+            )
+            or (status == STATUS_OK) != (reason == REASON_OK)
+            or (
+                resulting_fingerprint is not None
+                and not isinstance(resulting_fingerprint, str)
+            )
+        ):
+            raise TypeError("child report fields violate their contract")
     except (KeyError, TypeError, AttributeError):
         # payload structurally does not match the well-formed report this
-        # module's own child always writes -- as untrustworthy as no
-        # output file at all. _run_child() already guarantees payload is
-        # at least syntactically valid JSON by the time reason is None.
+        # module's own child always writes, or its scalar fields violate
+        # their types/invariants -- as untrustworthy as no output file at
+        # all. _run_child() already guarantees payload is at least
+        # syntactically valid JSON by the time reason is None.
         return _crashed(
             input_digest=input_digest,
             child_pid=result.child_pid,
