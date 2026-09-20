@@ -1,14 +1,18 @@
 load("@rules_python//python:py_library.bzl", "py_library")
 
 # The one package permitted to import both real PyMOL and //tools/winstage:
-# the fresh-process child pmc_core.executor spawns by module name
-# ("python -m pmc_sidecar.child"), never by import, so pmc_core itself never
-# acquires either dependency. tools/bazel/check_dependency_boundaries.py's
-# FORBIDDEN set names this package as defence in depth behind that: the
-# spawn-by-module-name discipline is a convention pmc_core.executor follows,
-# not something Bazel's dependency graph enforces on its own, since a
-# subprocess launched by module string has no Bazel edge to the module it
-# runs. See docs/master_plan.md item 4 (the sidecar executor) and
+# the fresh-process children pmc_core.executor spawns by module name --
+# "python -m pmc_sidecar.child" for execute() (docs/master_plan.md item 4)
+# and "python -m pmc_sidecar.fidelity" for probe_fidelity() (item 7) --
+# never by import, so pmc_core itself never acquires either dependency.
+# tools/bazel/check_dependency_boundaries.py's FORBIDDEN set names this
+# package as defence in depth behind that: the spawn-by-module-name
+# discipline is a convention pmc_core.executor follows, not something
+# Bazel's dependency graph enforces on its own, since a subprocess launched
+# by module string has no Bazel edge to the module it runs. The same
+# FORBIDDEN entry excludes this package from src/pmc_client's own
+# dependency-boundary check, since the client legitimately spawns the
+# fidelity child from inside PyMOL's own process. See
 # tools/winstage/BUILD.bazel's own docstring for the Windows staging shim
 # every real-PyMOL import here must call first.
 py_library(
@@ -16,6 +20,7 @@ py_library(
     srcs = [
         "__init__.py",
         "child.py",
+        "fidelity.py",
     ],
     imports = [".."],
     visibility = ["//src:subsystems", "//src:tests"],

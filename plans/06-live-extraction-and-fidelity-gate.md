@@ -922,3 +922,49 @@ regardless of what is green.
 | A real structure's snapshot exceeds the executor's 4 MiB budget and every plan becomes non-applicable | Step 9 or first real use, as `REASON_OVERSIZED_INPUT` → `FIDELITY_UNAVAILABLE` | That is the correct fail-closed behaviour and it is reported with its typed reason rather than silently downgraded. Measure the JSON size for a representative PDB entry during step 9 and record it; raising `DEFAULT_MAX_SNAPSHOT_BYTES` is a one-constant follow-up with its own evidence, not a change to smuggle in here |
 | `applicable` on `ValidationReportV1` is dead weight once item 8 rewrites the lifecycle | Item 8 | It is four lines on the server and the wire field item 8 needs anyway; the client's own AND is the load-bearing half and does not depend on it |
 | Adding `src/pmc_client` to pyrefly surfaces a pile of pre-existing errors | Step 1, before the interesting work | Explicit stop condition in step 1: revert the include, keep the new modules strict, report it. Bringing an unchecked package up to preset is its own change |
+
+---
+
+## What implementation changed
+
+Recorded after the fact, as `plans/05` and `plans/04` record their own
+divergences. Nothing here contradicts the four answered questions; each is
+something driving real PyMOL settled that the plan had guessed at.
+
+- **Step 2's spawn extraction surfaced a real gap in the original inline
+  code, not introduced by the extraction.** `_run_child()`'s stricter
+  separation between "JSON decoded" and "JSON decoded to an object" showed
+  that a child writing a syntactically valid but non-object payload (a bare
+  `null`, which `tests/integration/test_executor_boundary.py`'s own
+  `test_malformed_child_output_fails_closed_like_a_crash` sabotage produces)
+  had been falling through to `AttributeError`, caught only because the
+  original code's single broad `except` clause happened to include it.
+  `_run_child()` now explicitly checks `isinstance(payload, dict)` and
+  treats a non-dict payload as `REASON_CHILD_CRASH`, closing the gap for
+  both `execute()` and `probe_fidelity()`. Found because the plan's own stop
+  condition — the twelve ported negative tests must pass unchanged — caught
+  it immediately; no behavior was left silently wrong.
+- **Step 3's own test description was wrong, and the fix follows the
+  precedent the plan itself named.** The plan said `test_sidecar_fidelity.py`
+  should "drive `fidelity.main()` in-process" — but `main()` calls
+  `pymol.finish_launching()` unconditionally, and PyMOL supports only one
+  such call per interpreter. The already-launched `real_pymol`/
+  `loaded_fixture` fixtures the test needs would make that second call fail.
+  `src/pmc_sidecar/fidelity.py` splits its reconstruct-and-re-extract logic
+  into a separate `probe(cmd, snapshot_text)` that assumes a live session
+  already exists, with `main()` as a thin wrapper that launches PyMOL once
+  and calls it — exactly the shape `src/pmc_sidecar/child.py`'s own
+  `run_plan()`/`main()` split already has, which the plan's own step 3 text
+  cited as the pattern to mirror ("mirroring how test_sidecar_child.py
+  proves the five verbs") without noticing that test drives `run_plan()`,
+  not `child.main()`. Nothing about what the test proves changed; only
+  which function it calls.
+- **The in-process fidelity tests reconstruct under a renamed object, not
+  under `loaded_fixture`'s own name.** `probe()` reconstructs into the same
+  live session `loaded_fixture` already populated as `"fx"`; a candidate
+  snapshot also named `"fx"` would silently double the already-loaded
+  object's atoms rather than build an independent copy to diff against it.
+  Every test that drives a real `reconstruct()` renames its candidate to
+  `"fx_probe"` first (`dataclasses.replace(snapshot, name=...)`) and deletes
+  it in a `finally`. This is purely a test-construction detail; step 9's
+  real-PyMOL categories (client-owned, one object per test) are unaffected.

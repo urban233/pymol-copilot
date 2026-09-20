@@ -153,6 +153,29 @@ py_test(
     ],
 )
 
+py_test(
+    name = "sidecar_fidelity",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_sidecar_fidelity.py"],
+    main = "test_sidecar_fidelity.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Drives pmc_sidecar.fidelity.probe() against the module-scoped
+    # real_pymol/loaded_fixture fixtures; excluded from concurrent
+    # scheduling for the same reason as :sidecar_child.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
 # A test-owned sidecar child pmc_core.executor.execute() can spawn in place
 # of the production src/pmc_sidecar/child.py, so test_executor_boundary.py
 # can exercise execute()'s own process-management guarantees without
