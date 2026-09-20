@@ -1021,3 +1021,39 @@ something driving real PyMOL settled that the plan had guessed at.
   `execute()` already uses it for the same underlying concept (a
   reconstruction that ran successfully but did not match what was
   expected).
+
+- **Step 7's actual footprint reached beyond `command.py` itself, to keep
+  the full gate green.** Fixing `PlanRequestLifecycle._matches_fixture`
+  (deferred from step 4's own note above) landed here, since this is where
+  the client stops sending a fixed literal snapshot. Three further ripples
+  followed from that and from `copilot()` now needing a live, query-capable
+  session, not just an `extend()`-only one:
+  - `register_copilot()` gained optional `probe`/`deadline_seconds`
+    keyword parameters, passed straight through to `CopilotCommandClient`.
+    Without them, every test driving `copilot()` through the public
+    `register_copilot()` entry point -- not only ones written fresh for
+    this step -- would spawn a real sidecar subprocess by default, which
+    is wrong for a test about client-server wiring rather than real
+    sidecar fidelity (that evidence belongs to step 9).
+  - `tests/integration/test_client_server_command.py`'s `DisposablePyMOLAdapter`
+    and `tests/integration/test_command.py`'s new `_RecordingSession` both
+    needed the full `PyMOLSession` query surface added, backed by one fake
+    atom, since `copilot()` now resolves and extracts from whatever `cmd`
+    `register()` was given, not only registers callbacks on it.
+  - `tests/integration/test_real_pymol_command.py`'s `RealPyMOLCmdExtension`
+    and `_SynchronizingExtension` wrappers previously forwarded only
+    `extend()`; `copilot()` now also queries `self._cmd` directly, so both
+    gained `__getattr__` delegation to the object they wrap. pyrefly cannot
+    verify `__getattr__`-based delegation satisfies a structural Protocol,
+    so the three `register_copilot(...)` call sites each carry a scoped
+    `# pyrefly: ignore.`, matching this repository's own convention for
+    exactly this class of statically-unprovable-but-correct case (real
+    PyMOL's own untyped import already uses the same pattern).
+- **`INVOCATION_DEADLINE_SECONDS` was raised from 5.0 to 15.0 in this step,
+  not deferred to step 9.** `copilot()` now spawns a real sidecar
+  subprocess for its own fidelity check on every invocation, and 5 seconds
+  is not enough headroom for a real headless PyMOL launch plus
+  reconstruction plus re-extraction. All three of this module's own
+  real-PyMOL invocations passed repeatedly at 15.0; step 9's own dedicated
+  fidelity categories may refine this further with more direct
+  measurement.

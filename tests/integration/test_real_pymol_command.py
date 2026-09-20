@@ -71,17 +71,15 @@ OBJECT_NAME = "two_chain_fixture"
 FIXTURE_PATH = (
     Path(__file__).resolve().parent / "testdata" / "two_chain_fixture.pdb"
 )
-INVOCATION_DEADLINE_SECONDS = 5.0
-FIXTURE_PML = (
-    "select copilot_selection, chain A\ncolor red, copilot_selection\n"
-)
-PREVIEW_DISCLAIMER = (
-    "copilot preview: this is a fixed, policy-checked plan preview. "
-    "Loaded-state fidelity, execution, and scientific intent were "
-    "not validated, and nothing was applied to this session. The "
-    "snapshot value above is a fixture placeholder, not a computed "
-    "structure checksum."
-)
+#: Raised from the pre-item-7 value of 5.0: copilot now spawns a real
+#: sidecar subprocess for its own fidelity check on every invocation
+#: (docs/master_plan.md item 7), not just a loopback round trip. This
+#: module's own three real invocations, each gated on this exact deadline,
+#: passed repeatedly in this sandbox; set with headroom above that
+#: observed margin rather than a tight per-call measurement, since
+#: capturing a background PyMOL worker thread's own stdout to log the
+#: precise figure was not straightforward.
+INVOCATION_DEADLINE_SECONDS = 15.0
 
 
 class PyMOLCmd(Protocol):
@@ -127,11 +125,66 @@ class PyMOLCmd(Protocol):
             The number of atoms matched.
         """
 
-    def get_names(self) -> list[str]:
-        """Return the names of every loaded object.
+    def get_names(
+        self, kind: str = "objects", *, enabled_only: int = 0
+    ) -> list[str]:
+        """Return the names of every loaded object of the given kind.
+
+        Args:
+            kind: The PyMOL name-kind selector, e.g. "objects".
+            enabled_only: When 1, list only enabled objects.
 
         Returns:
-            The list of loaded object names.
+            The list of matching names.
+        """
+
+    def get_type(self, name: str) -> str:
+        """Return the PyMOL type string for one named object.
+
+        Args:
+            name: The object or selection name to query.
+
+        Returns:
+            The object's PyMOL type string, e.g. "object:molecule".
+        """
+
+    def count_states(self, selection: str) -> int:
+        """Return the number of coordinate states an object has.
+
+        Args:
+            selection: The object or selection to count states for.
+
+        Returns:
+            The number of coordinate states.
+        """
+
+    def get_model(self, selection: str, *, state: int) -> Any:
+        """Return one coordinate state's atoms and bonds as a chempy model.
+
+        Args:
+            selection: The object or selection to query.
+            state: The 1-based coordinate state to read.
+
+        Returns:
+            A chempy model exposing `.atom` and `.bond`.
+        """
+
+    def get_view(self) -> tuple[float, ...]:
+        """Return the current camera view.
+
+        Returns:
+            The 18-float view tuple PyMOL's own get_view() returns.
+        """
+
+    def get(self, setting: str, selection: str) -> str:
+        """Return one object-scoped setting's current value.
+
+        Args:
+            setting: The PyMOL setting name.
+            selection: The object to read the setting for.
+
+        Returns:
+            The setting's current value, as PyMOL's own get() returns it.
         """
 
     def iterate(
@@ -303,6 +356,24 @@ class _SynchronizingExtension:
 
         self._inner.extend(name, synchronized)
 
+    def __getattr__(self, name: str) -> Any:
+        """Forward every other attribute to the wrapped extension.
+
+        `pmc_client.command.CopilotCommandClient.register()` stores
+        whatever it is given as its own live session, then queries it on
+        every later `copilot()` call -- so this wrapper, which `register()`
+        actually receives in this test module, must forward the query
+        surface (`get_names`, `get_type`, ...) through to the real `cmd`
+        it wraps, not only `extend()`.
+
+        Args:
+            name: The attribute name being accessed.
+
+        Returns:
+            The wrapped extension's own attribute.
+        """
+        return getattr(self._inner, name)
+
 
 def _run_copilot(cmd: PyMOLCmd, finished: threading.Event) -> float:
     """Dispatch the copilot command and wait for it to finish.
@@ -349,6 +420,21 @@ class RealPyMOLCmdExtension:
             callback: Function invoked for the registered command.
         """
         self._cmd.extend(name, callback)
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward every other attribute to the wrapped real cmd module.
+
+        See `_SynchronizingExtension.__getattr__` for why this matters:
+        `register()` stores this adapter as its own live session and
+        later queries it directly.
+
+        Args:
+            name: The attribute name being accessed.
+
+        Returns:
+            The real cmd module's own attribute.
+        """
+        return getattr(self._cmd, name)
 
 
 @pytest.fixture(scope="module")
@@ -405,6 +491,8 @@ def test_success_path_previews_without_mutating_session(
         server.start()
         finished = threading.Event()
         register_copilot(
+            # pyrefly: ignore.  __getattr__ delegates the query surface at
+            # runtime, but pyrefly cannot verify that structurally.
             _SynchronizingExtension(
                 RealPyMOLCmdExtension(loaded_fixture), finished
             ),
@@ -421,11 +509,15 @@ def test_success_path_previews_without_mutating_session(
     finally:
         server.close()
 
-    assert output == [
-        "copilot validation: passed",
-        FIXTURE_PML,
-        PREVIEW_DISCLAIMER,
-    ]
+    assert len(output) == 4, output
+    assert output[0].startswith("copilot fidelity: exact")
+    assert f"object {OBJECT_NAME}" in output[0]
+    assert output[1].startswith("copilot plan:")
+    assert "NOT applicable" not in output[1]
+    assert "1 | select copilot_selection, chain A" in output[1]
+    assert "2 | color red, copilot_selection" in output[1]
+    assert output[2].startswith("copilot checked:")
+    assert output[3].startswith("copilot apply with: copilot_apply ")
     assert_session_unchanged(before, after)
 
 
@@ -441,6 +533,8 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
         server.start()
         finished = threading.Event()
         register_copilot(
+            # pyrefly: ignore.  __getattr__ delegates the query surface at
+            # runtime, but pyrefly cannot verify that structurally.
             _SynchronizingExtension(
                 RealPyMOLCmdExtension(loaded_fixture), finished
             ),
@@ -475,6 +569,8 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     output: list[str] = []
     finished = threading.Event()
     register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
         _SynchronizingExtension(
             RealPyMOLCmdExtension(loaded_fixture), finished
         ),

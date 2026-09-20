@@ -45,12 +45,14 @@ FIXTURE_PLAN = ActionPlan(
         ColorOperation(color="red", target=NamedSelection("copilot_selection")),
     )
 )
-#: Must stay byte-identical to pmc_client.command.FIXTURE_SNAPSHOT: this
-#: fixture lifecycle still gates on exact snapshot equality
-#: (_matches_fixture below), which docs/master_plan.md item 7 has not yet
-#: replaced with real per-session data on the client side -- that is item
-#: 7's own step 7 in plans/06-live-extraction-and-fidelity-gate.md, and
-#: item 8's LangGraph request graph replaces this whole lifecycle in turn.
+#: `_matches_fixture` below no longer compares this wholesale against a
+#: request's own snapshot: docs/master_plan.md item 7 makes the client
+#: send a real, per-session snapshot identity
+#: (`pmc_client.session.extract_live_snapshot`), which varies with
+#: whatever object is actually loaded and essentially never equals a
+#: fixed literal. Only `schema_version` is still checked. Item 8's
+#: LangGraph request graph replaces this whole lifecycle, snapshot
+#: handling included.
 FIXTURE_SNAPSHOT = StructureSnapshotV1(
     schema_version="1",
     digest="sha256:example-chain-a-digest",
@@ -170,13 +172,16 @@ class PlanRequestLifecycle:
             request: Request to compare with the fixture.
 
         Returns:
-            True when every fixture field matches.
+            True when every fixed fixture field matches and the request's
+            own (now real, per-session) snapshot declares a schema version
+            this lifecycle understands.
         """
         return (
             request.protocol_version == PROTOCOL_VERSION
             and request.contract_manifest == FIXTURE_MANIFEST
             and request.intent == FIXTURE_INTENT
-            and request.snapshot == FIXTURE_SNAPSHOT
+            and request.snapshot.schema_version
+            == FIXTURE_SNAPSHOT.schema_version
         )
 
     @staticmethod
