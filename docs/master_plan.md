@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-19
+**Written:** 2026-09-16 · **State as of:** 2026-09-20
 
 Every item carries a **State**. The values are:
 
@@ -90,19 +90,19 @@ Every item carries a **State**. The values are:
 | 1 | Lemonade spike | Hannah | **done** — PR #25 | — | 9, 17 |
 | 2 | Command language | Martin | **done** — PR #27 | — | 4, 6, 7, 8, 10, 13, 14 |
 | 3 | Snapshot | Hannah | **done** — PR #28 | — | 4, 7, 10 |
-| 4 | Sidecar executor | Hannah | **ready** | 2 ✓, 3 ✓ | 7, 8, 14, 16 |
-| 5 | Structure card | Martin | **in review** — PR #29 | — | 13, 14 |
-| 6 | Error envelope | Martin | **ready** | 2 ✓ | 8, 11 |
-| 7 | Live extraction and fidelity gate | Hannah | **blocked** | 3 ✓, 4 | 10, 11 |
-| 8 | LangGraph request graph | Hannah | **blocked** | 0 ✓, 2 ✓, 4, 6 | 9, 10, 11, 12 |
+| 4 | Sidecar executor | Hannah | **done** — PR #33 | 2 ✓, 3 ✓ | 7, 8, 14, 16 |
+| 5 | Structure card | Martin | **done** — PR #29 | — | 13, 14 |
+| 6 | Error envelope | Martin | **done** — PR #31 | 2 ✓ | 8, 11 |
+| 7 | Live extraction and fidelity gate | Hannah | **done** — PR #37 | 3 ✓, 4 ✓ | 10, 11 |
+| 8 | LangGraph request graph | Hannah | **ready** | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
 | 9 | Inference abstraction and Lemonade | Hannah | **blocked** | 0 ✓, 1 ✓, 8 | 12, 16, 19 |
-| 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7, 8 | 11, 12 |
-| 11 | Output and diagnostics | Hannah | **blocked** | 6, 7, 8, 10 | 12 |
+| 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7 ✓, 8 | 11, 12 |
+| 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
-| 13 | Prompt builder | Martin | **blocked** | 2 ✓, 5 | 14, 16 |
-| 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4, 5, 13 | 15, 16 |
+| 13 | Prompt builder | Martin | **ready** | 2 ✓, 5 ✓ | 14, 16 |
+| 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4 ✓, 5 ✓, 13 | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
-| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4, 13, 14, 15, 9 | 17, 18 |
+| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13, 14, 15, 9 | 17, 18 |
 | 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
 | 19 | Integration | Joint | **blocked** | 12, 17 | — |
@@ -120,16 +120,16 @@ flowchart LR
   I1["1 · Lemonade spike"]:::done
   I2["2 · command language"]:::done
   I3["3 · snapshot"]:::done
-  I4["4 · sidecar executor"]:::ready
-  I5["5 · structure card"]:::review
-  I6["6 · error envelope"]:::ready
-  I7["7 · fidelity gate"]:::blocked
-  I8["8 · request graph"]:::blocked
+  I4["4 · sidecar executor"]:::done
+  I5["5 · structure card"]:::done
+  I6["6 · error envelope"]:::done
+  I7["7 · fidelity gate"]:::done
+  I8["8 · request graph"]:::ready
   I9["9 · inference"]:::blocked
   I10["10 · apply and recovery"]:::blocked
   I11["11 · output"]:::blocked
   I12["12 · end-to-end suite"]:::blocked
-  I13["13 · prompt builder"]:::blocked
+  I13["13 · prompt builder"]:::ready
   I14["14 · dataset"]:::blocked
   I15["15 · gold set"]:::blocked
   I16["16 · eval and baseline"]:::blocked
@@ -182,31 +182,47 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 
 ### What this graph says today
 
-- **Week 1 is four fifths done.** Items 0, 1, 2 and 3 are merged; item 5 is an
-  open pull request with green CI on all three operating systems.
-- **The critical path runs through item 4.** The sidecar executor is unblocked,
-  unstarted, and it gates items 7, 8, 14 and 16 — that is, most of both
-  developers' remaining work. It is the single highest-value thing to start.
-- **Item 6 is the other unblocked item** and it gates items 8 and 11. It is
-  small and it is Martin's, so it can run alongside item 5's review.
-- **Nothing downstream of week 1 has begun.** `src/pmc_core/executor.py`,
-  `src/pmc_core/errors.py`, `src/pmc_agent/inference/` and the prompt builder do
-  not exist; `src/pmc_train/` is still an empty package; `tests/recovery/` holds
-  only a readme.
+- **The shared core is finished.** Items 0 through 7 are all merged. That is
+  every item both developers depend on: the command language, the snapshot,
+  the sidecar executor, the structure card, the error envelope and the
+  fidelity gate. Nothing in the remaining twelve items is waiting on a
+  shared-core hand-off any more.
+- **Each developer now has exactly one startable item, and they are
+  independent.** Item 8 (LangGraph request graph) is Hannah's; item 13
+  (prompt builder) is Martin's. Neither blocks the other, so the two halves
+  of the project can finally run in parallel without a synchronization point.
+- **Item 8 is the wider bottleneck.** It gates items 9, 10, 11 and 12 —
+  Hannah's entire remaining chain. Nothing on the runtime side can start
+  until it lands, so it is the highest-value thing on the board.
+- **Item 13 is small and gates a long tail.** At ~2 days it is the cheapest
+  item left, and items 14, 15, 16, 17 and 18 all sit behind it. Starting it
+  late is what would make the model half the critical path.
+- **Everything downstream of the shared core is still unstarted.**
+  `src/pmc_agent/inference/` and the prompt builder do not exist;
+  `src/pmc_agent/runtime.py` is still the 66-line pass-through stub from the
+  dependency split, not item 8's graph; `src/pmc_train/` holds only
+  `__init__.py`; `tests/recovery/` holds only a readme.
 
 ### Cross-owner hand-offs
 
 The week 1 note below is now more specific:
 
-- **Hannah → Martin:** item 4 gates Martin's items 14 and 16. This is the one
-  hand-off that blocks the entire data and model half, and it is outstanding.
-- **Martin → Hannah:** item 2 is delivered; item 6 is not, and it gates
-  Hannah's items 8 and 11.
-- **Martin → Hannah, later:** item 13 emits the grammar that item 9's engine
-  enforces at runtime. Item 9 can be built and tested without it against the
-  fake adapter, so this is a hand-off rather than a blocker.
-- **Hannah → Martin, later:** item 9's engine interface is what item 16 runs
-  the untuned baseline through — the dashed edge above.
+- **Hannah → Martin: settled.** Item 4 was the one hand-off blocking the
+  entire data and model half, and it merged as PR #33. Martin's items 14 and
+  16 now wait only on his own item 13.
+- **Martin → Hannah: settled.** Items 2 and 6 are both delivered, so Hannah's
+  items 8 and 11 are no longer waiting on anything of Martin's.
+- **Martin → Hannah, still open:** item 13 emits the grammar that item 9's
+  engine enforces at runtime. Item 9 can be built and tested against the fake
+  adapter without it, so this remains a hand-off rather than a blocker — but
+  item 9 cannot be *finished* against a real Lemonade engine until item 13
+  lands.
+- **Hannah → Martin, still open:** item 9's engine interface is what item 16
+  runs the untuned baseline through — the dashed edge above. It is soft: item
+  16 could drive Lemonade directly and adopt the interface later.
+
+With both shared-core hand-offs closed, the only remaining coupling between
+the two developers is items 13 → 9 and 9 → 16, and both of those are soft.
 
 ### Risks carried out of week 1
 
@@ -303,7 +319,7 @@ real-PyMOL/exclusive Bazel tags.
 
 ### 4. Sidecar executor
 
-**Owner:** Hannah · **Size:** ~3 days · **State:** ready — blocks 7, 8, 14, 16
+**Owner:** Hannah · **Size:** ~3 days · **State:** done (PR #33)
 
 ```
 Promote tests/discovery/h02/execution_boundary.py into
@@ -319,7 +335,7 @@ tests — they're the valuable part of that prototype.
 
 ### 5. Structure card
 
-**Owner:** Martin · **Size:** ~2 days · **State:** in review (PR #29)
+**Owner:** Martin · **Size:** ~2 days · **State:** done (PR #29)
 
 ```
 Promote tests/discovery/m02/card_candidate.py into src/pmc_core/card.py.
@@ -331,7 +347,7 @@ writer and the runtime prompt builder stamp into their output.
 
 ### 6. Error envelope
 
-**Owner:** Martin · **Size:** ~2 days · **State:** ready — blocks 8, 11
+**Owner:** Martin · **Size:** ~2 days · **State:** done (PR #31)
 
 ```
 Add src/pmc_core/errors.py: a normalizer turning a raw PyMOL execution
@@ -360,7 +376,7 @@ identically in the dataset pipeline and at runtime.
 
 ### 7. Live extraction and fidelity gate
 
-**Size:** ~3 days · **State:** blocked on 4
+**Size:** ~3 days · **State:** done (PR #37)
 
 ```
 In src/pmc_client/, extract the live PyMOL session into a canonical snapshot
@@ -375,7 +391,7 @@ hetero atoms.
 
 ### 8. LangGraph request graph
 
-**Size:** ~4 days · **State:** blocked on 4, 6
+**Size:** ~4 days · **State:** ready — blocks 9, 10, 11, 12
 
 ```
 Build the request graph in src/pmc_agent/ using LangGraph. States: received,
@@ -408,7 +424,7 @@ than pretending.
 
 ### 10. Approval, apply, recovery — the safety centerpiece
 
-**Size:** ~5 days · **State:** blocked on 7, 8
+**Size:** ~5 days · **State:** blocked on 8
 
 ```
 Implement the approval path in src/pmc_client/: copilot_apply <plan-id>,
@@ -430,7 +446,7 @@ a deliberately injected mutation makes the no-mutation check fail.
 
 ### 11. Output and diagnostics
 
-**Size:** ~2 days · **State:** blocked on 6, 7, 8, 10
+**Size:** ~2 days · **State:** blocked on 8, 10
 
 ```
 Make copilot print what the specification promises: plan id and expiry,
@@ -464,7 +480,7 @@ this machine.
 
 ### 13. Prompt builder
 
-**Size:** ~2 days · **State:** blocked on 5
+**Size:** ~2 days · **State:** ready — blocks 14, 16
 
 ```
 Add the prompt builder that turns a structure card plus a user intent into
@@ -476,7 +492,7 @@ they ever diverge.
 
 ### 14. Dataset generation
 
-**Size:** ~5 days · **State:** blocked on 4, 5, 13
+**Size:** ~5 days · **State:** blocked on 13
 
 ```
 Generalize src/pmc_data/ from the one chain-A/red fixture to the full
@@ -508,7 +524,7 @@ and report the observed error rate as a number.
 
 ### 16. Eval harness and untuned baseline
 
-**Size:** ~3 days · **State:** blocked on 4, 13, 14, 15, 9
+**Size:** ~3 days · **State:** blocked on 9, 13, 14, 15
 
 ```
 Build the offline eval harness: per sample, generate a plan, parse it,
