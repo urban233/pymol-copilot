@@ -606,3 +606,43 @@ is what keeps "the rendered bytes, apart from the version line" above true.
   of canonical order, asserting the canonical bond lines directly. Every fix
   above was sabotage-checked the way step 3 prescribes: each one removed in
   turn, confirming exactly the intended test goes red and no other.
+
+### Second round
+
+Hannah's re-review of the fixes above found one more, in the very key the
+second fix had just widened.
+
+- **Representation order still leaked into the canonical atom order.**
+  `_atom_key` keyed the raw `atom.reps` tuple while `_atom_line` rendered
+  `",".join(sorted(atom.reps))`, so a reordering the card deliberately hides
+  could still decide which of two atoms sharing the identity prefix came
+  first, and with it the canonical index of a bond endpoint. Two otherwise
+  identical atoms were the sharper case: written with their representations
+  in different orders they rendered `status=complete` with two identical atom
+  lines, where writing them in the same order was correctly rejected as
+  malformed.
+
+  The repair is not another field added to the key but a change of kind: every
+  key component is now the field's *rendered* form rather than its raw value.
+  `_reps_text()` is the single place representations are canonicalized and
+  both `_atom_line` and `_atom_key` go through it, so the sorted order and the
+  rendered order can no longer drift; `_number_key()` keys a number by the
+  value its own card text denotes, paired with that text, which keeps the atom
+  order numeric and therefore readable while making two keys equal exactly
+  when two atom lines are identical.
+
+  That equivalence is what `_valid_snapshot`'s duplicate-atom check has always
+  claimed and only now has: it closes the same leak in its remaining form,
+  where two coordinates differing below the six decimals `_number()` renders
+  were distinct to the key and identical in the card. Adding `sorted()` to the
+  `reps` component alone would have fixed the reported case and left that one.
+
+  Pinned by `test_equivalent_representation_order_produces_identical_card`
+  (which asserts `status=complete` as well as byte equality, so the fix cannot
+  pass by turning into a rejection),
+  `test_indistinguishable_atoms_return_stable_malformed_card[representations-reordered]`
+  and `test_atoms_differing_below_rendered_precision_are_malformed`.
+  Sabotage-checked as before, each half separately: restoring the raw `reps`
+  component fails exactly the first two, restoring the raw numeric components
+  fails exactly the third, and no other case moves. The golden card is
+  untouched.
