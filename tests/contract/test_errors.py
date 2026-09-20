@@ -19,6 +19,7 @@ against: taking them from the envelope itself, as this module first did,
 left two of its five fields asserting nothing.
 """
 
+import ast
 import importlib
 import json
 import pathlib
@@ -42,6 +43,7 @@ from pmc_core.errors import normalize_message
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import MAX_COMMANDS
 from pmc_core.plan import SELECTION_NAME_PREFIX
+from pymol_error_cases import LAUNCH_ARGUMENTS
 from pymol_error_cases import Case
 from pymol_error_cases import cases
 
@@ -95,6 +97,162 @@ _NORMALIZER_DEFINITIONS = (
     "class ExecutionErrorV1",
 )
 
+#: The one callable a consumer may reach when it normalizes a failure.
+_CANONICAL_NORMALIZER = "pmc_core.errors.normalize"
+
+
+def _bound_names(tree: ast.Module) -> dict[str, str]:
+    """Map every name a module's imports bind to what it names.
+
+    Args:
+        tree: One parsed consumer module.
+
+    Returns:
+        Each bound name against the dotted path it resolves to.
+    """
+    bound: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                bound[alias.asname or alias.name] = (
+                    f"{node.module}.{alias.name}"
+                )
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                # `import a.b` binds `a`, but `a.b` is reached by
+                # attribute from it, so record the dotted path itself.
+                bound[alias.asname or alias.name] = alias.name
+    return bound
+
+
+def _dotted_name(node: ast.expr) -> str | None:
+    """Spell a call's target as a dotted name, when it is one.
+
+    Args:
+        node: The expression being called.
+
+    Returns:
+        The dotted name, or None when the target is computed rather than
+        named -- an indirection this scan cannot follow and does not
+        claim to.
+    """
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if not isinstance(node, ast.Name):
+        return None
+    parts.append(node.id)
+    return ".".join(reversed(parts))
+
+
+def _resolved(dotted: str, bound: dict[str, str]) -> str:
+    """Rewrite a call target through the module's own imports.
+
+    Args:
+        dotted: The target as written at the call site.
+        bound: What that module's imports bind.
+
+    Returns:
+        The target with its longest bound prefix expanded, which is what
+        the call actually reaches.
+    """
+    parts = dotted.split(".")
+    for size in range(len(parts), 0, -1):
+        prefix = ".".join(parts[:size])
+        if prefix in bound:
+            return ".".join([bound[prefix], *parts[size:]])
+    return dotted
+
+
+def _foreign_normalizer_calls(source: str) -> set[str]:
+    """Find calls to a normalize() that is not this module's.
+
+    Each call target is resolved through the imports that bind it rather
+    than matched as a string, so a consumer importing `normalize` from
+    somewhere else is caught even when the file names `pmc_core.errors`
+    elsewhere, and naming it in a comment buys nothing.
+
+    Args:
+        source: One consumer module's text.
+
+    Returns:
+        What each divergent call reaches; empty when every normalize()
+        call in the source resolves to this module's normalize.
+    """
+    tree = ast.parse(source)
+    bound = _bound_names(tree)
+    foreign: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        dotted = _dotted_name(node.func)
+        if dotted is None:
+            continue
+        resolved = _resolved(dotted, bound)
+        if resolved.rsplit(".", 1)[-1] != "normalize":
+            continue
+        if resolved != _CANONICAL_NORMALIZER:
+            foreign.add(resolved)
+    return foreign
+
+
+#: Sources the consumer scan has to tell apart. The first five are
+#: legitimate -- four reaching pmc_core.errors and one calling no
+#: normalizer at all -- and the last four are not, while every one of
+#: them names something called `normalize` and three also name this
+#: module: exactly what the textual check this replaced could not
+#: separate.
+_SCAN_CASES: tuple[tuple[str, str, set[str]], ...] = (
+    (
+        "no call at all",
+        "import pmc_core.errors\n",
+        set(),
+    ),
+    (
+        "from-import",
+        "from pmc_core.errors import normalize\n\nnormalize(error)\n",
+        set(),
+    ),
+    (
+        "aliased from-import",
+        "from pmc_core.errors import normalize as _norm\n\n_norm(error)\n",
+        set(),
+    ),
+    (
+        "module attribute",
+        "from pmc_core import errors\n\nerrors.normalize(error)\n",
+        set(),
+    ),
+    (
+        "fully qualified",
+        "import pmc_core.errors\n\npmc_core.errors.normalize(error)\n",
+        set(),
+    ),
+    (
+        "imported from elsewhere while naming this module",
+        "from another_module import normalize\nimport pmc_core.errors\n"
+        "\nnormalize(error)\n",
+        {"another_module.normalize"},
+    ),
+    (
+        "named only in a comment",
+        "# pmc_core.errors is the one error boundary\n"
+        "from another_module import normalize\n\nnormalize(error)\n",
+        {"another_module.normalize"},
+    ),
+    (
+        "aliased from elsewhere",
+        "from another_module import normalize as _norm\n\n_norm(error)\n",
+        {"another_module.normalize"},
+    ),
+    (
+        "defined in the module itself",
+        "def normalize(error):\n    return error\n\nnormalize(error)\n",
+        {"normalize"},
+    ),
+)
+
 
 def _consumer_sources() -> list[pathlib.Path]:
     """List every Python source shipped by the consumer packages.
@@ -127,6 +285,27 @@ def test_the_corpus_is_not_empty() -> None:
     """A corpus that silently emptied would make every case below vacuous."""
     assert _corpus_files(), "no corpus files were found"
     assert len(_CASES) >= len(COMMAND_ALLOWLIST)
+
+
+def test_the_corpus_records_its_capture_launch_arguments() -> None:
+    """The corpus names the conditions it describes.
+
+    The conformance test replays every case against a live PyMOL started
+    with LAUNCH_ARGUMENTS, whose `-k` is what stops a user's pymolrc from
+    pre-creating the undefined selection, defining the unknown color, or
+    monkeypatching a `cmd` method. That isolation means nothing unless
+    the checked-in evidence was gathered under it too, so the capture
+    records what it launched with and a recapture taken under anything
+    else fails here rather than quietly becoming the new baseline.
+    """
+    recorded = set()
+    for path in _corpus_files():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert "launch_arguments" in payload, (
+            f"{path.name} does not record how it was captured"
+        )
+        recorded.add(tuple(payload["launch_arguments"]))
+    assert recorded == {LAUNCH_ARGUMENTS}
 
 
 def test_every_supported_verb_has_a_corpus_file() -> None:
@@ -181,20 +360,39 @@ def test_no_consumer_defines_a_normalizer_of_its_own() -> None:
 
 
 def test_a_consumer_that_normalizes_reaches_this_module() -> None:
-    """A consumer calling normalize() must call pmc_core.errors'.
+    """A consumer calling normalize() must reach this module's.
 
-    This is vacuous until item 14 and item 8 add their call sites, and
-    that is the point: it turns into the real cross-subsystem assertion
-    the moment either of them lands, rather than having to be remembered
-    then.
+    Item 14 and item 8 bring the two call sites, so today this scan has
+    nothing to resolve. What keeps that from being an empty promise is
+    the test below, which runs the same scan over sources that do call a
+    normalizer: the mechanism is proved now, and arms itself the moment
+    either call site lands rather than having to be remembered then.
     """
     for source in _consumer_sources():
-        body = source.read_text(encoding="utf-8")
-        if "normalize(" not in body:
-            continue
-        assert "pmc_core.errors" in body, (
-            f"{source.name} normalizes without naming pmc_core.errors"
+        foreign = _foreign_normalizer_calls(source.read_text(encoding="utf-8"))
+        assert not foreign, (
+            f"{source.name} normalizes through {sorted(foreign)} rather "
+            f"than {_CANONICAL_NORMALIZER}"
         )
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "foreign"),
+    _SCAN_CASES,
+    ids=[case[0] for case in _SCAN_CASES],
+)
+def test_the_consumer_scan_resolves_a_call_to_its_binding(
+    label: str, source: str, foreign: set[str]
+) -> None:
+    """The scan above must catch what it exists to catch.
+
+    The scan is inert until a consumer calls a normalizer, so without
+    these cases it would assert nothing and nobody would know whether it
+    works. The last four are what a textual check cannot separate from
+    the first five: every one of them names or imports something called
+    `normalize`, and three of them also name `pmc_core.errors`.
+    """
+    assert _foreign_normalizer_calls(source) == foreign, label
 
 
 def test_every_captured_case_is_driven_by_the_shared_table() -> None:

@@ -29,5 +29,9 @@
       "verb": "show"
     }
   ],
+  "launch_arguments": [
+    "pymol",
+    "-qck"
+  ],
   "pymol_version": "3.2.0a"
 }

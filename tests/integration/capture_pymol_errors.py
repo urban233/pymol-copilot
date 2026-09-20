@@ -29,6 +29,7 @@ import sys
 import winstage
 
 from pymol_error_cases import FIXTURE_OBJECT
+from pymol_error_cases import LAUNCH_ARGUMENTS
 from pymol_error_cases import capture_case
 from pymol_error_cases import cases
 
@@ -75,7 +76,7 @@ def main() -> int:
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 
-    pymol.finish_launching(["pymol", "-qck"])
+    pymol.finish_launching(list(LAUNCH_ARGUMENTS))
     cmd.fragment("ala", FIXTURE_OBJECT)
 
     version = str(cmd.get_version()[0])
@@ -96,7 +97,11 @@ def main() -> int:
     directory = corpus_directory()
     directory.mkdir(parents=True, exist_ok=True)
     for verb, verb_cases in sorted(by_verb.items()):
-        payload = {"pymol_version": version, "cases": verb_cases}
+        payload = {
+            "pymol_version": version,
+            "launch_arguments": list(LAUNCH_ARGUMENTS),
+            "cases": verb_cases,
+        }
         path = directory / f"{verb}.json"
         text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
         path.write_text(text, encoding="utf-8", newline="\n")

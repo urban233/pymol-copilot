@@ -42,6 +42,19 @@ from pmc_core.errors import normalize
 #: a failure is the command's own and not an empty-session artifact.
 FIXTURE_OBJECT = "copilot_fixture"
 
+#: The arguments both PyMOL launches must use, held here for the same
+#: reason the case table is: the capture and the conformance test must not
+#: be able to disagree about the conditions the corpus describes. `-k`
+#: skips the user's pymolrc files and plugins, and without it the
+#: conformance run is not replaying the environment the corpus was
+#: captured in -- a startup script could pre-create the undefined
+#: selection, define the unknown color or representation, or monkeypatch a
+#: `cmd` method, and the run would pass or fail for a reason that has
+#: nothing to do with the PyMOL drift it exists to detect. The captured
+#: corpus records these arguments, so a capture taken under different ones
+#: fails the contract test rather than becoming the new baseline.
+LAUNCH_ARGUMENTS = ("pymol", "-qck")
+
 
 @dataclass(frozen=True)
 class Case:

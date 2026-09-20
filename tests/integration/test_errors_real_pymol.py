@@ -31,6 +31,7 @@ import winstage
 
 from pmc_core.errors import exception_type_name
 from pymol_error_cases import FIXTURE_OBJECT
+from pymol_error_cases import LAUNCH_ARGUMENTS
 from pymol_error_cases import cases
 
 #: The captured corpus, reached from this file rather than from the
@@ -81,7 +82,13 @@ def real_pymol() -> Iterator[Any]:
 
     Shaped exactly like the other real-PyMOL fixtures in this package, so
     the one headless launch an interpreter permits is torn down the same
-    way everywhere.
+    way everywhere, but launched with `pymol_error_cases.LAUNCH_ARGUMENTS`
+    rather than this package's usual `-qc`. The corpus this module
+    re-derives was captured under those arguments, and replaying it under
+    any others compares a live PyMOL against evidence gathered somewhere
+    else: the user's pymolrc could pre-create the undefined selection or
+    monkeypatch a `cmd` method, and the result would say nothing about
+    PyMOL drift either way.
 
     Yields:
         The real PyMOL cmd module, with the fixture object loaded.
@@ -90,7 +97,7 @@ def real_pymol() -> Iterator[Any]:
     import pymol  # pyrefly: ignore.
     from pymol import cmd  # pyrefly: ignore.
 
-    pymol.finish_launching(["pymol", "-qc"])
+    pymol.finish_launching(list(LAUNCH_ARGUMENTS))
     try:
         cmd.fragment("ala", FIXTURE_OBJECT)
         yield cmd
@@ -111,6 +118,28 @@ def test_the_corpus_records_the_running_pymol_version(
         f"corpus was captured against PyMOL {_captured_version()} but this "
         f"is PyMOL {running}; rerun "
         "`bazel run //tests/integration:capture_pymol_errors`"
+    )
+
+
+def test_the_run_is_isolated_from_the_user_environment(
+    real_pymol: Any,
+) -> None:
+    """The `-k` in LAUNCH_ARGUMENTS must have actually taken effect.
+
+    Passing the flag and having it take effect are two claims, and only
+    the second is what keeps this run comparable to the capture. Without
+    it a user's pymolrc or a loaded plugin could pre-create the undefined
+    selection, define the unknown color or representation, or monkeypatch
+    a `cmd` method, and every assertion below would be about that
+    environment rather than about PyMOL.
+    """
+    del real_pymol  # Needed for its launch, not for its value.
+    import pymol  # pyrefly: ignore.
+
+    options = pymol.invocation.options
+    assert not options.plugins, "plugins were loaded; this run is not isolated"
+    assert options.pymolrc is None, (
+        f"pymolrc was loaded ({options.pymolrc}); this run is not isolated"
     )
 
 
