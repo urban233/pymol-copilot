@@ -61,6 +61,9 @@ from pmc_client.command import register_copilot
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
+from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import PlanRequestV1
+from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_server.lifecycle import PlanRequestLifecycle
 from pmc_server.transport import LoopbackPlanServer
 
@@ -375,6 +378,36 @@ class _SynchronizingExtension:
         return getattr(self._inner, name)
 
 
+def _run_pymol_command(
+    cmd: PyMOLCmd, finished: threading.Event, command_line: str
+) -> float:
+    """Dispatch one PML command line and wait for its callback to finish.
+
+    Args:
+        cmd: The real PyMOL cmd module.
+        finished: Event the registered wrapper sets on completion.
+        command_line: The exact command line to dispatch, e.g.
+            "copilot_apply p-<id>".
+
+    Returns:
+        Seconds from dispatch until the callback completed.
+
+    Raises:
+        AssertionError: If the callback did not complete within the
+            invocation deadline.
+    """
+    finished.clear()
+    started = time.monotonic()
+    cmd.do(command_line)
+    completed = finished.wait(INVOCATION_DEADLINE_SECONDS)
+    elapsed = time.monotonic() - started
+    assert completed, (
+        f"{command_line!r} did not complete within "
+        f"{INVOCATION_DEADLINE_SECONDS}s of dispatch"
+    )
+    return elapsed
+
+
 def _run_copilot(cmd: PyMOLCmd, finished: threading.Event) -> float:
     """Dispatch the copilot command and wait for it to finish.
 
@@ -389,16 +422,28 @@ def _run_copilot(cmd: PyMOLCmd, finished: threading.Event) -> float:
         AssertionError: If the callback did not complete within the
             invocation deadline.
     """
-    finished.clear()
-    started = time.monotonic()
-    cmd.do(f"copilot {FIXTURE_INTENT}")
-    completed = finished.wait(INVOCATION_DEADLINE_SECONDS)
-    elapsed = time.monotonic() - started
-    assert completed, (
-        "copilot did not complete within "
-        f"{INVOCATION_DEADLINE_SECONDS}s of dispatch"
-    )
-    return elapsed
+    return _run_pymol_command(cmd, finished, f"copilot {FIXTURE_INTENT}")
+
+
+def _run_copilot_apply(
+    cmd: PyMOLCmd, finished: threading.Event, plan_id: str
+) -> float:
+    """Dispatch copilot_apply for one plan id and wait for it to finish.
+
+    Args:
+        cmd: The real PyMOL cmd module.
+        finished: Event the registered wrapper sets on completion.
+        plan_id: The plan identifier to apply, exactly as `copilot` itself
+            printed it (with its display prefix).
+
+    Returns:
+        Seconds from dispatch until the callback completed.
+
+    Raises:
+        AssertionError: If the callback did not complete within the
+            invocation deadline.
+    """
+    return _run_pymol_command(cmd, finished, f"copilot_apply {plan_id}")
 
 
 class RealPyMOLCmdExtension:
@@ -484,9 +529,37 @@ def test_fixture_loads_with_two_atoms_per_chain(
 def test_success_path_previews_without_mutating_session(
     loaded_fixture: PyMOLCmd,
 ) -> None:
-    """A real, policy-allowed plan reports an honest preview and no mutation."""
+    """A real, policy-allowed plan previews, refuses apply, and never mutates.
+
+    Covers the end-to-end path docs/master_plan.md item 7 requires: a real
+    headless PyMOL, the real loopback server, `copilot <intent>` followed
+    by `copilot_apply <plan-id>`, with a request carrying a computed
+    digest, the console reporting fidelity, and no live mutation across
+    either command.
+
+    Args:
+        loaded_fixture: The real PyMOL cmd module with the two-chain
+            fixture loaded.
+    """
+    requests: list[PlanRequestV1] = []
     output: list[str] = []
-    server = LoopbackPlanServer(CREDENTIAL, PlanRequestLifecycle())
+    lifecycle = PlanRequestLifecycle()
+
+    def record_lifecycle(
+        request: PlanRequestV1,
+    ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+        """Record a request and return its lifecycle response.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            The typed response produced by the lifecycle.
+        """
+        requests.append(request)
+        return lifecycle(request)
+
+    server = LoopbackPlanServer(CREDENTIAL, record_lifecycle)
     try:
         server.start()
         finished = threading.Event()
@@ -505,11 +578,23 @@ def test_success_path_previews_without_mutating_session(
             INVOCATION_DEADLINE_SECONDS
         )
 
-        after = capture_session_state(loaded_fixture)
+        after_copilot = capture_session_state(loaded_fixture)
+
+        plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
+        assert _run_copilot_apply(loaded_fixture, finished, plan_id) < (
+            INVOCATION_DEADLINE_SECONDS
+        )
+
+        after_apply = capture_session_state(loaded_fixture)
     finally:
         server.close()
 
-    assert len(output) == 4, output
+    assert len(requests) == 1
+    assert requests[0].snapshot.digest.startswith("sha256:")
+    assert requests[0].snapshot.digest != "sha256:example-chain-a-digest"
+    assert requests[0].snapshot.object_name == OBJECT_NAME
+
+    assert len(output) == 5, output
     assert output[0].startswith("copilot fidelity: exact")
     assert f"object {OBJECT_NAME}" in output[0]
     assert output[1].startswith("copilot plan:")
@@ -518,7 +603,12 @@ def test_success_path_previews_without_mutating_session(
     assert "2 | color red, copilot_selection" in output[1]
     assert output[2].startswith("copilot checked:")
     assert output[3].startswith("copilot apply with: copilot_apply ")
-    assert_session_unchanged(before, after)
+    assert output[4] == (
+        f"copilot_apply: plan {plan_id} is applicable, but apply is not "
+        "implemented yet (master plan item 10). Nothing was applied."
+    )
+    assert_session_unchanged(before, after_copilot)
+    assert_session_unchanged(before, after_apply)
 
 
 def test_typed_rejection_path_reports_bounded_diagnostic(
