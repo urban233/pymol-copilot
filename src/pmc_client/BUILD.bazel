@@ -4,6 +4,16 @@ py_library(
     name = "pmc_client",
     srcs = ["__init__.py", "command.py", "transport.py"],
     imports = [".."],
-    deps = ["//src/pmc_core:pmc_core"],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        # The client spawns the fidelity probe's PyMOL-touching child
+        # (docs/master_plan.md item 7) from inside PyMOL's own process, by
+        # module name via pmc_core.executor.probe_fidelity(), never by
+        # import -- see tools/bazel/check_dependency_boundaries.py's
+        # //src/pmc_client:pmc_client entry, which excludes exactly this
+        # package (and winstage behind it) from what would otherwise be a
+        # forbidden dependency for code running in PyMOL's interpreter.
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
     visibility = ["//src/pmc_client:__pkg__", "//src:tests"],
 )
