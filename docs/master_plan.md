@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-20
+**Written:** 2026-09-16 · **State as of:** 2026-09-21
 
 Every item carries a **State**. The values are:
 
@@ -99,7 +99,7 @@ Every item carries a **State**. The values are:
 | 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7 ✓, 8 | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
-| 13 | Prompt builder | Martin | **ready** | 2 ✓, 5 ✓ | 14, 16 |
+| 13 | Prompt builder | Martin | **in review** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4 ✓, 5 ✓, 13 | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13, 14, 15, 9 | 17, 18 |
@@ -129,7 +129,7 @@ flowchart LR
   I10["10 · apply and recovery"]:::blocked
   I11["11 · output"]:::blocked
   I12["12 · end-to-end suite"]:::blocked
-  I13["13 · prompt builder"]:::ready
+  I13["13 · prompt builder"]:::review
   I14["14 · dataset"]:::blocked
   I15["15 · gold set"]:::blocked
   I16["16 · eval and baseline"]:::blocked
@@ -187,21 +187,20 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   the sidecar executor, the structure card, the error envelope and the
   fidelity gate. Nothing in the remaining twelve items is waiting on a
   shared-core hand-off any more.
-- **Each developer now has exactly one startable item, and they are
-  independent.** Item 8 (LangGraph request graph) is Hannah's; item 13
-  (prompt builder) is Martin's. Neither blocks the other, so the two halves
-  of the project can finally run in parallel without a synchronization point.
-- **Item 8 is the wider bottleneck.** It gates items 9, 10, 11 and 12 —
-  Hannah's entire remaining chain. Nothing on the runtime side can start
-  until it lands, so it is the highest-value thing on the board.
-- **Item 13 is small and gates a long tail.** At ~2 days it is the cheapest
-  item left, and items 14, 15, 16, 17 and 18 all sit behind it. Starting it
-  late is what would make the model half the critical path.
-- **Everything downstream of the shared core is still unstarted.**
-  `src/pmc_agent/inference/` and the prompt builder do not exist;
-  `src/pmc_agent/runtime.py` is still the 66-line pass-through stub from the
-  dependency split, not item 8's graph; `src/pmc_train/` holds only
-  `__init__.py`; `tests/recovery/` holds only a readme.
+- **Item 8 is the one item anybody can start today**, and it is Hannah's.
+  It gates items 9, 10, 11 and 12 — her entire remaining chain — so nothing
+  on the runtime side can begin until it lands, which makes it the
+  highest-value thing on the board.
+- **Martin has no `ready` item, because item 13 is in review.** Every other
+  item of his sits behind it: item 14 needs it `done`, and 15, 16, 17 and 18
+  sit behind 14. His highest-value action is getting PR #41 reviewed and
+  merged, which turns item 14 `ready` and reopens the model half.
+- **Nothing downstream of the shared core has merged.**
+  `src/pmc_agent/inference/` does not exist; `src/pmc_agent/runtime.py` is
+  still the 66-line pass-through stub from the dependency split, not item 8's
+  graph; `src/pmc_train/` holds only `__init__.py`; `tests/recovery/` holds
+  only a readme. `src/pmc_core/prompt.py` and `src/pmc_core/grammar.py` exist
+  on `feat/prompt-builder` but are not on `main`.
 
 ### Cross-owner hand-offs
 
@@ -212,17 +211,24 @@ The week 1 note below is now more specific:
   16 now wait only on his own item 13.
 - **Martin → Hannah: settled.** Items 2 and 6 are both delivered, so Hannah's
   items 8 and 11 are no longer waiting on anything of Martin's.
-- **Martin → Hannah, still open:** item 13 emits the grammar that item 9's
-  engine enforces at runtime. Item 9 can be built and tested against the fake
-  adapter without it, so this remains a hand-off rather than a blocker — but
-  item 9 cannot be *finished* against a real Lemonade engine until item 13
-  lands.
+- **Martin → Hannah, in review:** item 13 emits the grammar item 9's engine
+  enforces at runtime, and it is open as PR #41. This is a hand-off rather
+  than a prerequisite, and the reason is specific: item 9's contract takes an
+  *optional grammar* as a parameter, so neither its adapters nor its startup
+  capability probe need item 13's grammar in particular. The Lemonade spike
+  proved enforcement with a grammar it wrote itself, `root ::= "Berlin"`, and
+  item 9 can do the same. What item 13 supplies is the grammar item 9
+  *carries* in production, not something item 9 needs in order to be finished.
 - **Hannah → Martin, still open:** item 9's engine interface is what item 16
   runs the untuned baseline through — the dashed edge above. It is soft: item
   16 could drive Lemonade directly and adopt the interface later.
 
 With both shared-core hand-offs closed, the only remaining coupling between
-the two developers is items 13 → 9 and 9 → 16, and both of those are soft.
+the two developers is items 13 → 9 and 9 → 16. Neither is a prerequisite, and
+neither appears as an edge in the graph or in a `Blocked by` column, which is
+what "soft" means here: an item on the receiving end can reach `done` while
+the sending item is still open. Anything that could not would belong in the
+table as a blocker instead.
 
 ### Risks carried out of week 1
 
@@ -480,7 +486,7 @@ this machine.
 
 ### 13. Prompt builder
 
-**Size:** ~2 days · **State:** ready — blocks 14, 16
+**Size:** ~2 days · **State:** in review (PR #41)
 
 ```
 Add the prompt builder that turns a structure card plus a user intent into
