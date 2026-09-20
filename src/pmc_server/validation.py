@@ -66,6 +66,7 @@ def _to_wire_report(report: ExecutionReport) -> ExecutionReportV1:
                 verb=outcome.verb,
                 status=outcome.status,
                 error=outcome.error,
+                error_envelope=outcome.error_envelope,
             )
             for outcome in report.command_outcomes
         ),

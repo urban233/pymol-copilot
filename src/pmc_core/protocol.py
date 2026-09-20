@@ -22,6 +22,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
+from pmc_core.errors import ExecutionErrorV1
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_selection_expression
 from pmc_core.plan import MAX_COMMANDS
@@ -1018,6 +1019,56 @@ class FailedPlanResponseV1:
         )
 
 
+def decode_execution_error(value: object) -> ExecutionErrorV1:
+    """Decode and validate a V1 error envelope.
+
+    This is the envelope's first decoder: `pmc_core.errors.ExecutionErrorV1`
+    provides `to_dict()` and says explicitly that putting an envelope on
+    the wire is this module's contract, not its own. The envelope's own
+    field names -- `envelope_version`, `command_index`, `verb`, `category`,
+    `message`, exactly as `to_dict()` writes them -- are decoded as-is
+    rather than translated to this module's own camelCase convention, so
+    the same bytes `pmc_core.errors`'s own byte-equality fixtures assert
+    against are the bytes this function reads back.
+
+    Args:
+        value: JSON-like value containing an error envelope.
+
+    Returns:
+        The validated envelope.
+
+    Raises:
+        ProtocolDecodeError: If value does not match the envelope schema,
+            or its own construction rules reject a field's value --
+            `ExecutionErrorV1.__post_init__`'s `ValueError` is re-raised as
+            a `ProtocolDecodeError` so every decoder in this module fails
+            the same way.
+    """
+    data = _strict_object(
+        value,
+        name="executionError",
+        required={
+            "envelope_version",
+            "command_index",
+            "verb",
+            "category",
+            "message",
+        },
+    )
+    try:
+        return ExecutionErrorV1(
+            envelope_version=_int(
+                data["envelope_version"], name="envelope_version"
+            ),
+            command_index=_int(data["command_index"], name="command_index"),
+            verb=_string(data["verb"], name="verb"),
+            category=_string(data["category"], name="category"),
+            message=_string(data["message"], name="message"),
+        )
+    except ValueError as error:
+        raise ProtocolDecodeError(str(error)) from error
+
+
 @dataclass(frozen=True)
 class CommandOutcomeV1:
     """One command's observed outcome, indexed by its plan position."""
@@ -1026,6 +1077,7 @@ class CommandOutcomeV1:
     verb: str
     status: str
     error: str | None
+    error_envelope: ExecutionErrorV1 | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Encode this outcome using its V1 wire-field names.
@@ -1038,6 +1090,11 @@ class CommandOutcomeV1:
             "verb": self.verb,
             "status": self.status,
             "error": self.error,
+            "errorEnvelope": (
+                self.error_envelope.to_dict()
+                if self.error_envelope is not None
+                else None
+            ),
         }
 
     @classmethod
@@ -1056,13 +1113,18 @@ class CommandOutcomeV1:
         data = _strict_object(
             value,
             name="commandOutcome",
-            required={"index", "verb", "status", "error"},
+            required={"index", "verb", "status", "error", "errorEnvelope"},
         )
         return cls(
             index=_int(data["index"], name="index"),
             verb=_string(data["verb"], name="verb"),
             status=_string(data["status"], name="status"),
             error=_optional_string(data["error"], name="error"),
+            error_envelope=(
+                decode_execution_error(data["errorEnvelope"])
+                if data["errorEnvelope"] is not None
+                else None
+            ),
         )
 
 

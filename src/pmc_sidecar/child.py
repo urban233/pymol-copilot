@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pmc_core.errors import normalize
 from pmc_core.executor import OUTCOME_ERROR
 from pmc_core.executor import OUTCOME_OK
 from pmc_core.executor import MAX_COMMAND_ERROR_BYTES
@@ -157,6 +158,10 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
         every command succeeds, or STATUS_FAILED with REASON_COMMAND_FAILURE
         and one OUTCOME_ERROR at the failing index when any command --
         including one this module's own dispatch cannot recognize -- fails.
+        A failing command's outcome carries a normalized `ExecutionErrorV1`
+        whenever its verb is one `pmc_core.errors.normalize` accepts; the
+        one case that is never a real PyMOL failure -- this module's own
+        dispatch not recognizing the operation's type -- carries none.
     """
     outcomes: list[CommandOutcome] = []
     for index, operation in enumerate(plan.operations):
@@ -165,6 +170,17 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
             cmd.sync()
         except Exception as error:
             verb = _VERB_BY_TYPE.get(type(operation), "__unsupported__")
+            # normalize() is only ever called with a verb this module has
+            # just confirmed is allowlisted: it is docs/master_plan.md item
+            # 6's own contract that a verb outside COMMAND_ALLOWLIST is a
+            # defect in this module's dispatch table, not a PyMOL failure
+            # to normalize, and ExecutionErrorV1 refuses to construct one
+            # anyway (pmc_core.errors.ExecutionErrorV1.__post_init__).
+            envelope = (
+                normalize(error, command_index=index, verb=verb)
+                if verb in COMMAND_ALLOWLIST
+                else None
+            )
             outcomes.append(
                 CommandOutcome(
                     index,
@@ -173,12 +189,13 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
                     bounded_diagnostic(
                         str(error), maximum_bytes=MAX_COMMAND_ERROR_BYTES
                     ),
+                    envelope,
                 )
             )
             return PlanRunResult(
                 STATUS_FAILED, REASON_COMMAND_FAILURE, tuple(outcomes)
             )
-        outcomes.append(CommandOutcome(index, verb, OUTCOME_OK, None))
+        outcomes.append(CommandOutcome(index, verb, OUTCOME_OK, None, None))
     return PlanRunResult(STATUS_OK, REASON_OK, tuple(outcomes))
 
 
@@ -215,6 +232,11 @@ def _outcome_to_dict(outcome: CommandOutcome) -> dict[str, object]:
         "verb": outcome.verb,
         "status": outcome.status,
         "error": outcome.error,
+        "error_envelope": (
+            outcome.error_envelope.to_dict()
+            if outcome.error_envelope is not None
+            else None
+        ),
     }
 
 

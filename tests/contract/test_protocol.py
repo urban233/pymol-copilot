@@ -17,6 +17,9 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_core.plan import HideOperation
 from pmc_core.plan import OrientOperation
+from pmc_core.errors import CATEGORY_UNKNOWN
+from pmc_core.errors import ERROR_ENVELOPE_VERSION
+from pmc_core.errors import ExecutionErrorV1
 from pmc_core.executor import REASON_OK
 from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import FIDELITY_EXACT
@@ -36,6 +39,7 @@ from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.protocol import decode_execution_error
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_plan
 from pmc_core.protocol import encode_json
@@ -813,6 +817,89 @@ def test_command_outcome_round_trips_including_none_error() -> None:
     outcome = CommandOutcomeV1(0, "orient", "ok", None)
 
     assert CommandOutcomeV1.from_dict(outcome.to_dict()) == outcome
+    assert outcome.error_envelope is None
+
+
+def sample_execution_error() -> ExecutionErrorV1:
+    """Build a fully populated error envelope.
+
+    Returns:
+        An accepted envelope exercising every field.
+    """
+    return ExecutionErrorV1(
+        envelope_version=ERROR_ENVELOPE_VERSION,
+        command_index=1,
+        verb="color",
+        category=CATEGORY_UNKNOWN,
+        message="a bounded diagnostic",
+    )
+
+
+def test_execution_error_round_trips() -> None:
+    """A fully populated error envelope survives to_dict/decode."""
+    envelope = sample_execution_error()
+
+    assert decode_execution_error(envelope.to_dict()) == envelope
+
+
+def test_execution_error_rejects_unknown_fields() -> None:
+    """An error envelope carrying an unknown field is rejected."""
+    payload = sample_execution_error().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        decode_execution_error(payload)
+
+
+def test_execution_error_rejects_a_missing_field() -> None:
+    """An error envelope missing a required field is rejected."""
+    payload = sample_execution_error().to_dict()
+    del payload["message"]
+
+    with pytest.raises(ProtocolDecodeError):
+        decode_execution_error(payload)
+
+
+def test_execution_error_rejects_a_value_its_own_constructor_refuses() -> None:
+    """A field violating ExecutionErrorV1's own invariants is rejected.
+
+    `decode_execution_error` re-raises `ExecutionErrorV1.__post_init__`'s
+    `ValueError` as a `ProtocolDecodeError`, so a value that is
+    structurally a valid envelope but semantically wrong -- a verb outside
+    the command allowlist, here -- fails the same way every other decoder
+    in this module does.
+    """
+    payload = sample_execution_error().to_dict()
+    payload["verb"] = "fetch"
+
+    with pytest.raises(ProtocolDecodeError):
+        decode_execution_error(payload)
+
+
+def test_command_outcome_round_trips_with_an_error_envelope() -> None:
+    """A failed command outcome's envelope round-trips with it."""
+    outcome = CommandOutcomeV1(
+        1, "color", "error", "a bounded diagnostic", sample_execution_error()
+    )
+
+    assert CommandOutcomeV1.from_dict(outcome.to_dict()) == outcome
+    assert (
+        outcome.to_dict()["errorEnvelope"] == sample_execution_error().to_dict()
+    )
+
+
+def test_command_outcome_rejects_a_missing_error_envelope_field() -> None:
+    """A command outcome missing errorEnvelope entirely is rejected.
+
+    The field is optional in value (it may be null) but not optional in
+    presence -- `_strict_object` requires an exact field set, matching
+    every other wire type in this module.
+    """
+    payload = CommandOutcomeV1(0, "orient", "ok", None).to_dict()
+    del payload["errorEnvelope"]
+
+    with pytest.raises(ProtocolDecodeError):
+        CommandOutcomeV1.from_dict(payload)
 
 
 def test_selection_count_round_trips_a_zero_count() -> None:

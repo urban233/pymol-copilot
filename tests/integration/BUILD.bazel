@@ -133,6 +133,7 @@ py_test(
     data = [
         "conftest.py",
         "testdata/h02_full_v1_fixture.pdb",
+        "//tests/contract:pymol_error_corpus",
     ],
     # Drives pmc_sidecar.child.run_plan() against the module-scoped
     # real_pymol/loaded_fixture fixtures; excluded from concurrent
