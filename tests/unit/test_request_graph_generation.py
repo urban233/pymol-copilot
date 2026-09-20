@@ -3,7 +3,10 @@
 
 Runs the compiled graph against a `FakeEngine`, never a real one --
 docs/master_plan.md item 8: "Test every transition and terminal state
-against a fake inference adapter."
+against a fake inference adapter." `validating` is real as of step 7, so
+every test here that reaches it also injects a fake executor that always
+succeeds -- this file's own scope stays `preparing` and `generating`;
+`validating`'s own behavior is tests/unit/test_request_graph_repair.py's.
 """
 
 from typing import cast
@@ -27,6 +30,9 @@ from pmc_agent.inference.base import ENGINE_UNAVAILABLE
 from pmc_agent.inference.base import ENGINE_UNKNOWN
 from pmc_agent.inference.fake import FakeEngine
 from pmc_core.executor import REASON_OK
+from pmc_core.executor import STATUS_OK
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailureEnvelopeV1
@@ -37,6 +43,34 @@ from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import to_json
 
+
+def _always_ok_executor(_request: ExecutionRequest) -> ExecutionReport:
+    """Report success for any request, without ever spawning anything.
+
+    This file's own tests never inspect `validating`'s behavior -- only
+    that it is real, and that a well-formed request can reach past it --
+    so a single scripted success is all `_run` below needs.
+
+    Args:
+        _request: Ignored.
+
+    Returns:
+        A minimal `STATUS_OK` report.
+    """
+    return ExecutionReport(
+        executor_version=1,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest="sha256:test",
+        resulting_fingerprint="sha256:" + "0" * 64,
+        selection_counts=(),
+        command_outcomes=(),
+        child_pid=1234,
+        child_terminated=True,
+        elapsed_seconds=0.01,
+    )
+
+
 _OBJECT_NAME = "fx"
 
 
@@ -44,8 +78,9 @@ def _snapshot() -> ObjectSnapshot:
     """Build the smallest well-formed snapshot, named `_OBJECT_NAME`.
 
     Returns:
-        An empty-state ObjectSnapshot, sufficient for every test below,
-        none of which reaches `validating`'s own real sidecar spawn.
+        An empty-state ObjectSnapshot, sufficient for every test below --
+        `_run` always injects `_always_ok_executor`, so nothing here ever
+        reaches a real sidecar spawn.
     """
     return ObjectSnapshot(
         schema_version=SNAPSHOT_VERSION,
@@ -119,6 +154,11 @@ def _state(
 def _run(engine: FakeEngine, state: RequestState) -> dict[str, object]:
     """Compile the graph against `engine` and run `state` to completion.
 
+    `validating` runs for real for any request that reaches it, always
+    against `_always_ok_executor` -- never the real
+    `pmc_core.executor.execute` default, which would try to spawn a real
+    sidecar process against this file's placeholder snapshot identity.
+
     Args:
         engine: The fake engine `generating` will call.
         state: The request state to invoke the graph with.
@@ -126,9 +166,9 @@ def _run(engine: FakeEngine, state: RequestState) -> dict[str, object]:
     Returns:
         The invocation's result mapping.
     """
-    compiled = build_request_graph(engine=engine).compile(
-        checkpointer=InMemorySaver()
-    )
+    compiled = build_request_graph(
+        engine=engine, executor=_always_ok_executor
+    ).compile(checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": state["session_id"]}}
     return compiled.invoke(state, config)
 
@@ -136,11 +176,11 @@ def _run(engine: FakeEngine, state: RequestState) -> dict[str, object]:
 def test_a_first_pass_success_calls_the_engine_exactly_once() -> None:
     """A well-formed request calls the engine once and reaches `validating`.
 
-    `validating` is still step 5's stub as of this step, so a single
-    `invoke()` call runs straight through it to `pending_approval` and
-    parks there -- the assertion that matters here is the engine call
-    count and what `generating` itself wrote, both already final by the
-    time `validating`'s own stub runs.
+    A single `invoke()` call runs straight through `validating` (real as
+    of step 7, here against `_always_ok_executor`) to `pending_approval`
+    and parks there -- the assertion that matters in this file is the
+    engine call count and what `generating` itself wrote, both already
+    final by the time `validating` runs.
     """
     engine = FakeEngine([CompletionResult("orient chain A\n", "m-1", STOP_END)])
 

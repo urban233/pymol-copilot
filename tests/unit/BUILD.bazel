@@ -74,3 +74,17 @@ py_test(
         "//src/pmc_core:pmc_core",
     ],
 )
+
+py_test(
+    name = "request_graph_repair",
+    size = "small",
+    srcs = ["test_request_graph_repair.py"],
+    main = "test_request_graph_repair.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)

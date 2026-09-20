@@ -39,7 +39,11 @@ body is as thin as it is.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import uuid
 from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
 from typing import TypedDict
 
 from langgraph.graph import END
@@ -51,15 +55,30 @@ from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.prompt import PROMPT_BUILDER
+from pmc_agent.prompt import AttemptFailure
 from pmc_agent.prompt import PromptInputs
 from pmc_agent.prompt import build_default_prompt
-from pmc_core.errors import ExecutionErrorV1
 from pmc_core.errors import normalize_message
+from pmc_core.executor import EXECUTOR_VERSION
+from pmc_core.executor import OUTCOME_ERROR
+from pmc_core.executor import REASON_COMMAND_FAILURE
+from pmc_core.executor import STATUS_OK
+from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
+from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import execute
+from pmc_core.parser import ParseRejection
+from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
+from pmc_core.policy import PlanDecision
+from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import StructureSnapshotV1
+from pmc_core.screen import SCREEN_HOSTILE
+from pmc_core.screen import screen_completion
 from pmc_core.snapshot import from_json
 
 #: Non-terminal request states -- each one is also this graph's own node
@@ -165,6 +184,55 @@ FAILURE_CONTRACT_MISMATCH = "contract_mismatch"
 FAILURE_MALFORMED_SNAPSHOT = "malformed_snapshot"
 FAILURE_NO_TARGET_OBJECT = "no_target_object"
 
+#: `validating`'s own failure categories, for the infrastructure-level
+#: executor outcomes that never enter the repair loop (see
+#: `_build_validating`'s own docstring for why): every `execute()` reason
+#: other than `pmc_core.executor.REASON_COMMAND_FAILURE`, prefixed so it
+#: never collides with `pmc_core.errors.CATEGORIES` or the three names
+#: above.
+FAILURE_EXECUTION_PREFIX = "execution_"
+
+#: `validating`'s own failure category once the repair budget is spent.
+FAILURE_REPAIR_EXHAUSTED = "repair_exhausted"
+
+
+def _new_plan_id() -> str:
+    """Return a new UUIDv4 plan identifier.
+
+    Returns:
+        A string containing a UUIDv4 identifier.
+    """
+    return str(uuid.uuid4())
+
+
+def _utc_now() -> datetime:
+    """Return the current moment in UTC.
+
+    Returns:
+        A timezone-aware `datetime` in UTC.
+    """
+    return datetime.now(UTC)
+
+
+def _format_timestamp(moment: datetime) -> str:
+    """Format a moment in the protocol's own RFC3339 UTC wire form.
+
+    The same format `pmc_server.lifecycle._server_timestamp` produces,
+    reused here so `expires_at` and `created_at` are always directly
+    comparable strings.
+
+    Args:
+        moment: The moment to format.
+
+    Returns:
+        The moment as `YYYY-MM-DDTHH:MM:SS.sssZ`.
+    """
+    return (
+        moment.astimezone(UTC)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
 
 class RequestState(TypedDict):
     """The one piece of state a request's graph run threads through.
@@ -214,8 +282,12 @@ class RequestState(TypedDict):
             such as `superseded` is otherwise unobservable -- the thread
             has already moved on to a new request's checkpoint by the time
             anything could ask it.
-        errors: The normalized `ExecutionErrorV1` from every failed
-            attempt so far, oldest first -- what a repair prompt is built
+        errors: Every failed attempt's evidence so far, oldest first, in
+            `pmc_agent.prompt.AttemptFailure`'s uniform shape -- a parse
+            rejection, a policy denial, and a real PyMOL command failure
+            each have their own incompatible category vocabulary, and
+            only a real command failure has a verb at all, which is what
+            that type exists to paper over. What a repair prompt is built
             from.
         plan: The typed plan `validating` most recently parsed, or None
             before any attempt has produced one.
@@ -251,7 +323,7 @@ class RequestState(TypedDict):
     target_object: str | None
     attempt: int
     history: tuple[str, ...]
-    errors: tuple[ExecutionErrorV1, ...]
+    errors: tuple[AttemptFailure, ...]
     plan: ActionPlan | None
     plan_id: str | None
     expires_at: str | None
@@ -469,6 +541,7 @@ def _build_generating(
                 intent=state["intent"],
                 snapshot=from_json(state["snapshot_json"]),
                 contract_manifest=state["contract_manifest"],
+                errors=state["errors"],
             )
         )
         outcome = engine.complete(
@@ -503,19 +576,248 @@ def _build_generating(
     return _generating
 
 
-def _validating(state: RequestState) -> dict[str, object]:
-    """Parse, screen, police, and execute one attempt. Stub: see step 7.
+def _bounded(text: str, *, maximum: int = 200) -> str:
+    """Bound a diagnostic string to a maximum character count.
+
+    A cheap character-count bound, not `pmc_core.errors.normalize_message`
+    -- what this function bounds is already a stable, short, machine-
+    generated reason string from `pmc_core.parser` or `pmc_core.policy`,
+    never raw PyMOL text, so none of that module's redaction machinery
+    applies here.
 
     Args:
-        state: The request state entering `validating`.
+        text: The text to bound.
+        maximum: The greatest number of characters to keep.
 
     Returns:
-        A partial update advancing to `pending_approval`.
+        `text` unchanged if within the bound, else truncated with a
+        marker.
     """
-    return {
-        "status": STATE_PENDING_APPROVAL,
-        "history": (*state["history"], STATE_PENDING_APPROVAL),
-    }
+    if len(text) <= maximum:
+        return text
+    return text[: maximum - len("...")] + "..."
+
+
+def _build_validating(
+    *,
+    executor: Callable[[ExecutionRequest], ExecutionReport],
+    policy_validator: Callable[[ActionPlan], PlanDecision],
+    plan_id_source: Callable[[], str],
+    clock: Callable[[], datetime],
+    max_snapshot_bytes: int,
+    deadline_seconds: float,
+    ttl_seconds: float,
+    max_repair_attempts: int,
+) -> Callable[[RequestState], dict[str, object]]:
+    """Close a `validating` node body over its injected executor and clock.
+
+    Args:
+        executor: Runs one `ExecutionRequest` in a fresh sidecar. A fake
+            in every test in this item; `pmc_core.executor.execute` in
+            production -- always a *fresh* one per call, per orchestration
+            rule 8; this closure calls it at most once per attempt and
+            never pools or reuses anything across calls.
+        policy_validator: Independently re-checks a parsed plan. Defaults
+            to `pmc_core.policy.evaluate_plan` in production, matching
+            `pmc_server.lifecycle.PlanRequestLifecycle`'s own
+            `policy_validator` seam exactly. Injectable for the same
+            reason that one is: a plan the parser itself accepts can never
+            reach a real policy denial (the two enforce the same
+            allowlist, independently, over the same grammar), so the only
+            way to prove this graph's own denial-handling path -- as
+            opposed to the policy's, which `tests/contract/test_policy.py`
+            already owns -- is to inject a validator that denies on
+            purpose.
+        plan_id_source: Mints a plan identifier on a successful attempt.
+        clock: Reports the current moment, for `expires_at`. Both this and
+            `plan_id_source` are called at most once per successful
+            attempt, inside this node, never inside `pending_approval`
+            (see the module docstring's finding about `interrupt`).
+        max_snapshot_bytes: The snapshot size ceiling given to `executor`.
+        deadline_seconds: The wall-clock deadline given to `executor`.
+        ttl_seconds: How long a minted plan stays approvable.
+        max_repair_attempts: SPECIFICATION.md:640's repair budget --
+            `MAX_REPAIR_ATTEMPTS` by default, injectable only so a test can
+            prove the bound is actually enforced by lowering or raising it.
+
+    Returns:
+        The `validating` node body.
+    """
+
+    def _attempt_failed(
+        state: RequestState,
+        *,
+        source: str,
+        category: str,
+        command_index: int | None,
+        message: str,
+    ) -> dict[str, object]:
+        """Record one failed attempt and decide whether to repair or fail.
+
+        Args:
+            state: The request state entering this decision.
+            source: "parse", "policy", or "execution".
+            category: The stable category from that source's vocabulary.
+            command_index: The command index the failure names, if any.
+            message: A bounded, human-readable explanation.
+
+        Returns:
+            A partial update: back to `STATE_GENERATING` with the failure
+            appended to `errors`, when the repair budget is not yet
+            spent; otherwise `TERMINAL_FAILED`.
+        """
+        error = AttemptFailure(
+            source=source,
+            category=category,
+            command_index=command_index,
+            message=_bounded(message),
+        )
+        errors = (*state["errors"], error)
+        if state["attempt"] <= max_repair_attempts:
+            return {
+                "status": STATE_GENERATING,
+                "history": (*state["history"], STATE_GENERATING),
+                "errors": errors,
+            }
+        failed = _failed(
+            state,
+            category=FAILURE_REPAIR_EXHAUSTED,
+            message="the repair budget was spent with no validated plan",
+            # The user's intent may still be achievable; a fresh request
+            # with a clearer intent is not ruled out by this outcome.
+            retryable=True,
+        )
+        failed["errors"] = errors
+        return failed
+
+    def _validating(state: RequestState) -> dict[str, object]:
+        """Parse, screen, police, and execute one attempt.
+
+        Orchestration rules 7 and 8, in the fixed order both require:
+        parse, screen the raw text for a hostile marker regardless of
+        parse outcome, re-check policy independently of the parser, then
+        execute in a fresh sidecar -- never reordered, and never skipped
+        because an earlier step looked like it already covered the same
+        ground.
+
+        Args:
+            state: The request state entering `validating`. `completion`
+                and `attempt` are always set by the time this runs --
+                `generating` is `validating`'s only predecessor and always
+                writes both before advancing here.
+
+        Returns:
+            A partial update: to `TERMINAL_REJECTED` immediately on a
+            hostile completion, with zero repairs; back to
+            `STATE_GENERATING` on an ordinary, repairable failure within
+            budget; to `TERMINAL_FAILED` once the budget is spent or on an
+            infrastructure-level executor failure no repair could fix; or
+            to `STATE_PENDING_APPROVAL` with `plan`, `plan_id`, and
+            `expires_at` all committed, on success.
+        """
+        completion = state["completion"]
+        assert completion is not None, (
+            "validating always follows generating, which always sets "
+            "completion before advancing here"
+        )
+
+        if screen_completion(completion) == SCREEN_HOSTILE:
+            return {
+                "status": TERMINAL_REJECTED,
+                "history": (*state["history"], TERMINAL_REJECTED),
+            }
+
+        parsed = parse_pml(completion)
+        if isinstance(parsed, ParseRejection):
+            return _attempt_failed(
+                state,
+                source="parse",
+                category=parsed.category,
+                command_index=parsed.command_index,
+                message=parsed.message,
+            )
+        plan = parsed
+
+        decision = policy_validator(plan)
+        if not decision.allowed:
+            denied = next(d for d in decision.decisions if not d.allowed)
+            return _attempt_failed(
+                state,
+                source="policy",
+                category="policy_denied",
+                command_index=denied.operation_index,
+                message=denied.reason,
+            )
+
+        report = executor(
+            ExecutionRequest(
+                executor_version=EXECUTOR_VERSION,
+                plan=plan,
+                snapshot_json=state["snapshot_json"],
+                expected_snapshot_digest=state["snapshot_identity"].digest,
+                max_snapshot_bytes=max_snapshot_bytes,
+                deadline_seconds=deadline_seconds,
+            )
+        )
+        if report.status == STATUS_OK:
+            now = clock()
+            return {
+                "status": STATE_PENDING_APPROVAL,
+                "history": (*state["history"], STATE_PENDING_APPROVAL),
+                "plan": plan,
+                "plan_id": plan_id_source(),
+                "expires_at": _format_timestamp(
+                    now + timedelta(seconds=ttl_seconds)
+                ),
+            }
+        if report.reason == REASON_COMMAND_FAILURE:
+            failing = next(
+                (
+                    outcome
+                    for outcome in report.command_outcomes
+                    if outcome.status == OUTCOME_ERROR
+                ),
+                None,
+            )
+            envelope = failing.error_envelope if failing else None
+            if envelope is not None:
+                category = envelope.category
+                command_index = envelope.command_index
+                message = envelope.message
+            else:
+                # A defect in this graph's own dispatch, never a real
+                # PyMOL failure -- see pmc_sidecar.child's own
+                # "__unsupported__" sentinel, the one command_failure case
+                # ExecutionErrorV1 refuses to normalize.
+                category = "unknown"
+                command_index = failing.index if failing else None
+                message = (
+                    failing.error
+                    if failing and failing.error
+                    else "command failed with no further detail"
+                )
+            return _attempt_failed(
+                state,
+                source="execution",
+                category=category,
+                command_index=command_index,
+                message=message,
+            )
+        # Every other executor reason -- oversized input, a malformed or
+        # mismatched snapshot, a spawn failure, a timeout, a child crash,
+        # or a fidelity mismatch -- is an infrastructure-level problem a
+        # repaired completion cannot fix: SPECIFICATION.md's own failure-
+        # mode table calls exactly this out for a sidecar timeout ("repairs
+        # stop"), and the same reasoning applies to every reason in this
+        # branch. None of them consumes a repair attempt.
+        return _failed(
+            state,
+            category=f"{FAILURE_EXECUTION_PREFIX}{report.reason}",
+            message=f"sidecar execution failed: {report.reason}",
+            retryable=True,
+        )
+
+    return _validating
 
 
 def _pending_approval(state: RequestState) -> dict[str, object]:
@@ -551,6 +853,14 @@ def build_request_graph(
     prompt_builder: PROMPT_BUILDER = build_default_prompt,
     max_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
     deadline_seconds: float = DEFAULT_GENERATION_DEADLINE_SECONDS,
+    executor: Callable[[ExecutionRequest], ExecutionReport] = execute,
+    policy_validator: Callable[[ActionPlan], PlanDecision] = evaluate_plan,
+    plan_id_source: Callable[[], str] = _new_plan_id,
+    clock: Callable[[], datetime] = _utc_now,
+    max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES,
+    validation_deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
+    ttl_seconds: float = PLAN_TTL_SECONDS,
+    max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
 ) -> StateGraph[RequestState]:  # pyrefly: ignore[bad-specialization]
     """Build the uncompiled request graph, wired but not yet compiled.
 
@@ -571,6 +881,23 @@ def build_request_graph(
             docs/master_plan.md item 13 supplies the real one.
         max_tokens: The token budget given to every completion.
         deadline_seconds: The wall-clock budget given to every completion.
+        executor: Runs one `ExecutionRequest` in a fresh sidecar. Defaults
+            to `pmc_core.executor.execute`; every test in this item injects
+            a fake so no real PyMOL process is ever spawned by a graph
+            test.
+        policy_validator: Independently re-checks a parsed plan. Defaults
+            to `pmc_core.policy.evaluate_plan`; see `_build_validating`'s
+            own docstring for why this seam exists at all.
+        plan_id_source: Mints a plan identifier on a successful attempt.
+            Defaults to a real UUIDv4 source.
+        clock: Reports the current moment for computing `expires_at`.
+            Defaults to the real wall clock, in UTC.
+        max_snapshot_bytes: The snapshot size ceiling given to `executor`.
+        validation_deadline_seconds: The wall-clock deadline given to
+            `executor`. Independent of `deadline_seconds`, which bounds
+            the engine, not a spawned process.
+        ttl_seconds: How long a minted plan stays approvable.
+        max_repair_attempts: SPECIFICATION.md:640's repair budget.
 
     Returns:
         The graph, with every node and edge from `preparing` onward wired,
@@ -583,9 +910,19 @@ def build_request_graph(
         max_tokens=max_tokens,
         deadline_seconds=deadline_seconds,
     )
+    validating = _build_validating(
+        executor=executor,
+        policy_validator=policy_validator,
+        plan_id_source=plan_id_source,
+        clock=clock,
+        max_snapshot_bytes=max_snapshot_bytes,
+        deadline_seconds=validation_deadline_seconds,
+        ttl_seconds=ttl_seconds,
+        max_repair_attempts=max_repair_attempts,
+    )
     graph.add_node(STATE_PREPARING, _preparing)
     graph.add_node(STATE_GENERATING, generating)  # pyrefly: ignore[bad-argument-type]
-    graph.add_node(STATE_VALIDATING, _validating)
+    graph.add_node(STATE_VALIDATING, validating)  # pyrefly: ignore[bad-argument-type]
     graph.add_node(STATE_PENDING_APPROVAL, _pending_approval)
 
     graph.set_entry_point(STATE_PREPARING)
