@@ -318,5 +318,102 @@ def test_to_wire_on_an_exact_outcome_carries_no_mismatches() -> None:
     assert wire.mismatches == ()
 
 
+def test_a_non_finite_view_becomes_unavailable_not_an_unhandled_error() -> None:
+    """A NaN/Infinite camera view fails closed rather than raising.
+
+    `structure_digest()` deliberately excludes `view` from its own
+    NaN/Infinity check, so a live snapshot with a non-finite view
+    survives `extract_live_snapshot()` cleanly. `to_json()` has no such
+    exclusion and would otherwise raise ValueError from inside
+    `check_fidelity()` itself, before the probe is ever called.
+    """
+    live = _one_atom_snapshot()
+    non_finite_view = dataclasses.replace(
+        live, view=(float("nan"), *live.view[1:])
+    )
+
+    def _unreachable_probe(_request: FidelityRequest) -> FidelityReport:
+        """Fail the test if ever called; the failure must happen first.
+
+        Args:
+            _request: Ignored.
+
+        Raises:
+            AssertionError: Always, if reached.
+        """
+        raise AssertionError(
+            "the probe must never be called for an unserializable snapshot"
+        )
+
+    outcome = check_fidelity(non_finite_view, probe=_unreachable_probe)
+
+    assert outcome.status == FIDELITY_UNAVAILABLE
+    assert outcome.is_exact is False
+    assert outcome.reason == REASON_MALFORMED_INPUT
+    assert outcome.mismatches == ()
+    assert outcome.reconstructed_digest is None
+
+
+def test_a_status_ok_report_missing_its_reconstruction_becomes_unavailable() -> (
+    None
+):
+    """A STATUS_OK report without reconstructed_snapshot_json fails closed.
+
+    No conforming probe produces this combination, but check_fidelity()
+    takes an injectable probe specifically so a test -- or a future probe
+    implementation -- can. This must never reach the bare assert it used
+    to: an uncaught AssertionError would itself violate this function's
+    own documented never-raises contract.
+    """
+    live = _one_atom_snapshot()
+    inconsistent_report = FidelityReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest=structure_digest(live),
+        reconstructed_snapshot_json=None,
+        child_pid=4321,
+        child_terminated=True,
+        elapsed_seconds=0.5,
+        warnings=(),
+    )
+
+    outcome = check_fidelity(live, probe=_fake_probe(inconsistent_report))
+
+    assert outcome.status == FIDELITY_UNAVAILABLE
+    assert outcome.is_exact is False
+    assert outcome.reason == REASON_MALFORMED_INPUT
+    assert outcome.reconstructed_digest is None
+
+
+def test_an_injected_live_digest_is_used_instead_of_recomputed() -> None:
+    """A caller-supplied live_digest is trusted, not silently recomputed.
+
+    `pmc_client.command.copilot()` already computed this digest via
+    `extract_live_snapshot()`; check_fidelity() must not redo that O(n)
+    work on the same snapshot.
+    """
+    live = _one_atom_snapshot()
+    deliberately_wrong_digest = "sha256:" + "0" * 64
+    assert deliberately_wrong_digest != structure_digest(live)
+
+    outcome = check_fidelity(
+        live,
+        live_digest=deliberately_wrong_digest,
+        probe=_fake_probe(_ok_report(live)),
+    )
+
+    assert outcome.live_digest == deliberately_wrong_digest
+
+
+def test_omitted_live_digest_is_computed_internally() -> None:
+    """Without an injected live_digest, check_fidelity() computes its own."""
+    live = _one_atom_snapshot()
+
+    outcome = check_fidelity(live, probe=_fake_probe(_ok_report(live)))
+
+    assert outcome.live_digest == structure_digest(live)
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))

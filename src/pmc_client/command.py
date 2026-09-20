@@ -28,7 +28,6 @@ from pmc_client.fidelity import FidelityOutcome
 from pmc_client.fidelity import check_fidelity
 from pmc_client.fidelity import to_wire
 from pmc_client.session import PyMOLSession
-from pmc_client.session import TargetResolutionError
 from pmc_client.session import extract_live_snapshot
 from pmc_client.session import resolve_target_object
 from pmc_client.transport import LoopbackPlanClient
@@ -313,24 +312,32 @@ class CopilotCommandClient:
         if self._cmd is None:
             raise RuntimeError("copilot invoked before register()")
 
-        try:
-            object_name = resolve_target_object(self._cmd)
-        except TargetResolutionError as error:
-            self._output(f"copilot failed: {error}")
-            return
+        # SPECIFICATION.md:515/524-525: a new request unconditionally
+        # supersedes any prior pending plan, whether or not this one goes
+        # on to succeed -- cleared here, before anything below can fail,
+        # so a failed request never leaves a stale plan (bound to
+        # whatever the live session looked like before this invocation)
+        # reachable through copilot_apply.
+        self._pending_plan = None
 
         try:
+            object_name = resolve_target_object(self._cmd)
             snapshot, digest = extract_live_snapshot(self._cmd, object_name)
         except Exception as error:
-            # extract_live_snapshot() reaches real PyMOL query APIs this
-            # module cannot enumerate every failure mode of; fail closed
-            # and report rather than let an unhandled exception propagate
-            # into PyMOL's own command dispatch.
+            # Both calls reach real PyMOL query APIs this module cannot
+            # enumerate every failure mode of (resolve_target_object()'s
+            # own TargetResolutionError is one specific, expected case
+            # among them); fail closed and report rather than let an
+            # unhandled exception propagate into PyMOL's own command
+            # dispatch.
             self._output(f"copilot failed: {error}")
             return
 
         outcome = check_fidelity(
-            snapshot, probe=self._probe, deadline_seconds=self._deadline_seconds
+            snapshot,
+            live_digest=digest,
+            probe=self._probe,
+            deadline_seconds=self._deadline_seconds,
         )
         atom_count = len(snapshot.states[0].atoms) if snapshot.states else 0
         state_count = len(snapshot.states)

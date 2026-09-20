@@ -115,6 +115,11 @@ class _RecordingSession:
     object_name: str = OBJECT_NAME
     atoms: tuple[_FakeAtom, ...] = (_DEFAULT_ATOM,)
     has_molecule: bool = True
+    #: When set, get_names() raises this instead of returning names --
+    #: simulating a real PyMOL-internal query failure distinct from
+    #: TargetResolutionError's own "zero or more than one candidate"
+    #: business-logic condition.
+    raise_on_get_names: Exception | None = None
     commands: dict[str, Callable[[str], None]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
@@ -149,8 +154,13 @@ class _RecordingSession:
         Returns:
             The one molecule name, or an empty list when `has_molecule`
             is False.
+
+        Raises:
+            Exception: `raise_on_get_names`, when set.
         """
         assert enabled_only in (0, 1)
+        if self.raise_on_get_names is not None:
+            raise self.raise_on_get_names
         return [self.object_name] if self.has_molecule else []
 
     def get_type(self, name: str) -> str:
@@ -743,6 +753,75 @@ def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}{first_id} is not "
         "the pending plan"
     ]
+
+
+def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
+    """A new request supersedes the pending plan even when it fails too.
+
+    SPECIFICATION.md:515/524-525 require this unconditionally, not only
+    when the new request happens to succeed: a stale applicable plan,
+    bound to whatever the live session looked like one request ago, must
+    never remain reachable through copilot_apply just because the
+    request that was meant to replace it failed.
+    """
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    client, session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(probe_session),
+    )
+    client.copilot(FIXTURE_INTENT)
+    first_plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
+    output.clear()
+
+    # Simulate the live session becoming unresolvable before the second
+    # request -- any failure mode would do; this one needs no new fake.
+    # Mutates the client's own registered session (_client()'s second
+    # return value), not the separate one the probe was built from above.
+    session.has_molecule = False
+    client.copilot(FIXTURE_INTENT)
+    output.clear()
+
+    client.copilot_apply(first_plan_id)
+
+    # The failed second request cleared the pending plan entirely
+    # (nothing replaced it), so this is refused as having no pending
+    # plan at all -- not as an id mismatch against a stale one.
+    assert output == ["copilot_apply: no pending plan for this session"]
+
+
+def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
+    """An exception other than TargetResolutionError is still caught.
+
+    resolve_target_object() itself can reach real PyMOL query APIs
+    (get_names/get_type) this module cannot enumerate every failure mode
+    of; copilot() must fail closed the same way it already does for a
+    failure in extract_live_snapshot(), not let an unrelated exception
+    escape uncaught.
+    """
+    requests: list[PlanRequestV1] = []
+    transport = RecordingTransport(validated_response, requests)
+    output: list[str] = []
+    session = _RecordingSession(
+        raise_on_get_names=RuntimeError(
+            "simulated PyMOL-internal query failure"
+        )
+    )
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        uuid_factory=uuid_factory(),
+        timestamp_factory=lambda: CREATED_AT,
+    )
+    client.register(session)
+
+    client.copilot(FIXTURE_INTENT)
+
+    assert requests == []
+    assert len(output) == 1
+    assert output[0].startswith("copilot failed: ")
+    assert "simulated PyMOL-internal query failure" in output[0]
 
 
 def test_copilot_apply_with_no_pending_plan() -> None:

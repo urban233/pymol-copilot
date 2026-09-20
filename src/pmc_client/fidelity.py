@@ -85,6 +85,7 @@ class FidelityOutcome:
 def check_fidelity(
     live: ObjectSnapshot,
     *,
+    live_digest: str | None = None,
     probe: Callable[[FidelityRequest], FidelityReport] = probe_fidelity,
     deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
 ) -> FidelityOutcome:
@@ -93,6 +94,10 @@ def check_fidelity(
     Args:
         live: The snapshot extracted from the live session
             (`pmc_client.session.extract_live_snapshot`).
+        live_digest: `live`'s own `structure_digest`, when the caller
+            already computed one (as `extract_live_snapshot` itself
+            does), so it is not recomputed here. Computed from `live`
+            when omitted.
         probe: The fidelity probe to call, defaulted to the real
             `pmc_core.executor.probe_fidelity`. A test injects a fake so
             every branch below is provable without spawning anything --
@@ -104,11 +109,31 @@ def check_fidelity(
         The adjudicated fidelity outcome. Never raises for any documented
         failure mode.
     """
-    live_digest = structure_digest(live)
+    resolved_live_digest = (
+        live_digest if live_digest is not None else structure_digest(live)
+    )
+    try:
+        live_json = to_json(live)
+    except ValueError:
+        # to_json's own allow_nan=False covers every field, including
+        # `view`/`settings` -- fields structure_digest() deliberately
+        # excludes from its own check (see that function's docstring).
+        # A NaN/Infinite camera view (a degenerate zoom/orient on an
+        # empty or collinear selection can produce one) would otherwise
+        # survive resolved_live_digest above and only surface here as an
+        # unhandled exception, breaking this function's own never-raises
+        # contract.
+        return FidelityOutcome(
+            status=FIDELITY_UNAVAILABLE,
+            reason=REASON_MALFORMED_INPUT,
+            mismatches=(),
+            live_digest=resolved_live_digest,
+            reconstructed_digest=None,
+        )
     report = probe(
         FidelityRequest(
             executor_version=EXECUTOR_VERSION,
-            snapshot_json=to_json(live),
+            snapshot_json=live_json,
             deadline_seconds=deadline_seconds,
         )
     )
@@ -122,11 +147,24 @@ def check_fidelity(
             status=FIDELITY_UNAVAILABLE,
             reason=report.reason,
             mismatches=(),
-            live_digest=live_digest,
+            live_digest=resolved_live_digest,
             reconstructed_digest=None,
         )
 
-    assert report.reconstructed_snapshot_json is not None
+    if report.reconstructed_snapshot_json is None:
+        # A conforming probe never reports STATUS_OK without this field
+        # (probe_fidelity()'s own success path always sets it), but this
+        # module takes an injectable probe specifically so a test -- or a
+        # future probe implementation -- can substitute one; fail closed
+        # on an inconsistent report rather than trust it with a bare
+        # assert that would itself raise uncaught.
+        return FidelityOutcome(
+            status=FIDELITY_UNAVAILABLE,
+            reason=REASON_MALFORMED_INPUT,
+            mismatches=(),
+            live_digest=resolved_live_digest,
+            reconstructed_digest=None,
+        )
     try:
         reconstructed = from_json(report.reconstructed_snapshot_json)
     except (
@@ -144,13 +182,13 @@ def check_fidelity(
             status=FIDELITY_UNAVAILABLE,
             reason=REASON_MALFORMED_INPUT,
             mismatches=(),
-            live_digest=live_digest,
+            live_digest=resolved_live_digest,
             reconstructed_digest=None,
         )
 
     reconstructed_digest = structure_digest(reconstructed)
     mismatches = list(diff(live, reconstructed))
-    if not mismatches and reconstructed_digest != live_digest:
+    if not mismatches and reconstructed_digest != resolved_live_digest:
         # The two comparisons are computed by different code over
         # different field sets (structure_digest excludes view/settings/
         # enabled; diff covers every declared field). Agreement between
@@ -160,7 +198,7 @@ def check_fidelity(
         # fidelity failure in its own right, never silently trusted.
         mismatches.append(
             "digest disagreement despite empty diff: live="
-            f"{live_digest} reconstructed={reconstructed_digest}"
+            f"{resolved_live_digest} reconstructed={reconstructed_digest}"
         )
 
     if mismatches:
@@ -168,14 +206,14 @@ def check_fidelity(
             status=FIDELITY_NOT_EXACT,
             reason=REASON_FIDELITY_MISMATCH,
             mismatches=tuple(mismatches),
-            live_digest=live_digest,
+            live_digest=resolved_live_digest,
             reconstructed_digest=reconstructed_digest,
         )
     return FidelityOutcome(
         status=FIDELITY_EXACT,
         reason=REASON_OK,
         mismatches=(),
-        live_digest=live_digest,
+        live_digest=resolved_live_digest,
         reconstructed_digest=reconstructed_digest,
     )
 

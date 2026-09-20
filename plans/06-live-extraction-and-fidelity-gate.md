@@ -1082,3 +1082,82 @@ something driving real PyMOL settled that the plan had guessed at.
   exact, and injecting a real mutation into `copilot_apply`), each
   confirmed to fail exactly the tests it should and nothing else, then
   reverted with no trace in the diff.
+
+## Post-implementation code review
+
+Before pushing, an independent adversarial review (10 parallel finder
+passes plus cross-verification) was run against the whole branch
+(`main..HEAD`). Four genuine correctness gaps were found and fixed, each
+confirmed load-bearing by a mutation-testing check (temporarily reverting
+the fix, confirming exactly the regression test for it fails and nothing
+else, then restoring):
+
+- **`check_fidelity()` could raise an uncaught `ValueError`.**
+  `structure_digest()` deliberately excludes `view`/`settings`/`enabled`
+  from its own NaN/Infinity check, but `to_json(live)` has no such
+  exclusion and covers the whole snapshot. A live session whose camera
+  view had drifted to NaN or Infinite (a degenerate zoom/orient on an
+  empty or collinear selection can produce one) would pass
+  `extract_live_snapshot()` cleanly and then break `check_fidelity()`'s
+  own documented "never raises" contract. Fixed by wrapping `to_json(live)`
+  and reporting `FIDELITY_UNAVAILABLE` / `REASON_MALFORMED_INPUT` instead.
+- **A bare `assert report.reconstructed_snapshot_json is not None`
+  could itself raise uncaught.** No conforming probe produces a
+  `STATUS_OK` report without that field, but `check_fidelity()` takes an
+  injectable probe specifically so a test (or a future probe
+  implementation) can. Replaced with an explicit, fail-closed branch.
+- **`resolve_target_object()`'s call in `copilot()` was only guarded
+  against `TargetResolutionError`**, while the very next call
+  (`extract_live_snapshot()`) was already guarded against `Exception`
+  broadly -- an inconsistency that let other real-PyMOL query failures
+  escape uncaught. The two calls produced an identical failure message
+  regardless, so they are now one merged `try`/`except Exception` block.
+- **`self._pending_plan` was never cleared on a *failed* `copilot()`
+  call** -- only a fully successful one replaced it. SPECIFICATION.md's
+  own rule 2 ("a new request cancels or supersedes prior pre-apply work")
+  is unconditional, not "a new *successful* request". A user who got an
+  applicable plan, then made a second request that failed for any reason,
+  would still have the first (now stale) plan reachable through
+  `copilot_apply`. Harmless today only because `copilot_apply` is
+  refusal-only in this item; the same `PendingPlan` state machine is
+  exactly what item 10 builds real apply on top of, so the gap would
+  have shipped baked into the state item 10 inherits. Fixed by clearing
+  `self._pending_plan` unconditionally at the top of every `copilot()`
+  call, before anything below it can fail.
+
+One efficiency finding was also fixed as essentially free and risk-free:
+`check_fidelity()` now accepts an optional `live_digest` parameter so
+`copilot()` does not recompute `structure_digest()` a second time on the
+same snapshot `extract_live_snapshot()` already digested.
+
+Findings deliberately left as-is, each a real observation but not a
+correctness gap:
+
+- Captured child stderr (`_ChildAttempt.warnings`) is discarded on a
+  successful `_run_child()` completion by both `execute()` and
+  `probe_fidelity()` -- matches `execute()`'s own pre-existing behavior
+  from item 4, not a regression this item introduced; `FidelityOutcome`
+  would need its own `warnings` field to receive it, a real but separable
+  enhancement.
+- `probe_fidelity()`'s pre-spawn validation duplicates `execute()`'s
+  block verbatim, and three near-identical builder-function pairs exist
+  (`_rejected`/`_fidelity_rejected`, etc.) -- step 2's own stop condition
+  explicitly permitted exactly this outcome if further extraction risked
+  the twelve ported negative tests; it did not, for the process-management
+  body `_run_child()` shares, but the validation block itself was never
+  attempted a second time given how much was already at stake in that
+  extraction.
+- `FidelityOutcomeV1` carries no `live_digest`/`reconstructed_digest`
+  fields, so the server's own `applicable` derivation has no same-request
+  digest cross-check -- explicitly item 10's own territory
+  (SPECIFICATION.md orchestration rule 10, "current digest... again").
+- `PendingPlan.session_id`/`.snapshot_digest` are stored but never read
+  by anything in this item -- deliberately staged for item 10's real
+  re-verification, not dead code, though it lacked a comment saying so
+  until this note.
+- `_fidelity_block()`/`_checked_block()` independently dispatch over the
+  same three-status enumeration; `pmc_sidecar/fidelity.py` duplicates
+  `child.py`'s PyMOL-launch and crash-safe-output boilerplate. Both are
+  real, minor duplication; refactoring either now was judged higher risk
+  (touching working, already-tested console/child logic) than the
+  quality gain justified this close to review.
