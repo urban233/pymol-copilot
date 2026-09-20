@@ -125,6 +125,24 @@ def _multi_bond_snapshot() -> ObjectSnapshot:
     )
 
 
+def _reordered_reps(atom: AtomRecord) -> tuple[str, ...]:
+    """Return one atom's representations in a genuinely different order.
+
+    Reversing a one-element tuple is a no-op, which is how the bond half
+    of the old ordering test passed without testing anything. Fail
+    loudly here rather than let a fixture change quietly empty out the
+    two tests that reorder representations.
+
+    Args:
+        atom: The atom whose representations to reorder.
+
+    Returns:
+        The same representation names in the opposite order.
+    """
+    assert len(atom.reps) > 1, "fixture atom cannot show a reps reordering"
+    return tuple(reversed(atom.reps))
+
+
 def test_golden_card_has_stable_bytes() -> None:
     """A representative snapshot renders fixed card bytes."""
     card = render(_snapshot())
@@ -176,6 +194,42 @@ def test_equivalent_setting_order_produces_identical_card() -> None:
     assert render(equivalent) == render(snapshot)
 
 
+def test_equivalent_representation_order_produces_identical_card() -> None:
+    """Representation order in the snapshot does not affect card bytes.
+
+    An atom's representations render sorted, so the tuple's own order is
+    invisible in the card. It has to be invisible in the canonical atom
+    order too: two atoms sharing the seven identity fields are separated
+    by the key components that follow, and keying the raw tuple there
+    lets a reordering the card never shows decide which atom line comes
+    first and which canonical index a bond endpoint gets.
+    """
+    base = _snapshot()
+    atom_b, atom_a = base.states[0].atoms
+    twin = replace(atom_a, coord=(-1.0, -2.0, -3.0))
+    snapshot = replace(
+        base,
+        states=(StateSnapshot((atom_a, twin, atom_b)),),
+        bonds=(BondRecord(0, 2, 1),),
+    )
+    reordered = replace(
+        snapshot,
+        states=(
+            StateSnapshot(
+                (
+                    replace(atom_a, reps=_reordered_reps(atom_a)),
+                    twin,
+                    atom_b,
+                )
+            ),
+        ),
+    )
+
+    assert render(snapshot).startswith("card-version=1\nstatus=complete\n")
+    assert "bond from=1 to=2 order=1\n" in render(snapshot)
+    assert render(reordered) == render(snapshot)
+
+
 def test_atoms_sharing_identity_fields_are_ordered_by_content() -> None:
     """Two atoms with one identity sort by what distinguishes them.
 
@@ -198,16 +252,58 @@ def test_atoms_sharing_identity_fields_are_ordered_by_content() -> None:
     assert render(permuted) == render(snapshot)
 
 
-def test_indistinguishable_atoms_return_stable_malformed_card() -> None:
+@pytest.mark.parametrize(
+    "reorder_reps",
+    [
+        pytest.param(False, id="identical-atom"),
+        pytest.param(True, id="representations-reordered"),
+    ],
+)
+def test_indistinguishable_atoms_return_stable_malformed_card(
+    reorder_reps: bool,
+) -> None:
     """Atoms equal in every rendered field have no canonical order.
 
     Their lines would be identical, but the canonical index of a bond
     ending on one of them would still be decided by input position, so
     the snapshot fails closed rather than rendering permutable bytes.
+
+    The second case is the one a raw-tuple key misses: reordering the
+    representations renders the same line, so the duplicate is just as
+    real, but the two atoms would no longer tie on the key and the card
+    would render as complete.
     """
     base = _snapshot()
     atom_b, atom_a = base.states[0].atoms
-    malformed = replace(base, states=(StateSnapshot((atom_b, atom_a, atom_a)),))
+    duplicate = replace(
+        atom_a,
+        reps=_reordered_reps(atom_a) if reorder_reps else atom_a.reps,
+    )
+    malformed = replace(
+        base, states=(StateSnapshot((atom_b, atom_a, duplicate)),)
+    )
+
+    assert render(malformed) == (
+        "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"
+    )
+
+
+def test_atoms_differing_below_rendered_precision_are_malformed() -> None:
+    """A difference the card rounds away does not make two atoms distinct.
+
+    _number() renders six decimals, so coordinates closer together than
+    that produce identical atom lines. A key taken from the raw float
+    would both order the two atoms by a difference the card never shows
+    and hide them from the duplicate check, leaving a card carrying two
+    identical atom lines and a bond endpoint attributable to neither.
+    """
+    base = _snapshot()
+    atom_b, atom_a = base.states[0].atoms
+    x, y, z = atom_a.coord
+    below_precision = replace(atom_a, coord=(x + 1e-9, y, z))
+    malformed = replace(
+        base, states=(StateSnapshot((atom_b, atom_a, below_precision)),)
+    )
 
     assert render(malformed) == (
         "card-version=1\nstatus=unsupported reason=malformed-snapshot\n"

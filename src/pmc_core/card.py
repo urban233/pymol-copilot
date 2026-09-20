@@ -107,6 +107,43 @@ def _number(value: float | int) -> str:
     return "0" if normalized in {"0", "-0"} else normalized
 
 
+def _reps_text(reps: tuple[str, ...]) -> str:
+    """Return the canonical representation text for one atom.
+
+    An atom's representations are a set, not a sequence, so the card
+    shows them sorted and the tuple's own order is never visible. This
+    is the single place that canonicalization happens: both `_atom_line`
+    and `_atom_key` go through it, so the order the card renders and the
+    order it sorts by cannot drift apart.
+
+    Args:
+        reps: The atom's representation names, in any order.
+
+    Returns:
+        The names sorted and comma-joined.
+    """
+    return ",".join(sorted(reps))
+
+
+def _number_key(value: float | int) -> tuple[float, str]:
+    """Return the sort key for one rendered numeric field.
+
+    The key pairs the number the card's own text denotes with that text.
+    Ordering therefore stays numeric, which is what keeps the atom order
+    readable, while two keys are equal exactly when the rendered bytes
+    are equal -- including for values `_number()` rounds together, which
+    a raw float would keep apart while the card shows them the same.
+
+    Args:
+        value: The number as the snapshot carries it.
+
+    Returns:
+        The value of the rendered text, paired with that text.
+    """
+    text = _number(value)
+    return float(text), text
+
+
 def _atom_key(atom: AtomRecord) -> tuple[object, ...]:
     """Return the canonical sort key for one atom.
 
@@ -116,8 +153,16 @@ def _atom_key(atom: AtomRecord) -> tuple[object, ...]:
     differing in coordinates, color, label or representations would
     otherwise keep their input order under a stable sort, and permuting
     the input would move their lines and their canonical bond indices.
-    Atoms that agree on the whole key render identical lines, and
-    `_valid_snapshot` rejects a state containing two of them.
+
+    Every component is a field's *rendered* form rather than its raw
+    value -- `_number_key` for numbers, `_reps_text` for representations
+    -- so that two keys are equal exactly when the two atoms render
+    identical lines. A raw component would separate atoms the card shows
+    the same, letting a difference the card never displays decide which
+    line comes first: two snapshots equivalent under the card's own
+    canonicalization would then render different bytes. Atoms tying on
+    the whole key render identical lines, and `_valid_snapshot` rejects
+    a state containing two of them.
 
     Args:
         atom: The atom to key.
@@ -128,21 +173,21 @@ def _atom_key(atom: AtomRecord) -> tuple[object, ...]:
     """
     return (
         atom.chain,
-        atom.resv,
+        _number_key(atom.resv),
         atom.ins_code,
         atom.resn,
         atom.name,
         atom.alt,
-        atom.serial,
+        _number_key(atom.serial),
         atom.elem,
         atom.hetatm,
-        atom.q,
-        atom.b,
-        atom.color,
-        atom.reps,
+        _number_key(atom.q),
+        _number_key(atom.b),
+        _number_key(atom.color),
+        _reps_text(atom.reps),
         atom.label is not None,
         atom.label or "",
-        atom.coord,
+        tuple(_number_key(value) for value in atom.coord),
     )
 
 
@@ -170,7 +215,7 @@ def _atom_line(state_index: int, atom: AtomRecord) -> str:
         ("occupancy", _number(atom.q)),
         ("b_factor", _number(atom.b)),
         ("color", _number(atom.color)),
-        ("reps", _text(",".join(sorted(atom.reps)))),
+        ("reps", _text(_reps_text(atom.reps))),
         ("label", "null" if atom.label is None else _text(atom.label)),
         ("coord", _text(",".join(_number(value) for value in atom.coord))),
     )
