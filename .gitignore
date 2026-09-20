@@ -206,11 +206,13 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
-# Bazel outputs and generated project artifacts
-bazel-bin
-bazel-out
-bazel-testlogs
-bazel-pymol-copilot
+# Bazel outputs and generated project artifacts.
+# Bazel names its convenience symlinks after the directory holding the
+# workspace, so a git worktree gets bazel-<worktree-directory> rather than
+# bazel-pymol-copilot -- a name no fixed list can predict. Match the whole
+# family instead, anchored to the workspace root, which is the only place
+# Bazel ever writes them.
+/bazel-*
 .bazelbsp/
 /pymol_copilot
 /data/*
