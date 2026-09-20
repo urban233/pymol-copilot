@@ -8,6 +8,7 @@ py_library(
     ],
     imports = [".."],
     deps = [
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
         "@pypi//httpx",
         "@pypi//langgraph",

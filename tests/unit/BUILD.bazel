@@ -34,3 +34,15 @@ py_test(
         "//src/pmc_agent:pmc_agent",
     ],
 )
+
+py_test(
+    name = "inference_fake",
+    size = "small",
+    srcs = ["test_inference_fake.py"],
+    main = "test_inference_fake.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
