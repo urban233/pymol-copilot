@@ -113,28 +113,24 @@ project-includes = ["src/pmc_client", "src/pmc_core", "src/pmc_agent", "src/pmc_
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true
-# tests/discovery/m02/card_candidate.py is imported as a bare sibling
-# module (`from card_candidate import ...`) by its own directory's test
-# module -- resolved at runtime by pytest/Bazel via sys.path, but not
-# otherwise visible to pyrefly without this search path.
-# tools/winstage/winstage.py is the same situation, one level up: a bare
-# top-level module reached via Bazel's py_library `imports = ["."]`,
-# imported the same way by every process that imports real PyMOL on
-# Windows (W2-01, issue #12).
+# tools/winstage/winstage.py is a bare top-level module reached via
+# Bazel's py_library `imports = ["."]` -- resolved at runtime by
+# pytest/Bazel via sys.path, but not otherwise visible to pyrefly without
+# this search path. Every process that imports real PyMOL on Windows
+# imports it that way (W2-01, issue #12).
 # tests/integration/snapshot_support.py is the same situation for
 # pmc_core.snapshot's real-PyMOL round-trip evidence: a bare sibling
 # module (`from snapshot_support import ...`) imported by that package's
-# own conftest.py, and by tests/discovery/m02's own conftest.py, which
-# re-exports its fixtures. tests/discovery/h02 used to do the same for
-# its now-promoted execution-boundary prototype (docs/master_plan.md
-# item 4); that directory no longer exists.
+# own conftest.py. tests/discovery/h02 and tests/discovery/m02 each used
+# to re-export its fixtures for their own prototype; both are now
+# promoted (docs/master_plan.md items 4 and 5) and neither directory
+# exists, so tests/integration is the only package that reaches it.
 # tests/integration/pymol_error_cases.py is the same situation again for
 # pmc_core.errors: one bare sibling module (`from pymol_error_cases
 # import ...`) holding the broken-command table that both
 # capture_pymol_errors.py and test_errors_real_pymol.py import, so the
 # corpus writer and the conformance test cannot drift apart.
 search-path = [
-    "tests/discovery/m02",
     "tests/integration",
     "tools/winstage",
 ]
