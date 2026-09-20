@@ -1005,3 +1005,19 @@ something driving real PyMOL settled that the plan had guessed at.
   `enabled_only`) would have. Found by pyrefly, not by the tests
   themselves, which is exactly the gap a stricter type checker than "does
   it run" is supposed to catch.
+
+- **`pmc_client.fidelity` imports `FIDELITY_EXACT`/`FIDELITY_NOT_EXACT`/
+  `FIDELITY_UNAVAILABLE` from `pmc_core.protocol` rather than redefining
+  them**, unlike this step's own sketch. Step 4 already placed those three
+  constants there (`FidelityOutcomeV1.status` needs them), and `to_wire()`
+  passes `FidelityOutcome.status` straight into `FidelityOutcomeV1.status`
+  -- the two must be the same strings by construction, so a second,
+  separately maintained copy would be exactly the kind of drift risk this
+  repository avoids elsewhere (see `_VERB_BY_TYPE` deriving from
+  `COMMAND_ALLOWLIST` in `src/pmc_sidecar/child.py`). `FidelityOutcome`'s
+  `reason` field for a `FIDELITY_NOT_EXACT` outcome (both the plain-diff
+  and the digest-disagreement-despite-empty-diff cases) uses the existing
+  `pmc_core.executor.REASON_FIDELITY_MISMATCH`, not a new constant --
+  `execute()` already uses it for the same underlying concept (a
+  reconstruction that ran successfully but did not match what was
+  expected).
