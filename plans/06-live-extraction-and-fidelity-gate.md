@@ -993,3 +993,15 @@ something driving real PyMOL settled that the plan had guessed at.
   count essentially never equals the fixture's placeholder values. That is
   step 7's own problem to solve where the client-side change actually
   happens, not step 4's; step 7's own section below records the fix.
+
+- **The fake `PyMOLSession` in `tests/contract/test_client_session.py` keeps
+  every parameter name identical to the real `Protocol`'s, with a scoped
+  `# noqa: ARG002` per unused one, rather than underscore-prefixing them.**
+  pyrefly's structural Protocol conformance check requires a matching
+  parameter name for any positional-or-keyword parameter, not just for the
+  ones a given caller happens to invoke by keyword today -- renaming even
+  the purely-positional ones (`selection`, `setting`) broke conformance the
+  same way renaming the genuinely keyword-called ones (`state`,
+  `enabled_only`) would have. Found by pyrefly, not by the tests
+  themselves, which is exactly the gap a stricter type checker than "does
+  it run" is supposed to catch.
