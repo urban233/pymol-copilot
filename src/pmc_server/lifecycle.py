@@ -18,12 +18,12 @@ from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
-from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 
@@ -45,9 +45,17 @@ FIXTURE_PLAN = ActionPlan(
         ColorOperation(color="red", target=NamedSelection("copilot_selection")),
     )
 )
-FIXTURE_SNAPSHOT = StructureSnapshotV1(
-    "1", "sha256:example-chain-a-digest", "one-object-chain-a-v1"
-)
+#: `_matches_fixture` below no longer compares a whole `StructureSnapshotV1`
+#: against a request's own snapshot: docs/master_plan.md item 7 makes the
+#: client send a real, per-session snapshot identity
+#: (`pmc_client.session.extract_live_snapshot`), which varies with
+#: whatever object is actually loaded and essentially never equals a fixed
+#: literal. Only the schema version is still checked, so that is all this
+#: module still declares -- a stale digest/object-name/atom-count literal
+#: nothing reads is worse than no literal at all. Item 8's LangGraph
+#: request graph replaces this whole lifecycle, snapshot handling
+#: included.
+FIXTURE_SNAPSHOT_SCHEMA_VERSION = "1"
 FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
 
 type PLAN_ID_SOURCE = Callable[[], str]
@@ -140,6 +148,15 @@ class PlanRequestLifecycle:
             validation=ValidationReportV1(
                 status="passed",
                 snapshot_digest=request.snapshot.digest,
+                # The server's whole share of orchestration rule 9
+                # (SPECIFICATION.md:539): never upgrade or re-derive the
+                # request's own fidelity outcome -- this lifecycle has no
+                # live session to compare against, only what the client
+                # already reported. A request that claims "exact" while
+                # the client's own local gate disagrees still fails at
+                # the client's own AND
+                # (pmc_client.command._report_validated).
+                applicable=request.fidelity.status == FIDELITY_EXACT,
                 warnings=(),
             ),
             plan_id=self._plan_id_source(),
@@ -154,13 +171,16 @@ class PlanRequestLifecycle:
             request: Request to compare with the fixture.
 
         Returns:
-            True when every fixture field matches.
+            True when every fixed fixture field matches and the request's
+            own (now real, per-session) snapshot declares a schema version
+            this lifecycle understands.
         """
         return (
             request.protocol_version == PROTOCOL_VERSION
             and request.contract_manifest == FIXTURE_MANIFEST
             and request.intent == FIXTURE_INTENT
-            and request.snapshot == FIXTURE_SNAPSHOT
+            and request.snapshot.schema_version
+            == FIXTURE_SNAPSHOT_SCHEMA_VERSION
         )
 
     @staticmethod

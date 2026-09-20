@@ -264,13 +264,24 @@ class ContractManifestV1:
 
 @dataclass(frozen=True)
 class StructureSnapshotV1:
-    """The canonical snapshot identity used by the initial fixture."""
+    """A computed structure-snapshot identity: no snapshot bytes travel here.
+
+    The canonical snapshot JSON itself never rides `/v1/plan` -- only this
+    identity does, computed by `pmc_client.session.extract_live_snapshot`
+    from a real `pmc_core.snapshot.ObjectSnapshot` via
+    `pmc_core.snapshot.structure_digest`. Docs/master_plan.md item 7's own
+    fidelity gate (`FidelityOutcomeV1`, carried alongside this on
+    `PlanRequestV1`) is what a caller checks before treating `digest` as
+    trustworthy for an apply -- this type alone makes no such claim.
+    """
 
     schema_version: str
     digest: str
-    fixture_id: str
+    object_name: str
+    atom_count: int
+    state_count: int
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, object]:
         """Encode the snapshot identity using its V1 wire-field names.
 
         Returns:
@@ -279,7 +290,9 @@ class StructureSnapshotV1:
         return {
             "schemaVersion": self.schema_version,
             "digest": self.digest,
-            "fixtureId": self.fixture_id,
+            "objectName": self.object_name,
+            "atomCount": self.atom_count,
+            "stateCount": self.state_count,
         }
 
     @classmethod
@@ -298,12 +311,139 @@ class StructureSnapshotV1:
         data = _strict_object(
             value,
             name="snapshot",
-            required={"schemaVersion", "digest", "fixtureId"},
+            required={
+                "schemaVersion",
+                "digest",
+                "objectName",
+                "atomCount",
+                "stateCount",
+            },
         )
         return cls(
             schema_version=_string(data["schemaVersion"], name="schemaVersion"),
             digest=_string(data["digest"], name="digest"),
-            fixture_id=_string(data["fixtureId"], name="fixtureId"),
+            object_name=_string(data["objectName"], name="objectName"),
+            atom_count=_int(data["atomCount"], name="atomCount"),
+            state_count=_int(data["stateCount"], name="stateCount"),
+        )
+
+
+#: FidelityOutcomeV1.status values. Exactly one, never a fourth: a fidelity
+#: check either found the reconstruction exact, found it not exact, or could
+#: not be performed at all -- there is no fourth outcome to represent.
+FIDELITY_EXACT = "exact"
+FIDELITY_NOT_EXACT = "not_exact"
+FIDELITY_UNAVAILABLE = "unavailable"
+
+_FIDELITY_STATUSES = frozenset(
+    {FIDELITY_EXACT, FIDELITY_NOT_EXACT, FIDELITY_UNAVAILABLE}
+)
+
+#: The most mismatch strings one FidelityOutcomeV1 carries on the wire.
+#: mismatch_count itself is never truncated, so a caller always learns the
+#: true total even when the sample is capped.
+MAX_FIDELITY_MISMATCHES = 10
+
+#: The most UTF-8 bytes one mismatch string may occupy on the wire.
+MAX_FIDELITY_MISMATCH_BYTES = 200
+
+
+@dataclass(frozen=True)
+class FidelityOutcomeV1:
+    """The result of comparing a live session against its own reconstruction.
+
+    Carried on `PlanRequestV1` alongside `StructureSnapshotV1`: the two
+    together are what SPECIFICATION.md:539's orchestration rule 9 means by
+    "exact relevant-state fidelity is mandatory for `pending_approval`" --
+    this type is the evidence, `ValidationReportV1.applicable` and
+    `pmc_client`'s own `PendingPlan.applicable` are what act on it.
+
+    Attributes:
+        status: `FIDELITY_EXACT`, `FIDELITY_NOT_EXACT`, or
+            `FIDELITY_UNAVAILABLE` (the check itself could not be
+            performed -- a probe timeout, crash, or spawn failure).
+        reason: A `pmc_core.executor` `REASON_*` constant explaining
+            `status`; `REASON_OK` iff status is `FIDELITY_EXACT`.
+        mismatch_count: The total number of field-level mismatches
+            `pmc_core.snapshot.diff` found, before any truncation. Zero iff
+            status is `FIDELITY_EXACT`.
+        mismatches: Up to `MAX_FIDELITY_MISMATCHES` of those mismatches,
+            each bounded to `MAX_FIDELITY_MISMATCH_BYTES`, for a console to
+            show. May be fewer than `mismatch_count` when truncated; never
+            more.
+    """
+
+    status: str
+    reason: str
+    mismatch_count: int
+    mismatches: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the fidelity outcome using its V1 wire-field names.
+
+        Returns:
+            The fidelity outcome represented with wire-field names.
+        """
+        return {
+            "status": self.status,
+            "reason": self.reason,
+            "mismatchCount": self.mismatch_count,
+            "mismatches": list(self.mismatches),
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> FidelityOutcomeV1:
+        """Decode and validate a V1 fidelity outcome.
+
+        Args:
+            value: JSON-like value containing a fidelity outcome.
+
+        Returns:
+            The validated fidelity outcome.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the fidelity
+                outcome schema, or violates one of its own invariants: an
+                unrecognized status, an `exact` status carrying any
+                mismatch, more mismatch strings than the declared count, or
+                more than `MAX_FIDELITY_MISMATCHES` of them.
+        """
+        data = _strict_object(
+            value,
+            name="fidelity",
+            required={"status", "reason", "mismatchCount", "mismatches"},
+        )
+        status = _string(data["status"], name="status")
+        if status not in _FIDELITY_STATUSES:
+            raise ProtocolDecodeError(
+                "fidelity.status is not a recognized value"
+            )
+        reason = _string(data["reason"], name="reason")
+        mismatch_count = _int(data["mismatchCount"], name="mismatchCount")
+        match data["mismatches"]:
+            case list() as mismatch_values:
+                mismatches = tuple(
+                    _string(item, name="mismatch") for item in mismatch_values
+                )
+            case _:
+                raise ProtocolDecodeError("fidelity.mismatches must be strings")
+        if len(mismatches) > MAX_FIDELITY_MISMATCHES:
+            raise ProtocolDecodeError(
+                "fidelity.mismatches exceeds the V1 limit"
+            )
+        if mismatch_count < len(mismatches):
+            raise ProtocolDecodeError(
+                "fidelity.mismatchCount is smaller than its own mismatches"
+            )
+        if status == FIDELITY_EXACT and (mismatch_count != 0 or mismatches):
+            raise ProtocolDecodeError(
+                "fidelity.status exact must carry no mismatches"
+            )
+        return cls(
+            status=status,
+            reason=reason,
+            mismatch_count=mismatch_count,
+            mismatches=mismatches,
         )
 
 
@@ -317,6 +457,7 @@ class PlanRequestV1:
     contract_manifest: ContractManifestV1
     intent: str
     snapshot: StructureSnapshotV1
+    fidelity: FidelityOutcomeV1
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
@@ -333,6 +474,7 @@ class PlanRequestV1:
             "contractManifest": self.contract_manifest.to_dict(),
             "intent": self.intent,
             "snapshot": self.snapshot.to_dict(),
+            "fidelity": self.fidelity.to_dict(),
         }
 
     @classmethod
@@ -359,6 +501,7 @@ class PlanRequestV1:
                 "contractManifest",
                 "intent",
                 "snapshot",
+                "fidelity",
             },
         )
         if data["protocolVersion"] != PROTOCOL_VERSION:
@@ -375,6 +518,7 @@ class PlanRequestV1:
             ),
             intent=intent,
             snapshot=StructureSnapshotV1.from_dict(data["snapshot"]),
+            fidelity=FidelityOutcomeV1.from_dict(data["fidelity"]),
         )
 
 
@@ -602,10 +746,21 @@ def _decode_command(value: object) -> OPERATION:
 
 @dataclass(frozen=True)
 class ValidationReportV1:
-    """The validation result accompanying a typed action plan."""
+    """The validation result accompanying a typed action plan.
+
+    `applicable` is the server's own share of orchestration rule 9
+    (SPECIFICATION.md:539): *"Exact relevant-state fidelity is mandatory
+    for `pending_approval`. Static validation may produce an inspectable
+    plan but never an applicable plan."* The server sets it from the
+    request's own `FidelityOutcomeV1` alone -- it holds no live session to
+    check fidelity against itself. A client still enforces its own copy of
+    the same rule from its own locally observed fidelity outcome; neither
+    side trusts the other's `applicable` alone.
+    """
 
     status: str
     snapshot_digest: str
+    applicable: bool
     warnings: tuple[str, ...]
 
     def to_dict(self) -> dict[str, object]:
@@ -617,6 +772,7 @@ class ValidationReportV1:
         return {
             "status": self.status,
             "snapshotDigest": self.snapshot_digest,
+            "applicable": self.applicable,
             "warnings": list(self.warnings),
         }
 
@@ -636,7 +792,7 @@ class ValidationReportV1:
         data = _strict_object(
             value,
             name="validation",
-            required={"status", "snapshotDigest", "warnings"},
+            required={"status", "snapshotDigest", "applicable", "warnings"},
         )
         match data["warnings"]:
             case list() as warning_values:
@@ -645,6 +801,13 @@ class ValidationReportV1:
                 )
             case _:
                 raise ProtocolDecodeError("validation.warnings must be strings")
+        match data["applicable"]:
+            case bool() as applicable:
+                pass
+            case _:
+                raise ProtocolDecodeError(
+                    "validation.applicable must be a boolean"
+                )
         status = _string(data["status"], name="status")
         if status != "passed":
             raise ProtocolDecodeError("validation status is not passed")
@@ -653,6 +816,7 @@ class ValidationReportV1:
             snapshot_digest=_string(
                 data["snapshotDigest"], name="snapshotDigest"
             ),
+            applicable=applicable,
             warnings=warnings,
         )
 

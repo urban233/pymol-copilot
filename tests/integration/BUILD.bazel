@@ -153,6 +153,73 @@ py_test(
     ],
 )
 
+py_test(
+    name = "sidecar_fidelity",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_sidecar_fidelity.py"],
+    main = "test_sidecar_fidelity.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Drives pmc_sidecar.fidelity.probe() against the module-scoped
+    # real_pymol/loaded_fixture fixtures; excluded from concurrent
+    # scheduling for the same reason as :sidecar_child.
+    tags = ["exclusive"],
+    deps = [
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# A test-owned fidelity child pmc_core.executor.probe_fidelity() can spawn
+# in place of the production src/pmc_sidecar/fidelity.py: unlike
+# :sabotage_child below, it genuinely reconstructs and re-extracts in real
+# PyMOL first, then perturbs one field of its own honest re-extraction
+# before reporting it -- see its own module docstring for why that
+# distinction matters to what it proves.
+py_library(
+    name = "fidelity_sabotage_child",
+    srcs = ["fidelity_sabotage_child.py"],
+    imports = ["."],
+    visibility = ["//tests/integration:__pkg__"],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "//src/pmc_core:pmc_core",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "client_fidelity_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_client_fidelity_real_pymol.py"],
+    main = "test_client_fidelity_real_pymol.py",
+    data = [
+        "conftest.py",
+        "testdata/h02_full_v1_fixture.pdb",
+    ],
+    # Spawns real pmc_sidecar.fidelity and fidelity_sabotage_child
+    # subprocesses against the module-scoped real_pymol/loaded_fixture
+    # fixtures; excluded from concurrent scheduling for the same reason as
+    # :sidecar_fidelity and :real_pymol_command.
+    tags = ["exclusive"],
+    deps = [
+        ":fidelity_sabotage_child",
+        ":snapshot_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
 # A test-owned sidecar child pmc_core.executor.execute() can spawn in place
 # of the production src/pmc_sidecar/child.py, so test_executor_boundary.py
 # can exercise execute()'s own process-management guarantees without

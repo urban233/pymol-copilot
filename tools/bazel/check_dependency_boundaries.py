@@ -25,13 +25,24 @@ FORBIDDEN = {
     # The sidecar executor's PyMOL-touching child (docs/master_plan.md item
     # 4). pmc_core.executor spawns it by module name
     # ("python -m pmc_sidecar.child"), never by import, so this package must
-    # never enter pmc_core's or pmc_agent's own dependency closure -- only
-    # pmc_server (which actually spawns the child process) depends on it.
+    # never enter pmc_core's or pmc_agent's own dependency closure. Two
+    # packages depend on it directly: pmc_server, which spawns the
+    # execution-boundary child, and pmc_client (docs/master_plan.md item 7),
+    # which spawns the fidelity-probe child from inside PyMOL's own process.
     "//src/pmc_sidecar:pmc_sidecar",
 }
 FORBIDDEN_BY_ROOT = {
     "//src/pmc_core:pmc_core": FORBIDDEN,
     "//src/pmc_agent:pmc_agent": FORBIDDEN - {"//src/pmc_agent:pmc_agent"},
+    # The in-PyMOL client legitimately depends on pmc_sidecar (it spawns the
+    # fidelity probe) and transitively on winstage (pmc_sidecar's own
+    # Windows staging dependency), so both are excluded here -- everything
+    # else in FORBIDDEN, especially the training stack and LangGraph, must
+    # still never reach the process the user's live PyMOL session runs in.
+    "//src/pmc_client:pmc_client": (
+        FORBIDDEN
+        - {"//src/pmc_sidecar:pmc_sidecar", "//tools/winstage:winstage"}
+    ),
 }
 TRAINING_NAMES = ("torch", "transformers", "peft", "trl", "unsloth")
 RUNTIME_NAMES = ("langgraph", "lemonade")
@@ -42,6 +53,10 @@ NAMES_BY_ROOT = {
     # Per SPECIFICATION.md:656, the managed server is exactly where
     # LangGraph belongs. Only the training stack is forbidden here.
     "//src/pmc_agent:pmc_agent": TRAINING_NAMES,
+    # The client runs inside PyMOL's own interpreter -- the one process
+    # where neither the training stack nor LangGraph orchestration may ever
+    # appear, stronger than either reason above.
+    "//src/pmc_client:pmc_client": TRAINING_NAMES + RUNTIME_NAMES,
 }
 
 
@@ -71,13 +86,17 @@ def closure(label: str) -> set[str]:
 
 
 def main() -> int:
-    """Check core and agent closures and report their contents.
+    """Check core, agent, and client closures and report their contents.
 
     Returns:
-        Zero when both closures satisfy the dependency policy, or one when a
-        forbidden dependency is found.
+        Zero when every closure satisfies the dependency policy, or one when
+        a forbidden dependency is found.
     """
-    for label in ("//src/pmc_core:pmc_core", "//src/pmc_agent:pmc_agent"):
+    for label in (
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_client:pmc_client",
+    ):
         labels = closure(label)
         print(f"{label} closure:")
         print("\n".join(sorted(labels)))

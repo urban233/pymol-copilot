@@ -33,6 +33,9 @@ Modes, a single string in `PMC_SABOTAGE_MODE`:
         not a well-formed report at all (JSON `null`), simulating a crash
         mid-write or a corrupt write, as distinct from writing no output
         file at all.
+    `"report:<json>"` -- write the supplied JSON object as the report, so
+        a test can probe the parent's validation of otherwise well-shaped
+        but untrustworthy scalar fields.
     `"stderr_crash:<bytes>"` -- write that many bytes to stderr, then exit
         without a report.
     `"long_error:<bytes>"` -- write a command-failure report whose error is
@@ -106,6 +109,15 @@ def main(argv: Sequence[str] | None = None) -> None:
             json.dump(None, handle)
             handle.flush()
             os.fsync(handle.fileno())
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+
+    if mode.startswith("report:"):
+        payload = json.loads(mode.removeprefix("report:"))
+        if not isinstance(payload, dict):
+            raise ValueError("report sabotage payload must be a JSON object")
+        _write(payload)
         sys.stdout.flush()
         sys.stderr.flush()
         os._exit(0)

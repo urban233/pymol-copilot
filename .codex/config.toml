@@ -1,0 +1,2 @@
+[plugins."github@openai-curated-remote"]
+enabled = true
