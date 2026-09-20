@@ -508,3 +508,63 @@ each re-checked by sabotaging the fix and watching the new test fail.
   conformance test re-drives, which `tests/contract` reaches through a
   widened `visibility` on that PyMOL-free `py_library`. Both sabotages now
   fail the target.
+
+### Second round
+
+Hannah's re-review found two more, one on each side of the corpus.
+
+- **The conformance run was not replaying the capture's environment.** The
+  corpus is captured with `-qck`, but `test_errors_real_pymol.py` launched
+  with `-qc`, this package's usual arguments. `-k` skips the user's pymolrc
+  files and plugins, so without it a startup script could pre-create
+  `copilot_undefined`, define `notacolor`, or monkeypatch a `cmd` method, and
+  the conformance run would pass or fail for a reason unrelated to the PyMOL
+  drift it exists to detect. The arguments now live in one place,
+  `pymol_error_cases.LAUNCH_ARGUMENTS`, beside the case table and for the
+  same reason: the capture and the conformance test must not be able to
+  disagree about what the corpus describes.
+
+  Two checks rather than the shared constant alone, because passing a flag
+  and having it take effect are different claims. The capture writes its
+  launch arguments into every corpus file, and the hermetic contract test
+  fails when they are not `LAUNCH_ARGUMENTS`, so a recapture taken under
+  other arguments cannot quietly become the new baseline. The conformance
+  test then reads `pymol.invocation.options` and asserts the live process
+  really did load no plugins and no pymolrc. Dropping the `-k` from the
+  constant fails exactly one test on each path.
+
+  Recapturing changed nothing but the new field: every captured message is
+  byte-identical, which is independent evidence the corpus had been captured
+  under `-qck` all along and only the replay was wrong. Regenerating twice
+  is still byte-identical.
+
+  The other real-PyMOL modules in `tests/integration/` still launch with
+  `-qc`. They are not replaying checked-in evidence, so the same argument
+  does not apply to them, and changing them belongs to whichever item cares.
+
+- **The consumer assertion was still textual, and still vacuous.** The
+  previous round replaced a tautology with a scan requiring any consumer
+  that calls `normalize(` to name `pmc_core.errors` somewhere in the file.
+  That is co-occurrence, not resolution: `from another_module import
+  normalize` next to an unrelated `import pmc_core.errors` passes, and so
+  does a bare comment naming this module, which leaves exactly the
+  divergent-normalizer regression it was written for undetectable.
+
+  The scan now parses the source and resolves each call target through the
+  module's own import bindings, so what is compared is the callable the call
+  reaches rather than strings that happen to share a file. It follows the
+  four shapes a consumer could plausibly use -- plain `from`-import, aliased
+  `from`-import, module attribute, fully qualified -- and reports anything
+  resolving elsewhere, including a normalizer the module defines itself.
+  Indirection through a computed target is not followed and the docstring
+  says so rather than implying otherwise.
+
+  Deferring the assertion was the alternative Hannah offered, and the reason
+  against it is that item 8 and item 14 would then have to remember. What
+  made deferral tempting was the vacuity, and that is addressed directly:
+  `_SCAN_CASES` runs the scan over nine sources that do call a normalizer,
+  five legitimate and four divergent, every one of them naming something
+  called `normalize` and three also naming `pmc_core.errors`. The mechanism
+  is proved now and arms itself when either call site lands. Sabotage: a
+  scan that reports nothing fails exactly the four divergent cases, and one
+  that skips import resolution fails five of the nine.
