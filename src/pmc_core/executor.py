@@ -27,13 +27,13 @@ Bazel dependency closure never acquires either dependency (enforced by
 
 `execute()` validates a request entirely in this process first -- an
 unsupported request version, an oversized snapshot, malformed or
-version-mismatched snapshot JSON, and a plan the default-deny policy denies
-are all rejected here, with no process ever spawned and no scratch data
-ever written. Only a request that passes every check spawns a fresh child,
-gives it a hard wall-clock deadline, and reaps it on every exit path --
-success, timeout, crash, and an exception raised between spawn and the
-child's own completion -- with its scratch directory removed only after
-that termination and reap.
+version-mismatched snapshot JSON, a mismatched plan/snapshot digest, and a
+plan the default-deny policy denies are all rejected here, with no process
+ever spawned and no scratch data ever written. Only a request that passes
+every check spawns a fresh child, gives it a hard wall-clock deadline, and
+reaps it on every exit path -- success, timeout, crash, and an exception
+raised between spawn and the child's own completion -- with its scratch
+directory removed only after that termination and reap.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -60,6 +60,7 @@ from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import encode_plan
 from pmc_core.snapshot import from_json
+from pmc_core.snapshot import SnapshotDecodeError
 from pmc_core.snapshot import structure_digest
 
 #: This module's own contract version for ExecutionRequest/ExecutionReport,
@@ -82,6 +83,17 @@ DEFAULT_DEADLINE_SECONDS = 30.0
 #: How long to wait for a plain terminate() (SIGTERM) to take effect before
 #: escalating to a hard kill (SIGKILL).
 DEFAULT_KILL_GRACE_SECONDS = 5.0
+
+#: Maximum UTF-8 size of one per-command error copied into a report. A plan
+#: can contain 128 commands, so this deliberately stays small enough that a
+#: valid worst-case report remains within the HTTP response bound.
+MAX_COMMAND_ERROR_BYTES = 128
+
+#: Maximum UTF-8 size of the one captured-stderr warning the parent emits
+#: when a child crashes without a trustworthy report.
+MAX_WARNING_BYTES = 4 * 1024
+
+_TRUNCATION_MARKER = "...[truncated]"
 
 #: The scratch-directory prefix used for each spawned attempt's disposable
 #: working directory. Also the glob pattern a test uses to confirm no
@@ -116,6 +128,7 @@ REASON_OVERSIZED_INPUT = "oversized_input"
 REASON_MALFORMED_INPUT = "malformed_input"
 REASON_UNSUPPORTED_SCHEMA_VERSION = "unsupported_schema_version"
 REASON_POLICY_DENIED = "policy_denied"
+REASON_SNAPSHOT_DIGEST_MISMATCH = "snapshot_digest_mismatch"
 REASON_SPAWN_OR_LOAD_FAILURE = "spawn_or_load_failure"
 REASON_TIMEOUT = "timeout"
 REASON_CHILD_CRASH = "child_crash"
@@ -171,6 +184,9 @@ class ExecutionRequest:
         snapshot_json: The candidate snapshot to reconstruct from, as
             `pmc_core.snapshot.to_json` serialized it -- validated and
             parsed inside `execute()`, never trusted as already-well-formed.
+        expected_snapshot_digest: The structural digest the plan was bound
+            to. When supplied, a mismatch with `snapshot_json` is rejected
+            before scratch data is written or a process is spawned.
         max_snapshot_bytes: The maximum allowed size, in bytes, of
             `snapshot_json`'s UTF-8 encoding. A request whose snapshot
             exceeds this limit is rejected before any process is spawned.
@@ -187,6 +203,7 @@ class ExecutionRequest:
     executor_version: int
     plan: ActionPlan
     snapshot_json: str
+    expected_snapshot_digest: str | None = None
     max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES
     deadline_seconds: float = DEFAULT_DEADLINE_SECONDS
     expected_resulting_fingerprint: str | None = None
@@ -332,6 +349,60 @@ def _close_pipe(pipe: IO[str] | None) -> None:
         pipe.close()
 
 
+def _bounded_diagnostic(value: str, *, maximum_bytes: int) -> str:
+    """Return diagnostic text bounded by its UTF-8 byte length.
+
+    Non-whitespace control characters are replaced before truncation so a
+    short in-memory value cannot expand sixfold when JSON escapes it. The
+    truncation marker is included in the byte budget.
+
+    Args:
+        value: Diagnostic text to bound.
+        maximum_bytes: Maximum size of the returned UTF-8 encoding.
+
+    Returns:
+        Sanitized text no larger than `maximum_bytes` in UTF-8.
+
+    Raises:
+        ValueError: If `maximum_bytes` cannot contain the truncation marker.
+    """
+    marker = _TRUNCATION_MARKER.encode("utf-8")
+    if maximum_bytes < len(marker):
+        raise ValueError("diagnostic byte limit is smaller than marker")
+    sanitized = "".join(
+        character
+        if character in "\n\r\t"
+        or (ord(character) >= 32 and ord(character) != 127)
+        else "?"
+        for character in value
+    )
+    encoded = sanitized.encode("utf-8")
+    if len(encoded) <= maximum_bytes:
+        return sanitized
+    prefix = encoded[: maximum_bytes - len(marker)].decode(
+        "utf-8", errors="ignore"
+    )
+    return prefix + _TRUNCATION_MARKER
+
+
+def _stderr_warning(stderr: str) -> tuple[str, ...]:
+    """Build the bounded warning tuple for captured child stderr.
+
+    Args:
+        stderr: Text captured from the child process.
+
+    Returns:
+        Empty when stderr is empty, otherwise one bounded warning.
+    """
+    if not stderr:
+        return ()
+    return (
+        _bounded_diagnostic(
+            f"child stderr: {stderr}", maximum_bytes=MAX_WARNING_BYTES
+        ),
+    )
+
+
 def _terminate(process: subprocess.Popen[str]) -> None:
     """Send a plain termination signal to a spawned child's process group.
 
@@ -462,14 +533,14 @@ def execute(
 
     Validates the request in this process first, in a fixed order: an
     unsupported request version, an oversized snapshot, malformed or
-    version-mismatched snapshot JSON, and a plan the default-deny policy
-    denies are all rejected here, with no process ever spawned and no
-    scratch data ever written. Only a request that passes every check
-    spawns a fresh child, gives it request.deadline_seconds to run, and
-    reaps it -- on every exit path, including timeout, an unhandled crash,
-    and an exception raised between spawn and the child's own completion --
-    with its scratch directory removed only after that termination and
-    reap.
+    version-mismatched snapshot JSON, a mismatched plan/snapshot digest,
+    and a plan the default-deny policy denies are all rejected here, with
+    no process ever spawned and no scratch data ever written. Only a request
+    that passes every check spawns a fresh child, gives it
+    request.deadline_seconds to run, and reaps it -- on every exit path,
+    including timeout, an unhandled crash, and an exception raised between
+    spawn and the child's own completion -- with its scratch directory
+    removed only after that termination and reap.
 
     Args:
         request: The execution request to run.
@@ -495,7 +566,10 @@ def execute(
             REASON_UNSUPPORTED_SCHEMA_VERSION, time.monotonic() - start
         )
 
-    encoded_snapshot = request.snapshot_json.encode("utf-8")
+    try:
+        encoded_snapshot = request.snapshot_json.encode("utf-8")
+    except UnicodeEncodeError:
+        return _rejected(REASON_MALFORMED_INPUT, time.monotonic() - start)
     if len(encoded_snapshot) > request.max_snapshot_bytes:
         return _rejected(REASON_OVERSIZED_INPUT, time.monotonic() - start)
 
@@ -503,14 +577,14 @@ def execute(
         snapshot = from_json(request.snapshot_json)
     except json.JSONDecodeError:
         return _rejected(REASON_MALFORMED_INPUT, time.monotonic() - start)
-    except ValueError:
-        # Catches pmc_core.snapshot.SnapshotDecodeError, a ValueError
-        # subclass raised for both a schema_version mismatch and a
-        # declared-unsupported-set mismatch.
+    except SnapshotDecodeError:
+        # SnapshotDecodeError is reserved for recognized-but-unsupported
+        # schema declarations. Other ValueErrors from malformed field shapes
+        # belong to the malformed-input branch below.
         return _rejected(
             REASON_UNSUPPORTED_SCHEMA_VERSION, time.monotonic() - start
         )
-    except (KeyError, AttributeError, TypeError):
+    except (KeyError, AttributeError, TypeError, ValueError):
         # Syntactically valid JSON that from_json cannot treat as a
         # snapshot object at all -- a bare scalar/array/string (whose
         # .get("schema_version") raises AttributeError) or a JSON object
@@ -528,6 +602,16 @@ def execute(
         # this is malformed input, not a process-worthy request.
         return _rejected(REASON_MALFORMED_INPUT, time.monotonic() - start)
 
+    if (
+        request.expected_snapshot_digest is not None
+        and input_digest != request.expected_snapshot_digest
+    ):
+        return _rejected(
+            REASON_SNAPSHOT_DIGEST_MISMATCH,
+            time.monotonic() - start,
+            input_digest=input_digest,
+        )
+
     if not evaluate_plan(request.plan).allowed:
         return _rejected(
             REASON_POLICY_DENIED,
@@ -537,7 +621,13 @@ def execute(
 
     try:
         spec_found = importlib.util.find_spec(runner_module) is not None
-    except (ImportError, ValueError, ModuleNotFoundError, AttributeError):
+    except (
+        ImportError,
+        ValueError,
+        ModuleNotFoundError,
+        AttributeError,
+        OSError,
+    ):
         spec_found = False
     if not spec_found:
         return _failed_with_no_process(
@@ -546,22 +636,36 @@ def execute(
             input_digest=input_digest,
         )
 
-    scratch_dir = Path(tempfile.mkdtemp(prefix=SCRATCH_DIR_PREFIX))
+    try:
+        scratch_dir = Path(tempfile.mkdtemp(prefix=SCRATCH_DIR_PREFIX))
+    except OSError:
+        return _failed_with_no_process(
+            REASON_SPAWN_OR_LOAD_FAILURE,
+            time.monotonic() - start,
+            input_digest=input_digest,
+        )
     try:
         snapshot_path = scratch_dir / "snapshot.json"
-        snapshot_path.write_text(request.snapshot_json)
-
         plan_path = scratch_dir / "plan.json"
-        plan_path.write_text(
-            json.dumps(
-                {
-                    "planId": str(uuid.uuid4()),
-                    "planVersion": PROTOCOL_VERSION,
-                    "snapshotDigest": input_digest,
-                    "commands": encode_plan(request.plan),
-                }
+        try:
+            snapshot_path.write_text(request.snapshot_json, encoding="utf-8")
+            plan_path.write_text(
+                json.dumps(
+                    {
+                        "planId": str(uuid.uuid4()),
+                        "planVersion": PROTOCOL_VERSION,
+                        "snapshotDigest": input_digest,
+                        "commands": encode_plan(request.plan),
+                    }
+                ),
+                encoding="utf-8",
             )
-        )
+        except OSError:
+            return _failed_with_no_process(
+                REASON_SPAWN_OR_LOAD_FAILURE,
+                time.monotonic() - start,
+                input_digest=input_digest,
+            )
         output_path = scratch_dir / "output.json"
 
         env = os.environ.copy()
@@ -578,22 +682,31 @@ def execute(
         else:
             start_new_session = True
 
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                runner_module,
-                str(snapshot_path),
-                str(plan_path),
-                str(output_path),
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=creation_flags,
-            start_new_session=start_new_session,
-        )
+        try:
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    runner_module,
+                    str(snapshot_path),
+                    str(plan_path),
+                    str(output_path),
+                ],
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creation_flags,
+                start_new_session=start_new_session,
+            )
+        except (OSError, ValueError):
+            return _failed_with_no_process(
+                REASON_SPAWN_OR_LOAD_FAILURE,
+                time.monotonic() - start,
+                input_digest=input_digest,
+            )
         child_pid = process.pid
         try:
             if on_process_spawned is not None:
@@ -633,17 +746,24 @@ def execute(
                     child_pid=child_pid,
                     child_terminated=process.poll() is not None,
                     elapsed_seconds=time.monotonic() - start,
-                    warnings=(f"child stderr: {stderr}",) if stderr else (),
+                    warnings=_stderr_warning(stderr),
                 )
 
             try:
-                payload = json.loads(output_path.read_text())
+                payload = json.loads(output_path.read_text(encoding="utf-8"))
                 command_outcomes = tuple(
                     CommandOutcome(
                         index=outcome["index"],
                         verb=outcome["verb"],
                         status=outcome["status"],
-                        error=outcome.get("error"),
+                        error=(
+                            _bounded_diagnostic(
+                                outcome["error"],
+                                maximum_bytes=MAX_COMMAND_ERROR_BYTES,
+                            )
+                            if outcome.get("error") is not None
+                            else None
+                        ),
                     )
                     for outcome in payload.get("command_outcomes", [])
                 )
@@ -656,7 +776,14 @@ def execute(
                 resulting_fingerprint = payload.get("resulting_fingerprint")
                 status = payload["status"]
                 reason = payload["reason"]
-            except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
+            except (
+                json.JSONDecodeError,
+                KeyError,
+                TypeError,
+                AttributeError,
+                UnicodeError,
+                OSError,
+            ):
                 # The output file exists but is not the well-formed report
                 # this module's own child always writes -- truncated by a
                 # crash mid-write, or corrupt. Exactly as untrustworthy as
@@ -666,7 +793,7 @@ def execute(
                     child_pid=child_pid,
                     child_terminated=process.poll() is not None,
                     elapsed_seconds=time.monotonic() - start,
-                    warnings=(f"child stderr: {stderr}",) if stderr else (),
+                    warnings=_stderr_warning(stderr),
                 )
 
             if (

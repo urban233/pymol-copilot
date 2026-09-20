@@ -49,6 +49,8 @@ from pmc_core.executor import REASON_TIMEOUT
 from pmc_core.executor import SCRATCH_DIR_PREFIX
 from pmc_core.executor import STATUS_FAILED
 from pmc_core.executor import EXECUTOR_VERSION
+from pmc_core.executor import MAX_COMMAND_ERROR_BYTES
+from pmc_core.executor import MAX_WARNING_BYTES
 from pmc_core.executor import ExecutionRequest
 from pmc_core.executor import execute
 from pmc_core.plan import ActionPlan
@@ -286,6 +288,20 @@ def test_forced_child_crash_leaves_no_live_process_or_scratch_data() -> None:
     assert _scratch_dirs() == scratch_before
 
 
+def test_child_crash_stderr_is_bounded() -> None:
+    """A chatty crashing child cannot inflate the typed report."""
+    os.environ[SABOTAGE_MODE_ENV_VAR] = "stderr_crash:100000"
+    try:
+        report = execute(_base_request(), runner_module=_SABOTAGE_RUNNER)
+    finally:
+        del os.environ[SABOTAGE_MODE_ENV_VAR]
+
+    assert report.reason == REASON_CHILD_CRASH
+    assert len(report.warnings) == 1
+    assert len(report.warnings[0].encode("utf-8")) <= MAX_WARNING_BYTES
+    assert report.warnings[0].endswith("...[truncated]")
+
+
 def test_malformed_child_output_fails_closed_like_a_crash() -> None:
     """A child that writes garbage instead of a report is a crash too.
 
@@ -382,6 +398,22 @@ def test_command_failure_stops_with_no_second_command_attempted() -> None:
     assert _scratch_dirs() == scratch_before
 
 
+def test_child_command_error_is_bounded_defensively() -> None:
+    """Even a non-production child cannot return an unbounded error."""
+    os.environ[SABOTAGE_MODE_ENV_VAR] = "long_error:100000"
+    try:
+        report = execute(_base_request(), runner_module=_SABOTAGE_RUNNER)
+    finally:
+        del os.environ[SABOTAGE_MODE_ENV_VAR]
+
+    assert report.reason == REASON_COMMAND_FAILURE
+    assert len(report.command_outcomes) == 1
+    error = report.command_outcomes[0].error
+    assert error is not None
+    assert len(error.encode("utf-8")) <= MAX_COMMAND_ERROR_BYTES
+    assert error.endswith("...[truncated]")
+
+
 def test_failing_command_is_attempted_exactly_once_with_no_retry() -> None:
     """The counter file, not the outcome count, proves no internal retry.
 
@@ -404,7 +436,7 @@ def test_failing_command_is_attempted_exactly_once_with_no_retry() -> None:
         finally:
             del os.environ[SABOTAGE_MODE_ENV_VAR]
 
-        assert counter_path.read_text().strip() == "1"
+        assert counter_path.read_text(encoding="utf-8").strip() == "1"
 
 
 def test_fidelity_mismatch_fails_closed_even_though_commands_succeeded() -> (

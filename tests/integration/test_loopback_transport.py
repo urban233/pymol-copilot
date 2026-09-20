@@ -34,6 +34,7 @@ from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 from pmc_server.lifecycle import FIXTURE_PLAN
+from pmc_server.transport import MAX_EXECUTION_REQUEST_BYTES
 from pmc_server.transport import VALIDATE_PATH
 from pmc_server.transport import LoopbackPlanServer
 from pmc_server.validation import PlanValidationService
@@ -378,6 +379,43 @@ def test_validate_endpoint_round_trips_over_loopback() -> None:
     assert report.resulting_fingerprint == "sha256:" + "1" * 64
     assert len(report.command_outcomes) == 1
     assert report.command_outcomes[0].verb == "orient"
+
+
+def test_validate_endpoint_accepts_body_past_plan_transport_limit() -> None:
+    """A large snapshot reaches the executor's own typed size rejection."""
+    oversized_snapshot = "x" * (MAX_MESSAGE_BYTES + 1)
+    request = execution_request()
+    request = ExecutionRequestV1(
+        plan=request.plan,
+        plan_id=request.plan_id,
+        snapshot_digest=request.snapshot_digest,
+        snapshot_json=oversized_snapshot,
+    )
+    service = PlanValidationService(max_snapshot_bytes=MAX_MESSAGE_BYTES)
+    with LoopbackPlanServer(
+        "secret", validated_response, execution_handler=service
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(request.to_dict()).encode("utf-8")
+        assert MAX_MESSAGE_BYTES < len(body) < MAX_EXECUTION_REQUEST_BYTES
+        connection.request(
+            "POST",
+            VALIDATE_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response_body = response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.OK
+    report = ExecutionReportV1.from_dict(json.loads(response_body))
+    assert report.status == "rejected"
+    assert report.reason == "oversized_input"
 
 
 def test_validate_endpoint_is_404_with_no_execution_handler_configured() -> (

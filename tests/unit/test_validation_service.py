@@ -127,6 +127,7 @@ def test_service_passes_through_snapshot_json_and_plan() -> None:
     assert len(calls) == 1
     assert calls[0].plan == wire_request.plan
     assert calls[0].snapshot_json == wire_request.snapshot_json
+    assert calls[0].expected_snapshot_digest == wire_request.snapshot_digest
     assert calls[0].executor_version == EXECUTOR_VERSION
 
 
@@ -173,6 +174,7 @@ def test_service_maps_every_fail_closed_reason() -> None:
         ("rejected", "oversized_input"),
         ("rejected", "unsupported_schema_version"),
         ("rejected", "policy_denied"),
+        ("rejected", "snapshot_digest_mismatch"),
         ("failed", "spawn_or_load_failure"),
         ("failed", "timeout"),
         ("failed", "child_crash"),

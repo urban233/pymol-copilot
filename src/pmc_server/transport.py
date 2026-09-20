@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from threading import Thread
 
+from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
@@ -30,6 +31,11 @@ PLAN_PATH = "/v1/plan"
 VALIDATE_PATH = "/v1/validate"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
+#: `/v1/validate` carries a snapshot JSON document inside a JSON string. In
+#: the worst case each byte of the canonical inner document needs one extra
+#: escape byte, with the ordinary 64 KiB budget left for the action-plan
+#: envelope. Responses stay on the shared 64 KiB bound.
+MAX_EXECUTION_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + MAX_MESSAGE_BYTES
 REQUEST_TIMEOUT_SECONDS = 5.0
 
 LOGGER = logging.getLogger(__name__)
@@ -182,7 +188,7 @@ class LoopbackPlanServer:
 
             def _handle_plan(self) -> None:
                 """Decode, dispatch, and answer one PLAN_PATH request."""
-                payload = self._authorized_json_body()
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
                 if payload is None:
                     return
                 try:
@@ -203,7 +209,9 @@ class LoopbackPlanServer:
 
             def _handle_validate(self) -> None:
                 """Decode, dispatch, and answer one VALIDATE_PATH request."""
-                payload = self._authorized_json_body()
+                payload = self._authorized_json_body(
+                    MAX_EXECUTION_REQUEST_BYTES
+                )
                 if payload is None:
                     return
                 try:
@@ -225,13 +233,17 @@ class LoopbackPlanServer:
                     return
                 self._send_json(response_payload)
 
-            def _authorized_json_body(self) -> bytes | None:
+            def _authorized_json_body(self, maximum_bytes: int) -> bytes | None:
                 """Authenticate a request and read its bounded JSON body.
 
                 Shared by every endpoint this handler serves: the
                 credential, content-type, and content-length checks, and
                 the bounded read itself, are identical regardless of which
-                endpoint's own decode/encode runs afterward.
+                endpoint's own decode/encode runs afterward. The caller
+                supplies the endpoint-specific request bound.
+
+                Args:
+                    maximum_bytes: Largest accepted request body.
 
                 Returns:
                     The request body, or None after sending an error.
@@ -242,7 +254,7 @@ class LoopbackPlanServer:
                 if self.headers.get("Content-Type") != "application/json":
                     self._send_empty(HTTPStatus.UNSUPPORTED_MEDIA_TYPE)
                     return None
-                content_length = self._content_length()
+                content_length = self._content_length(maximum_bytes)
                 if content_length is None:
                     return None
                 try:
@@ -270,8 +282,11 @@ class LoopbackPlanServer:
                 self.end_headers()
                 self.wfile.write(payload)
 
-            def _content_length(self) -> int | None:
+            def _content_length(self, maximum_bytes: int) -> int | None:
                 """Read and validate the request content length.
+
+                Args:
+                    maximum_bytes: Largest accepted request body.
 
                 Returns:
                     The bounded content length, or None after sending an error.
@@ -285,7 +300,7 @@ class LoopbackPlanServer:
                     self._send_empty(HTTPStatus.BAD_REQUEST)
                     return None
                 content_length = int(values[0])
-                if content_length > MAX_MESSAGE_BYTES:
+                if content_length > maximum_bytes:
                     self._send_empty(HTTPStatus.REQUEST_ENTITY_TOO_LARGE)
                     return None
                 return content_length

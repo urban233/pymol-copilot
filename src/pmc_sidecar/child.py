@@ -45,12 +45,14 @@ from typing import Any
 
 from pmc_core.executor import OUTCOME_ERROR
 from pmc_core.executor import OUTCOME_OK
+from pmc_core.executor import MAX_COMMAND_ERROR_BYTES
 from pmc_core.executor import REASON_COMMAND_FAILURE
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import REASON_SPAWN_OR_LOAD_FAILURE
 from pmc_core.executor import STATUS_FAILED
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import CommandOutcome
+from pmc_core.executor import _bounded_diagnostic
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import ColorOperation
@@ -164,7 +166,14 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
         except Exception as error:
             verb = _VERB_BY_TYPE.get(type(operation), "__unsupported__")
             outcomes.append(
-                CommandOutcome(index, verb, OUTCOME_ERROR, str(error))
+                CommandOutcome(
+                    index,
+                    verb,
+                    OUTCOME_ERROR,
+                    _bounded_diagnostic(
+                        str(error), maximum_bytes=MAX_COMMAND_ERROR_BYTES
+                    ),
+                )
             )
             return PlanRunResult(
                 STATUS_FAILED, REASON_COMMAND_FAILURE, tuple(outcomes)
@@ -221,13 +230,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     def _write(payload: dict[str, object]) -> None:
-        with Path(output_path).open("w") as handle:
-            json.dump(payload, handle)
+        with Path(output_path).open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False)
             handle.flush()
             os.fsync(handle.fileno())
 
-    snapshot_text = Path(snapshot_path).read_text()
-    plan_data = json.loads(Path(plan_path).read_text())
+    snapshot_text = Path(snapshot_path).read_text(encoding="utf-8")
+    plan_data = json.loads(Path(plan_path).read_text(encoding="utf-8"))
 
     winstage.ensure_importable()
     import pymol  # pyrefly: ignore.
@@ -282,7 +291,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                     index=len(plan.operations),
                     verb="__extract__",
                     status=OUTCOME_ERROR,
-                    error=str(error),
+                    error=_bounded_diagnostic(
+                        str(error), maximum_bytes=MAX_COMMAND_ERROR_BYTES
+                    ),
                 )
             )
 

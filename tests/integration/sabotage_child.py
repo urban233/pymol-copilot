@@ -33,6 +33,10 @@ Modes, a single string in `PMC_SABOTAGE_MODE`:
         not a well-formed report at all (JSON `null`), simulating a crash
         mid-write or a corrupt write, as distinct from writing no output
         file at all.
+    `"stderr_crash:<bytes>"` -- write that many bytes to stderr, then exit
+        without a report.
+    `"long_error:<bytes>"` -- write a command-failure report whose error is
+        that many bytes long.
 """
 
 from __future__ import annotations
@@ -74,12 +78,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     mode = os.environ.get(SABOTAGE_MODE_ENV_VAR, "")
 
     def _write(payload: dict[str, object]) -> None:
-        with Path(output_path).open("w") as handle:
+        with Path(output_path).open("w", encoding="utf-8") as handle:
             json.dump(payload, handle)
             handle.flush()
             os.fsync(handle.fileno())
 
     if mode == "crash":
+        os._exit(1)
+
+    if mode.startswith("stderr_crash:"):
+        byte_count = int(mode.removeprefix("stderr_crash:"))
+        sys.stderr.write("x" * byte_count)
+        sys.stderr.flush()
         os._exit(1)
 
     if mode.startswith("sleep:"):
@@ -92,7 +102,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         os._exit(0)
 
     if mode == "malformed_output":
-        with Path(output_path).open("w") as handle:
+        with Path(output_path).open("w", encoding="utf-8") as handle:
             json.dump(None, handle)
             handle.flush()
             os.fsync(handle.fileno())
@@ -100,13 +110,35 @@ def main(argv: Sequence[str] | None = None) -> None:
         sys.stderr.flush()
         os._exit(0)
 
+    if mode.startswith("long_error:"):
+        byte_count = int(mode.removeprefix("long_error:"))
+        _write(
+            {
+                "status": STATUS_FAILED,
+                "reason": REASON_COMMAND_FAILURE,
+                "command_outcomes": [
+                    {
+                        "index": 0,
+                        "verb": "__sabotage__",
+                        "status": OUTCOME_ERROR,
+                        "error": "x" * byte_count,
+                    }
+                ],
+            }
+        )
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
+
     if mode.startswith("count_then_fail:"):
         counter_path = Path(mode.removeprefix("count_then_fail:"))
         existing = (
-            counter_path.read_text().strip() if (counter_path.exists()) else ""
+            counter_path.read_text(encoding="utf-8").strip()
+            if counter_path.exists()
+            else ""
         )
         count = int(existing) + 1 if existing else 1
-        counter_path.write_text(str(count))
+        counter_path.write_text(str(count), encoding="utf-8")
         _write(
             {
                 "status": STATUS_FAILED,

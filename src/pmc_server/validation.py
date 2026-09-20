@@ -10,13 +10,14 @@ own shape, that maps a decoded `ExecutionRequestV1` to an
 Unlike `PlanRequestLifecycle.__call__`, this service's `__call__` has no
 `FailedPlanResponseV1` fallback: every fail-closed outcome `execute()`
 itself can produce -- malformed input, a version mismatch, policy denial,
-spawn failure, crash, command failure, and a fidelity mismatch -- is
-already representable as an `ExecutionReportV1`, and `ExecutionRequestV1`'s
-own wire decode fully validates a request before this service ever sees
-it. There is no remaining "malformed request" case at this layer for a
-separate failure type to cover, so `__call__` returns `ExecutionReportV1`
-unconditionally, exactly as `execute()` itself never raises for any of its
-own documented failure modes.
+snapshot-digest mismatch, spawn failure, crash, command failure, and a
+fidelity mismatch -- is already representable as an `ExecutionReportV1`,
+and `ExecutionRequestV1`'s own wire decode validates its shape before this
+service ever sees it. The executor still validates that the action plan's
+`snapshotDigest` matches the digest it computes from `snapshotJson`; a
+mismatch is a typed rejection, not a separate transport failure. `__call__`
+therefore returns `ExecutionReportV1` unconditionally, exactly as
+`execute()` itself never raises for any of its own documented failure modes.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -119,6 +120,7 @@ class PlanValidationService:
             executor_version=EXECUTOR_VERSION,
             plan=request.plan,
             snapshot_json=request.snapshot_json,
+            expected_snapshot_digest=request.snapshot_digest,
             max_snapshot_bytes=self._max_snapshot_bytes,
             deadline_seconds=self._deadline_seconds,
             expected_resulting_fingerprint=(

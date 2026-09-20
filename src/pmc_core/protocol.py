@@ -1066,12 +1066,11 @@ class ExecutionRequestV1:
     `ValidatedPlanResponseV1` carries (`planId`/`planVersion`/
     `snapshotDigest`/`commands`), so there is exactly one plan wire shape
     in the repository -- the sidecar executor's own request/report
-    contract is otherwise unrelated to that response type. `planId` and
-    the `actionPlan`-level `snapshotDigest` exist only to satisfy that
-    shared envelope's own schema and play no further role here: this
-    request's plan and snapshot travel independently, and
-    `pmc_core.executor` computes its own `input_digest` from
-    `snapshot_json` directly.
+    contract is otherwise unrelated to that response type. `planId` exists
+    only to satisfy that shared envelope's own schema. The action-plan-level
+    `snapshotDigest`, however, is enforced by the executor against the
+    structural digest it computes from `snapshotJson`, so a plan cannot be
+    silently executed against a different snapshot.
     """
 
     plan: ActionPlan
@@ -1197,7 +1196,9 @@ def encode_execution_response_json(value: ExecutionReportV1) -> str:
     Returns:
         The compact JSON representation.
     """
-    return json.dumps(value.to_dict(), separators=(",", ":"))
+    return json.dumps(
+        value.to_dict(), separators=(",", ":"), ensure_ascii=False
+    )
 
 
 def decode_execution_request_json(value: str) -> ExecutionRequestV1:

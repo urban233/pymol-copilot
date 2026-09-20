@@ -201,6 +201,7 @@ DEFAULT_KILL_GRACE_SECONDS = 5.0
 STATUS_OK / STATUS_REJECTED / STATUS_FAILED
 REASON_OK, REASON_OVERSIZED_INPUT, REASON_MALFORMED_INPUT,
 REASON_UNSUPPORTED_SCHEMA_VERSION, REASON_POLICY_DENIED,
+REASON_SNAPSHOT_DIGEST_MISMATCH,
 REASON_SPAWN_OR_LOAD_FAILURE, REASON_TIMEOUT, REASON_CHILD_CRASH,
 REASON_COMMAND_FAILURE, REASON_FIDELITY_MISMATCH
 OUTCOME_OK / OUTCOME_ERROR
@@ -216,6 +217,7 @@ ExecutionRequest(
     executor_version: int,
     plan: ActionPlan,                 # typed, already bounded by MAX_COMMANDS
     snapshot_json: str,
+    expected_snapshot_digest: str | None = None,
     max_snapshot_bytes: int = DEFAULT_MAX_SNAPSHOT_BYTES,
     deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
     expected_resulting_fingerprint: str | None = None,
@@ -242,13 +244,16 @@ and no scratch directory created:
 1. `request.executor_version != EXECUTOR_VERSION` → `UNSUPPORTED_SCHEMA_VERSION`
 2. `len(snapshot_json.encode("utf-8")) > max_snapshot_bytes` → `OVERSIZED_INPUT`
 3. `snapshot.from_json(...)` inside a `try`, with the prototype's three except
-   clauses **in this order** (ordering matters — `json.JSONDecodeError` is itself
-   a `ValueError` subclass, and so is `SnapshotDecodeError`):
-   `JSONDecodeError → MALFORMED_INPUT`; `ValueError → UNSUPPORTED_SCHEMA_VERSION`;
-   `(KeyError, AttributeError, TypeError) → MALFORMED_INPUT`
+   clauses **in this order** (ordering matters — `json.JSONDecodeError` and
+   `SnapshotDecodeError` are both `ValueError` subclasses):
+   `JSONDecodeError → MALFORMED_INPUT`;
+   `SnapshotDecodeError → UNSUPPORTED_SCHEMA_VERSION`;
+   `(KeyError, AttributeError, TypeError, ValueError) → MALFORMED_INPUT`
 4. `input_digest = structure_digest(parsed)` — set from here on, including on
    every rejection below (H02-S3-F8)
-5. `policy.evaluate_plan(request.plan).allowed` is false → `POLICY_DENIED`
+5. A supplied `expected_snapshot_digest` differs from `input_digest` →
+   `SNAPSHOT_DIGEST_MISMATCH`
+6. `policy.evaluate_plan(request.plan).allowed` is false → `POLICY_DENIED`
 
 `execute()` never raises for any documented failure mode; every one is reported
 through the returned report.
@@ -377,11 +382,16 @@ Carry forward verbatim, because each already has a test that fails without it:
 
 - `scratch_dir = Path(tempfile.mkdtemp(prefix="pmc-executor-"))`, removed in an
   outer `finally` with `shutil.rmtree(..., ignore_errors=True)` covering every
-  exit path.
+  exit path. An OS error from `mkdtemp`, scratch-file preparation, or `Popen`
+  becomes a typed `REASON_SPAWN_OR_LOAD_FAILURE` report rather than escaping.
+- Every scratch-file read/write and subprocess pipe uses UTF-8 explicitly, so
+  non-ASCII snapshot names and labels do not depend on the platform locale.
 - `communicate(timeout=request.deadline_seconds)`; on `TimeoutExpired`, kill,
   then `communicate()` again to reap and drain → `REASON_TIMEOUT`.
 - Output file missing after a clean `communicate()` → `REASON_CHILD_CRASH`, with
-  bounded child stderr in `warnings`.
+  child stderr truncated to `MAX_WARNING_BYTES` in `warnings`. Every command
+  error is likewise truncated to `MAX_COMMAND_ERROR_BYTES` in both the child
+  and the parent-side decoder, keeping typed reports within the response cap.
 - `_close_pipe` + `_terminate_and_reap` in an **inner** `finally` that wraps
   everything after `Popen`, so the child is stopped and reaped *before* the outer
   `finally` deletes the directory it may still be reading (H02-S3-F3), and both
@@ -615,8 +625,15 @@ def __init__(self, *,
 `__call__` builds an `ExecutionRequest`, calls the executor **once** — the
 service performs no retry of its own, matching the boundary's own guarantee and
 orchestration rule 8's "a fresh sidecar per attempt" — and maps the result to
-`ExecutionReportV1`, or to a `FailureEnvelopeV1` with `retryable=False` for a
-malformed request, following `_failure`'s existing shape.
+`ExecutionReportV1`. It passes the wire action plan's `snapshotDigest` as the
+executor's `expected_snapshot_digest`, so the executor rejects a mismatched
+plan/snapshot pair before spawning.
+
+The transport keeps the existing 64 KiB request cap for `/v1/plan`, while
+`/v1/validate` uses `MAX_EXECUTION_REQUEST_BYTES`: twice the 4 MiB decoded
+snapshot budget for JSON-string escaping, plus 64 KiB for the action-plan
+envelope. This makes the executor's own `oversized_input` boundary reachable
+over HTTP without weakening the established plan endpoint.
 
 The unit test injects a fake executor and never spawns anything. That is the
 point of the seam: the service's mapping and its no-retry guarantee are provable
@@ -639,7 +656,9 @@ bazel run //tools/quality:pyrefly -- check
 
 Asserts the mapping for a successful report and for every fail-closed reason;
 that the injected executor is called exactly once per request; that an
-unroutable path still returns 404 and `/v1/plan` is unaffected.
+unroutable path still returns 404; that `/v1/plan` retains its original bound;
+and that a validation body larger than 64 KiB reaches the executor's typed size
+check.
 
 ---
 

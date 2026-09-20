@@ -201,6 +201,24 @@ def _assert_rejected(report: executor.ExecutionReport, reason: str) -> None:
     assert report.resulting_fingerprint is None
 
 
+def _assert_failed_without_process(
+    report: executor.ExecutionReport, reason: str
+) -> None:
+    """Assert a failure occurred before any child process was created.
+
+    Args:
+        report: The report execute() returned.
+        reason: The expected typed failure reason.
+    """
+    assert report.status == executor.STATUS_FAILED
+    assert report.reason == reason
+    assert report.child_pid is None
+    assert report.child_terminated is None
+    assert report.command_outcomes == ()
+    assert report.selection_counts == ()
+    assert report.resulting_fingerprint is None
+
+
 def test_unsupported_executor_version_is_rejected() -> None:
     """A request whose executor_version this module does not know fails."""
     scratch_before = _scratch_dirs()
@@ -269,6 +287,19 @@ def test_snapshot_missing_a_key_is_rejected() -> None:
     assert _scratch_dirs() == scratch_before
 
 
+def test_snapshot_with_malformed_settings_is_not_a_version_mismatch() -> None:
+    """A plain ValueError from a malformed field is malformed input."""
+    payload = json.loads(to_json(_minimal_snapshot()))
+    payload["settings"] = [["too", "many", "values"]]
+    scratch_before = _scratch_dirs()
+
+    report = executor.execute(_base_request(snapshot_json=json.dumps(payload)))
+
+    _assert_rejected(report, executor.REASON_MALFORMED_INPUT)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
 def test_incompatible_snapshot_schema_version_is_rejected() -> None:
     """A snapshot declaring an unrecognized schema version fails closed."""
     payload = json.loads(to_json(_minimal_snapshot()))
@@ -321,6 +352,74 @@ def test_policy_denied_plan_is_rejected() -> None:
     _assert_rejected(report, executor.REASON_POLICY_DENIED)
     assert report.input_digest is not None
     assert report.input_digest.startswith("sha256:")
+    assert _scratch_dirs() == scratch_before
+
+
+def test_snapshot_digest_mismatch_is_rejected_before_spawn() -> None:
+    """A plan bound to another snapshot cannot reach a child process."""
+    scratch_before = _scratch_dirs()
+
+    report = executor.execute(
+        _base_request(expected_snapshot_digest="sha256:not-this-snapshot")
+    )
+
+    _assert_rejected(report, executor.REASON_SNAPSHOT_DIGEST_MISMATCH)
+    assert report.input_digest is not None
+    assert report.input_digest != "sha256:not-this-snapshot"
+    assert _scratch_dirs() == scratch_before
+
+
+def test_mkdtemp_failure_returns_typed_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scratch-directory allocation failure does not escape execute().
+
+    Args:
+        monkeypatch: Pytest's scoped attribute replacement helper.
+    """
+
+    def fail_mkdtemp(*_args: object, **_kwargs: object) -> str:
+        raise OSError("simulated temporary-directory exhaustion")
+
+    monkeypatch.setattr(
+        executor.importlib.util, "find_spec", lambda _name: True
+    )
+    monkeypatch.setattr(executor.tempfile, "mkdtemp", fail_mkdtemp)
+    scratch_before = _scratch_dirs()
+
+    report = executor.execute(_base_request())
+
+    _assert_failed_without_process(
+        report, executor.REASON_SPAWN_OR_LOAD_FAILURE
+    )
+    assert report.input_digest is not None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_popen_failure_returns_typed_report_and_removes_scratch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An OS-level spawn failure is reported and scratch data is removed.
+
+    Args:
+        monkeypatch: Pytest's scoped attribute replacement helper.
+    """
+
+    def fail_popen(*_args: object, **_kwargs: object) -> None:
+        raise OSError("simulated process-table exhaustion")
+
+    monkeypatch.setattr(
+        executor.importlib.util, "find_spec", lambda _name: True
+    )
+    monkeypatch.setattr(executor.subprocess, "Popen", fail_popen)
+    scratch_before = _scratch_dirs()
+
+    report = executor.execute(_base_request())
+
+    _assert_failed_without_process(
+        report, executor.REASON_SPAWN_OR_LOAD_FAILURE
+    )
+    assert report.input_digest is not None
     assert _scratch_dirs() == scratch_before
 
 

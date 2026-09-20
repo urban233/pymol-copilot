@@ -24,6 +24,7 @@ from pmc_core.executor import REASON_COMMAND_FAILURE
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_FAILED
 from pmc_core.executor import STATUS_OK
+from pmc_core.executor import MAX_COMMAND_ERROR_BYTES
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import AndClause
 from pmc_core.plan import ChainTerm
@@ -136,6 +137,21 @@ class _CountingCmd:
 @dataclass(frozen=True)
 class _UnknownOperation:
     """A synthetic operation type with no dispatch branch in child.py."""
+
+
+class _LongErrorCmd:
+    """Minimal cmd stand-in whose orient operation raises a long error."""
+
+    def orient(self, _target: str) -> None:
+        """Raise an oversized diagnostic.
+
+        Args:
+            _target: Rendered target, unused by this failing stand-in.
+        """
+        raise RuntimeError("x" * 100000)
+
+    def sync(self) -> None:
+        """Satisfy the cmd shape; unreachable after orient raises."""
 
 
 def test_every_verb_produces_the_expected_observable_change(
@@ -283,6 +299,19 @@ def test_a_synthetic_operation_type_fails_closed(loaded_fixture: Any) -> None:
     assert len(result.command_outcomes) == 1
     assert result.command_outcomes[0].verb == "__unsupported__"
     assert result.command_outcomes[0].status == OUTCOME_ERROR
+
+
+def test_command_error_diagnostic_is_bounded() -> None:
+    """run_plan truncates an exception before serializing its outcome."""
+    result = run_plan(
+        _LongErrorCmd(),
+        ActionPlan(operations=(OrientOperation(target=chain_a()),)),
+    )
+
+    error = result.command_outcomes[0].error
+    assert error is not None
+    assert len(error.encode("utf-8")) <= MAX_COMMAND_ERROR_BYTES
+    assert error.endswith("...[truncated]")
 
 
 if __name__ == "__main__":
