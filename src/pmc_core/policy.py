@@ -49,6 +49,18 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_core.plan import referenced_selection_name
 
+#: This module's own command-policy contract version. An int, matching
+#: pmc_core.plan's tables that it re-derives its verdict from, and stamped
+#: into every prompt by pmc_core.prompt so a generated sample records the
+#: policy that was in force when it was made. Bump it for any change to
+#: the allowlist tables or to a verdict evaluate_plan() returns for input
+#: it previously accepted -- a narrowing invalidates earlier samples, and
+#: a reader has to be able to tell which side of the change one came from.
+#: pmc_data.gold_case.ContractVersions.plan_version records the same idea
+#: as a free-form string today; item 14 rewrites that module and is where
+#: the two should be joined up.
+POLICY_VERSION = 1
+
 #: Stable reason code for an operation the allowlist permits.
 REASON_ALLOWED_OPERATION = "allowed_operation"
 
