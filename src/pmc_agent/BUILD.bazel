@@ -5,6 +5,7 @@ py_library(
     srcs = [
         "__init__.py",
         "graph.py",
+        "prompt.py",
         "runtime.py",
     ],
     imports = [".."],

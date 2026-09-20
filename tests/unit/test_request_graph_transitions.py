@@ -15,6 +15,7 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END
 
+from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.graph import NON_TERMINAL_STATES
 from pmc_agent.graph import REQUEST_STATES
 from pmc_agent.graph import STATE_GENERATING
@@ -161,34 +162,19 @@ def test_an_unrecognized_status_raises_rather_than_routing_somewhere() -> None:
         route_by_status(_state("not_a_real_status"))
 
 
-def test_the_compiled_graph_advances_through_every_stub_in_order() -> None:
-    """The stub pass-through chain reaches `pending_approval` and parks.
+def test_the_graph_compiles_with_every_node_and_edge_wired() -> None:
+    """The graph compiles: every node and every conditional edge is valid.
 
-    Proves the graph compiles, `preparing` -> `generating` -> `validating`
-    -> `pending_approval` is wired exactly as SPECIFICATION.md:420 orders
-    it, and that reaching `pending_approval` genuinely calls
-    `langgraph.types.interrupt` rather than merely setting a status --
-    real node bodies replace each stub in steps 6-8, and this stays true
-    of every one of them.
+    The end-to-end pass-through proof -- that `preparing` and `generating`
+    (both real as of this item's step 6) actually advance a well-formed
+    request to `validating`, and that `pending_approval`'s stub genuinely
+    parks -- lives in tests/unit/test_request_graph_generation.py, since
+    it needs realistic request fixtures neither node's stub required
+    before this step.
     """
-    compiled = build_request_graph().compile(checkpointer=InMemorySaver())
-    initial = _state(STATE_RECEIVED)
-    config = {"configurable": {"thread_id": initial["session_id"]}}
-
-    result = compiled.invoke(initial, config)
-
-    assert "__interrupt__" in result
-    snapshot = compiled.get_state(config)
-    assert snapshot.next == (STATE_PENDING_APPROVAL,)
-    # The checkpointer round-trips a tuple field as a list -- this graph's
-    # own nodes only ever read it back through RequestState, never compare
-    # its container type, so that is not asserted here either.
-    assert list(snapshot.values["history"]) == [
-        STATE_RECEIVED,
-        STATE_GENERATING,
-        STATE_VALIDATING,
-        STATE_PENDING_APPROVAL,
-    ]
+    build_request_graph(engine=FakeEngine([])).compile(
+        checkpointer=InMemorySaver()
+    )
 
 
 if __name__ == "__main__":

@@ -39,18 +39,28 @@ body is as thin as it is.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+from collections.abc import Callable
 from typing import TypedDict
 
 from langgraph.graph import END
 from langgraph.graph import StateGraph
 from langgraph.types import interrupt
 
+from pmc_agent.inference.base import CancelToken
+from pmc_agent.inference.base import CompletionRequest
+from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import InferenceEngine
+from pmc_agent.prompt import PROMPT_BUILDER
+from pmc_agent.prompt import PromptInputs
+from pmc_agent.prompt import build_default_prompt
 from pmc_core.errors import ExecutionErrorV1
+from pmc_core.errors import normalize_message
 from pmc_core.plan import ActionPlan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import StructureSnapshotV1
+from pmc_core.snapshot import from_json
 
 #: Non-terminal request states -- each one is also this graph's own node
 #: name, so a status value and a node name are always the same string.
@@ -112,6 +122,48 @@ MAX_REPAIR_ATTEMPTS = 2
 #: `build_request_graph` and `pmc_agent.session`), never read from the
 #: wall clock directly, so a test controls it exactly.
 PLAN_TTL_SECONDS = 300.0
+
+#: `preparing`'s own accepted contract manifest. Every field is the
+#: literal "1" because none of plan.py, policy.py, or snapshot.py defines
+#: its own version constant yet -- this mirrors exactly what the fixture
+#: lifecycle it replaces already asserted
+#: (`pmc_server.lifecycle.FIXTURE_MANIFEST`), just no longer paired with a
+#: fixture plan or a fixture snapshot identity. A future major version in
+#: any of those three modules must update this constant, in this module,
+#: alongside it -- there is nowhere else that decides what this server
+#: accepts.
+ACCEPTED_CONTRACT_MANIFEST = ContractManifestV1(
+    plan_version="1", policy_version="1", snapshot_version="1"
+)
+
+#: `generating`'s own defaults for a bounded completion. Independent of
+#: every other deadline in this repository (`pmc_core.executor`'s,
+#: `pmc_server.transport`'s): this one bounds the model, not a process.
+DEFAULT_MAX_COMPLETION_TOKENS = 1024
+DEFAULT_GENERATION_DEADLINE_SECONDS = 30.0
+
+#: `generating`'s own clarification-request contract: a completion whose
+#: entire text is one line starting with this prefix is a clarification
+#: question, not a plan to parse. This module owns the contract because no
+#: real prompt builder exists yet (docs/master_plan.md item 13); item 13
+#: inherits it or replaces it, but the graph does not change either way,
+#: since classification happens here, not in the prompt.
+ASK_MARKER_PREFIX = "ask:"
+
+#: The fixed question `generating` reports when a completion is empty or
+#: whitespace only -- itself a form of "the model asked for nothing more
+#: to go on", handled identically to an explicit `ask:` line.
+EMPTY_COMPLETION_QUESTION = (
+    "the model produced no output; please rephrase your intent"
+)
+
+#: Stable failure categories `preparing` and `generating` can produce.
+#: Distinct from `pmc_core.errors.CATEGORIES` (that module's categories
+#: are for a PyMOL execution failure `validating` normalizes; these are
+#: for a request that never reached execution at all).
+FAILURE_CONTRACT_MISMATCH = "contract_mismatch"
+FAILURE_MALFORMED_SNAPSHOT = "malformed_snapshot"
+FAILURE_NO_TARGET_OBJECT = "no_target_object"
 
 
 class RequestState(TypedDict):
@@ -238,39 +290,217 @@ def route_by_status(state: RequestState) -> str:
     raise ValueError(f"unrecognized request status: {status!r}")
 
 
-def _preparing(state: RequestState) -> dict[str, object]:
-    """Resolve the request's target object. Stub: see `pmc_agent.prompt`.
+def _failed(
+    state: RequestState, *, category: str, message: str, retryable: bool
+) -> dict[str, object]:
+    """Build the partial update common to every `failed`-ending node.
 
-    docs/master_plan.md item 8, step 6 replaces this body with real target
-    resolution and contract-manifest verification. Step 5's own stub exists
-    so the graph compiles and its pass-through shape is provable before any
-    node does real work.
+    Every node that can fail closed before a plan exists builds its
+    `FailureEnvelopeV1` at the point it decided to fail, with its own
+    category and its own judgment of `retryable` -- there is no single
+    fixed mapping from "this node failed" to one envelope, because *why*
+    a request failed is exactly the information `state["failure"]` exists
+    to carry to `pmc_server.lifecycle`'s eventual wire response.
+
+    Args:
+        state: The request state at the point of failure.
+        category: A stable, machine-readable failure category.
+        message: A bounded, human-readable explanation.
+        retryable: Whether resubmitting a new request could plausibly
+            succeed where this one did not.
+
+    Returns:
+        A partial update ending the request at `TERMINAL_FAILED`.
+    """
+    return {
+        "status": TERMINAL_FAILED,
+        "history": (*state["history"], TERMINAL_FAILED),
+        "failure": FailureEnvelopeV1(
+            category=category, message=message, retryable=retryable
+        ),
+    }
+
+
+def _preparing(state: RequestState) -> dict[str, object]:
+    """Resolve the request's target object; verify its contract manifest.
+
+    Orchestration rule 3 ("preparation resolves one target object") is
+    already done by the time a request reaches this graph: item 7's client
+    resolves exactly one molecular object, deterministically, and fails
+    closed with no request sent at all if it cannot
+    (`pmc_client.session.resolve_target_object`). This node's own job is
+    narrower -- read what the client already resolved, and refuse to
+    proceed on a request this server's own contracts cannot honor -- not
+    to resolve anything itself.
 
     Args:
         state: The request state entering `preparing`.
 
     Returns:
-        A partial update advancing to `generating`.
+        A partial update advancing to `generating`, or ending the request
+        at `TERMINAL_FAILED` with a typed, non-repairable failure.
     """
+    if state["contract_manifest"] != ACCEPTED_CONTRACT_MANIFEST:
+        return _failed(
+            state,
+            category=FAILURE_CONTRACT_MISMATCH,
+            message="request declared contract versions this server does "
+            "not accept",
+            retryable=False,
+        )
+    try:
+        from_json(state["snapshot_json"])
+    except Exception:
+        # from_json's own failure modes are exception-typed by
+        # pmc_core.snapshot, not this module's concern; any of them means
+        # the same thing here: the snapshot cannot be used, so it fails
+        # the same way regardless of which one it was.
+        return _failed(
+            state,
+            category=FAILURE_MALFORMED_SNAPSHOT,
+            message="request snapshot could not be decoded",
+            retryable=False,
+        )
+    target_object = state["snapshot_identity"].object_name
+    if not target_object:
+        return _failed(
+            state,
+            category=FAILURE_NO_TARGET_OBJECT,
+            message="request carried no resolved target object",
+            retryable=False,
+        )
     return {
         "status": STATE_GENERATING,
         "history": (*state["history"], STATE_GENERATING),
+        "target_object": target_object,
     }
 
 
-def _generating(state: RequestState) -> dict[str, object]:
-    """Call the inference engine. Stub: see step 6.
+def _classify_completion(
+    state: RequestState, *, completion: str, model_identity: str, attempt: int
+) -> dict[str, object]:
+    """Classify a completion as a clarification, or accept it for parsing.
+
+    Orchestration rule 6: "LangGraph calls local inference and classifies
+    clarification or no-op output before plan parsing." Whether the model
+    asked a question is the model's own contribution
+    (SPECIFICATION.md:551-552 permits this -- it is not retry count,
+    target, policy, or approval); the classification rule itself, and the
+    bounding of whatever question text results, are this module's.
 
     Args:
         state: The request state entering `generating`.
+        completion: The engine's raw completion text.
+        model_identity: The engine's reported model identity.
+        attempt: This request's attempt count, already incremented.
 
     Returns:
-        A partial update advancing to `validating`.
+        A partial update to `TERMINAL_ASK` with a bounded question, or
+        advancing to `STATE_VALIDATING` with the completion recorded for
+        `validating` to parse.
     """
+    stripped = completion.strip()
+    question: str | None = None
+    if not stripped:
+        question = EMPTY_COMPLETION_QUESTION
+    elif "\n" not in stripped and stripped.lower().startswith(
+        ASK_MARKER_PREFIX
+    ):
+        question = stripped[len(ASK_MARKER_PREFIX) :].strip()
+
+    if question is not None:
+        return {
+            "status": TERMINAL_ASK,
+            "history": (*state["history"], TERMINAL_ASK),
+            "attempt": attempt,
+            "completion": completion,
+            "model_identity": model_identity,
+            "question": normalize_message(question),
+        }
     return {
         "status": STATE_VALIDATING,
         "history": (*state["history"], STATE_VALIDATING),
+        "attempt": attempt,
+        "completion": completion,
+        "model_identity": model_identity,
     }
+
+
+def _build_generating(
+    *,
+    engine: InferenceEngine,
+    prompt_builder: PROMPT_BUILDER,
+    max_tokens: int,
+    deadline_seconds: float,
+) -> Callable[[RequestState], dict[str, object]]:
+    """Close a `generating` node body over its injected engine and prompt.
+
+    A closure, not a bound method on some class, because a LangGraph node
+    is exactly this: `Callable[[RequestState], dict[str, object]]`, and
+    `build_request_graph` is where every other node's injectable
+    dependencies (`pmc_agent.session.RequestGraphSession`'s eventual
+    `executor`, `plan_id_source`, `clock`) get the same treatment.
+
+    Args:
+        engine: The inference engine to call. A fake in every test in this
+            item; item 9's Lemonade adapter satisfies the same
+            `InferenceEngine` Protocol in production.
+        prompt_builder: Builds the prompt from this request's own inputs.
+        max_tokens: The token budget given to every completion.
+        deadline_seconds: The wall-clock budget given to every completion.
+
+    Returns:
+        The `generating` node body.
+    """
+
+    def _generating(state: RequestState) -> dict[str, object]:
+        """Call the inference engine once and classify its completion.
+
+        Args:
+            state: The request state entering `generating`.
+
+        Returns:
+            A partial update: to `TERMINAL_FAILED` on an engine failure,
+            to `TERMINAL_ASK` on a clarification or empty completion, or
+            advancing to `STATE_VALIDATING` otherwise.
+        """
+        prompt = prompt_builder(
+            PromptInputs(
+                intent=state["intent"],
+                snapshot=from_json(state["snapshot_json"]),
+                contract_manifest=state["contract_manifest"],
+            )
+        )
+        outcome = engine.complete(
+            CompletionRequest(
+                prompt=prompt,
+                grammar=None,
+                max_tokens=max_tokens,
+                deadline_seconds=deadline_seconds,
+            ),
+            cancel=CancelToken(),
+        )
+        attempt = state["attempt"] + 1
+        if isinstance(outcome, EngineFailure):
+            failed = _failed(
+                state,
+                category=outcome.category,
+                message=outcome.message,
+                # An engine failure says nothing about this request's own
+                # intent or plan; a fresh request could plausibly succeed
+                # where this one hit an unavailable or timed-out engine.
+                retryable=True,
+            )
+            failed["attempt"] = attempt
+            return failed
+        return _classify_completion(
+            state,
+            completion=outcome.text,
+            model_identity=outcome.model_identity,
+            attempt=attempt,
+        )
+
+    return _generating
 
 
 def _validating(state: RequestState) -> dict[str, object]:
@@ -315,7 +545,13 @@ def _pending_approval(state: RequestState) -> dict[str, object]:
     }
 
 
-def build_request_graph() -> StateGraph[RequestState]:  # pyrefly: ignore[bad-specialization]
+def build_request_graph(
+    *,
+    engine: InferenceEngine,
+    prompt_builder: PROMPT_BUILDER = build_default_prompt,
+    max_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
+    deadline_seconds: float = DEFAULT_GENERATION_DEADLINE_SECONDS,
+) -> StateGraph[RequestState]:  # pyrefly: ignore[bad-specialization]
     """Build the uncompiled request graph, wired but not yet compiled.
 
     Left uncompiled here because compilation is where a checkpointer is
@@ -325,13 +561,30 @@ def build_request_graph() -> StateGraph[RequestState]:  # pyrefly: ignore[bad-sp
     repository (`PlanRequestLifecycle`, `PlanValidationService`) keeps
     construction and its runtime dependencies separate.
 
+    Args:
+        engine: The inference engine `generating` calls. Required, with no
+            default: unlike every other parameter here, there is no
+            production-safe default engine to fall back to.
+        prompt_builder: Builds the prompt `generating` sends to `engine`.
+            Defaults to this module's own placeholder
+            (`pmc_agent.prompt.build_default_prompt`) until
+            docs/master_plan.md item 13 supplies the real one.
+        max_tokens: The token budget given to every completion.
+        deadline_seconds: The wall-clock budget given to every completion.
+
     Returns:
         The graph, with every node and edge from `preparing` onward wired,
         ready for a caller to `.compile(checkpointer=...)`.
     """
     graph = StateGraph(RequestState)  # pyrefly: ignore[bad-specialization]
+    generating = _build_generating(
+        engine=engine,
+        prompt_builder=prompt_builder,
+        max_tokens=max_tokens,
+        deadline_seconds=deadline_seconds,
+    )
     graph.add_node(STATE_PREPARING, _preparing)
-    graph.add_node(STATE_GENERATING, _generating)
+    graph.add_node(STATE_GENERATING, generating)  # pyrefly: ignore[bad-argument-type]
     graph.add_node(STATE_VALIDATING, _validating)
     graph.add_node(STATE_PENDING_APPROVAL, _pending_approval)
 
