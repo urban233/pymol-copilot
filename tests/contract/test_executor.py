@@ -11,6 +11,12 @@ child-process evidence is ever produced for a rejected request, and that
 no scratch directory `execute()`'s own spawn path would create ever
 appears.
 
+Also covers `probe_fidelity()`'s own, smaller pre-spawn validation
+(docs/master_plan.md item 7): the same shape of checks minus the two that
+have no meaning without a plan (policy, snapshot-digest binding), proved
+against a stub runner module `_run_child()` -- the private helper the two
+entry points share -- never reaches for a rejected request.
+
 The real-PyMOL spawn, deadline, kill, and reap evidence lives in
 tests/integration/test_executor_boundary.py, since it needs a real PyMOL
 child process to produce anything to observe.
@@ -176,6 +182,23 @@ def _base_request(**overrides: Any) -> executor.ExecutionRequest:
     return executor.ExecutionRequest(**fields)
 
 
+def _base_fidelity_request(**overrides: Any) -> executor.FidelityRequest:
+    """Build a well-formed FidelityRequest, with fields overridden.
+
+    Args:
+        **overrides: Fields to override on the well-formed default.
+
+    Returns:
+        The constructed FidelityRequest.
+    """
+    fields: dict[str, Any] = {
+        "executor_version": executor.EXECUTOR_VERSION,
+        "snapshot_json": to_json(_minimal_snapshot()),
+    }
+    fields.update(overrides)
+    return executor.FidelityRequest(**fields)
+
+
 def _scratch_dirs() -> set[Path]:
     """Every executor scratch directory currently on disk.
 
@@ -217,6 +240,22 @@ def _assert_failed_without_process(
     assert report.command_outcomes == ()
     assert report.selection_counts == ()
     assert report.resulting_fingerprint is None
+
+
+def _assert_fidelity_rejected(
+    report: executor.FidelityReport, reason: str
+) -> None:
+    """Assert the properties every rejected FidelityReport must have.
+
+    Args:
+        report: The report probe_fidelity() returned.
+        reason: The expected typed rejection reason.
+    """
+    assert report.status == executor.STATUS_REJECTED
+    assert report.reason == reason
+    assert report.child_pid is None
+    assert report.child_terminated is None
+    assert report.reconstructed_snapshot_json is None
 
 
 def test_unsupported_executor_version_is_rejected() -> None:
@@ -419,6 +458,173 @@ def test_popen_failure_returns_typed_report_and_removes_scratch(
     _assert_failed_without_process(
         report, executor.REASON_SPAWN_OR_LOAD_FAILURE
     )
+    assert report.input_digest is not None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_unsupported_executor_version_is_rejected() -> None:
+    """A probe whose executor_version this module does not know fails."""
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(executor_version=executor.EXECUTOR_VERSION + 1)
+    )
+
+    _assert_fidelity_rejected(
+        report, executor.REASON_UNSUPPORTED_SCHEMA_VERSION
+    )
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_oversized_snapshot_is_rejected() -> None:
+    """A snapshot larger than the declared limit fails closed."""
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(max_snapshot_bytes=10)
+    )
+
+    _assert_fidelity_rejected(report, executor.REASON_OVERSIZED_INPUT)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_malformed_snapshot_json_is_rejected() -> None:
+    """Snapshot JSON that does not even parse fails closed."""
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(snapshot_json="{not valid json")
+    )
+
+    _assert_fidelity_rejected(report, executor.REASON_MALFORMED_INPUT)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+@pytest.mark.parametrize("scalar_json", ["42", "null", "[]", '"hello"', "true"])
+def test_fidelity_non_object_snapshot_json_is_rejected(
+    scalar_json: str,
+) -> None:
+    """Syntactically valid JSON that is not an object fails closed.
+
+    Args:
+        scalar_json: JSON text that parses to a non-object value.
+    """
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(snapshot_json=scalar_json)
+    )
+
+    _assert_fidelity_rejected(report, executor.REASON_MALFORMED_INPUT)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_snapshot_missing_a_key_is_rejected() -> None:
+    """A snapshot JSON object missing a required key fails closed."""
+    payload = json.loads(to_json(_minimal_snapshot()))
+    del payload["name"]
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(snapshot_json=json.dumps(payload))
+    )
+
+    _assert_fidelity_rejected(report, executor.REASON_MALFORMED_INPUT)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_incompatible_snapshot_schema_version_is_rejected() -> None:
+    """A snapshot declaring an unrecognized schema version fails closed."""
+    payload = json.loads(to_json(_minimal_snapshot()))
+    payload["schema_version"] = SNAPSHOT_VERSION + 1
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(snapshot_json=json.dumps(payload))
+    )
+
+    _assert_fidelity_rejected(
+        report, executor.REASON_UNSUPPORTED_SCHEMA_VERSION
+    )
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_snapshot_with_a_nan_coordinate_is_rejected() -> None:
+    """A snapshot that parses but carries a non-finite float fails closed."""
+    payload = json.loads(to_json(_one_atom_snapshot()))
+    payload["states"][0]["atoms"][0]["coord"] = [float("nan"), 0.0, 0.0]
+    snapshot_json = json.dumps(payload)
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(
+        _base_fidelity_request(snapshot_json=snapshot_json)
+    )
+
+    _assert_fidelity_rejected(report, executor.REASON_MALFORMED_INPUT)
+    assert report.input_digest is None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_mkdtemp_failure_returns_typed_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scratch-directory allocation failure does not escape probe_fidelity().
+
+    Args:
+        monkeypatch: Pytest's scoped attribute replacement helper.
+    """
+
+    def fail_mkdtemp(*_args: object, **_kwargs: object) -> str:
+        raise OSError("simulated temporary-directory exhaustion")
+
+    monkeypatch.setattr(
+        executor.importlib.util, "find_spec", lambda _name: True
+    )
+    monkeypatch.setattr(executor.tempfile, "mkdtemp", fail_mkdtemp)
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(_base_fidelity_request())
+
+    assert report.status == executor.STATUS_FAILED
+    assert report.reason == executor.REASON_SPAWN_OR_LOAD_FAILURE
+    assert report.child_pid is None
+    assert report.child_terminated is None
+    assert report.reconstructed_snapshot_json is None
+    assert report.input_digest is not None
+    assert _scratch_dirs() == scratch_before
+
+
+def test_fidelity_popen_failure_returns_typed_report_and_removes_scratch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An OS-level spawn failure is reported and scratch data is removed.
+
+    Args:
+        monkeypatch: Pytest's scoped attribute replacement helper.
+    """
+
+    def fail_popen(*_args: object, **_kwargs: object) -> None:
+        raise OSError("simulated process-table exhaustion")
+
+    monkeypatch.setattr(
+        executor.importlib.util, "find_spec", lambda _name: True
+    )
+    monkeypatch.setattr(executor.subprocess, "Popen", fail_popen)
+    scratch_before = _scratch_dirs()
+
+    report = executor.probe_fidelity(_base_fidelity_request())
+
+    assert report.status == executor.STATUS_FAILED
+    assert report.reason == executor.REASON_SPAWN_OR_LOAD_FAILURE
+    assert report.child_pid is None
+    assert report.child_terminated is None
+    assert report.reconstructed_snapshot_json is None
     assert report.input_digest is not None
     assert _scratch_dirs() == scratch_before
 
