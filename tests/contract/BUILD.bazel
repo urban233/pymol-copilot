@@ -1,3 +1,4 @@
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
 # The captured PyMOL error corpus. Owned by this package, where the
@@ -18,10 +19,21 @@ py_test(
     main = "test_errors.py",
     data = [":pymol_error_corpus"],
     deps = [
+        ":consumer_scan",
         "//tests/integration:pymol_error_cases",
         "@pypi//pytest",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_library(
+    name = "consumer_scan",
+    srcs = ["consumer_scan.py"],
+    imports = ["."],
+    deps = [
+        "//src/pmc_agent:pmc_agent",
         "//src/pmc_data:pmc_data",
     ],
 )
@@ -32,6 +44,29 @@ py_test(
     srcs = ["test_card.py"],
     main = "test_card.py",
     deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "grammar",
+    size = "small",
+    srcs = ["test_grammar.py"],
+    main = "test_grammar.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "prompt",
+    size = "small",
+    srcs = ["test_prompt.py"],
+    main = "test_prompt.py",
+    deps = [
+        ":consumer_scan",
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
     ],
@@ -148,10 +183,12 @@ test_suite(
         ":client_session",
         ":errors",
         ":executor",
+        ":grammar",
         ":parser",
         ":plan",
         ":policy",
         ":policy_sabotage",
+        ":prompt",
         ":protocol",
         ":snapshot",
     ],

@@ -150,8 +150,14 @@ check-unannotated-defs = true
 # module holding the denied-form corpus that both test_denied_forms.py and
 # test_hostile_screen.py import, so the parser/policy denial suite and the
 # repair-eligibility screen's own suite cannot drift apart.
+# tests/contract/consumer_scan.py is the same situation once more, this
+# time within tests/contract: one bare sibling module holding the import
+# resolving scan that both test_errors.py and test_prompt.py use, so
+# master plan items 6 and 13 cannot drift into two different notions of
+# what reaching the shared core means.
 search-path = [
     "tests/adversarial",
+    "tests/contract",
     "tests/integration",
     "tools/winstage",
 ]

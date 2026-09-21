@@ -19,8 +19,6 @@ against: taking them from the envelope itself, as this module first did,
 left two of its five fields asserting nothing.
 """
 
-import ast
-import importlib
 import json
 import pathlib
 
@@ -43,6 +41,8 @@ from pmc_core.errors import normalize_message
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import MAX_COMMANDS
 from pmc_core.plan import SELECTION_NAME_PREFIX
+from consumer_scan import consumer_sources
+from consumer_scan import foreign_calls
 from pymol_error_cases import LAUNCH_ARGUMENTS
 from pymol_error_cases import Case
 from pymol_error_cases import cases
@@ -84,11 +84,6 @@ _DRIVEN: dict[tuple[str, str], Case] = {
     (case.verb, case.case): case for case in cases()
 }
 
-#: The subsystems item 6 of the master plan requires to normalize a PyMOL
-#: failure identically. Their call sites arrive with items 14 and 8; what
-#: is checkable now is that neither has grown a boundary of its own.
-_CONSUMER_PACKAGES = ("pmc_agent", "pmc_data")
-
 #: Definitions that would mean a consumer had built a second normalizer
 #: instead of reaching this one.
 _NORMALIZER_DEFINITIONS = (
@@ -99,102 +94,6 @@ _NORMALIZER_DEFINITIONS = (
 
 #: The one callable a consumer may reach when it normalizes a failure.
 _CANONICAL_NORMALIZER = "pmc_core.errors.normalize"
-
-
-def _bound_names(tree: ast.Module) -> dict[str, str]:
-    """Map every name a module's imports bind to what it names.
-
-    Args:
-        tree: One parsed consumer module.
-
-    Returns:
-        Each bound name against the dotted path it resolves to.
-    """
-    bound: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            for alias in node.names:
-                bound[alias.asname or alias.name] = (
-                    f"{node.module}.{alias.name}"
-                )
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                # `import a.b` binds `a`, but `a.b` is reached by
-                # attribute from it, so record the dotted path itself.
-                bound[alias.asname or alias.name] = alias.name
-    return bound
-
-
-def _dotted_name(node: ast.expr) -> str | None:
-    """Spell a call's target as a dotted name, when it is one.
-
-    Args:
-        node: The expression being called.
-
-    Returns:
-        The dotted name, or None when the target is computed rather than
-        named -- an indirection this scan cannot follow and does not
-        claim to.
-    """
-    parts: list[str] = []
-    while isinstance(node, ast.Attribute):
-        parts.append(node.attr)
-        node = node.value
-    if not isinstance(node, ast.Name):
-        return None
-    parts.append(node.id)
-    return ".".join(reversed(parts))
-
-
-def _resolved(dotted: str, bound: dict[str, str]) -> str:
-    """Rewrite a call target through the module's own imports.
-
-    Args:
-        dotted: The target as written at the call site.
-        bound: What that module's imports bind.
-
-    Returns:
-        The target with its longest bound prefix expanded, which is what
-        the call actually reaches.
-    """
-    parts = dotted.split(".")
-    for size in range(len(parts), 0, -1):
-        prefix = ".".join(parts[:size])
-        if prefix in bound:
-            return ".".join([bound[prefix], *parts[size:]])
-    return dotted
-
-
-def _foreign_normalizer_calls(source: str) -> set[str]:
-    """Find calls to a normalize() that is not this module's.
-
-    Each call target is resolved through the imports that bind it rather
-    than matched as a string, so a consumer importing `normalize` from
-    somewhere else is caught even when the file names `pmc_core.errors`
-    elsewhere, and naming it in a comment buys nothing.
-
-    Args:
-        source: One consumer module's text.
-
-    Returns:
-        What each divergent call reaches; empty when every normalize()
-        call in the source resolves to this module's normalize.
-    """
-    tree = ast.parse(source)
-    bound = _bound_names(tree)
-    foreign: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        dotted = _dotted_name(node.func)
-        if dotted is None:
-            continue
-        resolved = _resolved(dotted, bound)
-        if resolved.rsplit(".", 1)[-1] != "normalize":
-            continue
-        if resolved != _CANONICAL_NORMALIZER:
-            foreign.add(resolved)
-    return foreign
 
 
 #: Sources the consumer scan has to tell apart. The first five are
@@ -252,24 +151,6 @@ _SCAN_CASES: tuple[tuple[str, str, set[str]], ...] = (
         {"normalize"},
     ),
 )
-
-
-def _consumer_sources() -> list[pathlib.Path]:
-    """List every Python source shipped by the consumer packages.
-
-    Read from each package's own `__path__` rather than from a repository
-    path, so this works unchanged under Bazel's runfiles tree, where the
-    test's working directory is not the source root.
-
-    Returns:
-        Every consumer source file, in a stable order.
-    """
-    sources: list[pathlib.Path] = []
-    for name in _CONSUMER_PACKAGES:
-        package = importlib.import_module(name)
-        for directory in package.__path__:
-            sources.extend(sorted(pathlib.Path(directory).rglob("*.py")))
-    return sources
 
 
 class _RecordedFailure(Exception):
@@ -349,7 +230,7 @@ def test_no_consumer_defines_a_normalizer_of_its_own() -> None:
     defines a normalizer or an envelope of its own -- see
     plans/05-error-envelope.md.
     """
-    sources = _consumer_sources()
+    sources = consumer_sources()
     assert sources, "no consumer sources were found to scan"
     for source in sources:
         body = source.read_text(encoding="utf-8")
@@ -368,8 +249,10 @@ def test_a_consumer_that_normalizes_reaches_this_module() -> None:
     normalizer: the mechanism is proved now, and arms itself the moment
     either call site lands rather than having to be remembered then.
     """
-    for source in _consumer_sources():
-        foreign = _foreign_normalizer_calls(source.read_text(encoding="utf-8"))
+    for source in consumer_sources():
+        foreign = foreign_calls(
+            source.read_text(encoding="utf-8"), _CANONICAL_NORMALIZER
+        )
         assert not foreign, (
             f"{source.name} normalizes through {sorted(foreign)} rather "
             f"than {_CANONICAL_NORMALIZER}"
@@ -392,7 +275,7 @@ def test_the_consumer_scan_resolves_a_call_to_its_binding(
     the first five: every one of them names or imports something called
     `normalize`, and three of them also name `pmc_core.errors`.
     """
-    assert _foreign_normalizer_calls(source) == foreign, label
+    assert foreign_calls(source, _CANONICAL_NORMALIZER) == foreign, label
 
 
 def test_every_captured_case_is_driven_by_the_shared_table() -> None:
