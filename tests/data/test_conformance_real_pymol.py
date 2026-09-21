@@ -5,8 +5,8 @@ The full corpus is a `bazel run`, not a test: a few thousand samples is
 a few thousand spawned PyMOL processes. But contract drift -- a bumped
 CARD_VERSION, a changed colour index, an altered snapshot field, a
 structure that stopped reconstructing faithfully -- breaks every sample
-at once, so a small committed slice catches it in a minute rather than
-letting it surface in a months-old corpus.
+at once, so a small committed slice catches it in a minute or two
+rather than letting it surface in a months-old corpus.
 
 The slice is two files. `samples.jsonl` holds what verified;
 `rejections.jsonl` holds what did not, which for the slice is the one
@@ -43,9 +43,13 @@ from pmc_core.grammar import GRAMMAR_VERSION
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import COMMAND_ALLOWLIST
+from pmc_core.plan import HideOperation
+from pmc_core.plan import REPRESENTATION_ALLOWLIST
+from pmc_core.plan import ShowOperation
 from pmc_core.policy import POLICY_VERSION
 from pmc_core.prompt import build_for_data
 from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.snapshot import MOLECULE_REP_NAMES
 from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
@@ -213,16 +217,52 @@ def test_committed_slice_covers_every_category_kind() -> None:
     assert any("not" in shape for shape in shapes)
 
 
+def test_committed_slice_covers_every_representation() -> None:
+    """Every representation the corpus emits must be replayed here.
+
+    Representation is not implied by the category axes: `show` and
+    `hide` are one verb set each, so a slice chosen on verbs alone is
+    satisfied by one representation apiece and says nothing about the
+    rest, which the corpus still emits by the hundred. One dropping
+    out produces no failure -- only silence about whether real PyMOL
+    still reports for it what the oracle predicts.
+
+    Read off the typed operations the recorded .pml parses back to,
+    not matched against the text, so a renderer spacing change cannot
+    quietly turn this into an assertion about nothing.
+    """
+    covered = {
+        operation.representation
+        for sample in SAMPLES
+        for operation in _replayed_plan(sample).operations
+        if isinstance(operation, ShowOperation | HideOperation)
+    }
+
+    assert covered == set(REPRESENTATION_ALLOWLIST)
+
+
 def test_the_slice_records_both_kinds_of_unsupported_assertion() -> None:
-    """The unsupported path must be exercised, not only the happy one."""
+    """The unsupported path must be exercised, not only the happy one.
+
+    Every unobservable representation is named, not just one of them:
+    the marker is per representation, so a single one standing in for
+    the set would leave the other three claiming an unsupported result
+    that nothing here has seen real PyMOL produce.
+    """
     markers = {
         marker for sample in SAMPLES for marker in sample.unsupported_assertions
     }
 
     assert "camera_view" in markers
-    assert any(
-        marker.startswith("unobservable_representation:") for marker in markers
-    )
+    assert {
+        marker
+        for marker in markers
+        if marker.startswith("unobservable_representation:")
+    } == {
+        f"unobservable_representation:{name}"
+        for name in REPRESENTATION_ALLOWLIST
+        if name not in MOLECULE_REP_NAMES
+    }
 
 
 def test_the_slice_records_the_ungradable_attempt_it_made() -> None:

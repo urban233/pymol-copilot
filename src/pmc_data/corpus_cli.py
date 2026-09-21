@@ -142,25 +142,26 @@ def _verify(numbered: tuple[int, Attempt]) -> Sample | Rejection:
     )
 
 
-def _has_unobservable_representation(attempt: Attempt) -> bool:
-    """Whether an attempt shows a representation the snapshot cannot see.
+def _representations(attempt: Attempt) -> frozenset[str]:
+    """Report which representations an attempt's plan names.
 
     Read off the typed operations rather than matched against rendered
     .pml text: a change to `ShowOperation.render()`'s spacing would
     silently turn a text match into "no such attempt exists", and this
-    predicate is the only thing that keeps the committed slice covering
-    the unsupported path at all.
+    is the only thing that keeps the committed slice covering the
+    representation surface at all.
 
     Args:
         attempt: The attempt to inspect.
 
     Returns:
-        True when the plan names one of those four representations.
+        Every representation its `show` and `hide` operations name,
+        which is empty for a plan that only selects, colors or orients.
     """
-    return any(
-        isinstance(operation, ShowOperation | HideOperation)
-        and operation.representation in UNOBSERVABLE_REPRESENTATIONS
+    return frozenset(
+        operation.representation
         for operation in attempt.candidate.plan.operations
+        if isinstance(operation, ShowOperation | HideOperation)
     )
 
 
@@ -172,8 +173,18 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     altered snapshot field -- breaks every sample at once, so a small
     slice catches it just as well. What the slice must not miss is a
     *kind* of thing: every verb set, every term keyword, every boolean
-    shape, and every controlled structure, so a structure that stopped
-    reconstructing faithfully is caught here too.
+    shape, every controlled structure, and every representation, so a
+    structure that stopped reconstructing faithfully is caught here
+    too.
+
+    Representation is an axis in its own right because the others do
+    not imply it. `show` and `hide` are one verb set each, so four
+    representations covered the whole verb axis while `labels`,
+    `ribbon`, `surface` and `mesh` went into the corpus by the
+    hundred with nothing in `bazel test` replaying them: a PyMOL
+    upgrade that changed what `cmd.iterate` reports for one of them
+    would have left every test green and surfaced only as a wall of
+    fidelity mismatches partway through the next corpus run.
 
     Plans naming the polymer flag are skipped while covering those
     axes and added once at the end. They are ungradable, so letting one
@@ -214,6 +225,7 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     seen_terms: set[str] = set()
     seen_shapes: set[str] = set()
     seen_specs: set[str] = set()
+    seen_reps: set[str] = set()
 
     for attempt in attempts:
         category = attempt.candidate.category
@@ -221,24 +233,33 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
             continue
         verbs, terms, shape = category.split("/")
         keywords = set(terms.split("+"))
+        representations = _representations(attempt)
         if (
             verbs in seen_verbs
             and keywords <= seen_terms
             and shape in seen_shapes
             and attempt.spec.spec_id in seen_specs
+            and representations <= seen_reps
         ):
             continue
         seen_verbs.add(verbs)
         seen_terms |= keywords
         seen_shapes.add(shape)
         seen_specs.add(attempt.spec.spec_id)
+        seen_reps |= representations
         chosen.setdefault(identity(attempt), attempt)
 
     # One plan of each ungradable kind, so the slice exercises the
-    # unsupported path rather than only the happy one.
-    if not any(_has_unobservable_representation(a) for a in chosen.values()):
+    # unsupported path rather than only the happy one. The
+    # representation axis above already reaches every unobservable
+    # name the enumeration emits outside a polymer plan, so today this
+    # adds nothing; it stays because the loop skips polymer plans, and
+    # an unobservable representation that came to be emitted only
+    # inside one would otherwise drop out of the slice in silence.
+    unobservable = frozenset(UNOBSERVABLE_REPRESENTATIONS)
+    if not any(_representations(a) & unobservable for a in chosen.values()):
         for attempt in attempts:
-            if _has_unobservable_representation(attempt):
+            if _representations(attempt) & unobservable:
                 chosen.setdefault(identity(attempt), attempt)
                 break
     for attempt in attempts:
@@ -382,8 +403,8 @@ def run(argv: list[str]) -> int:
     results: list[Sample | Rejection] = []
     # Not a `with` block: on the way out through an exception that
     # would wait for every attempt already queued behind the failure,
-    # which for a four-thousand-attempt run means a Ctrl-C taking the
-    # rest of the afternoon to be honoured.
+    # which for a four-thousand-attempt run means a Ctrl-C taking
+    # another ten minutes or so to be honoured.
     pool = ThreadPoolExecutor(max_workers=args.workers)
     try:
         # map preserves input order, so the written corpus does not
@@ -408,10 +429,13 @@ def run(argv: list[str]) -> int:
                 flush=True,
             )
             raise
-        # A full run is thousands of spawned PyMOL processes over
-        # hours. An unexpected failure at attempt 3,500 has still
-        # measured 3,499 attempts, and throwing those away would turn
-        # one failure into a much larger one. Nothing is swallowed:
+        # A full run is thousands of spawned PyMOL processes: measured
+        # at 0.18s per attempt across eight workers, about twelve
+        # minutes for the configured four thousand and half an hour
+        # for the whole enumeration. An unexpected failure at attempt
+        # 3,500 has still measured 3,499 attempts, and throwing those
+        # away would turn one failure into a much larger one. Nothing
+        # is swallowed:
         # what finished is written, its report says plainly that it is
         # incomplete, and the exception carries on out of here to end
         # the process non-zero with its traceback intact.

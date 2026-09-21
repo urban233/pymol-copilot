@@ -28,6 +28,20 @@ Both can be overridden on the command line with `--seed` and
 `--target`. `--slice` instead regenerates the small committed
 conformance slice under `src/pmc_data/conformance/`.
 
+### How long a run takes
+
+Every attempt spawns one `pmc_sidecar.child` process that imports
+PyMOL and rebuilds the structure, so the run is CPU-bound in process
+startup and scales linearly with the attempt count. Measured on a
+12-core Apple Silicon machine at `--workers 8`: 240 attempts in 44s
+and 1,200 in 214s, so roughly 0.18s per attempt. That puts the
+configured 4,000-attempt run at about twelve minutes and the full
+9,594-plan enumeration (`--target` omitted) at about half an hour.
+More workers than physical cores will not help; the 8-worker run
+already measures 7.3x parallelism.
+
+`--slice` is 52 attempts, about twelve seconds.
+
 ## `chain_a_red_structures.json`
 
 The original single-fixture pipeline (issue #8). Each entry reapplies
