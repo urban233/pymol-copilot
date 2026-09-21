@@ -19,7 +19,12 @@ would let a rejection disappear:
 - `samples.jsonl` -- verified samples only.
 - `rejections.jsonl` -- every attempt that did not become one, with
   the reason the executor actually gave.
-- `report.json` -- the per-category rejection rate.
+- `report.json` -- the per-category rejection rate, and how much of
+  the kept set could actually have failed.
+
+`--slice` writes the first two into the committed conformance
+directory instead, and no report: the slice's report would restate
+what the samples beside it already say.
 
 The run is deterministic in its seed: the structures, the plans, the
 subset chosen when a budget is set, and the sample identities all
@@ -40,12 +45,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pmc_core.snapshot import ObjectSnapshot
-from pmc_data.generate import Rejection
 from pmc_data.generate import verify_sample
+from pmc_data.report import CorpusReport
 from pmc_data.report import build_report
 from pmc_data.report import render_table
 from pmc_data.report import write_rejections
 from pmc_data.report import write_report
+from pmc_data.sample import Rejection
 from pmc_data.sample import Sample
 from pmc_data.sample import write_samples
 from pmc_data.structures import StructureSpec
@@ -163,6 +169,16 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     stand in for a term axis would spend the axis on a sample that can
     never be verified -- which is how `hetatm` first went uncovered,
     swallowed by a two-selection plan that paired it with `polymer`.
+    That one polymer attempt never reaches `samples.jsonl`, because it
+    is not a sample; it is written to the committed
+    `rejections.jsonl`, so the slice carries evidence of the
+    ungradable path rather than only of the happy one.
+
+    An attempt is identified by its structure *and* its plan text, not
+    by the plan text alone: two structures with the same shape can draw
+    the same colour and emit byte-identical .pml, and keying on the
+    text alone would mark the second structure covered while silently
+    keeping only the first structure's attempt.
 
     Args:
         attempts: Every attempt the full run would make.
@@ -170,7 +186,19 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     Returns:
         The chosen attempts, in the input order.
     """
-    chosen: dict[str, Attempt] = {}
+
+    def identity(attempt: Attempt) -> tuple[str, str]:
+        """Identify one attempt by its structure and its plan text.
+
+        Args:
+            attempt: The attempt to identify.
+
+        Returns:
+            The structure's spec id paired with the canonical .pml.
+        """
+        return (attempt.spec.spec_id, attempt.candidate.plan.render_pml())
+
+    chosen: dict[tuple[str, str], Attempt] = {}
     seen_verbs: set[str] = set()
     seen_terms: set[str] = set()
     seen_shapes: set[str] = set()
@@ -193,30 +221,22 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
         seen_terms |= keywords
         seen_shapes.add(shape)
         seen_specs.add(attempt.spec.spec_id)
-        chosen.setdefault(attempt.candidate.plan.render_pml(), attempt)
+        chosen.setdefault(identity(attempt), attempt)
 
     # One plan of each ungradable kind, so the slice exercises the
     # unsupported path rather than only the happy one.
     if not any(_has_unobservable_representation(a) for a in chosen.values()):
         for attempt in attempts:
             if _has_unobservable_representation(attempt):
-                chosen.setdefault(attempt.candidate.plan.render_pml(), attempt)
+                chosen.setdefault(identity(attempt), attempt)
                 break
     for attempt in attempts:
         if "polymer" in attempt.candidate.category:
-            chosen.setdefault(attempt.candidate.plan.render_pml(), attempt)
+            chosen.setdefault(identity(attempt), attempt)
             break
 
-    order = {
-        attempt.candidate.plan.render_pml(): index
-        for index, attempt in enumerate(attempts)
-    }
-    return tuple(
-        sorted(
-            chosen.values(),
-            key=lambda a: order[a.candidate.plan.render_pml()],
-        )
-    )
+    order = {identity(attempt): index for index, attempt in enumerate(attempts)}
+    return tuple(sorted(chosen.values(), key=lambda a: order[identity(a)]))
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -246,7 +266,51 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
             "of the corpus, and write it next to the package."
         ),
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    # Checked here rather than left to ThreadPoolExecutor and
+    # stratified_subset: both raise, but only after this binary has
+    # enumerated every attempt and printed its banner, which reads
+    # like the run started and then broke.
+    if args.workers < 1:
+        parser.error(f"--workers must be at least 1, not {args.workers}")
+    if args.target is not None and args.target < 1:
+        parser.error(f"--target must be at least 1, not {args.target}")
+    return args
+
+
+def _write_run(
+    run_dir: Path,
+    results: Sequence[Sample | Rejection],
+    *,
+    seed: int,
+    slice_only: bool,
+    complete: bool,
+) -> CorpusReport:
+    """Write everything one run produced, and return its report.
+
+    Args:
+        run_dir: The directory to write into; it must already exist.
+        results: Every attempt's outcome, in attempt order.
+        seed: The seed the run used.
+        slice_only: Whether this is the committed conformance slice.
+            The slice's report is not written: it is derived entirely
+            from the samples beside it, and a tracked file that
+            restates them would only be one more thing to keep in
+            step. Its rejections are written, because those are the
+            slice's only record of the ungradable path.
+        complete: Whether every planned attempt was made.
+
+    Returns:
+        The report for what was written.
+    """
+    samples = [result for result in results if isinstance(result, Sample)]
+    rejections = [result for result in results if isinstance(result, Rejection)]
+    write_samples(run_dir / "samples.jsonl", samples)
+    write_rejections(run_dir / "rejections.jsonl", rejections)
+    report = build_report(samples, rejections, seed=seed, complete=complete)
+    if not slice_only:
+        write_report(run_dir / "report.json", report)
+    return report
 
 
 def run(argv: list[str]) -> int:
@@ -281,14 +345,6 @@ def run(argv: list[str]) -> int:
         flush=True,
     )
 
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        # map preserves input order, so the written corpus does not
-        # depend on which worker finished first.
-        results = list(pool.map(_verify, enumerate(attempts)))
-
-    samples = [r for r in results if isinstance(r, Sample)]
-    rejections = [r for r in results if isinstance(r, Rejection)]
-
     if args.slice:
         run_dir = REPO_ROOT / "src" / "pmc_data" / "conformance"
     else:
@@ -296,15 +352,51 @@ def run(argv: list[str]) -> int:
         run_dir = out_dir / f"seed-{seed}"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    write_samples(run_dir / "samples.jsonl", samples)
-    report = build_report(samples, rejections, seed=seed)
-    if not args.slice:
-        write_rejections(run_dir / "rejections.jsonl", rejections)
-        write_report(run_dir / "report.json", report)
+    results: list[Sample | Rejection] = []
+    # Not a `with` block: on the way out through an exception that
+    # would wait for every attempt already queued behind the failure,
+    # which for a four-thousand-attempt run means a Ctrl-C taking the
+    # rest of the afternoon to be honoured.
+    pool = ThreadPoolExecutor(max_workers=args.workers)
+    try:
+        # map preserves input order, so the written corpus does not
+        # depend on which worker finished first. Collected one at a
+        # time rather than with list(), so the ones already yielded
+        # survive a failure further down the sequence.
+        for result in pool.map(_verify, enumerate(attempts)):
+            results.append(result)
+    except BaseException:
+        pool.shutdown(wait=True, cancel_futures=True)
+        # A full run is thousands of spawned PyMOL processes over
+        # hours. An unexpected failure at attempt 3,500 has still
+        # measured 3,499 attempts, and throwing those away would turn
+        # one failure into a much larger one. Nothing is swallowed:
+        # what finished is written, its report says plainly that it is
+        # incomplete, and the exception carries on out of here to end
+        # the process non-zero with its traceback intact.
+        _write_run(
+            run_dir,
+            results,
+            seed=seed,
+            slice_only=args.slice,
+            complete=False,
+        )
+        print(
+            f"PARTIAL {run_dir}: wrote {len(results)} of "
+            f"{len(attempts)} attempts before failing",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise
+    else:
+        pool.shutdown(wait=True)
 
+    report = _write_run(
+        run_dir, results, seed=seed, slice_only=args.slice, complete=True
+    )
     print(render_table(report), end="", flush=True)
     print(f"WROTE {run_dir}", flush=True)
-    return 0 if samples else 1
+    return 0 if report.kept else 1
 
 
 if __name__ == "__main__":

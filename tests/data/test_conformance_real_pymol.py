@@ -8,6 +8,12 @@ structure that stopped reconstructing faithfully -- breaks every sample
 at once, so a small committed slice catches it in a minute rather than
 letting it surface in a months-old corpus.
 
+The slice is two files. `samples.jsonl` holds what verified;
+`rejections.jsonl` holds what did not, which for the slice is the one
+deliberately ungradable attempt. A slice with only the first would be
+evidence that the happy path still works and no evidence at all that
+the pipeline still refuses to grade what it cannot.
+
 Each committed sample is replayed from its own record and nothing
 else: the structure is rebuilt from the spec the record carries, the
 plan is parsed back out of its canonical .pml by `pmc_core.parser`,
@@ -22,6 +28,7 @@ Regenerate the slice with:
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -42,21 +49,33 @@ from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
+from pmc_data.sample import REASON_NOT_GRADABLE
+from pmc_data.sample import STATUS_UNSUPPORTED
 from pmc_data.sample import Sample
 from pmc_data.sample import read_samples
 from pmc_data.structures import StructureSpec
 from pmc_data.structures import build_structure
+from pmc_data.structures import enumerate_structures
 
 #: The committed slice, beside the package it describes.
-SLICE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "src"
-    / "pmc_data"
-    / "conformance"
-    / "samples.jsonl"
+SLICE_DIR = (
+    Path(__file__).resolve().parents[2] / "src" / "pmc_data" / "conformance"
 )
+SLICE_PATH = SLICE_DIR / "samples.jsonl"
+REJECTIONS_PATH = SLICE_DIR / "rejections.jsonl"
+
+#: Any seed builds the same structure matrix under the same names: a
+#: spec's own derived seed varies with it, but which specs exist and
+#: what they are called does not, and it is the names the coverage
+#: check below compares against.
+MATRIX_SEED = 0
 
 SAMPLES = read_samples(SLICE_PATH)
+REJECTIONS = tuple(
+    json.loads(line)
+    for line in REJECTIONS_PATH.read_text(encoding="utf-8").splitlines()
+    if line
+)
 
 
 def _replayed_plan(sample: Sample) -> ActionPlan:
@@ -204,6 +223,42 @@ def test_the_slice_records_both_kinds_of_unsupported_assertion() -> None:
     assert any(
         marker.startswith("unobservable_representation:") for marker in markers
     )
+
+
+def test_the_slice_records_the_ungradable_attempt_it_made() -> None:
+    """The slice must carry its own evidence of the ungradable path.
+
+    An attempt naming the polymer flag is generated on purpose, so that
+    the pipeline is seen to classify it as unsupported rather than
+    guess at it. It can never appear in `samples.jsonl` -- it is not a
+    verified sample -- so the only place it can be committed is beside
+    it, and a slice that dropped it would look exactly like a pipeline
+    that had quietly stopped generating it at all.
+    """
+    polymer = [
+        rejection
+        for rejection in REJECTIONS
+        if "polymer" in rejection["category"]
+    ]
+
+    assert len(polymer) == 1, REJECTIONS
+    assert polymer[0]["status"] == STATUS_UNSUPPORTED
+    assert polymer[0]["reason"] == REASON_NOT_GRADABLE
+
+
+def test_every_committed_structure_appears_in_the_slice() -> None:
+    """No controlled structure may drop out of the replayed set.
+
+    The slice exists partly to catch a structure that stopped
+    reconstructing faithfully, which it can only do for a structure it
+    actually contains. One dropping out is silent: the remaining
+    samples all still pass.
+    """
+    covered = {sample.structure.spec_id for sample in SAMPLES}
+
+    assert covered == {
+        spec.spec_id for spec in enumerate_structures(MATRIX_SEED)
+    }
 
 
 def test_the_slice_is_not_empty_and_is_bounded() -> None:

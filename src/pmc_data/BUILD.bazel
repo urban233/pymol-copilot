@@ -17,6 +17,7 @@ py_library(
         "verifier.py",
     ],
     data = [
+        "conformance/rejections.jsonl",
         "conformance/samples.jsonl",
         "gold_cases/chain_a_red.json",
         "gold_cases/chain_a_red_second_fixture_gold_case.json",
@@ -72,6 +73,9 @@ py_binary(
 # without depending on the whole library's data.
 filegroup(
     name = "conformance_slice",
-    srcs = ["conformance/samples.jsonl"],
+    srcs = [
+        "conformance/rejections.jsonl",
+        "conformance/samples.jsonl",
+    ],
     visibility = ["//src:tests"],
 )
