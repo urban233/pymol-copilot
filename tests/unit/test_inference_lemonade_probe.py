@@ -53,11 +53,20 @@ def _canary_response(text: str = "pmc-grammar-probe-ok") -> httpx.Response:
     )
 
 
-def _health(*, device: str = "cpu") -> dict[str, object]:
+def _health(
+    *,
+    device: str = "cpu",
+    checkpoint: str = _CHECKPOINT,
+    recipe: str = _RECIPE,
+    context_size: int = 4096,
+) -> dict[str, object]:
     """Build a loaded health response.
 
     Args:
         device: The reported device value.
+        checkpoint: The reported loaded checkpoint.
+        recipe: The reported loaded model recipe.
+        context_size: The reported loaded llama.cpp context size.
 
     Returns:
         A health object with the selected model loaded.
@@ -68,28 +77,38 @@ def _health(*, device: str = "cpu") -> dict[str, object]:
         "all_models_loaded": [
             {
                 "model_name": _MODEL,
-                "checkpoint": _CHECKPOINT,
+                "checkpoint": checkpoint,
                 "device": device,
-                "recipe": _RECIPE,
-                "recipe_options": {"ctx_size": 4096},
+                "recipe": recipe,
+                "recipe_options": {"ctx_size": context_size},
             }
         ],
     }
 
 
-def _catalog(*, checkpoint: str = _CHECKPOINT) -> dict[str, object]:
+def _catalog(
+    *,
+    model_id: str = _MODEL,
+    checkpoint: str = _CHECKPOINT,
+    recipe: str = _RECIPE,
+    context_length: int = 4096,
+) -> dict[str, object]:
     """Build a catalog entry for the selected model.
 
     Args:
+        model_id: The exact catalog identifier to report.
         checkpoint: The catalog checkpoint to report.
+        recipe: The catalog recipe to report.
+        context_length: The catalog context length to report.
 
     Returns:
         The catalog model object.
     """
     return {
+        "id": model_id,
         "checkpoint": checkpoint,
-        "recipe": _RECIPE,
-        "context_length": 4096,
+        "recipe": recipe,
+        "context_length": context_length,
     }
 
 
@@ -107,12 +126,18 @@ def _client(handler: _HANDLER) -> httpx.Client:
     )
 
 
-def _happy_handler(*, device: str = "cpu", canary: httpx.Response | None = None) -> _HANDLER:
+def _happy_handler(
+    *,
+    device: str = "cpu",
+    canary: httpx.Response | None = None,
+    requests: list[httpx.Request] | None = None,
+) -> _HANDLER:
     """Build the ordered response script for a successful probe.
 
     Args:
         device: The device reported after loading.
         canary: An optional canary response override.
+        requests: An optional log of every probe request in order.
 
     Returns:
         A handler for health, catalog, load, health, then completion.
@@ -127,7 +152,7 @@ def _happy_handler(*, device: str = "cpu", canary: httpx.Response | None = None)
         )
     )
 
-    def handler(_request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         """Return the next probe response after checking its endpoint.
 
         Args:
@@ -136,6 +161,8 @@ def _happy_handler(*, device: str = "cpu", canary: httpx.Response | None = None)
         Returns:
             The next scripted response.
         """
+        if requests is not None:
+            requests.append(request)
         return next(responses)
 
     return handler
@@ -162,7 +189,8 @@ def _connect(handler: _HANDLER, *, backend: str = "cpu") -> LemonadeEngine | Eng
 
 def test_the_full_probe_returns_an_engine_with_immutable_capabilities() -> None:
     """Health, identity, loaded state, and grammar canary all must succeed."""
-    engine = _connect(_happy_handler())
+    requests: list[httpx.Request] = []
+    engine = _connect(_happy_handler(requests=requests))
 
     assert isinstance(engine, LemonadeEngine)
     assert engine.capabilities == EngineCapabilities(
@@ -175,6 +203,19 @@ def test_the_full_probe_returns_an_engine_with_immutable_capabilities() -> None:
         grammar_enforced=True,
     )
     assert engine.model_identity == f"{_MODEL}@{_CHECKPOINT}"
+    assert [(request.method, request.url.path) for request in requests] == [
+        ("GET", "/api/v1/health"),
+        ("GET", f"/api/v1/models/{_MODEL}"),
+        ("POST", "/api/v1/load"),
+        ("GET", "/api/v1/health"),
+        ("POST", "/api/v1/chat/completions"),
+    ]
+    assert json.loads(requests[2].content) == {
+        "model_name": _MODEL,
+        "llamacpp_backend": "cpu",
+        "ctx_size": 4096,
+    }
+    assert all(str(request.url).startswith(_BASE_URL) for request in requests)
 
 
 def test_an_unreachable_health_check_stops_before_load_or_completion() -> None:
@@ -235,6 +276,38 @@ def test_a_missing_model_fails_before_load() -> None:
     ]
 
 
+def test_a_catalog_response_with_a_different_model_id_fails_before_load() -> None:
+    """A 200 response must identify the exact model requested by its URL."""
+    requests: list[httpx.Request] = []
+    responses = iter(
+        (
+            httpx.Response(200, json={"status": "ok", "version": "11.9.0"}),
+            httpx.Response(200, json=_catalog(model_id="another-model")),
+        )
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record each identity probe request.
+
+        Args:
+            request: The outgoing probe request.
+
+        Returns:
+            The next scripted response.
+        """
+        requests.append(request)
+        return next(responses)
+
+    result = _connect(handler)
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+    assert [request.url.path for request in requests] == [
+        "/api/v1/health",
+        f"/api/v1/models/{_MODEL}",
+    ]
+
+
 def test_a_one_character_checkpoint_difference_is_an_identity_failure() -> None:
     """Checkpoint equality is byte-for-byte, never a friendly-name match."""
     responses = iter(
@@ -250,12 +323,55 @@ def test_a_one_character_checkpoint_difference_is_an_identity_failure() -> None:
     assert result.category == ENGINE_UNKNOWN
 
 
-def test_a_backend_fallback_visible_in_health_is_an_identity_failure() -> None:
-    """A load response alone cannot prove Lemonade used the requested device."""
-    result = _connect(_happy_handler(device="cpu"), backend="vulkan")
+@pytest.mark.parametrize(
+    "loaded_health",
+    [
+        _health(device="vulkan"),
+        _health(recipe="another-recipe"),
+        _health(context_size=2048),
+    ],
+    ids=["device", "recipe", "context-size"],
+)
+def test_a_loaded_identity_mismatch_stops_before_the_grammar_canary(
+    loaded_health: dict[str, object],
+) -> None:
+    """Load success is insufficient without an exact loaded-health match.
+
+    Args:
+        loaded_health: The incompatible loaded-model health response.
+    """
+    requests: list[httpx.Request] = []
+    responses = iter(
+        (
+            httpx.Response(200, json={"status": "ok", "version": "11.9.0"}),
+            httpx.Response(200, json=_catalog()),
+            httpx.Response(200, json={"status": "success"}),
+            httpx.Response(200, json=loaded_health),
+        )
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record each request before returning its scripted response.
+
+        Args:
+            request: The outgoing capability-probe request.
+
+        Returns:
+            The next scripted response.
+        """
+        requests.append(request)
+        return next(responses)
+
+    result = _connect(handler)
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_UNKNOWN
+    assert [request.url.path for request in requests] == [
+        "/api/v1/health",
+        f"/api/v1/models/{_MODEL}",
+        "/api/v1/load",
+        "/api/v1/health",
+    ]
 
 
 @pytest.mark.parametrize(

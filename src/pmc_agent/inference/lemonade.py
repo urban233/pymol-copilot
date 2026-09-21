@@ -599,6 +599,8 @@ def probe_capabilities(
         return _failure(ENGINE_UNAVAILABLE, _response_message(model_response))
     if model is None:
         return _unknown("Lemonade model response was not a JSON object")
+    if model.get("id") != engine.model_name:
+        return _unknown("Lemonade model response reported an unexpected model id")
     actual_checkpoint = model.get("checkpoint")
     if actual_checkpoint != engine.checkpoint:
         return _unknown(
