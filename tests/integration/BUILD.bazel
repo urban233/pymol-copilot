@@ -66,6 +66,28 @@ py_test(
 )
 
 py_test(
+    name = "lemonade_real",
+    size = "large",
+    timeout = "moderate",
+    srcs = [
+        "lemonade_support.py",
+        "test_lemonade_real.py",
+    ],
+    main = "test_lemonade_real.py",
+    imports = ["."],
+    # The only host value this opt-in target receives names the one local
+    # Lemonade server it may test. The test validates it with the production
+    # loopback-origin validator before creating a client.
+    env_inherit = ["PMC_LEMONADE_BASE_URL"],
+    tags = ["external"],
+    deps = [
+        "@pypi//httpx",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+    ],
+)
+
+py_test(
     name = "client_server_command",
     size = "medium",
     timeout = "short",
