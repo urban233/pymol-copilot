@@ -15,7 +15,22 @@ markers = [
     "integration: Integration tests involving external dependencies or filesystems",
     "slow: Tests that take a significant amount of time to execute",
 ]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # Purely mechanical: pytest's assertion-rewrite import hook discovers a
+    # module (anyio, langsmith -- both langgraph's own transitive imports)
+    # was already imported before the hook could instrument it, so that
+    # module's own internal assertions won't get pytest's enhanced
+    # messages. It says nothing about this repository's own test or
+    # production code, and unlike every other warning here, escalating it
+    # to a hard error is platform-dependent rather than deterministic: it
+    # crashes every langgraph-importing test target's own collection on
+    # Windows (observed in CI) without doing so on Linux or macOS, since
+    # which module ends up "already imported" first depends on each
+    # platform's own plugin autoload order, not on anything this codebase
+    # controls.
+    "ignore::pytest.PytestAssertRewriteWarning",
+]
 
 # Ruff configuration
 [tool.ruff]
