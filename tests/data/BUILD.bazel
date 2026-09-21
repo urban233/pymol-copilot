@@ -189,3 +189,15 @@ py_test(
         "//tools/winstage:winstage",
     ],
 )
+
+py_test(
+    name = "sample",
+    size = "small",
+    srcs = ["test_sample.py"],
+    main = "test_sample.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
