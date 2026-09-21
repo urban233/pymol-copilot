@@ -18,6 +18,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import json
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -50,6 +51,38 @@ DEFAULT_CONNECT_TIMEOUT_SECONDS = 5.0
 DEFAULT_READ_TIMEOUT_SECONDS = 30.0
 
 _CHAT_COMPLETIONS_PATH = "/api/v1/chat/completions"
+_HEALTH_PATH = "/api/v1/health"
+_LOAD_PATH = "/api/v1/load"
+_GRAMMAR_CANARY = 'root ::= "pmc-grammar-probe-ok"'
+_GRAMMAR_CANARY_OUTPUT = "pmc-grammar-probe-ok"
+_GRAMMAR_CANARY_PROMPT = "Reply with the capital of France in one word."
+
+
+@dataclass(frozen=True)
+class EngineCapabilities:
+    """The immutable capabilities proved when a Lemonade engine connects.
+
+    ``grammar_enforced`` deliberately has no false state. A server either
+    proves it honors a grammar at startup or no engine is returned, which
+    makes an unconstrained fallback structurally unavailable.
+
+    Attributes:
+        lemonade_version: The running Lemonade version from health.
+        model_name: The exact Lemonade model id selected for this engine.
+        checkpoint: The exact loaded checkpoint selected for this engine.
+        device: The device Lemonade reports after loading.
+        recipe: The loaded model recipe Lemonade reports.
+        context_length: The catalog context length for the selected model.
+        grammar_enforced: Always True for a connected engine.
+    """
+
+    lemonade_version: str
+    model_name: str
+    checkpoint: str
+    device: str
+    recipe: str
+    context_length: int
+    grammar_enforced: bool
 
 
 def _failure(category: str, message: str | None) -> EngineFailure:
@@ -135,6 +168,7 @@ class LemonadeEngine:
         self.context_size = context_size
         self.connect_timeout_seconds = connect_timeout_seconds
         self.read_timeout_seconds = read_timeout_seconds
+        self._capabilities: EngineCapabilities | None = None
         self._client = client or httpx.Client(
             base_url=base_url,
             timeout=httpx.Timeout(
@@ -152,7 +186,35 @@ class LemonadeEngine:
         Returns:
             The identity that every successful completion reports.
         """
-        return f"{self.model_name}@{self.checkpoint}"
+        checkpoint = (
+            self._capabilities.checkpoint
+            if self._capabilities is not None
+            else self.checkpoint
+        )
+        return f"{self.model_name}@{checkpoint}"
+
+    @property
+    def capabilities(self) -> EngineCapabilities:
+        """Return capabilities proved before this engine was handed to a server.
+
+        Returns:
+            The immutable startup capability record.
+
+        Raises:
+            RuntimeError: The engine was constructed directly rather than by
+                ``connect_lemonade()`` and has not been probed.
+        """
+        if self._capabilities is None:
+            raise RuntimeError("Lemonade capabilities have not been probed")
+        return self._capabilities
+
+    def _set_capabilities(self, capabilities: EngineCapabilities) -> None:
+        """Store the one startup capability record.
+
+        Args:
+            capabilities: The successfully verified immutable capability set.
+        """
+        self._capabilities = capabilities
 
     def _request_body(self, request: CompletionRequest) -> dict[str, object]:
         """Build the only completion request shape this adapter can send.
@@ -280,3 +342,249 @@ class LemonadeEngine:
                 stop_reason=STOP_LENGTH,
             )
         return _failure(ENGINE_UNKNOWN, "missing or unknown SSE finish reason")
+
+
+def _json_object(response: httpx.Response) -> dict[str, object] | None:
+    """Decode one JSON-object response without leaking a parser exception.
+
+    Args:
+        response: The response whose body should be a JSON object.
+
+    Returns:
+        The JSON object, or None when the body has another shape.
+    """
+    try:
+        body = response.json()
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def _request(
+    engine: LemonadeEngine,
+    method: str,
+    path: str,
+    *,
+    body: dict[str, object] | None = None,
+) -> tuple[httpx.Response, dict[str, object] | None] | EngineFailure:
+    """Issue one probe request and decode its optional object body.
+
+    Args:
+        engine: The local engine whose client sends the request.
+        method: The HTTP method to send.
+        path: The relative Lemonade API path.
+        body: An optional JSON request body.
+
+    Returns:
+        The raw response and decoded object, or an unavailable transport
+        failure. HTTP status is intentionally left to each ordered probe
+        check, since a model 404 has distinct identity semantics.
+    """
+    try:
+        response = engine._client.request(method, path, json=body)
+    except httpx.RequestError as error:
+        return _failure(ENGINE_UNAVAILABLE, str(error))
+    except Exception as error:  # The capability boundary is total too.
+        return _failure(ENGINE_UNKNOWN, str(error))
+    return response, _json_object(response)
+
+
+def _unknown(message: str) -> EngineFailure:
+    """Build one bounded incompatibility failure.
+
+    Args:
+        message: The incompatibility diagnostic.
+
+    Returns:
+        An ``ENGINE_UNKNOWN`` capability failure.
+    """
+    return _failure(ENGINE_UNKNOWN, message)
+
+
+def _loaded_model(
+    health: dict[str, object], model_name: str
+) -> dict[str, object] | None:
+    """Find the selected model's loaded-health block.
+
+    Args:
+        health: The decoded Lemonade health object.
+        model_name: The exact selected model id.
+
+    Returns:
+        Its loaded model object, or None when health does not report it.
+    """
+    models = health.get("all_models_loaded")
+    if not isinstance(models, list):
+        return None
+    for model in models:
+        if isinstance(model, dict) and model.get("model_name") == model_name:
+            return model
+    return None
+
+
+def probe_capabilities(
+    engine: LemonadeEngine,
+) -> EngineCapabilities | EngineFailure:
+    """Prove this local Lemonade server has the required capabilities.
+
+    Checks are deliberately ordered by cost: reachable health, exact catalog
+    identity, requested loaded state, then one grammar-constrained completion.
+    No failure is retried or degraded into an unconstrained engine.
+
+    Args:
+        engine: The local engine whose configured server is probed.
+
+    Returns:
+        Immutable capabilities when every check succeeds, otherwise the first
+        typed failure observed.
+    """
+    health_result = _request(engine, "GET", _HEALTH_PATH)
+    if isinstance(health_result, EngineFailure):
+        return health_result
+    health_response, health = health_result
+    if health_response.status_code != 200:
+        return _failure(ENGINE_UNAVAILABLE, _response_message(health_response))
+    if health is None or health.get("status") != "ok":
+        return _unknown("Lemonade health did not report status ok")
+    version = health.get("version")
+    if not isinstance(version, str):
+        return _unknown("Lemonade health did not report a version")
+
+    model_result = _request(
+        engine, "GET", f"/api/v1/models/{engine.model_name}"
+    )
+    if isinstance(model_result, EngineFailure):
+        return model_result
+    model_response, model = model_result
+    if model_response.status_code == 404:
+        return _unknown(f"Lemonade model not found: {engine.model_name}")
+    if model_response.status_code != 200:
+        return _failure(ENGINE_UNAVAILABLE, _response_message(model_response))
+    if model is None:
+        return _unknown("Lemonade model response was not a JSON object")
+    actual_checkpoint = model.get("checkpoint")
+    if actual_checkpoint != engine.checkpoint:
+        return _unknown(
+            "Lemonade checkpoint mismatch: "
+            f"expected {engine.checkpoint}, got {actual_checkpoint}"
+        )
+    recipe = model.get("recipe")
+    context_length = model.get("context_length")
+    if not isinstance(recipe, str) or not isinstance(context_length, int):
+        return _unknown("Lemonade model response omitted recipe or context length")
+
+    load_result = _request(
+        engine,
+        "POST",
+        _LOAD_PATH,
+        body={
+            "model_name": engine.model_name,
+            "llamacpp_backend": engine.backend,
+            "ctx_size": engine.context_size,
+        },
+    )
+    if isinstance(load_result, EngineFailure):
+        return load_result
+    load_response, _load = load_result
+    if load_response.status_code != 200:
+        return _failure(ENGINE_UNAVAILABLE, _response_message(load_response))
+
+    loaded_health_result = _request(engine, "GET", _HEALTH_PATH)
+    if isinstance(loaded_health_result, EngineFailure):
+        return loaded_health_result
+    loaded_health_response, loaded_health = loaded_health_result
+    if loaded_health_response.status_code != 200:
+        return _failure(
+            ENGINE_UNAVAILABLE, _response_message(loaded_health_response)
+        )
+    if loaded_health is None or loaded_health.get("status") != "ok":
+        return _unknown("Lemonade health became invalid after loading")
+    loaded_model = _loaded_model(loaded_health, engine.model_name)
+    if loaded_model is None:
+        return _unknown("Lemonade health did not report the loaded model")
+    if loaded_model.get("checkpoint") != engine.checkpoint:
+        return _unknown("Lemonade loaded an unexpected checkpoint")
+    if loaded_model.get("device") != engine.backend:
+        return _unknown("Lemonade loaded an unexpected device")
+    if loaded_model.get("recipe") != recipe:
+        return _unknown("Lemonade loaded an unexpected recipe")
+    recipe_options = loaded_model.get("recipe_options")
+    if (
+        not isinstance(recipe_options, dict)
+        or recipe_options.get("ctx_size") != engine.context_size
+    ):
+        return _unknown("Lemonade loaded an unexpected context size")
+
+    canary = engine.complete(
+        CompletionRequest(
+            prompt=_GRAMMAR_CANARY_PROMPT,
+            grammar=_GRAMMAR_CANARY,
+            max_tokens=16,
+            deadline_seconds=engine.read_timeout_seconds,
+        ),
+        cancel=CancelToken(),
+    )
+    if (
+        isinstance(canary, EngineFailure)
+        or canary.text != _GRAMMAR_CANARY_OUTPUT
+        or canary.stop_reason != STOP_END
+    ):
+        detail = canary.message if isinstance(canary, EngineFailure) else canary.text
+        return _failure(
+            ENGINE_REFUSED_GRAMMAR,
+            f"Lemonade grammar canary did not return its sentinel: {detail}",
+        )
+
+    return EngineCapabilities(
+        lemonade_version=version,
+        model_name=engine.model_name,
+        checkpoint=engine.checkpoint,
+        device=engine.backend,
+        recipe=recipe,
+        context_length=context_length,
+        grammar_enforced=True,
+    )
+
+
+def connect_lemonade(
+    *,
+    base_url: str = DEFAULT_BASE_URL,
+    model_name: str = DEFAULT_MODEL_NAME,
+    checkpoint: str = DEFAULT_CHECKPOINT,
+    backend: str = DEFAULT_BACKEND,
+    context_size: int = DEFAULT_CONTEXT_SIZE,
+    connect_timeout_seconds: float = DEFAULT_CONNECT_TIMEOUT_SECONDS,
+    read_timeout_seconds: float = DEFAULT_READ_TIMEOUT_SECONDS,
+    client: httpx.Client | None = None,
+) -> LemonadeEngine | EngineFailure:
+    """Connect to, prove, and return one local Lemonade engine.
+
+    Args:
+        base_url: The local Lemonade HTTP origin.
+        model_name: The exact Lemonade model identifier.
+        checkpoint: The expected exact model checkpoint.
+        backend: The requested backend device.
+        context_size: The requested context size.
+        connect_timeout_seconds: The finite connection timeout.
+        read_timeout_seconds: The finite HTTP read timeout.
+        client: An optional hermetic transport client for tests.
+
+    Returns:
+        A proven engine, or the first typed capability failure. There is no
+        fallback server, retry loop, or unconstrained mode.
+    """
+    engine = LemonadeEngine(
+        base_url=base_url,
+        model_name=model_name,
+        checkpoint=checkpoint,
+        backend=backend,
+        context_size=context_size,
+        connect_timeout_seconds=connect_timeout_seconds,
+        read_timeout_seconds=read_timeout_seconds,
+        client=client,
+    )
+    capabilities = probe_capabilities(engine)
+    if isinstance(capabilities, EngineFailure):
+        return capabilities
+    engine._set_capabilities(capabilities)
+    return engine
