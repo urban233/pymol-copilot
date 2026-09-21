@@ -12,6 +12,13 @@ Every completion uses Lemonade's streaming endpoint. The capability spike in
 request does not stop its compute, while closing a stream does. A deadline
 therefore drops partial text and returns a typed failure; cancellation closes
 the stream and returns the text received so far with ``STOP_CANCELLED``.
+
+Model identity is the exact checkpoint proved from Lemonade's catalog and
+loaded-health record at startup. Per-request grammar enforcement worked in
+the spike but is not a safe assumption, so the same startup path demands an
+exact grammar canary sentinel before returning an engine. The sole configured
+destination must be a bare loopback HTTP origin: there is no remote,
+alternate-origin, unconstrained, or syntax-only fallback.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

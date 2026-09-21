@@ -45,9 +45,6 @@ FORBIDDEN_BY_ROOT = {
     ),
 }
 TRAINING_NAMES = ("torch", "transformers", "peft", "trl", "unsloth")
-# These are matched against a Bazel package identity, rather than individual
-# source-file names. The Lemonade adapter therefore stays lemonade.py in the
-# inference package, never a lemonade/ subpackage.
 RUNTIME_NAMES = ("langgraph", "lemonade")
 NAMES_BY_ROOT = {
     # pmc_core is the shared contract layer the in-PyMOL client imports, so

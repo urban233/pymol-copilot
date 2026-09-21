@@ -5,6 +5,13 @@ here injects a fake for whatever process boundary its own subject would
 otherwise cross (a spawned sidecar, a real inference engine, PyMOL itself),
 so nothing in this directory launches anything.
 
+The local-inference evidence is entirely hermetic:
+`//tests/unit:inference_fake`, `//tests/unit:inference_lemonade`, and
+`//tests/unit:inference_lemonade_probe` use scripted engines or
+`httpx.MockTransport`, never a Lemonade process. The opt-in real companion is
+`//tests/integration:lemonade_real`, documented in
+`tests/integration/README.md`.
+
 `test_agent_runtime.py` and `test_validation_service.py` predate the request
 graph: the first pins the LangGraph/httpx dependency wiring
 (`pmc_agent.runtime`) that item 8's own graph superseded as the package's
@@ -19,6 +26,16 @@ group so each can be read (and broken) independently:
   itself -- scripted replay in order, call recording, and the loud failure
   a test that miscounts its own attempts should get instead of a plausible
   default.
+- `test_inference_lemonade.py` is the hermetic `httpx.MockTransport`
+  evidence for the production adapter: streaming-only request shape, exact
+  optional grammar forwarding, per-call deadline timeout, cancellation and
+  response closure, typed transport/SSE failures, and a loopback-only origin
+  with no remote route or fallback.
+- `test_inference_lemonade_probe.py` scripts the full startup constructor:
+  health, exact catalog model/checkpoint, load and loaded-health identity,
+  then the streaming grammar canary. An explicit rejection, an ordinary 200
+  answer that shows ignored grammar, or even a near-miss sentinel leaves no
+  usable engine.
 - `test_request_graph_transitions.py` proves the graph's shape before any
   node does real work: every edge SPECIFICATION.md:420-425 describes is
   reachable and lands where specified, `REQUEST_STATES` is exactly the
