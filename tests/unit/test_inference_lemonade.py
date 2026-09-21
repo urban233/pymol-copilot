@@ -26,6 +26,7 @@ from pmc_agent.inference.lemonade import LemonadeEngine
 
 _MODEL = "test-model"
 _CHECKPOINT = "test/checkpoint.gguf"
+_BASE_URL = "http://127.0.0.1"
 _HANDLER = Callable[[httpx.Request], httpx.Response]
 
 
@@ -46,6 +47,7 @@ class _ChunkStream(httpx.SyncByteStream):
         """
         self._chunks = chunks
         self._before_chunk = before_chunk
+        self.closed = False
 
     def __iter__(self) -> Iterator[bytes]:
         """Yield configured chunks in order.
@@ -57,6 +59,10 @@ class _ChunkStream(httpx.SyncByteStream):
             if self._before_chunk is not None:
                 self._before_chunk(index)
             yield chunk
+
+    def close(self) -> None:
+        """Record that the response stopped consuming this stream."""
+        self.closed = True
 
 
 def _event(
@@ -93,11 +99,18 @@ def _done() -> bytes:
     return b"data: [DONE]\n\n"
 
 
-def _request(*, grammar: str | None = None) -> CompletionRequest:
+def _request(
+    *,
+    grammar: str | None = None,
+    max_tokens: int = 32,
+    deadline_seconds: float = 5.0,
+) -> CompletionRequest:
     """Build a small completion request.
 
     Args:
         grammar: The optional grammar to include.
+        max_tokens: The bounded generation limit to send.
+        deadline_seconds: The completion's total monotonic time budget.
 
     Returns:
         A request suitable for adapter tests.
@@ -105,27 +118,38 @@ def _request(*, grammar: str | None = None) -> CompletionRequest:
     return CompletionRequest(
         prompt="Reply with a plan.",
         grammar=grammar,
-        max_tokens=32,
-        deadline_seconds=5.0,
+        max_tokens=max_tokens,
+        deadline_seconds=deadline_seconds,
     )
 
 
-def _engine(handler: _HANDLER) -> LemonadeEngine:
+def _engine(
+    handler: _HANDLER,
+    *,
+    base_url: str = _BASE_URL,
+    connect_timeout_seconds: float = 5.0,
+    read_timeout_seconds: float = 30.0,
+) -> LemonadeEngine:
     """Build an engine using only ``MockTransport``.
 
     Args:
         handler: The scripted transport response handler.
+        base_url: The loopback origin to give both client and adapter.
+        connect_timeout_seconds: The adapter's configured connect budget.
+        read_timeout_seconds: The adapter's configured read and write budget.
 
     Returns:
         A Lemonade engine with no network route.
     """
     client = httpx.Client(
-        base_url="http://lemonade.test", transport=httpx.MockTransport(handler)
+        base_url=base_url, transport=httpx.MockTransport(handler)
     )
     return LemonadeEngine(
-        base_url="http://lemonade.test",
+        base_url=base_url,
         model_name=_MODEL,
         checkpoint=_CHECKPOINT,
+        connect_timeout_seconds=connect_timeout_seconds,
+        read_timeout_seconds=read_timeout_seconds,
         client=client,
     )
 
@@ -196,6 +220,161 @@ def test_every_request_is_streaming_deterministic_and_only_sends_grammar_when_se
     assert "grammar" not in bodies[1]
 
 
+@pytest.mark.parametrize(
+    "base_url", ["http://localhost", "http://127.0.0.1", "http://[::1]"]
+)
+def test_every_supported_loopback_origin_is_accepted(base_url: str) -> None:
+    """The sole engine destination may use any standard loopback spelling.
+
+    Args:
+        base_url: The loopback URL to validate and use with MockTransport.
+    """
+    result = _engine(
+        lambda _request: _successful_response(), base_url=base_url
+    ).complete(_request(), cancel=CancelToken())
+
+    assert isinstance(result, CompletionResult)
+    assert result.text == "hello"
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://example.com",
+        "https://127.0.0.1",
+        "http://localhost/api/v1",
+        "http://user@localhost",
+    ],
+)
+def test_nonlocal_or_nonorigin_urls_are_rejected_before_the_transport_is_used(
+    base_url: str,
+) -> None:
+    """A MockTransport cannot create a remote route or base-path escape.
+
+    Args:
+        base_url: The invalid configured destination to reject.
+    """
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record any request that would violate local-only operation.
+
+        Args:
+            request: The forbidden outbound request.
+
+        Returns:
+            Never returns because adapter construction must reject first.
+        """
+        requests.append(request)
+        return _successful_response()
+
+    client = httpx.Client(
+        base_url=base_url, transport=httpx.MockTransport(handler)
+    )
+
+    with pytest.raises(ValueError):
+        LemonadeEngine(
+            base_url=base_url,
+            model_name=_MODEL,
+            checkpoint=_CHECKPOINT,
+            client=client,
+        )
+
+    assert requests == []
+
+
+def test_a_cancelled_token_prevents_network_io() -> None:
+    """Cancellation before streaming begins cannot send a completion."""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record a request that must not be made.
+
+        Args:
+            request: The forbidden outbound completion request.
+
+        Returns:
+            Never returns because cancellation is preflight checked.
+        """
+        requests.append(request)
+        return _successful_response()
+
+    cancel = CancelToken()
+    cancel.cancel()
+
+    result = _engine(handler).complete(_request(), cancel=cancel)
+
+    assert result == CompletionResult(
+        text="",
+        model_identity=f"{_MODEL}@{_CHECKPOINT}",
+        stop_reason=STOP_CANCELLED,
+    )
+    assert requests == []
+
+
+def test_an_expired_deadline_prevents_network_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The local deadline is checked before opening a response stream.
+
+    Args:
+        monkeypatch: Pytest's controlled patching fixture.
+    """
+    moments = iter((0.0, 1.0))
+    monkeypatch.setattr(lemonade.time, "monotonic", lambda: next(moments))
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record a request that must not be made.
+
+        Args:
+            request: The forbidden outbound completion request.
+
+        Returns:
+            Never returns because deadline is preflight checked.
+        """
+        requests.append(request)
+        return _successful_response()
+
+    result = _engine(handler).complete(
+        _request(deadline_seconds=0.5), cancel=CancelToken()
+    )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_TIMEOUT
+    assert requests == []
+
+
+def test_each_http_phase_timeout_is_bounded_by_the_remaining_deadline() -> None:
+    """No transport phase can wait longer than this completion permits."""
+    observed: list[dict[str, float | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record the HTTPX per-call timeout extension.
+
+        Args:
+            request: The outbound completion request.
+
+        Returns:
+            A successful stream after inspecting its timeout configuration.
+        """
+        timeout = request.extensions["timeout"]
+        assert isinstance(timeout, dict)
+        observed.append(timeout)
+        return _successful_response()
+
+    result = _engine(
+        handler, connect_timeout_seconds=5.0, read_timeout_seconds=5.0
+    ).complete(_request(deadline_seconds=0.5), cancel=CancelToken())
+
+    assert isinstance(result, CompletionResult)
+    assert len(observed) == 1
+    assert all(
+        value is not None and value <= 0.5
+        for value in observed[0].values()
+    )
+
+
 def test_connect_errors_are_typed_as_unavailable() -> None:
     """A transport failure never escapes the total adapter boundary."""
 
@@ -219,13 +398,23 @@ def test_connect_errors_are_typed_as_unavailable() -> None:
     assert result.category == ENGINE_UNAVAILABLE
 
 
+def test_a_server_error_is_typed_as_unavailable() -> None:
+    """A reachable Lemonade server still reports its own 5xx failure."""
+    result = _engine(
+        lambda _request: httpx.Response(503, content="temporarily unavailable")
+    ).complete(_request(), cancel=CancelToken())
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNAVAILABLE
+
+
 def test_deadline_discards_partial_text(monkeypatch: pytest.MonkeyPatch) -> None:
     """A deadline failure cannot feed a truncated plan to the graph.
 
     Args:
         monkeypatch: Pytest's controlled patching fixture.
     """
-    moments = iter((0.0, 0.1, 5.1))
+    moments = iter((0.0, 0.1, 1.0, 6.0))
     monkeypatch.setattr(lemonade.time, "monotonic", lambda: next(moments))
     stream = _ChunkStream(
         (_event(content="partial"), _event(finish_reason="stop") + _done())
@@ -237,6 +426,7 @@ def test_deadline_discards_partial_text(monkeypatch: pytest.MonkeyPatch) -> None
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_TIMEOUT
     assert not hasattr(result, "text")
+    assert stream.closed
 
 
 def test_cancellation_closes_the_stream_and_returns_received_text() -> None:
@@ -255,6 +445,7 @@ def test_cancellation_closes_the_stream_and_returns_received_text() -> None:
         model_identity=f"{_MODEL}@{_CHECKPOINT}",
         stop_reason=STOP_CANCELLED,
     )
+    assert stream.closed
 
 
 def test_a_grammar_rejection_is_not_misreported_as_an_outage() -> None:
@@ -280,6 +471,16 @@ def test_a_completion_from_another_model_is_unknown() -> None:
     result = _engine(lambda _request: response).complete(
         _request(), cancel=CancelToken()
     )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+
+
+def test_malformed_sse_framing_is_unknown() -> None:
+    """Only OpenAI-compatible ``data:`` events are valid stream frames."""
+    result = _engine(
+        lambda _request: httpx.Response(200, content=b"event: completion\n\n")
+    ).complete(_request(), cancel=CancelToken())
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_UNKNOWN

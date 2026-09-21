@@ -119,6 +119,7 @@ Do not begin step 2 until both commands pass.
 - `src/pmc_agent/inference/lemonade.py`
 - `src/pmc_agent/inference/BUILD.bazel`
 - `tests/unit/test_inference_lemonade.py`
+- `tests/unit/test_inference_lemonade_probe.py`
 - `tests/unit/BUILD.bazel`
 
 ### Work
@@ -141,6 +142,10 @@ Validate the configured base URL before creating or using an HTTP client. A
 test-injected `MockTransport` does not bypass this rule; tests use a loopback
 base URL too. Preserve one explicit local destination for the engine's
 lifetime.
+
+Update the existing capability-probe fixture to use that same loopback test
+origin. This keeps the complete unit suite valid once construction enforces
+the local-only invariant.
 
 Read OpenAI-compatible SSE events, accumulate
 `choices[0].delta.content`, require the response model to match the configured

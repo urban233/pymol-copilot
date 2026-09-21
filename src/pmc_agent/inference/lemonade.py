@@ -16,7 +16,9 @@ the stream and returns the text received so far with ``STOP_CANCELLED``.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import ipaddress
 import json
+import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -56,6 +58,73 @@ _LOAD_PATH = "/api/v1/load"
 _GRAMMAR_CANARY = 'root ::= "pmc-grammar-probe-ok"'
 _GRAMMAR_CANARY_OUTPUT = "pmc-grammar-probe-ok"
 _GRAMMAR_CANARY_PROMPT = "Reply with the capital of France in one word."
+
+
+def _local_origin(base_url: str) -> tuple[str, str, int]:
+    """Validate and canonicalize one loopback-only HTTP origin.
+
+    Args:
+        base_url: The configured Lemonade origin.
+
+    Returns:
+        Its lowercase scheme, normalized host, and effective port.
+
+    Raises:
+        ValueError: The value is not a bare HTTP origin on a loopback host.
+    """
+    try:
+        url = httpx.URL(base_url)
+        host = url.host.lower()
+        port = url.port if url.port is not None else 80
+    except (TypeError, ValueError) as error:
+        raise ValueError("Lemonade base_url must be a valid local HTTP origin") from error
+
+    if (
+        url.scheme != "http"
+        or url.username
+        or url.password
+        or url.query
+        or url.fragment
+        or url.path not in {"", "/"}
+        or not _is_loopback_host(host)
+    ):
+        raise ValueError("Lemonade base_url must be a bare loopback HTTP origin")
+    return url.scheme, host, port
+
+
+def _is_loopback_host(host: str) -> bool:
+    """Return whether one URL host names the local machine.
+
+    Args:
+        host: The hostname as normalized by ``httpx.URL``.
+
+    Returns:
+        True for localhost and literal IPv4 or IPv6 loopback addresses.
+    """
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _finite_positive_timeout(value: float, name: str) -> float:
+    """Validate one configured HTTP timeout.
+
+    Args:
+        value: The configured timeout in seconds.
+        name: Its public configuration name for the exception.
+
+    Returns:
+        The unchanged, valid timeout.
+
+    Raises:
+        ValueError: The timeout is not finite and positive.
+    """
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"{name} must be finite and positive")
+    return value
 
 
 @dataclass(frozen=True)
@@ -161,13 +230,20 @@ class LemonadeEngine:
             read_timeout_seconds: Finite per-read HTTP budget.
             client: An optional preconfigured client for hermetic tests.
         """
+        origin = _local_origin(base_url)
+        if client is not None and _local_origin(str(client.base_url)) != origin:
+            raise ValueError("Lemonade client origin must match base_url")
         self.base_url = base_url
         self.model_name = model_name
         self.checkpoint = checkpoint
         self.backend = backend
         self.context_size = context_size
-        self.connect_timeout_seconds = connect_timeout_seconds
-        self.read_timeout_seconds = read_timeout_seconds
+        self.connect_timeout_seconds = _finite_positive_timeout(
+            connect_timeout_seconds, "connect_timeout_seconds"
+        )
+        self.read_timeout_seconds = _finite_positive_timeout(
+            read_timeout_seconds, "read_timeout_seconds"
+        )
         self._capabilities: EngineCapabilities | None = None
         self._client = client or httpx.Client(
             base_url=base_url,
@@ -236,6 +312,39 @@ class LemonadeEngine:
             body["grammar"] = request.grammar
         return body
 
+    def _timeout_for_remaining_deadline(
+        self, remaining_seconds: float
+    ) -> httpx.Timeout:
+        """Build HTTP timeouts that cannot outlive one completion deadline.
+
+        Args:
+            remaining_seconds: The monotonic budget still available to call.
+
+        Returns:
+            A finite timeout for every HTTP phase.
+        """
+        return httpx.Timeout(
+            connect=min(self.connect_timeout_seconds, remaining_seconds),
+            read=min(self.read_timeout_seconds, remaining_seconds),
+            write=min(self.read_timeout_seconds, remaining_seconds),
+            pool=min(self.connect_timeout_seconds, remaining_seconds),
+        )
+
+    @staticmethod
+    def _remaining_deadline(
+        started_at: float, deadline_seconds: float
+    ) -> float:
+        """Return the monotonic budget left for a completion.
+
+        Args:
+            started_at: The monotonic time immediately before the call began.
+            deadline_seconds: The call's requested total time budget.
+
+        Returns:
+            Remaining positive seconds, or zero once the deadline elapsed.
+        """
+        return max(0.0, deadline_seconds - (time.monotonic() - started_at))
+
     def complete(
         self, request: CompletionRequest, *, cancel: CancelToken
     ) -> CompletionResult | EngineFailure:
@@ -251,26 +360,59 @@ class LemonadeEngine:
         started_at = time.monotonic()
         text_parts: list[str] = []
         finish_reason: str | None = None
+        if cancel.is_cancelled():
+            return CompletionResult(
+                text="",
+                model_identity=self.model_identity,
+                stop_reason=STOP_CANCELLED,
+            )
+        remaining_seconds = self._remaining_deadline(
+            started_at, request.deadline_seconds
+        )
+        if remaining_seconds <= 0:
+            return _failure(
+                ENGINE_TIMEOUT, "Lemonade completion exceeded its deadline"
+            )
         try:
             with self._client.stream(
-                "POST", _CHAT_COMPLETIONS_PATH, json=self._request_body(request)
+                "POST",
+                _CHAT_COMPLETIONS_PATH,
+                json=self._request_body(request),
+                timeout=self._timeout_for_remaining_deadline(remaining_seconds),
             ) as response:
+                if response.status_code >= 400:
+                    response.read()
+                    if (
+                        request.grammar is not None
+                        and response.status_code < 500
+                        and _has_grammar_error(response)
+                    ):
+                        return _failure(
+                            ENGINE_REFUSED_GRAMMAR, _response_message(response)
+                        )
+                    return _failure(ENGINE_UNAVAILABLE, _response_message(response))
                 response.raise_for_status()
                 for line in response.iter_lines():
-                    if time.monotonic() - started_at > request.deadline_seconds:
-                        return _failure(
-                            ENGINE_TIMEOUT,
-                            "Lemonade completion exceeded its deadline",
-                        )
                     if cancel.is_cancelled():
                         return CompletionResult(
                             text="".join(text_parts),
                             model_identity=self.model_identity,
                             stop_reason=STOP_CANCELLED,
                         )
-                    if not line or not line.startswith("data:"):
+                    if self._remaining_deadline(
+                        started_at, request.deadline_seconds
+                    ) <= 0:
+                        return _failure(
+                            ENGINE_TIMEOUT,
+                            "Lemonade completion exceeded its deadline",
+                        )
+                    if not line:
                         continue
+                    if not line.startswith("data:"):
+                        return _failure(ENGINE_UNKNOWN, "malformed SSE framing")
                     payload = line.removeprefix("data:").strip()
+                    if not payload:
+                        return _failure(ENGINE_UNKNOWN, "malformed SSE event")
                     if payload == "[DONE]":
                         break
                     event = json.loads(payload)
@@ -305,15 +447,10 @@ class LemonadeEngine:
                                 ENGINE_UNKNOWN, "malformed SSE finish reason"
                             )
                         finish_reason = event_finish_reason
+        except httpx.TimeoutException as error:
+            return _failure(ENGINE_TIMEOUT, str(error))
         except httpx.HTTPStatusError as error:
-            response = error.response
-            if (
-                request.grammar is not None
-                and 400 <= response.status_code < 500
-                and _has_grammar_error(response)
-            ):
-                return _failure(ENGINE_REFUSED_GRAMMAR, _response_message(response))
-            return _failure(ENGINE_UNAVAILABLE, _response_message(response))
+            return _failure(ENGINE_UNAVAILABLE, _response_message(error.response))
         except httpx.RequestError as error:
             return _failure(ENGINE_UNAVAILABLE, str(error))
         except Exception as error:  # The interface is total by contract.
@@ -325,7 +462,7 @@ class LemonadeEngine:
                 model_identity=self.model_identity,
                 stop_reason=STOP_CANCELLED,
             )
-        if time.monotonic() - started_at > request.deadline_seconds:
+        if self._remaining_deadline(started_at, request.deadline_seconds) <= 0:
             return _failure(
                 ENGINE_TIMEOUT, "Lemonade completion exceeded its deadline"
             )

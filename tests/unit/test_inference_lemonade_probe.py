@@ -20,6 +20,7 @@ from pmc_agent.inference.lemonade import connect_lemonade
 _MODEL = "test-model"
 _CHECKPOINT = "test/checkpoint.gguf"
 _RECIPE = "llamacpp"
+_BASE_URL = "http://127.0.0.1"
 _HANDLER = Callable[[httpx.Request], httpx.Response]
 
 
@@ -102,7 +103,7 @@ def _client(handler: _HANDLER) -> httpx.Client:
         A MockTransport-backed local client.
     """
     return httpx.Client(
-        base_url="http://lemonade.test", transport=httpx.MockTransport(handler)
+        base_url=_BASE_URL, transport=httpx.MockTransport(handler)
     )
 
 
@@ -151,7 +152,7 @@ def _connect(handler: _HANDLER, *, backend: str = "cpu") -> LemonadeEngine | Eng
         The connected engine or its first typed failure.
     """
     return connect_lemonade(
-        base_url="http://lemonade.test",
+        base_url=_BASE_URL,
         model_name=_MODEL,
         checkpoint=_CHECKPOINT,
         backend=backend,
