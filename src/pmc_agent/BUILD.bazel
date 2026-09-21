@@ -4,13 +4,21 @@ py_library(
     name = "pmc_agent",
     srcs = [
         "__init__.py",
+        "graph.py",
+        "prompt.py",
         "runtime.py",
+        "session.py",
     ],
     imports = [".."],
     deps = [
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
         "@pypi//httpx",
         "@pypi//langgraph",
+        # langgraph.checkpoint.memory.InMemorySaver is used directly by the
+        # request graph (docs/master_plan.md item 8), not merely pulled in
+        # transitively through langgraph itself.
+        "@pypi//langgraph_checkpoint",
     ],
-    visibility = ["//src/pmc_agent:__pkg__", "//src:tests"],
+    visibility = ["//src:subsystems", "//src:tests"],
 )

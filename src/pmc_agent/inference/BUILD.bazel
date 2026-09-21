@@ -1,0 +1,12 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+py_library(
+    name = "inference",
+    srcs = [
+        "__init__.py",
+        "base.py",
+        "fake.py",
+    ],
+    imports = ["../.."],
+    visibility = ["//src:subsystems", "//src:tests"],
+)

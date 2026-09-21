@@ -1,80 +1,63 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Server-owned lifecycle for the deterministic V1 plan fixture."""
+"""Server-owned lifecycle for the LangGraph request graph.
+
+docs/master_plan.md item 8's own replacement for the hardcoded fixture this
+module used to hold: `PlanRequestLifecycle` pattern-matched one exact
+request shape and answered with one constant plan, never called a model,
+and held no per-session state. `RequestGraphLifecycle` instead routes every
+decoded request into `pmc_agent.session.RequestGraphSession`, which owns
+the compiled request graph, its checkpointer, and the per-session lock that
+makes "at most one active request per session" real under
+`pmc_server.transport.LoopbackPlanServer`'s threaded concurrency. This
+module's only remaining job is translating between the graph's own result
+mapping and this protocol's typed wire responses -- every state, every
+transition, and every terminal are `pmc_agent.graph`'s.
+"""
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-import uuid
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 
+from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import TERMINAL_ASK
+from pmc_agent.graph import TERMINAL_CANCELLED
+from pmc_agent.graph import TERMINAL_EXPIRED
+from pmc_agent.graph import TERMINAL_FAILED
+from pmc_agent.graph import TERMINAL_SUPERSEDED
+from pmc_agent.session import RequestGraphSession
 from pmc_core.plan import ActionPlan
-from pmc_core.plan import AndClause
-from pmc_core.plan import ChainTerm
-from pmc_core.plan import ColorOperation
-from pmc_core.plan import Factor
-from pmc_core.plan import NamedSelection
-from pmc_core.plan import SelectOperation
-from pmc_core.plan import SelectionExpression
-from pmc_core.policy import PlanDecision
-from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import FIDELITY_EXACT
-from pmc_core.protocol import PROTOCOL_VERSION
-from pmc_core.protocol import ContractManifestV1
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 
-FIXTURE_INTENT = "Select chain A and color it red."
-
-#: The plan this fixture lifecycle answers with, built from pmc_core's typed
-#: values. It is local to this module on purpose: master_plan.md item 8
-#: replaces this whole lifecycle with the LangGraph request graph, which will
-#: generate a plan rather than return a constant, so there is nothing here
-#: worth sharing with another package first.
-FIXTURE_PLAN = ActionPlan(
-    operations=(
-        SelectOperation(
-            selection_name="copilot_selection",
-            expression=SelectionExpression(
-                clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
-            ),
-        ),
-        ColorOperation(color="red", target=NamedSelection("copilot_selection")),
-    )
-)
-#: `_matches_fixture` below no longer compares a whole `StructureSnapshotV1`
-#: against a request's own snapshot: docs/master_plan.md item 7 makes the
-#: client send a real, per-session snapshot identity
-#: (`pmc_client.session.extract_live_snapshot`), which varies with
-#: whatever object is actually loaded and essentially never equals a fixed
-#: literal. Only the schema version is still checked, so that is all this
-#: module still declares -- a stale digest/object-name/atom-count literal
-#: nothing reads is worse than no literal at all. Item 8's LangGraph
-#: request graph replaces this whole lifecycle, snapshot handling
-#: included.
-FIXTURE_SNAPSHOT_SCHEMA_VERSION = "1"
-FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
-
-type PLAN_ID_SOURCE = Callable[[], str]
 type TIMESTAMP_SOURCE = Callable[[], str]
-type POLICY_VALIDATOR = Callable[[ActionPlan], PlanDecision]
+type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
+type REJECT_RESPONSE = FailedPlanResponseV1
+type CANCEL_RESPONSE = FailedPlanResponseV1
 
-# Preserve the original public type-alias names.
-globals()["PlanIdSource"] = PLAN_ID_SOURCE
-globals()["TimestampSource"] = TIMESTAMP_SOURCE
-globals()["PolicyValidator"] = POLICY_VALIDATOR
+#: Terminals this lifecycle reports as retryable: the plan itself is gone,
+#: but nothing about the request that produced it was wrong. `rejected`,
+#: `failed`, and `ask` are not in this set -- see `_to_terminal_response`.
+_RETRYABLE_TERMINALS: frozenset[str] = frozenset(
+    {TERMINAL_EXPIRED, TERMINAL_SUPERSEDED, TERMINAL_CANCELLED}
+)
 
-
-def _new_plan_id() -> str:
-    """Return a new UUIDv4 plan identifier.
-
-    Returns:
-        A string containing a UUIDv4 identifier.
-    """
-    return str(uuid.uuid4())
+#: `reject`/`cancel`'s own failure category when `RequestGraphSession`
+#: refuses to touch the thread at all: no plan is pending, or (`reject`
+#: only) the named plan id does not match the one actually pending. Item
+#: 10's client keeps its own local pending-plan cache specifically so an
+#: ordinary `copilot_reject`/`copilot_apply` mismatch never reaches the
+#: server at all (mirroring `copilot_apply`'s existing refusal table);
+#: reaching this category regardless means a stale or racing caller, which
+#: is why it is not retryable.
+FAILURE_NO_PENDING_PLAN = "no_pending_plan"
 
 
 def _server_timestamp() -> str:
@@ -90,119 +73,206 @@ def _server_timestamp() -> str:
     )
 
 
-class PlanRequestLifecycle:
-    """Build a typed response for one decoded V1 plan request."""
+class RequestGraphLifecycle:
+    """Route decoded V1 requests into the request graph and back."""
 
     def __init__(
         self,
         *,
-        plan_id_source: PLAN_ID_SOURCE = _new_plan_id,
+        session: RequestGraphSession,
         timestamp_source: TIMESTAMP_SOURCE = _server_timestamp,
-        policy_validator: POLICY_VALIDATOR = evaluate_plan,
     ) -> None:
-        """Create a lifecycle with injectable deterministic sources.
+        """Create a lifecycle bound to one session's compiled graph.
 
         Args:
-            plan_id_source: Source for generated plan identifiers.
-            timestamp_source: Source for response timestamps.
-            policy_validator: Function that evaluates the generated plan.
+            session: Owns the compiled graph, its checkpointer, and the
+                per-session lock every call below goes through.
+            timestamp_source: Source for the server-side timestamps this
+                lifecycle itself stamps (`received_at`, `validated_at`).
+                Every other timestamp in a response comes from the request
+                or from the graph's own injected clock.
         """
-        self._plan_id_source = plan_id_source
+        self._session = session
         self._timestamp_source = timestamp_source
-        self._policy_validator = policy_validator
 
-    def __call__(
-        self, request: PlanRequestV1
-    ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
-        """Handle a request without producing raw model text or partial plans.
+    def __call__(self, request: PlanRequestV1) -> PLAN_RESPONSE:
+        """Submit one decoded plan request to the graph and answer it.
 
         Args:
-            request: Decoded plan request to validate and evaluate.
+            request: Decoded plan request to submit.
 
         Returns:
-            A validated plan response or a typed failure response.
+            A validated plan response when the graph parks at
+            `pending_approval`; a typed failure response for every other
+            terminal it reaches.
         """
         received_at = self._timestamp_source()
-        if not self._matches_fixture(request):
-            return self._failure(
-                request,
-                category="invalid_request",
-                message="request does not match the accepted V1 fixture",
-            )
-
-        plan = FIXTURE_PLAN
-        decision = self._policy_validator(plan)
-        if not decision.allowed:
-            return self._failure(
-                request,
-                category="policy_denied",
-                message="plan was denied by server policy",
-            )
-
-        return ValidatedPlanResponseV1(
+        result = self._session.submit(
             request_id=request.request_id,
             session_id=request.session_id,
-            received_at=received_at,
-            validated_at=self._timestamp_source(),
-            action_plan=plan,
-            validation=ValidationReportV1(
-                status="passed",
-                snapshot_digest=request.snapshot.digest,
-                # The server's whole share of orchestration rule 9
-                # (SPECIFICATION.md:539): never upgrade or re-derive the
-                # request's own fidelity outcome -- this lifecycle has no
-                # live session to compare against, only what the client
-                # already reported. A request that claims "exact" while
-                # the client's own local gate disagrees still fails at
-                # the client's own AND
-                # (pmc_client.command._report_validated).
-                applicable=request.fidelity.status == FIDELITY_EXACT,
-                warnings=(),
-            ),
-            plan_id=self._plan_id_source(),
-            snapshot_digest=request.snapshot.digest,
+            created_at=request.created_at,
+            intent=request.intent,
+            contract_manifest=request.contract_manifest,
+            snapshot_identity=request.snapshot,
+            snapshot_json=request.snapshot_json,
+            fidelity=request.fidelity,
         )
+        return self._to_plan_response(request, received_at, result)
 
-    @staticmethod
-    def _matches_fixture(request: PlanRequestV1) -> bool:
-        """Return whether a request matches the accepted V1 fixture.
+    def reject(self, request: RejectRequestV1) -> REJECT_RESPONSE:
+        """Reject a session's pending plan, if it matches.
 
         Args:
-            request: Request to compare with the fixture.
+            request: Decoded reject request to submit.
 
         Returns:
-            True when every fixed fixture field matches and the request's
-            own (now real, per-session) snapshot declares a schema version
-            this lifecycle understands.
+            A typed failure response naming the terminal the graph
+            reached, or `FAILURE_NO_PENDING_PLAN` when there was no plan
+            matching `request.plan_id` pending for `request.session_id`.
         """
-        return (
-            request.protocol_version == PROTOCOL_VERSION
-            and request.contract_manifest == FIXTURE_MANIFEST
-            and request.intent == FIXTURE_INTENT
-            and request.snapshot.schema_version
-            == FIXTURE_SNAPSHOT_SCHEMA_VERSION
+        result = self._session.reject(
+            session_id=request.session_id, plan_id=request.plan_id
+        )
+        if result is None:
+            return self._no_pending_plan(request.request_id, request.session_id)
+        return self._to_terminal_response(
+            request.request_id, request.session_id, result
+        )
+
+    def cancel(self, request: CancelRequestV1) -> CANCEL_RESPONSE:
+        """Cancel a session's pending plan.
+
+        Args:
+            request: Decoded cancel request to submit.
+
+        Returns:
+            A typed failure response naming the terminal the graph
+            reached, or `FAILURE_NO_PENDING_PLAN` when there was no plan
+            pending for `request.session_id`.
+        """
+        result = self._session.cancel(session_id=request.session_id)
+        if result is None:
+            return self._no_pending_plan(request.request_id, request.session_id)
+        return self._to_terminal_response(
+            request.request_id, request.session_id, result
+        )
+
+    def _to_plan_response(
+        self,
+        request: PlanRequestV1,
+        received_at: str,
+        result: dict[str, object],
+    ) -> PLAN_RESPONSE:
+        """Build a plan response from one graph invocation's own result.
+
+        Args:
+            request: The plan request that produced `result`.
+            received_at: When this lifecycle accepted `request`.
+            result: The graph's own result mapping.
+
+        Returns:
+            A validated response when the graph parked at
+            `pending_approval`; a typed failure response for every other
+            terminal.
+        """
+        if result.get("status") == STATE_PENDING_APPROVAL:
+            plan = result["plan"]
+            assert isinstance(plan, ActionPlan)
+            plan_id = result["plan_id"]
+            assert isinstance(plan_id, str)
+            digest = request.snapshot.digest
+            return ValidatedPlanResponseV1(
+                request_id=request.request_id,
+                session_id=request.session_id,
+                received_at=received_at,
+                validated_at=self._timestamp_source(),
+                action_plan=plan,
+                validation=ValidationReportV1(
+                    status="passed",
+                    snapshot_digest=digest,
+                    # Orchestration rule 9 (SPECIFICATION.md:539): never
+                    # upgrade or re-derive the request's own fidelity
+                    # outcome -- this lifecycle has no live session to
+                    # compare against, only what the client already
+                    # reported.
+                    applicable=request.fidelity.status == FIDELITY_EXACT,
+                    warnings=(),
+                ),
+                plan_id=plan_id,
+                snapshot_digest=digest,
+            )
+        return self._to_terminal_response(
+            request.request_id, request.session_id, result
+        )
+
+    def _to_terminal_response(
+        self, request_id: str, session_id: str, result: dict[str, object]
+    ) -> FailedPlanResponseV1:
+        """Build a typed failure response from a non-parking terminal.
+
+        Args:
+            request_id: The originating request's own identifier.
+            session_id: The session the graph ran under.
+            result: The graph's own result mapping, whose `status` names
+                one of the terminals this graph can produce.
+
+        Returns:
+            A failure response. `failed`'s own already-typed
+            `FailureEnvelopeV1` is forwarded unchanged, including whatever
+            `retryable` verdict the failure category that produced it
+            already carries; `ask`'s bounded question becomes the
+            envelope's message; every other terminal gets a fixed message
+            naming itself, with `retryable` from `_RETRYABLE_TERMINALS`.
+        """
+        status = result["status"]
+        assert isinstance(status, str)
+        if status == TERMINAL_FAILED:
+            failure = result["failure"]
+            assert isinstance(failure, FailureEnvelopeV1)
+            return FailedPlanResponseV1(
+                request_id=request_id, session_id=session_id, failure=failure
+            )
+        if status == TERMINAL_ASK:
+            question = result["question"]
+            assert isinstance(question, str)
+            return FailedPlanResponseV1(
+                request_id=request_id,
+                session_id=session_id,
+                failure=FailureEnvelopeV1(
+                    category=TERMINAL_ASK, message=question, retryable=False
+                ),
+            )
+        return FailedPlanResponseV1(
+            request_id=request_id,
+            session_id=session_id,
+            failure=FailureEnvelopeV1(
+                category=status,
+                message=f"request ended: {status}",
+                retryable=status in _RETRYABLE_TERMINALS,
+            ),
         )
 
     @staticmethod
-    def _failure(
-        request: PlanRequestV1, *, category: str, message: str
+    def _no_pending_plan(
+        request_id: str, session_id: str
     ) -> FailedPlanResponseV1:
-        """Build a correlated typed failure response.
+        """Build the fixed failure response for a refused reject or cancel.
 
         Args:
-            request: Request whose identifiers should be echoed.
-            category: Stable failure category.
-            message: Human-readable failure message.
+            request_id: The originating request's own identifier.
+            session_id: The session named by the request.
 
         Returns:
-            A failure response with no executable plan.
+            A non-retryable `FAILURE_NO_PENDING_PLAN` failure response.
         """
         return FailedPlanResponseV1(
-            request_id=request.request_id,
-            session_id=request.session_id,
+            request_id=request_id,
+            session_id=session_id,
             failure=FailureEnvelopeV1(
-                category=category,
-                message=message,
+                category=FAILURE_NO_PENDING_PLAN,
+                message=(
+                    "no plan matching the request is pending for this session"
+                ),
                 retryable=False,
             ),
         )

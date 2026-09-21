@@ -28,22 +28,49 @@ from pmc_core.plan import Factor
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
+from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
-from pmc_server.lifecycle import FIXTURE_PLAN
+from pmc_core.snapshot import DECLARED_UNSUPPORTED
+from pmc_core.snapshot import SNAPSHOT_VERSION
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import to_json
+from pmc_server.transport import CANCEL_PATH
 from pmc_server.transport import MAX_EXECUTION_REQUEST_BYTES
+from pmc_server.transport import REJECT_PATH
 from pmc_server.transport import VALIDATE_PATH
 from pmc_server.transport import LoopbackPlanServer
 from pmc_server.validation import PlanValidationService
 
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
 SESSION_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def _snapshot() -> ObjectSnapshot:
+    """Build the smallest well-formed snapshot, named to match `plan_request`.
+
+    Returns:
+        An empty-state ObjectSnapshot.
+    """
+    return ObjectSnapshot(
+        schema_version=SNAPSHOT_VERSION,
+        name="one-object-chain-a-v1",
+        enabled=True,
+        states=(),
+        bonds=(),
+        view=(),
+        settings=(),
+        unsupported=DECLARED_UNSUPPORTED,
+    )
 
 
 def plan_request() -> PlanRequestV1:
@@ -65,6 +92,7 @@ def plan_request() -> PlanRequestV1:
             atom_count=2,
             state_count=1,
         ),
+        snapshot_json=to_json(_snapshot()),
         fidelity=FidelityOutcomeV1(
             status=FIDELITY_EXACT,
             reason=REASON_OK,
@@ -88,7 +116,15 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
         session_id=request.session_id,
         received_at="2026-08-26T14:22:03.124Z",
         validated_at="2026-08-26T14:22:03.220Z",
-        action_plan=FIXTURE_PLAN,
+        action_plan=ActionPlan(
+            operations=(
+                OrientOperation(
+                    target=SelectionExpression(
+                        clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+                    )
+                ),
+            )
+        ),
         validation=ValidationReportV1(
             "passed", "sha256:example-chain-a-digest", True, ()
         ),
@@ -146,9 +182,22 @@ def test_server_rejects_wrong_credential_without_parsing_request() -> None:
 
 
 def test_server_rejects_payload_larger_than_transport_limit() -> None:
-    """An authenticated oversized payload cannot reach request decoding."""
+    """An authenticated oversized payload cannot reach request decoding.
+
+    PLAN_PATH's own cap is MAX_EXECUTION_REQUEST_BYTES, not
+    MAX_MESSAGE_BYTES: docs/master_plan.md item 8's `PlanRequestV1` now
+    carries the full canonical snapshot JSON, not merely its identity, and
+    that cap is now large enough (~8 MiB) that actually transmitting one
+    byte past it risks the client's own send racing the server's early
+    close once it rejects the request from the header alone. The server's
+    own `_content_length` check only ever inspects the declared
+    Content-Length header, never the body it precedes, so a declared
+    length past the cap rejects the request without this test needing to
+    transmit anywhere near that many bytes.
+    """
     requests: list[PlanRequestV1] = []
-    payload = b"x" * (MAX_MESSAGE_BYTES + 1)
+    declared_length = MAX_EXECUTION_REQUEST_BYTES + 1
+    body = b"x"
 
     def record_request(request: PlanRequestV1) -> ValidatedPlanResponseV1:
         """Record and respond to one decoded request.
@@ -167,10 +216,10 @@ def test_server_rejects_payload_larger_than_transport_limit() -> None:
         connection.request(
             "POST",
             PLAN_PATH,
-            body=payload,
+            body=body,
             headers={
                 "Content-Type": "application/json",
-                "Content-Length": str(len(payload)),
+                "Content-Length": str(declared_length),
                 CREDENTIAL_HEADER: "secret",
             },
         )
@@ -493,6 +542,165 @@ def test_validate_endpoint_rejects_wrong_credential() -> None:
 
     assert response.status == HTTPStatus.UNAUTHORIZED
     assert calls == []
+
+
+# --- /v1/reject and /v1/cancel: the request graph's own endpoints (item 8) -
+
+
+def reject_request() -> RejectRequestV1:
+    """Build an accepted reject-request fixture.
+
+    Returns:
+        A well-formed request for the /v1/reject endpoint.
+    """
+    return RejectRequestV1(
+        request_id=REQUEST_ID,
+        session_id=SESSION_ID,
+        plan_id="33333333-3333-4333-8333-333333333333",
+    )
+
+
+def cancel_request() -> CancelRequestV1:
+    """Build an accepted cancel-request fixture.
+
+    Returns:
+        A well-formed request for the /v1/cancel endpoint.
+    """
+    return CancelRequestV1(request_id=REQUEST_ID, session_id=SESSION_ID)
+
+
+def fake_reject_handler(request: RejectRequestV1) -> FailedPlanResponseV1:
+    """Answer any reject request as though the graph rejected it.
+
+    Args:
+        request: The decoded reject request.
+
+    Returns:
+        A fixed, correlated `rejected` failure response.
+    """
+    return FailedPlanResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        failure=FailureEnvelopeV1(
+            category="rejected", message="rejected", retryable=False
+        ),
+    )
+
+
+def fake_cancel_handler(request: CancelRequestV1) -> FailedPlanResponseV1:
+    """Answer any cancel request as though the graph cancelled it.
+
+    Args:
+        request: The decoded cancel request.
+
+    Returns:
+        A fixed, correlated `cancelled` failure response.
+    """
+    return FailedPlanResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        failure=FailureEnvelopeV1(
+            category="cancelled", message="cancelled", retryable=True
+        ),
+    )
+
+
+def test_reject_endpoint_round_trips_over_loopback() -> None:
+    """A real HTTP round trip through the reject handler's own mapping."""
+    with LoopbackPlanServer(
+        "secret", validated_response, reject_handler=fake_reject_handler
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(reject_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            REJECT_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response_body = response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.OK
+    decoded = FailedPlanResponseV1.from_dict(json.loads(response_body))
+    assert decoded.request_id == REQUEST_ID
+    assert decoded.failure.category == "rejected"
+
+
+def test_reject_endpoint_is_404_with_no_reject_handler_configured() -> None:
+    """A server built without a reject_handler still 404s the path."""
+    with LoopbackPlanServer("secret", validated_response) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(reject_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            REJECT_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+def test_cancel_endpoint_round_trips_over_loopback() -> None:
+    """A real HTTP round trip through the cancel handler's own mapping."""
+    with LoopbackPlanServer(
+        "secret", validated_response, cancel_handler=fake_cancel_handler
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(cancel_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            CANCEL_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response_body = response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.OK
+    decoded = FailedPlanResponseV1.from_dict(json.loads(response_body))
+    assert decoded.request_id == REQUEST_ID
+    assert decoded.failure.category == "cancelled"
+
+
+def test_cancel_endpoint_is_404_with_no_cancel_handler_configured() -> None:
+    """A server built without a cancel_handler still 404s the path."""
+    with LoopbackPlanServer("secret", validated_response) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(cancel_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            CANCEL_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.NOT_FOUND
 
 
 if __name__ == "__main__":

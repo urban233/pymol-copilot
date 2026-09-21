@@ -73,6 +73,8 @@ py_test(
     main = "test_client_server_command.py",
     deps = [
         "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
@@ -98,6 +100,8 @@ py_test(
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
@@ -133,6 +137,7 @@ py_test(
     data = [
         "conftest.py",
         "testdata/h02_full_v1_fixture.pdb",
+        "//tests/contract:pymol_error_corpus",
     ],
     # Drives pmc_sidecar.child.run_plan() against the module-scoped
     # real_pymol/loaded_fixture fixtures; excluded from concurrent

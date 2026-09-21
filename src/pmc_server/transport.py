@@ -10,20 +10,32 @@ from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from threading import Thread
 
-from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
+from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import decode_cancel_request_json
 from pmc_core.protocol import decode_execution_request_json
 from pmc_core.protocol import decode_json
+from pmc_core.protocol import decode_reject_request_json
 from pmc_core.protocol import encode_execution_response_json
 from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
 PLAN_PATH = "/v1/plan"
+#: docs/master_plan.md item 8: reach `pmc_agent.session.RequestGraphSession
+#: .reject`/`.cancel` through `pmc_server.lifecycle.RequestGraphLifecycle`.
+#: Routed only when a server is constructed with the matching handler,
+#: exactly like VALIDATE_PATH below -- a server built without one (every
+#: transport-layer test that only cares about PLAN_PATH) returns 404 here,
+#: exactly as it did when these paths were not routed at all.
+REJECT_PATH = "/v1/reject"
+CANCEL_PATH = "/v1/cancel"
 #: The sidecar executor's endpoint (docs/master_plan.md item 4). Routed
 #: only when a server is constructed with an execution_handler; a server
 #: with none (every caller before this endpoint existed) returns 404 here,
@@ -31,11 +43,11 @@ PLAN_PATH = "/v1/plan"
 VALIDATE_PATH = "/v1/validate"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
-#: `/v1/validate` carries a snapshot JSON document inside a JSON string. In
-#: the worst case each byte of the canonical inner document needs one extra
-#: escape byte, with the ordinary 64 KiB budget left for the action-plan
-#: envelope. Responses stay on the shared 64 KiB bound.
-MAX_EXECUTION_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + MAX_MESSAGE_BYTES
+#: `/v1/validate` and (since docs/master_plan.md item 8) `/v1/plan` both
+#: carry a snapshot JSON document rather than merely its identity;
+#: `pmc_core.executor.MAX_EXECUTION_REQUEST_BYTES` is the one shared bound
+#: for both, and for `pmc_client.transport`'s own matching request-side
+#: check. Responses stay on this module's own 64 KiB `MAX_MESSAGE_BYTES`.
 REQUEST_TIMEOUT_SECONDS = 5.0
 
 LOGGER = logging.getLogger(__name__)
@@ -43,6 +55,8 @@ LOGGER = logging.getLogger(__name__)
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
 type PLAN_HANDLER = Callable[[PlanRequestV1], PLAN_RESPONSE]
 type EXECUTION_HANDLER = Callable[[ExecutionRequestV1], ExecutionReportV1]
+type REJECT_HANDLER = Callable[[RejectRequestV1], FailedPlanResponseV1]
+type CANCEL_HANDLER = Callable[[CancelRequestV1], FailedPlanResponseV1]
 
 # Preserve the original public type-alias names.
 globals()["PlanResponse"] = PLAN_RESPONSE
@@ -59,6 +73,8 @@ class LoopbackPlanServer:
         handler: PLAN_HANDLER,
         *,
         execution_handler: EXECUTION_HANDLER | None = None,
+        reject_handler: REJECT_HANDLER | None = None,
+        cancel_handler: CANCEL_HANDLER | None = None,
     ) -> None:
         """Create a server that authenticates requests before decoding JSON.
 
@@ -71,6 +87,13 @@ class LoopbackPlanServer:
                 of a VALIDATE_PATH request. None -- the default, and every
                 caller before this endpoint existed -- routes VALIDATE_PATH
                 to 404, exactly as an unrouted path already does.
+            reject_handler: docs/master_plan.md item 8's own request-graph
+                lifecycle, invoked after strict decoding of a REJECT_PATH
+                request. None -- the default -- routes REJECT_PATH to 404,
+                exactly as an unrouted path already does.
+            cancel_handler: The same lifecycle's cancel entry point,
+                invoked after strict decoding of a CANCEL_PATH request.
+                None -- the default -- routes CANCEL_PATH to 404.
 
         Raises:
             ValueError: If credential is empty.
@@ -80,6 +103,8 @@ class LoopbackPlanServer:
         self._credential = credential
         self._handler = handler
         self._execution_handler = execution_handler
+        self._reject_handler = reject_handler
+        self._cancel_handler = cancel_handler
         self._httpd = ThreadingHTTPServer(
             (LOOPBACK_HOST, 0), self._make_request_handler()
         )
@@ -184,11 +209,29 @@ class LoopbackPlanServer:
                 ):
                     self._handle_validate()
                     return
+                if (
+                    self.path == REJECT_PATH
+                    and server._reject_handler is not None
+                ):
+                    self._handle_reject()
+                    return
+                if (
+                    self.path == CANCEL_PATH
+                    and server._cancel_handler is not None
+                ):
+                    self._handle_cancel()
+                    return
                 self._send_empty(HTTPStatus.NOT_FOUND)
 
             def _handle_plan(self) -> None:
                 """Decode, dispatch, and answer one PLAN_PATH request."""
-                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                # docs/master_plan.md item 8: the request now carries the
+                # full canonical snapshot JSON (PlanRequestV1.snapshot_json),
+                # not merely its identity, so this path shares VALIDATE_PATH's
+                # own wider body cap rather than the plain message bound.
+                payload = self._authorized_json_body(
+                    MAX_EXECUTION_REQUEST_BYTES
+                )
                 if payload is None:
                     return
                 try:
@@ -228,6 +271,50 @@ class LoopbackPlanServer:
                     response_payload = encode_execution_response_json(
                         response
                     ).encode("utf-8")
+                except (ProtocolDecodeError, ValueError):
+                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+                self._send_json(response_payload)
+
+            def _handle_reject(self) -> None:
+                """Decode, dispatch, and answer one REJECT_PATH request."""
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                if payload is None:
+                    return
+                try:
+                    request = decode_reject_request_json(
+                        payload.decode("utf-8")
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    reject_handler = server._reject_handler
+                    assert reject_handler is not None
+                    response = reject_handler(request)
+                    response_payload = encode_json(response).encode("utf-8")
+                except (ProtocolDecodeError, ValueError):
+                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+                self._send_json(response_payload)
+
+            def _handle_cancel(self) -> None:
+                """Decode, dispatch, and answer one CANCEL_PATH request."""
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                if payload is None:
+                    return
+                try:
+                    request = decode_cancel_request_json(
+                        payload.decode("utf-8")
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    cancel_handler = server._cancel_handler
+                    assert cancel_handler is not None
+                    response = cancel_handler(request)
+                    response_payload = encode_json(response).encode("utf-8")
                 except (ProtocolDecodeError, ValueError):
                     self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
                     return

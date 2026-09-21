@@ -15,7 +15,22 @@ markers = [
     "integration: Integration tests involving external dependencies or filesystems",
     "slow: Tests that take a significant amount of time to execute",
 ]
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # Purely mechanical: pytest's assertion-rewrite import hook discovers a
+    # module (anyio, langsmith -- both langgraph's own transitive imports)
+    # was already imported before the hook could instrument it, so that
+    # module's own internal assertions won't get pytest's enhanced
+    # messages. It says nothing about this repository's own test or
+    # production code, and unlike every other warning here, escalating it
+    # to a hard error is platform-dependent rather than deterministic: it
+    # crashes every langgraph-importing test target's own collection on
+    # Windows (observed in CI) without doing so on Linux or macOS, since
+    # which module ends up "already imported" first depends on each
+    # platform's own plugin autoload order, not on anything this codebase
+    # controls.
+    "ignore::pytest.PytestAssertRewriteWarning",
+]
 
 # Ruff configuration
 [tool.ruff]
@@ -130,12 +145,18 @@ check-unannotated-defs = true
 # import ...`) holding the broken-command table that both
 # capture_pymol_errors.py and test_errors_real_pymol.py import, so the
 # corpus writer and the conformance test cannot drift apart.
+# tests/adversarial/denied_forms.py is the same situation again for
+# src/pmc_core/screen.py (docs/master_plan.md item 8): one bare sibling
+# module holding the denied-form corpus that both test_denied_forms.py and
+# test_hostile_screen.py import, so the parser/policy denial suite and the
+# repair-eligibility screen's own suite cannot drift apart.
 # tests/contract/consumer_scan.py is the same situation once more, this
 # time within tests/contract: one bare sibling module holding the import
 # resolving scan that both test_errors.py and test_prompt.py use, so
 # master plan items 6 and 13 cannot drift into two different notions of
 # what reaching the shared core means.
 search-path = [
+    "tests/adversarial",
     "tests/contract",
     "tests/integration",
     "tools/winstage",

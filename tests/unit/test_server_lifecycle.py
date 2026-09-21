@@ -1,30 +1,98 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Behavior tests for the callable server request lifecycle."""
+"""Behavior tests for `RequestGraphLifecycle`.
+
+Runs `pmc_agent.session.RequestGraphSession` against a `FakeEngine`, never a
+real one -- this module's own scope is the wire translation
+`RequestGraphLifecycle` does between the graph's result mapping and this
+protocol's typed responses; every state and transition is
+`pmc_agent.graph`'s own, already covered by `tests/unit/test_request_graph_*`.
+"""
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-import pytest
-
 import dataclasses
+from collections.abc import Callable
 
+import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
+
+from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
+from pmc_agent.inference.base import STOP_END
+from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.session import RequestGraphSession
 from pmc_core.executor import REASON_CHILD_CRASH
 from pmc_core.executor import REASON_FIDELITY_MISMATCH
 from pmc_core.executor import REASON_OK
+from pmc_core.executor import STATUS_OK
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
+from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
+from pmc_core.policy import PolicyDecision
+from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import FIDELITY_UNAVAILABLE
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
-from pmc_server.lifecycle import FIXTURE_PLAN
-from pmc_server.lifecycle import PlanRequestLifecycle
+from pmc_server.lifecycle import FAILURE_NO_PENDING_PLAN
+from pmc_server.lifecycle import RequestGraphLifecycle
+from pmc_core.snapshot import DECLARED_UNSUPPORTED
+from pmc_core.snapshot import SNAPSHOT_VERSION
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import to_json
 
 REQUEST_ID = "11111111-1111-4111-8111-111111111111"
 SESSION_ID = "22222222-2222-4222-8222-222222222222"
+_OBJECT_NAME = "one-object-chain-a-v1"
+_VALID_COMPLETION = "orient chain A\n"
+
+
+def _always_ok_executor(_request: ExecutionRequest) -> ExecutionReport:
+    """Report success for any request, without ever spawning anything.
+
+    Args:
+        _request: Ignored.
+
+    Returns:
+        A minimal `STATUS_OK` report.
+    """
+    return ExecutionReport(
+        executor_version=1,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest="sha256:test",
+        resulting_fingerprint="sha256:" + "0" * 64,
+        selection_counts=(),
+        command_outcomes=(),
+        child_pid=1234,
+        child_terminated=True,
+        elapsed_seconds=0.01,
+    )
+
+
+def _snapshot() -> ObjectSnapshot:
+    """Build the smallest well-formed snapshot, named `_OBJECT_NAME`.
+
+    Returns:
+        An empty-state ObjectSnapshot.
+    """
+    return ObjectSnapshot(
+        schema_version=SNAPSHOT_VERSION,
+        name=_OBJECT_NAME,
+        enabled=True,
+        states=(),
+        bonds=(),
+        view=(),
+        settings=(),
+        unsupported=DECLARED_UNSUPPORTED,
+    )
 
 
 def request() -> PlanRequestV1:
@@ -38,14 +106,15 @@ def request() -> PlanRequestV1:
         session_id=SESSION_ID,
         created_at="2026-08-26T14:22:03.123Z",
         contract_manifest=ContractManifestV1("1", "1", "1"),
-        intent="Select chain A and color it red.",
+        intent="orient chain A",
         snapshot=StructureSnapshotV1(
             schema_version="1",
             digest="sha256:example-chain-a-digest",
-            object_name="one-object-chain-a-v1",
+            object_name=_OBJECT_NAME,
             atom_count=2,
             state_count=1,
         ),
+        snapshot_json=to_json(_snapshot()),
         fidelity=FidelityOutcomeV1(
             status=FIDELITY_EXACT,
             reason=REASON_OK,
@@ -55,14 +124,41 @@ def request() -> PlanRequestV1:
     )
 
 
-def test_exact_fixture_returns_correlated_validated_plan() -> None:
-    """The accepted fixture produces a passing typed plan response."""
-    lifecycle = PlanRequestLifecycle(
-        plan_id_source=lambda: "33333333-3333-4333-8333-333333333333",
-        timestamp_source=iter(
-            ("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z")
-        ).__next__,
+def _lifecycle(
+    engine: FakeEngine,
+    *,
+    policy_validator: Callable[[ActionPlan], PlanDecision] = evaluate_plan,
+    max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
+) -> RequestGraphLifecycle:
+    """Build a lifecycle over a fresh session, fixed timestamps, a fake.
+
+    Args:
+        engine: The fake engine `generating` will call.
+        policy_validator: Forwarded to `RequestGraphSession`. Defaults to
+            the graph's own real `evaluate_plan`.
+        max_repair_attempts: Forwarded to `RequestGraphSession`. Defaults
+            to the graph's own real repair budget.
+
+    Returns:
+        A lifecycle whose `received_at`/`validated_at` are fixed, in that
+        order, and whose graph never spawns a real sidecar.
+    """
+    session = RequestGraphSession(
+        engine=engine,
+        executor=_always_ok_executor,
+        policy_validator=policy_validator,
+        max_repair_attempts=max_repair_attempts,
     )
+    timestamps = iter(("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z"))
+    return RequestGraphLifecycle(
+        session=session, timestamp_source=timestamps.__next__
+    )
+
+
+def test_a_well_formed_intent_returns_a_correlated_validated_plan() -> None:
+    """A validated request produces a passing typed plan response."""
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
 
     response = lifecycle(request())
 
@@ -71,9 +167,7 @@ def test_exact_fixture_returns_correlated_validated_plan() -> None:
     assert response.session_id == SESSION_ID
     assert response.received_at == "2026-08-26T14:22:03.124Z"
     assert response.validated_at == "2026-08-26T14:22:03.220Z"
-    assert response.plan_id == "33333333-3333-4333-8333-333333333333"
     assert response.snapshot_digest == "sha256:example-chain-a-digest"
-    assert response.action_plan == FIXTURE_PLAN
     assert response.validation.status == "passed"
     assert (
         response.validation.snapshot_digest == "sha256:example-chain-a-digest"
@@ -111,12 +205,8 @@ def test_applicable_is_derived_from_the_requests_own_fidelity_status(
             status=status, reason=reason, mismatch_count=0, mismatches=()
         ),
     )
-    lifecycle = PlanRequestLifecycle(
-        plan_id_source=lambda: "33333333-3333-4333-8333-333333333333",
-        timestamp_source=iter(
-            ("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z")
-        ).__next__,
-    )
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
 
     response = lifecycle(fidelity_gated_request)
 
@@ -124,40 +214,120 @@ def test_applicable_is_derived_from_the_requests_own_fidelity_status(
     assert response.validation.applicable is expected_applicable
 
 
-def test_semantic_request_mismatch_returns_typed_failure_without_plan() -> None:
-    """A request outside the accepted fixture returns no partial plan."""
-    invalid_request = request()
-    invalid_request = PlanRequestV1(
-        request_id=invalid_request.request_id,
-        session_id=invalid_request.session_id,
-        created_at=invalid_request.created_at,
-        contract_manifest=invalid_request.contract_manifest,
-        intent="Select chain B and color it red.",
-        snapshot=invalid_request.snapshot,
-        fidelity=invalid_request.fidelity,
+def test_a_contract_manifest_mismatch_returns_typed_failure_without_plan() -> (
+    None
+):
+    """A request outside the server's accepted contracts returns no plan."""
+    mismatched = dataclasses.replace(
+        request(), contract_manifest=ContractManifestV1("2", "1", "1")
     )
+    lifecycle = _lifecycle(FakeEngine([]))
 
-    response = PlanRequestLifecycle()(invalid_request)
+    response = lifecycle(mismatched)
 
     assert isinstance(response, FailedPlanResponseV1)
     assert response.request_id == REQUEST_ID
     assert response.session_id == SESSION_ID
-    assert response.failure.category == "invalid_request"
+    assert response.failure.category == "contract_mismatch"
+    assert response.failure.retryable is False
     assert "actionPlan" not in response.to_dict()
-    assert ".pml" not in response.failure.message
 
 
-def test_policy_denial_returns_typed_failure_without_plan() -> None:
+def test_a_policy_denial_returns_typed_failure_without_plan() -> None:
     """A policy denial returns no plan or executable text."""
-    denied = PlanDecision(decisions=(), allowed=False)
-    lifecycle = PlanRequestLifecycle(policy_validator=lambda _plan: denied)
+    denied = PlanDecision(
+        decisions=(PolicyDecision(0, False, "denied_for_test"),),
+        allowed=False,
+    )
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(
+        engine, policy_validator=lambda _plan: denied, max_repair_attempts=0
+    )
 
     response = lifecycle(request())
 
     assert isinstance(response, FailedPlanResponseV1)
-    assert response.failure.category == "policy_denied"
+    assert response.failure.category == "repair_exhausted"
     assert "actionPlan" not in response.to_dict()
-    assert ".pml" not in response.failure.message
+
+
+def test_an_ask_completion_returns_its_question_as_the_failure_message() -> (
+    None
+):
+    """A clarification reaches the caller as a non-retryable `ask` failure."""
+    engine = FakeEngine(
+        [CompletionResult("ask: which chain do you mean?", "m-1", STOP_END)]
+    )
+    lifecycle = _lifecycle(engine)
+
+    response = lifecycle(request())
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.failure.category == "ask"
+    assert response.failure.message == "which chain do you mean?"
+    assert response.failure.retryable is False
+
+
+def test_reject_reaches_rejected() -> None:
+    """Rejecting the pending plan by its own id reaches `rejected`."""
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+
+    response = lifecycle.reject(
+        RejectRequestV1(
+            request_id=REQUEST_ID,
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+
+    assert response.failure.category == "rejected"
+    assert response.failure.retryable is False
+
+
+def test_cancel_reaches_cancelled() -> None:
+    """Cancelling the pending plan reaches `cancelled`."""
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+
+    response = lifecycle.cancel(
+        CancelRequestV1(request_id=REQUEST_ID, session_id=SESSION_ID)
+    )
+
+    assert response.failure.category == "cancelled"
+    assert response.failure.retryable is True
+
+
+def test_reject_with_no_pending_plan_is_refused() -> None:
+    """Rejecting with nothing pending is refused, not a graph terminal."""
+    lifecycle = _lifecycle(FakeEngine([]))
+
+    response = lifecycle.reject(
+        RejectRequestV1(
+            request_id=REQUEST_ID,
+            session_id=SESSION_ID,
+            plan_id="33333333-3333-4333-8333-333333333333",
+        )
+    )
+
+    assert response.failure.category == FAILURE_NO_PENDING_PLAN
+    assert response.failure.retryable is False
+
+
+def test_cancel_with_no_pending_plan_is_refused() -> None:
+    """Cancelling with nothing pending is refused, not a graph terminal."""
+    lifecycle = _lifecycle(FakeEngine([]))
+
+    response = lifecycle.cancel(
+        CancelRequestV1(request_id=REQUEST_ID, session_id=SESSION_ID)
+    )
+
+    assert response.failure.category == FAILURE_NO_PENDING_PLAN
+    assert response.failure.retryable is False
 
 
 if __name__ == "__main__":

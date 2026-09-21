@@ -13,6 +13,8 @@ proving those needs the boundary genuinely spawning this module as a
 subprocess.
 """
 
+import json
+import pathlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -37,6 +39,18 @@ from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_sidecar.child import run_plan
+
+#: The captured PyMOL error corpus item 6 owns (docs/master_plan.md item 6),
+#: reached from this file rather than from the working directory, which a
+#: Bazel test does not control -- the same technique
+#: tests/integration/test_errors_real_pymol.py already uses to reach the
+#: same corpus.
+_CORPUS_DIRECTORY = (
+    pathlib.Path(__file__).parent.parent
+    / "contract"
+    / "testdata"
+    / "pymol_errors"
+)
 
 
 def chain_a() -> SelectionExpression:
@@ -246,6 +260,49 @@ def test_an_unknown_pymol_error_stops_at_that_index(
     assert result.command_outcomes[1].error
 
 
+def test_a_real_pymol_failure_produces_the_captured_envelope(
+    loaded_fixture: Any,
+) -> None:
+    """A real PyMOL failure normalizes to exactly the checked-in corpus.
+
+    docs/master_plan.md item 8: run_plan() itself calls
+    pmc_core.errors.normalize at the point PyMOL raises, so this is the
+    first place that normalization is exercised against a real PyMOL
+    failure rather than a synthetic one -- test_errors.py's own
+    byte-equality guarantee, now proven at this module's own boundary
+    rather than only against a recorded raw message.
+
+    Args:
+        loaded_fixture: The real PyMOL cmd module with "fx" loaded.
+    """
+    corpus = json.loads(
+        (_CORPUS_DIRECTORY / "color.json").read_text(encoding="utf-8")
+    )
+    expected = next(
+        case["expected"]
+        for case in corpus["cases"]
+        if case["case"] == "unknown_color"
+    )
+    plan = _bypass(
+        ActionPlan,
+        operations=(
+            SelectOperation(selection_name="copilot_sel", expression=chain_a()),
+            _bypass(
+                ColorOperation,
+                color="not_a_real_color_zzz",
+                target=NamedSelection("copilot_sel"),
+            ),
+            OrientOperation(target=NamedSelection("copilot_sel")),
+        ),
+    )
+
+    result = run_plan(loaded_fixture, plan)
+
+    envelope = result.command_outcomes[1].error_envelope
+    assert envelope is not None
+    assert envelope.to_dict() == expected
+
+
 def test_a_failing_command_is_dispatched_exactly_once_with_no_retry(
     loaded_fixture: Any,
 ) -> None:
@@ -299,6 +356,11 @@ def test_a_synthetic_operation_type_fails_closed(loaded_fixture: Any) -> None:
     assert len(result.command_outcomes) == 1
     assert result.command_outcomes[0].verb == "__unsupported__"
     assert result.command_outcomes[0].status == OUTCOME_ERROR
+    # "__unsupported__" is never a real PyMOL failure -- it is this
+    # module's own dispatch table missing a branch -- so it is never
+    # normalized, and ExecutionErrorV1 would refuse to construct one for a
+    # verb outside COMMAND_ALLOWLIST regardless.
+    assert result.command_outcomes[0].error_envelope is None
 
 
 def test_command_error_diagnostic_is_bounded() -> None:
@@ -312,6 +374,14 @@ def test_command_error_diagnostic_is_bounded() -> None:
     assert error is not None
     assert len(error.encode("utf-8")) <= MAX_COMMAND_ERROR_BYTES
     assert error.endswith("...[truncated]")
+
+    # The envelope is normalized independently of the bounded diagnostic
+    # string above, from the original unbounded exception -- and stays
+    # bounded to its own, separate limit (errors.MAX_MESSAGE_BYTES).
+    envelope = result.command_outcomes[0].error_envelope
+    assert envelope is not None
+    assert envelope.command_index == 0
+    assert envelope.verb == "orient"
 
 
 if __name__ == "__main__":

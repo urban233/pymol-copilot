@@ -94,7 +94,7 @@ Every item carries a **State**. The values are:
 | 5 | Structure card | Martin | **done** — PR #29 | — | 13, 14 |
 | 6 | Error envelope | Martin | **done** — PR #31 | 2 ✓ | 8, 11 |
 | 7 | Live extraction and fidelity gate | Hannah | **done** — PR #37 | 3 ✓, 4 ✓ | 10, 11 |
-| 8 | LangGraph request graph | Hannah | **ready** | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
+| 8 | LangGraph request graph | Hannah | **in progress** | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
 | 9 | Inference abstraction and Lemonade | Hannah | **blocked** | 0 ✓, 1 ✓, 8 | 12, 16, 19 |
 | 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7 ✓, 8 | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
@@ -114,6 +114,7 @@ flowchart LR
   classDef done fill:#1f6f3f,stroke:#0d3d22,color:#fff
   classDef review fill:#8a6d1a,stroke:#4d3c0c,color:#fff
   classDef ready fill:#1f4f8f,stroke:#0d2a4d,color:#fff
+  classDef progress fill:#6a3d9a,stroke:#3a1f57,color:#fff
   classDef blocked fill:#3a3a3a,stroke:#1a1a1a,color:#ddd
 
   I0["0 · dependency split"]:::done
@@ -124,7 +125,7 @@ flowchart LR
   I5["5 · structure card"]:::done
   I6["6 · error envelope"]:::done
   I7["7 · fidelity gate"]:::done
-  I8["8 · request graph"]:::ready
+  I8["8 · request graph"]:::progress
   I9["9 · inference"]:::blocked
   I10["10 · apply and recovery"]:::blocked
   I11["11 · output"]:::blocked
@@ -187,17 +188,18 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   the sidecar executor, the structure card, the error envelope and the
   fidelity gate. Nothing in the remaining twelve items is waiting on a
   shared-core hand-off any more.
-- **Item 8 is the one item anybody can start today**, and it is Hannah's.
-  It gates items 9, 10, 11 and 12 — her entire remaining chain — so nothing
-  on the runtime side can begin until it lands, which makes it the
-  highest-value thing on the board.
+- **Item 8 is in progress on `feat/langgraph-request-graph`**, unblocked on
+  every prerequisite. It gates items 9, 10, 11 and 12 — Hannah's entire
+  remaining chain — so nothing on the runtime side can begin until it lands,
+  which makes it the highest-value thing on the board. Its own engine
+  interface and fake adapter (`src/pmc_agent/inference/`) already exist as
+  part of it, ahead of item 9 — see item 9's own note.
 - **Item 14 is Martin's, and it is the longest single item left.** At ~5
   days it is the biggest remaining piece of the model half, and items 15,
   16, 17 and 18 all sit behind it. It is also the first item to call the
   prompt builder's `build_for_data()` seam for real, rather than through the
   parity test that stands in for a caller today.
-- **Nothing downstream of the shared core has merged beyond item 13.**
-  `src/pmc_agent/inference/` does not exist; `src/pmc_agent/runtime.py` is
+- **Nothing downstream of item 8 has merged.** `src/pmc_agent/runtime.py` is
   still the 66-line pass-through stub from the dependency split, not item 8's
   graph; `src/pmc_train/` holds only `__init__.py`; `tests/recovery/` holds
   only a readme.
@@ -207,8 +209,9 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 The week 1 note below is now more specific:
 
 - **Hannah → Martin: settled.** Item 4 was the one hand-off blocking the
-  entire data and model half, and it merged as PR #33. Martin's items 14 and
-  16 now wait only on his own item 13.
+  entire data and model half, and it merged as PR #33. Item 13 is now merged
+  too, so Martin's item 14 is ready; item 16 still waits on items 9, 14, and
+  15.
 - **Martin → Hannah: settled.** Items 2 and 6 are both delivered, so Hannah's
   items 8 and 11 are no longer waiting on anything of Martin's.
 - **Martin → Hannah, delivered:** item 13 emits the grammar item 9's engine
@@ -401,7 +404,7 @@ hetero atoms.
 
 ### 8. LangGraph request graph
 
-**Size:** ~4 days · **State:** ready — blocks 9, 10, 11, 12
+**Size:** ~4 days · **State:** in progress — blocks 9, 10, 11, 12
 
 ```
 Build the request graph in src/pmc_agent/ using LangGraph. States: received,
@@ -431,6 +434,12 @@ condition. If the spike showed grammar can't be enforced, implement
 syntax-only and record that limitation in the code and the readme rather
 than pretending.
 ```
+
+> **Note, 2026-09-21.** `src/pmc_agent/inference/`'s engine interface
+> (`base.py`) and its fake adapter (`fake.py`) landed in item 8's own step
+> 2, designed against the request graph as a real consumer rather than in
+> the abstract. What remains here is `lemonade.py` and startup capability
+> probing only.
 
 ### 10. Approval, apply, recovery — the safety centerpiece
 

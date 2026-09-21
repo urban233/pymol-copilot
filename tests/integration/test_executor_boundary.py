@@ -41,6 +41,10 @@ from typing import Any
 
 import pytest
 
+from pmc_core.errors import CATEGORY_UNKNOWN
+from pmc_core.errors import ERROR_ENVELOPE_VERSION
+from pmc_core.errors import ExecutionErrorV1
+from pmc_core.executor import OUTCOME_ERROR
 from pmc_core.executor import REASON_CHILD_CRASH
 from pmc_core.executor import REASON_COMMAND_FAILURE
 from pmc_core.executor import REASON_FIDELITY_MISMATCH
@@ -475,6 +479,87 @@ def test_child_command_error_is_bounded_defensively() -> None:
     assert error is not None
     assert len(error.encode("utf-8")) <= MAX_COMMAND_ERROR_BYTES
     assert error.endswith("...[truncated]")
+
+
+def test_a_well_formed_error_envelope_survives_the_child_boundary() -> None:
+    """A child's error_envelope decodes into the parent's own report.
+
+    docs/master_plan.md item 8: the child normalizes at the point PyMOL
+    raised (`src/pmc_sidecar/child.py`); this proves the other half of
+    that boundary -- the parent (`pmc_core.executor.execute()`) decoding
+    whatever a conforming child writes, via `pmc_core.protocol.
+    decode_execution_error`, all the way through a real spawned process,
+    not merely a direct function call.
+    """
+    envelope = ExecutionErrorV1(
+        envelope_version=ERROR_ENVELOPE_VERSION,
+        command_index=0,
+        verb="orient",
+        category=CATEGORY_UNKNOWN,
+        message="a bounded diagnostic",
+    )
+    payload = {
+        "status": STATUS_FAILED,
+        "reason": REASON_COMMAND_FAILURE,
+        "command_outcomes": [
+            {
+                "index": 0,
+                "verb": "orient",
+                "status": OUTCOME_ERROR,
+                "error": "a bounded diagnostic",
+                "error_envelope": envelope.to_dict(),
+            }
+        ],
+    }
+    os.environ[SABOTAGE_MODE_ENV_VAR] = "report:" + json.dumps(payload)
+    try:
+        report = execute(_base_request(), runner_module=_SABOTAGE_RUNNER)
+    finally:
+        del os.environ[SABOTAGE_MODE_ENV_VAR]
+
+    assert report.reason == REASON_COMMAND_FAILURE
+    assert len(report.command_outcomes) == 1
+    assert report.command_outcomes[0].error_envelope == envelope
+
+
+def test_a_malformed_error_envelope_fails_closed_like_a_crash() -> None:
+    """A child's malformed error_envelope is as untrustworthy as no output.
+
+    `pmc_core.protocol.decode_execution_error` raises `ProtocolDecodeError`
+    for a value that is structurally an object but not a valid envelope --
+    here, a category outside `pmc_core.errors.CATEGORIES` -- and
+    `execute()`'s own parsing treats that exactly like every other
+    malformed scalar field: the whole report is as untrustworthy as no
+    output file at all.
+    """
+    payload = {
+        "status": STATUS_FAILED,
+        "reason": REASON_COMMAND_FAILURE,
+        "command_outcomes": [
+            {
+                "index": 0,
+                "verb": "orient",
+                "status": OUTCOME_ERROR,
+                "error": "a bounded diagnostic",
+                "error_envelope": {
+                    "envelope_version": ERROR_ENVELOPE_VERSION,
+                    "command_index": 0,
+                    "verb": "orient",
+                    "category": "not_a_real_category",
+                    "message": "a bounded diagnostic",
+                },
+            }
+        ],
+    }
+    os.environ[SABOTAGE_MODE_ENV_VAR] = "report:" + json.dumps(payload)
+    try:
+        report = execute(_base_request(), runner_module=_SABOTAGE_RUNNER)
+    finally:
+        del os.environ[SABOTAGE_MODE_ENV_VAR]
+
+    assert report.status == STATUS_FAILED
+    assert report.reason == REASON_CHILD_CRASH
+    assert report.command_outcomes == ()
 
 
 def test_failing_command_is_attempted_exactly_once_with_no_retry() -> None:

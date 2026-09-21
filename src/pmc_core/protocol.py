@@ -22,6 +22,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
+from pmc_core.errors import ExecutionErrorV1
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_selection_expression
 from pmc_core.plan import MAX_COMMANDS
@@ -262,6 +263,20 @@ class ContractManifestV1:
         )
 
 
+#: The one contract manifest this system currently agrees on, everywhere a
+#: version needs stating: `pmc_client.command` declares it on every
+#: request, and `pmc_agent.graph` fails closed on anything else. A single
+#: shared constant rather than one independently-typed literal per side,
+#: since neither `pmc_core.plan`, `pmc_core.policy`, nor `pmc_core.snapshot`
+#: defines its own version constant yet -- every field is the literal "1"
+#: for that reason alone. A future major version in any of those three
+#: modules must update this constant, here, alongside it; there is nowhere
+#: else that decides what this system accepts.
+CURRENT_CONTRACT_MANIFEST = ContractManifestV1(
+    plan_version="1", policy_version="1", snapshot_version="1"
+)
+
+
 @dataclass(frozen=True)
 class StructureSnapshotV1:
     """A computed structure-snapshot identity: no snapshot bytes travel here.
@@ -449,7 +464,15 @@ class FidelityOutcomeV1:
 
 @dataclass(frozen=True)
 class PlanRequestV1:
-    """A strictly decoded request sent from client to server."""
+    """A strictly decoded request sent from client to server.
+
+    `snapshot_json` carries the full canonical snapshot document itself,
+    not merely its identity: docs/master_plan.md item 8's request graph
+    lives in the server, so the bytes `validating` needs to run a fresh
+    sidecar must arrive with the request that triggers it.
+    `PLAN_PATH`'s own body cap rose to `MAX_EXECUTION_REQUEST_BYTES`
+    (`pmc_server.transport`) to carry it.
+    """
 
     request_id: str
     session_id: str
@@ -457,6 +480,7 @@ class PlanRequestV1:
     contract_manifest: ContractManifestV1
     intent: str
     snapshot: StructureSnapshotV1
+    snapshot_json: str
     fidelity: FidelityOutcomeV1
     protocol_version: str = PROTOCOL_VERSION
 
@@ -474,6 +498,7 @@ class PlanRequestV1:
             "contractManifest": self.contract_manifest.to_dict(),
             "intent": self.intent,
             "snapshot": self.snapshot.to_dict(),
+            "snapshotJson": self.snapshot_json,
             "fidelity": self.fidelity.to_dict(),
         }
 
@@ -501,6 +526,7 @@ class PlanRequestV1:
                 "contractManifest",
                 "intent",
                 "snapshot",
+                "snapshotJson",
                 "fidelity",
             },
         )
@@ -518,7 +544,113 @@ class PlanRequestV1:
             ),
             intent=intent,
             snapshot=StructureSnapshotV1.from_dict(data["snapshot"]),
+            snapshot_json=_string(data["snapshotJson"], name="snapshotJson"),
             fidelity=FidelityOutcomeV1.from_dict(data["fidelity"]),
+        )
+
+
+@dataclass(frozen=True)
+class RejectRequestV1:
+    """A strictly decoded request to reject a session's pending plan.
+
+    `plan_id` guards against rejecting a plan the caller no longer knows
+    about: docs/master_plan.md item 8's `pending_approval` refuses a
+    mismatched id without touching the thread
+    (`pmc_agent.session.RequestGraphSession.reject`).
+    """
+
+    request_id: str
+    session_id: str
+    plan_id: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+            "planId": self.plan_id,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> RejectRequestV1:
+        """Decode and validate a V1 reject request.
+
+        Args:
+            value: JSON-like value containing a reject request.
+
+        Returns:
+            The validated reject request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="RejectRequestV1",
+            required={"protocolVersion", "requestId", "sessionId", "planId"},
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
+            plan_id=_uuid4(data["planId"], name="planId"),
+        )
+
+
+@dataclass(frozen=True)
+class CancelRequestV1:
+    """A strictly decoded request to cancel a session's pending plan.
+
+    Carries no `plan_id`: docs/master_plan.md item 8's resume table gives
+    `/v1/cancel` no plan identifier to match, unlike `/v1/reject`.
+    """
+
+    request_id: str
+    session_id: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> CancelRequestV1:
+        """Decode and validate a V1 cancel request.
+
+        Args:
+            value: JSON-like value containing a cancel request.
+
+        Returns:
+            The validated cancel request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="CancelRequestV1",
+            required={"protocolVersion", "requestId", "sessionId"},
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
         )
 
 
@@ -1018,6 +1150,56 @@ class FailedPlanResponseV1:
         )
 
 
+def decode_execution_error(value: object) -> ExecutionErrorV1:
+    """Decode and validate a V1 error envelope.
+
+    This is the envelope's first decoder: `pmc_core.errors.ExecutionErrorV1`
+    provides `to_dict()` and says explicitly that putting an envelope on
+    the wire is this module's contract, not its own. The envelope's own
+    field names -- `envelope_version`, `command_index`, `verb`, `category`,
+    `message`, exactly as `to_dict()` writes them -- are decoded as-is
+    rather than translated to this module's own camelCase convention, so
+    the same bytes `pmc_core.errors`'s own byte-equality fixtures assert
+    against are the bytes this function reads back.
+
+    Args:
+        value: JSON-like value containing an error envelope.
+
+    Returns:
+        The validated envelope.
+
+    Raises:
+        ProtocolDecodeError: If value does not match the envelope schema,
+            or its own construction rules reject a field's value --
+            `ExecutionErrorV1.__post_init__`'s `ValueError` is re-raised as
+            a `ProtocolDecodeError` so every decoder in this module fails
+            the same way.
+    """
+    data = _strict_object(
+        value,
+        name="executionError",
+        required={
+            "envelope_version",
+            "command_index",
+            "verb",
+            "category",
+            "message",
+        },
+    )
+    try:
+        return ExecutionErrorV1(
+            envelope_version=_int(
+                data["envelope_version"], name="envelope_version"
+            ),
+            command_index=_int(data["command_index"], name="command_index"),
+            verb=_string(data["verb"], name="verb"),
+            category=_string(data["category"], name="category"),
+            message=_string(data["message"], name="message"),
+        )
+    except ValueError as error:
+        raise ProtocolDecodeError(str(error)) from error
+
+
 @dataclass(frozen=True)
 class CommandOutcomeV1:
     """One command's observed outcome, indexed by its plan position."""
@@ -1026,6 +1208,7 @@ class CommandOutcomeV1:
     verb: str
     status: str
     error: str | None
+    error_envelope: ExecutionErrorV1 | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Encode this outcome using its V1 wire-field names.
@@ -1038,6 +1221,11 @@ class CommandOutcomeV1:
             "verb": self.verb,
             "status": self.status,
             "error": self.error,
+            "errorEnvelope": (
+                self.error_envelope.to_dict()
+                if self.error_envelope is not None
+                else None
+            ),
         }
 
     @classmethod
@@ -1056,13 +1244,18 @@ class CommandOutcomeV1:
         data = _strict_object(
             value,
             name="commandOutcome",
-            required={"index", "verb", "status", "error"},
+            required={"index", "verb", "status", "error", "errorEnvelope"},
         )
         return cls(
             index=_int(data["index"], name="index"),
             verb=_string(data["verb"], name="verb"),
             status=_string(data["status"], name="status"),
             error=_optional_string(data["error"], name="error"),
+            error_envelope=(
+                decode_execution_error(data["errorEnvelope"])
+                if data["errorEnvelope"] is not None
+                else None
+            ),
         )
 
 
@@ -1301,7 +1494,11 @@ class ExecutionRequestV1:
 
 
 def encode_json(
-    value: PlanRequestV1 | ValidatedPlanResponseV1 | FailedPlanResponseV1,
+    value: PlanRequestV1
+    | ValidatedPlanResponseV1
+    | FailedPlanResponseV1
+    | RejectRequestV1
+    | CancelRequestV1,
 ) -> str:
     """Encode a supported protocol value as compact JSON.
 
@@ -1385,3 +1582,47 @@ def decode_execution_request_json(value: str) -> ExecutionRequestV1:
     except (ValueError, RecursionError) as error:
         raise ProtocolDecodeError("invalid JSON") from error
     return ExecutionRequestV1.from_dict(decoded)
+
+
+def decode_reject_request_json(value: str) -> RejectRequestV1:
+    """Decode JSON strictly as a V1 reject request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed reject request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    # Same hostile-JSON handling as decode_json: deeply nested arrays raise
+    # RecursionError and an over-long integer literal raises a plain
+    # ValueError, neither of which is ProtocolDecodeError on its own.
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return RejectRequestV1.from_dict(decoded)
+
+
+def decode_cancel_request_json(value: str) -> CancelRequestV1:
+    """Decode JSON strictly as a V1 cancel request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed cancel request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    # Same hostile-JSON handling as decode_json: deeply nested arrays raise
+    # RecursionError and an over-long integer literal raises a plain
+    # ValueError, neither of which is ProtocolDecodeError on its own.
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return CancelRequestV1.from_dict(decoded)

@@ -1,6 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Contract tests for strict V1 client-server protocol codecs."""
 
+import json
 from dataclasses import replace
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -17,6 +18,9 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_core.plan import HideOperation
 from pmc_core.plan import OrientOperation
+from pmc_core.errors import CATEGORY_UNKNOWN
+from pmc_core.errors import ERROR_ENVELOPE_VERSION
+from pmc_core.errors import ExecutionErrorV1
 from pmc_core.executor import REASON_OK
 from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import FIDELITY_EXACT
@@ -30,14 +34,19 @@ from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.protocol import decode_cancel_request_json
+from pmc_core.protocol import decode_execution_error
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_plan
+from pmc_core.protocol import decode_reject_request_json
 from pmc_core.protocol import encode_json
 from pmc_core.protocol import encode_plan
 
@@ -45,6 +54,8 @@ REQUEST_IDS = {
     "requestId": "11111111-1111-4111-8111-111111111111",
     "sessionId": "22222222-2222-4222-8222-222222222222",
 }
+
+PLAN_ID = "33333333-3333-4333-8333-333333333333"
 
 
 def fixture_plan() -> ActionPlan:
@@ -92,12 +103,38 @@ def request() -> PlanRequestV1:
             atom_count=2,
             state_count=1,
         ),
+        snapshot_json="{}",
         fidelity=FidelityOutcomeV1(
             status=FIDELITY_EXACT,
             reason=REASON_OK,
             mismatch_count=0,
             mismatches=(),
         ),
+    )
+
+
+def reject_request() -> RejectRequestV1:
+    """Build the accepted reject-request fixture.
+
+    Returns:
+        The accepted reject request.
+    """
+    return RejectRequestV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
+        plan_id=PLAN_ID,
+    )
+
+
+def cancel_request() -> CancelRequestV1:
+    """Build the accepted cancel-request fixture.
+
+    Returns:
+        The accepted cancel request.
+    """
+    return CancelRequestV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
     )
 
 
@@ -813,6 +850,89 @@ def test_command_outcome_round_trips_including_none_error() -> None:
     outcome = CommandOutcomeV1(0, "orient", "ok", None)
 
     assert CommandOutcomeV1.from_dict(outcome.to_dict()) == outcome
+    assert outcome.error_envelope is None
+
+
+def sample_execution_error() -> ExecutionErrorV1:
+    """Build a fully populated error envelope.
+
+    Returns:
+        An accepted envelope exercising every field.
+    """
+    return ExecutionErrorV1(
+        envelope_version=ERROR_ENVELOPE_VERSION,
+        command_index=1,
+        verb="color",
+        category=CATEGORY_UNKNOWN,
+        message="a bounded diagnostic",
+    )
+
+
+def test_execution_error_round_trips() -> None:
+    """A fully populated error envelope survives to_dict/decode."""
+    envelope = sample_execution_error()
+
+    assert decode_execution_error(envelope.to_dict()) == envelope
+
+
+def test_execution_error_rejects_unknown_fields() -> None:
+    """An error envelope carrying an unknown field is rejected."""
+    payload = sample_execution_error().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        decode_execution_error(payload)
+
+
+def test_execution_error_rejects_a_missing_field() -> None:
+    """An error envelope missing a required field is rejected."""
+    payload = sample_execution_error().to_dict()
+    del payload["message"]
+
+    with pytest.raises(ProtocolDecodeError):
+        decode_execution_error(payload)
+
+
+def test_execution_error_rejects_a_value_its_own_constructor_refuses() -> None:
+    """A field violating ExecutionErrorV1's own invariants is rejected.
+
+    `decode_execution_error` re-raises `ExecutionErrorV1.__post_init__`'s
+    `ValueError` as a `ProtocolDecodeError`, so a value that is
+    structurally a valid envelope but semantically wrong -- a verb outside
+    the command allowlist, here -- fails the same way every other decoder
+    in this module does.
+    """
+    payload = sample_execution_error().to_dict()
+    payload["verb"] = "fetch"
+
+    with pytest.raises(ProtocolDecodeError):
+        decode_execution_error(payload)
+
+
+def test_command_outcome_round_trips_with_an_error_envelope() -> None:
+    """A failed command outcome's envelope round-trips with it."""
+    outcome = CommandOutcomeV1(
+        1, "color", "error", "a bounded diagnostic", sample_execution_error()
+    )
+
+    assert CommandOutcomeV1.from_dict(outcome.to_dict()) == outcome
+    assert (
+        outcome.to_dict()["errorEnvelope"] == sample_execution_error().to_dict()
+    )
+
+
+def test_command_outcome_rejects_a_missing_error_envelope_field() -> None:
+    """A command outcome missing errorEnvelope entirely is rejected.
+
+    The field is optional in value (it may be null) but not optional in
+    presence -- `_strict_object` requires an exact field set, matching
+    every other wire type in this module.
+    """
+    payload = CommandOutcomeV1(0, "orient", "ok", None).to_dict()
+    del payload["errorEnvelope"]
+
+    with pytest.raises(ProtocolDecodeError):
+        CommandOutcomeV1.from_dict(payload)
 
 
 def test_selection_count_round_trips_a_zero_count() -> None:
@@ -968,6 +1088,76 @@ def test_request_with_a_full_mismatch_list_stays_well_under_the_transport_cap() 
     encoded = encode_json(full_request).encode("utf-8")
 
     assert len(encoded) < max_message_bytes
+
+
+def test_reject_request_fixture_round_trips_as_strict_json() -> None:
+    """The accepted reject request survives JSON encoding and decoding."""
+    encoded = json.dumps(reject_request().to_dict())
+    assert decode_reject_request_json(encoded) == reject_request()
+
+
+def test_reject_request_rejects_unknown_fields() -> None:
+    """Reject requests with unknown fields are rejected."""
+    payload = reject_request().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        RejectRequestV1.from_dict(payload)
+
+
+@pytest.mark.parametrize("field", ["requestId", "sessionId", "planId"])
+def test_reject_request_rejects_non_v4_identifiers(field: str) -> None:
+    """Reject requests with non-v4 identifiers are rejected.
+
+    Args:
+        field: Identifier field to replace with an invalid value.
+    """
+    payload = reject_request().to_dict()
+    payload[field] = "11111111-1111-3111-8111-111111111111"
+
+    with pytest.raises(ProtocolDecodeError, match="UUIDv4"):
+        RejectRequestV1.from_dict(payload)
+
+
+def test_reject_request_json_rejects_invalid_json() -> None:
+    """Hostile, non-JSON reject request bodies fail closed."""
+    with pytest.raises(ProtocolDecodeError):
+        decode_reject_request_json("{not valid json")
+
+
+def test_cancel_request_fixture_round_trips_as_strict_json() -> None:
+    """The accepted cancel request survives JSON encoding and decoding."""
+    encoded = json.dumps(cancel_request().to_dict())
+    assert decode_cancel_request_json(encoded) == cancel_request()
+
+
+def test_cancel_request_rejects_unknown_fields() -> None:
+    """Cancel requests with unknown fields are rejected."""
+    payload = cancel_request().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        CancelRequestV1.from_dict(payload)
+
+
+@pytest.mark.parametrize("field", ["requestId", "sessionId"])
+def test_cancel_request_rejects_non_v4_identifiers(field: str) -> None:
+    """Cancel requests with non-v4 identifiers are rejected.
+
+    Args:
+        field: Identifier field to replace with an invalid value.
+    """
+    payload = cancel_request().to_dict()
+    payload[field] = "11111111-1111-3111-8111-111111111111"
+
+    with pytest.raises(ProtocolDecodeError, match="UUIDv4"):
+        CancelRequestV1.from_dict(payload)
+
+
+def test_cancel_request_json_rejects_invalid_json() -> None:
+    """Hostile, non-JSON cancel request bodies fail closed."""
+    with pytest.raises(ProtocolDecodeError):
+        decode_cancel_request_json("{not valid json")
 
 
 if __name__ == "__main__":

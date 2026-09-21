@@ -7,6 +7,8 @@ py_test(
     main = "test_server_lifecycle.py",
     deps = [
         "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
     ],
@@ -32,5 +34,73 @@ py_test(
     deps = [
         "@pypi//pytest",
         "//src/pmc_agent:pmc_agent",
+    ],
+)
+
+py_test(
+    name = "inference_fake",
+    size = "small",
+    srcs = ["test_inference_fake.py"],
+    main = "test_inference_fake.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "request_graph_transitions",
+    size = "small",
+    srcs = ["test_request_graph_transitions.py"],
+    main = "test_request_graph_transitions.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "request_graph_generation",
+    size = "small",
+    srcs = ["test_request_graph_generation.py"],
+    main = "test_request_graph_generation.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "request_graph_repair",
+    size = "small",
+    srcs = ["test_request_graph_repair.py"],
+    main = "test_request_graph_repair.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "request_graph_pending",
+    size = "small",
+    srcs = ["test_request_graph_pending.py"],
+    main = "test_request_graph_pending.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
     ],
 )

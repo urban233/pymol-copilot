@@ -69,9 +69,12 @@ from pathlib import Path
 from typing import IO
 from typing import Any
 
+from pmc_core.errors import ExecutionErrorV1
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import ProtocolDecodeError
+from pmc_core.protocol import decode_execution_error
 from pmc_core.protocol import encode_plan
 from pmc_core.snapshot import from_json
 from pmc_core.snapshot import SnapshotDecodeError
@@ -89,6 +92,20 @@ EXECUTOR_VERSION = 1
 #: of pmc_core.plan.MAX_INPUT_BYTES, which bounds only a plan's own rendered
 #: .pml text.
 DEFAULT_MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
+
+#: The transport-level body cap for any request carrying a full canonical
+#: snapshot document rather than merely its identity: `/v1/validate`
+#: (docs/master_plan.md item 4) and, since item 8, `/v1/plan`. In the worst
+#: case each byte of the canonical inner document needs one extra escape
+#: byte once embedded as a JSON string, with 64 KiB of headroom left for
+#: the surrounding request envelope. A single shared constant rather than
+#: one independently-recomputed copy per side of the loopback boundary
+#: (`pmc_server.transport`, which enforces it, and `pmc_client.transport`,
+#: which sizes its own request check against the same bound) -- both
+#: already import `DEFAULT_MAX_SNAPSHOT_BYTES` from this module, so this is
+#: the one place a future change to either number takes effect everywhere
+#: at once.
+MAX_EXECUTION_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + 64 * 1024
 
 #: The default wall-clock deadline, in seconds, for the whole spawned child
 #: process.
@@ -173,12 +190,23 @@ class CommandOutcome:
         status: `OUTCOME_OK` or `OUTCOME_ERROR`.
         error: A bounded error message when status is `OUTCOME_ERROR`, else
             None.
+        error_envelope: The same failure, normalized by
+            `pmc_core.errors.normalize` at the point PyMOL raised it, when
+            `verb` is one `normalize` accepts -- None otherwise, including
+            every `OUTCOME_OK` outcome and the one failure mode that is
+            never a real PyMOL error: this module's own dispatch not
+            recognizing the operation's type
+            (`src/pmc_sidecar/child.py`'s `"__unsupported__"` sentinel).
+            docs/master_plan.md item 8 is this field's one consumer today:
+            a repair attempt is fed the envelope, never the bounded
+            string alone.
     """
 
     index: int
     verb: str
     status: str
     error: str | None
+    error_envelope: ExecutionErrorV1 | None = None
 
 
 @dataclass(frozen=True)
@@ -1145,6 +1173,11 @@ def execute(
                     if outcome.get("error") is not None
                     else None
                 ),
+                error_envelope=(
+                    decode_execution_error(outcome["error_envelope"])
+                    if outcome.get("error_envelope") is not None
+                    else None
+                ),
             )
             for outcome in payload.get("command_outcomes", [])
         )
@@ -1172,12 +1205,16 @@ def execute(
             )
         ):
             raise TypeError("child report fields violate their contract")
-    except (KeyError, TypeError, AttributeError):
+    except (KeyError, TypeError, AttributeError, ProtocolDecodeError):
         # payload structurally does not match the well-formed report this
         # module's own child always writes, or its scalar fields violate
         # their types/invariants -- as untrustworthy as no output file at
         # all. _run_child() already guarantees payload is at least
         # syntactically valid JSON by the time reason is None.
+        # ProtocolDecodeError covers a malformed error_envelope; this
+        # module's own child never writes one that decode_execution_error
+        # rejects, so seeing one here is as untrustworthy as any other
+        # malformed field above.
         return _crashed(
             input_digest=input_digest,
             child_pid=result.child_pid,

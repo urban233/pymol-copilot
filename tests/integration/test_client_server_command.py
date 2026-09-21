@@ -10,13 +10,18 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 
-from pmc_client.command import FIXTURE_INTENT
+from pmc_agent.inference.base import STOP_END
+from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.session import RequestGraphSession
 from pmc_client.command import register_copilot
 from pmc_client.session import extract_live_snapshot
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.executor import EXECUTOR_VERSION
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
 from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
 from pmc_core.protocol import FailedPlanResponseV1
@@ -24,8 +29,17 @@ from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
-from pmc_server.lifecycle import PlanRequestLifecycle
+from pmc_server.lifecycle import RequestGraphLifecycle
 from pmc_server.transport import LoopbackPlanServer
+
+#: A well-formed intent whose engine completion happens to render the same
+#: two-command plan the old fixture lifecycle always returned, so this
+#: test's own printed-output assertions stay meaningful unchanged: real
+#: text, going through the real parser, policy, and a fake sidecar.
+INTENT = "Select chain A and color it red."
+_COMPLETION = (
+    "select copilot_selection, chain A\ncolor red, copilot_selection\n"
+)
 
 OBJECT_NAME = "fx"
 
@@ -282,12 +296,46 @@ def _exact_probe(
     return lambda _request: report
 
 
+def _always_ok_executor(_request: ExecutionRequest) -> ExecutionReport:
+    """Report success for any request, without ever spawning anything.
+
+    Kept "headless" per this module's own docstring: the request graph's
+    `validating` node would otherwise spawn a real sidecar against a
+    snapshot reconstructed from `DisposablePyMOLAdapter`'s fake data, which
+    this test has no business exercising --
+    tests/integration/test_real_pymol_command.py owns that.
+
+    Args:
+        _request: Ignored.
+
+    Returns:
+        A minimal `STATUS_OK` report.
+    """
+    return ExecutionReport(
+        executor_version=1,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest="sha256:test",
+        resulting_fingerprint="sha256:" + "0" * 64,
+        selection_counts=(),
+        command_outcomes=(),
+        child_pid=1234,
+        child_terminated=True,
+        elapsed_seconds=0.01,
+    )
+
+
 def test_public_command_round_trip_renders_without_session_mutation() -> None:
     """The public command preserves correlation and never mutates PyMOL."""
     requests: list[PlanRequestV1] = []
     responses: list[ValidatedPlanResponseV1 | FailedPlanResponseV1] = []
-    lifecycle = PlanRequestLifecycle(
+    session = RequestGraphSession(
+        engine=FakeEngine([CompletionResult(_COMPLETION, "m-1", STOP_END)]),
+        executor=_always_ok_executor,
         plan_id_source=lambda: "33333333-3333-4333-8333-333333333333",
+    )
+    lifecycle = RequestGraphLifecycle(
+        session=session,
         timestamp_source=iter(
             ("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z")
         ).__next__,
@@ -320,7 +368,7 @@ def test_public_command_round_trip_renders_without_session_mutation() -> None:
             output.append,
             probe=_exact_probe(adapter),
         )
-        adapter.commands["copilot"](FIXTURE_INTENT)
+        adapter.commands["copilot"](INTENT)
 
     request = requests[0]
     response = responses[0]

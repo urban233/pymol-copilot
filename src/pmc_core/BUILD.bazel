@@ -13,6 +13,7 @@ py_library(
         "policy.py",
         "prompt.py",
         "protocol.py",
+        "screen.py",
         "snapshot.py",
     ],
     imports = [".."],
