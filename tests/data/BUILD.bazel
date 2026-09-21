@@ -44,6 +44,7 @@ py_test(
     data = ["testdata/chain_a_gold_fixture.pdb"],
     deps = [
         "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
     ],
 )
@@ -61,6 +62,7 @@ py_test(
     tags = ["exclusive"],
     deps = [
         "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
     ],
 )
@@ -163,5 +165,26 @@ py_test(
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
         "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# The differential that settles whether the oracle reads Open-Source
+# PyMOL's own selection semantics correctly: it reconstructs a
+# controlled structure in real headless PyMOL and compares cmd.iterate
+# against the oracle's prediction for the same expression. Excluded from
+# concurrent scheduling like every other in-process real-PyMOL target.
+py_test(
+    name = "oracle_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_oracle_real_pymol.py"],
+    main = "test_oracle_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//tools/winstage:winstage",
     ],
 )
