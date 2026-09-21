@@ -10,12 +10,14 @@ py_library(
         "gold_case.py",
         "oracle.py",
         "pdb.py",
+        "report.py",
         "sample.py",
         "structures.py",
         "taxonomy.py",
         "verifier.py",
     ],
     data = [
+        "conformance/samples.jsonl",
         "gold_cases/chain_a_red.json",
         "gold_cases/chain_a_red_second_fixture_gold_case.json",
     ],
@@ -45,4 +47,31 @@ py_binary(
         "//src/pmc_data:pmc_data",
         "//tools/winstage:winstage",
     ],
+)
+
+# The corpus generator. Not a test: a few thousand samples means a few
+# thousand spawned PyMOL children, so it runs by hand via bazel run and
+# writes into the source tree through BUILD_WORKSPACE_DIRECTORY. It
+# never imports PyMOL itself -- pmc_core.executor spawns
+# pmc_sidecar.child, which is the only thing that does, and which this
+# target depends on so the child module is on the spawned
+# interpreter's path.
+py_binary(
+    name = "corpus_cli",
+    srcs = ["corpus_cli.py"],
+    main = "corpus_cli.py",
+    data = ["//configs/generation:corpus.json"],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# The committed conformance slice, exported so tests/data can replay it
+# without depending on the whole library's data.
+filegroup(
+    name = "conformance_slice",
+    srcs = ["conformance/samples.jsonl"],
+    visibility = ["//src:tests"],
 )

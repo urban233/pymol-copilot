@@ -27,6 +27,8 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import itertools
 import random
+from collections.abc import Callable
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pmc_core.plan import ActionPlan
@@ -644,3 +646,58 @@ def enumerate_plans(
         )
 
     return tuple(candidates)
+
+
+def stratified_subset[T](
+    items: Sequence[T],
+    *,
+    category_of: Callable[[T], str],
+    budget: int,
+    seed: int,
+) -> tuple[T, ...]:
+    """Take a budget-sized subset that keeps every category represented.
+
+    Truncating the enumeration would silently drop whole categories --
+    the plans are emitted grouped by expression, so the tail is not a
+    random sample of the whole. Instead each category is shuffled with
+    the run's seed and the budget is spent round-robin across
+    categories, so a category is only absent if it had no members and
+    the smallest categories survive.
+
+    Args:
+        items: Everything that could be attempted.
+        category_of: How to read an item's category.
+        budget: The most items to return. A budget at or above
+            len(items) returns everything, in the input order.
+        seed: The seed the shuffling derives from.
+
+    Returns:
+        The chosen items, in a deterministic order.
+    """
+    if budget >= len(items):
+        return tuple(items)
+
+    grouped: dict[str, list[T]] = {}
+    for item in items:
+        grouped.setdefault(category_of(item), []).append(item)
+
+    rng = random.Random(seed)
+    for members in grouped.values():
+        rng.shuffle(members)
+
+    chosen: list[T] = []
+    ordered = [grouped[category] for category in sorted(grouped)]
+    depth = 0
+    while len(chosen) < budget:
+        progressed = False
+        for members in ordered:
+            if depth >= len(members):
+                continue
+            chosen.append(members[depth])
+            progressed = True
+            if len(chosen) == budget:
+                break
+        if not progressed:
+            break
+        depth += 1
+    return tuple(chosen)

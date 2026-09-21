@@ -566,6 +566,7 @@ def verify_sample(
         structure=StructureIdentity(
             spec_id=spec.spec_id,
             seed=spec.seed,
+            spec=spec.to_dict(),
             snapshot_sha256=hashlib.sha256(
                 snapshot_json.encode("utf-8")
             ).hexdigest(),

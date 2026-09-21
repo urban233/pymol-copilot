@@ -38,7 +38,10 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import itertools
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass
+from dataclasses import fields
+from typing import Any
 
 from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import AtomRecord
@@ -143,6 +146,42 @@ class StructureSpec:
     altloc_residues: int
     insertion_residues: int
     with_bonds: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        """Render this spec as a JSON-safe mapping.
+
+        A sample records this rather than only the spec's name, so a
+        committed record can rebuild its own structure without
+        depending on the matrix still containing that name.
+
+        Returns:
+            A plain dict with this spec's fields.
+        """
+        return {field.name: getattr(self, field.name) for field in fields(self)}
+
+    @staticmethod
+    def from_dict(data: Mapping[str, Any]) -> StructureSpec:
+        """Decode a spec from a raw mapping, rejecting incomplete input.
+
+        Args:
+            data: The raw spec mapping.
+
+        Returns:
+            The decoded spec.
+
+        Raises:
+            ValueError: If a declared field is missing.
+        """
+        missing = [
+            field.name
+            for field in fields(StructureSpec)
+            if field.name not in data
+        ]
+        if missing:
+            raise ValueError(f"structure spec is missing fields: {missing}")
+        return StructureSpec(
+            **{field.name: data[field.name] for field in fields(StructureSpec)}
+        )
 
 
 def _half(value: float) -> float:

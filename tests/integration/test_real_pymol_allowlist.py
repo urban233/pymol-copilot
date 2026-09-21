@@ -35,6 +35,7 @@ import winstage
 from pmc_core.plan import COLOR_ALLOWLIST
 from pmc_core.plan import REPRESENTATION_ALLOWLIST
 from pmc_data.colors import COLOR_INDEX_BY_NAME
+from pmc_data.sample import PINNED_PYMOL_VERSION
 
 
 @pytest.fixture(scope="module")
@@ -150,6 +151,33 @@ def test_frozen_color_indices_match_real_pymol(
         "pmc_data.colors has drifted from the PyMOL it was generated "
         "against; regenerate it with "
         "bazel run //tests/integration:capture_color_indices"
+    )
+
+
+def test_the_pinned_pymol_version_matches_the_running_build(
+    real_pymol: Any,
+) -> None:
+    """Every sample records which PyMOL verified it; that must be true.
+
+    `pmc_data.sample` freezes the build string because the dataset
+    modules must import without PyMOL present. A sample recording a
+    version it was not actually verified against is a false
+    provenance claim, which is worse than no claim.
+
+    The frozen value is what PyMOL reports for itself, not the
+    wheel's own version string: the wheel is 3.2.0.2 and PyMOL
+    reports "3.2.0a". Recording the running build rather than the
+    filename it arrived in is what makes the claim checkable here, by
+    exact equality.
+
+    Args:
+        real_pymol: The real PyMOL cmd module.
+    """
+    reported = str(real_pymol.get_version()[0])
+
+    assert reported == PINNED_PYMOL_VERSION, (
+        f"pmc_data.sample pins {PINNED_PYMOL_VERSION!r} but this PyMOL "
+        f"reports {reported!r}"
     )
 
 

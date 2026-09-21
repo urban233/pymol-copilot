@@ -245,3 +245,34 @@ py_test(
         "//src/pmc_sidecar:pmc_sidecar",
     ],
 )
+
+py_test(
+    name = "report",
+    size = "small",
+    srcs = ["test_report.py"],
+    main = "test_report.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# Replays the committed conformance slice through the production
+# execution boundary, one spawned pmc_sidecar.child per sample. This is
+# the CI-sized stand-in for the corpus run, which is a bazel run.
+py_test(
+    name = "conformance_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_conformance_real_pymol.py"],
+    main = "test_conformance_real_pymol.py",
+    data = ["//src/pmc_data:conformance_slice"],
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)

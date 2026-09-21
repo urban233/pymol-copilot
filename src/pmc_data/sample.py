@@ -39,12 +39,20 @@ from pmc_core.policy import POLICY_VERSION
 from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.snapshot import SNAPSHOT_VERSION
 
-#: The Open-Source PyMOL build every sample is verified against, as
-#: `requirements.in` pins it. Frozen here rather than read at runtime
-#: because this module must import without PyMOL present;
-#: `tests/data/test_conformance_real_pymol.py` asserts the live build
-#: still matches, the same guard the frozen color table carries.
-PINNED_PYMOL_VERSION = "3.2.0.2"
+#: The wheel every sample is verified against, as `requirements.in`
+#: pins it. Recorded for provenance: it is what a reader installs to
+#: reproduce a corpus.
+PINNED_PYMOL_WHEEL = "pymol-open-source-whl==3.2.0.2"
+
+#: The version that wheel's PyMOL reports for *itself*, which is not
+#: the wheel's own version string -- `cmd.get_version()[0]` returns
+#: "3.2.0a" where the wheel is 3.2.0.2. A sample records this one,
+#: because what verified it was the running build, not the filename it
+#: arrived in. Frozen rather than read at runtime because this module
+#: must import without PyMOL present;
+#: `tests/integration/test_real_pymol_allowlist.py` asserts the live
+#: build still reports it, the same guard the frozen color table has.
+PINNED_PYMOL_VERSION = "3.2.0a"
 
 #: The assertion kinds a sample can actually carry evidence for.
 ASSERTION_RESULTING_SNAPSHOT = "resulting_snapshot"
@@ -131,8 +139,10 @@ class StructureIdentity:
 
     Attributes:
         spec_id: The controlled structure spec's identity.
-        seed: The seed the structure was built from, so it can be
-            rebuilt exactly.
+        seed: The seed the structure was built from.
+        spec: Every field of that spec, so a committed sample can
+            rebuild its own structure without depending on the
+            standing matrix still containing it.
         snapshot_sha256: SHA-256 of the structure's canonical snapshot
             JSON -- the bytes actually handed to the executor.
         structure_digest: `pmc_core.snapshot.structure_digest` of the
@@ -141,8 +151,28 @@ class StructureIdentity:
 
     spec_id: str
     seed: int
+    spec: Mapping[str, Any]
     snapshot_sha256: str
     structure_digest: str
+
+    def __post_init__(self) -> None:
+        """Reject an identity whose summary contradicts its own spec.
+
+        Raises:
+            InvalidSampleError: If spec_id or seed disagrees with the
+                recorded spec. They are kept alongside it because they
+                are what a reader and the report group by, and this is
+                what stops the convenience copy drifting from the
+                thing that actually rebuilds the structure.
+        """
+        if self.spec.get("spec_id") != self.spec_id:
+            raise InvalidSampleError(
+                f"spec_id {self.spec_id!r} contradicts the recorded spec"
+            )
+        if self.spec.get("seed") != self.seed:
+            raise InvalidSampleError(
+                f"seed {self.seed!r} contradicts the recorded spec"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Render this identity as a JSON-safe mapping.
@@ -153,6 +183,7 @@ class StructureIdentity:
         return {
             "spec_id": self.spec_id,
             "seed": self.seed,
+            "spec": dict(self.spec),
             "snapshot_sha256": self.snapshot_sha256,
             "structure_digest": self.structure_digest,
         }
@@ -170,9 +201,13 @@ class StructureIdentity:
         Raises:
             InvalidSampleError: If a required field is missing or empty.
         """
+        spec = data.get("spec")
+        if not isinstance(spec, Mapping):
+            raise InvalidSampleError("missing required field: 'spec'")
         return StructureIdentity(
             spec_id=_required_string(data, "spec_id"),
             seed=_required_int(data, "seed"),
+            spec=dict(spec),
             snapshot_sha256=_required_string(data, "snapshot_sha256"),
             structure_digest=_required_string(data, "structure_digest"),
         )
@@ -192,7 +227,8 @@ class SampleVersions:
         snapshot_version: The snapshot schema version.
         executor_version: The execution request/report shape version.
         protocol_version: The wire protocol version.
-        pymol_version: The Open-Source PyMOL build used to verify.
+        pymol_version: The Open-Source PyMOL build that verified
+            this sample, as PyMOL reports its own version.
     """
 
     card_version: int
