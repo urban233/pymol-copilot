@@ -13,6 +13,13 @@ observed fidelity outcome are ANDed together, and `copilot_apply` refuses
 whenever that AND is false. Nothing on any path in this module mutates the
 live PyMOL session; `copilot_apply` is refusal-only here, since applying is
 master_plan item 10's own work.
+
+docs/master_plan.md item 8's request graph adds a real `copilot_reject`:
+unlike `copilot_apply`, it does reach the server, over the same `/v1/reject`
+endpoint `pmc_agent.session.RequestGraphSession.reject` answers. It mirrors
+`copilot_apply`'s own local refusal table exactly before ever contacting
+anything -- neither side trusts the other's verdict alone, and that does
+not change because rejecting, unlike applying, has something real to do.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -41,12 +48,17 @@ from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.snapshot import to_json
 
-FIXTURE_INTENT = "Select chain A and color it red."
-FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
+#: The contract versions this client declares on every request. A single
+#: fixed constant because neither plan.py, policy.py, nor snapshot.py
+#: defines its own version yet -- mirrors
+#: `pmc_agent.graph.ACCEPTED_CONTRACT_MANIFEST` exactly, which is what the
+#: server actually checks a request against.
+CONTRACT_MANIFEST = ContractManifestV1("1", "1", "1")
 
 #: The literal a plan id is displayed and re-entered with, so a console
 #: user can copy the exact `copilot_apply <id>` line `copilot` prints.
@@ -116,6 +128,16 @@ class PlanTransport(Protocol):
 
         Returns:
             The validated plan or typed failure returned by the server.
+        """
+
+    def reject(self, request: RejectRequestV1) -> FailedPlanResponseV1:
+        """Submit one typed reject request.
+
+        Args:
+            request: Typed request to send to the server.
+
+        Returns:
+            The typed failure response returned by the server.
         """
 
 
@@ -295,7 +317,7 @@ class CopilotCommandClient:
         """Register this client's commands with a live PyMOL session.
 
         Stores `cmd` for `copilot()` to query on every later invocation,
-        in addition to registering both commands.
+        in addition to registering all three commands.
 
         Args:
             cmd: The live PyMOL session receiving the callbacks.
@@ -303,6 +325,7 @@ class CopilotCommandClient:
         self._cmd = cmd
         cmd.extend("copilot", self.copilot)
         cmd.extend("copilot_apply", self.copilot_apply)
+        cmd.extend("copilot_reject", self.copilot_reject)
 
     def copilot(self, intent: str) -> None:
         """Extract the live session, gate it on fidelity, and submit a plan.
@@ -347,7 +370,7 @@ class CopilotCommandClient:
             request_id=str(self._uuid_factory()),
             session_id=self._session_id,
             created_at=self._timestamp_factory(),
-            contract_manifest=FIXTURE_MANIFEST,
+            contract_manifest=CONTRACT_MANIFEST,
             intent=intent,
             snapshot=StructureSnapshotV1(
                 schema_version=str(snapshot.schema_version),
@@ -407,6 +430,53 @@ class CopilotCommandClient:
             f"copilot_apply: plan {display_id} is applicable, but apply is "
             "not implemented yet (master plan item 10). Nothing was "
             "applied."
+        )
+
+    def copilot_reject(self, plan_id: str) -> None:
+        """Reject the pending plan, if it matches; nothing is ever applied.
+
+        Mirrors `copilot_apply`'s own local refusal checks exactly, so an
+        unknown or mismatched plan is refused without ever contacting the
+        server. Unlike `copilot_apply`, a match does reach the server --
+        rejecting has something real to do -- and whatever terminal the
+        graph reports clears this client's own pending plan, since the
+        session's pending plan is resolved either way once the server has
+        answered.
+
+        Args:
+            plan_id: The plan identifier to reject, as the user typed it.
+        """
+        pending = self._pending_plan
+        if pending is None:
+            self._output("copilot_reject: no pending plan for this session")
+            return
+        normalized = _normalize_plan_id(plan_id)
+        if normalized != pending.plan_id:
+            self._output(
+                f"copilot_reject: plan {plan_id} is not the pending plan"
+            )
+            return
+        request = RejectRequestV1(
+            request_id=str(self._uuid_factory()),
+            session_id=self._session_id,
+            plan_id=normalized,
+        )
+        try:
+            response = self._transport.reject(request)
+        except TransportError as error:
+            self._output(f"copilot_reject unavailable: {error}")
+            return
+        self._pending_plan = None
+        if response.failure.category == "rejected":
+            self._output(
+                f"copilot_reject: plan {_display_plan_id(normalized)} "
+                "rejected. Nothing was applied."
+            )
+            return
+        self._output(
+            f"copilot_reject failed ({response.failure.category}; "
+            f"{'retryable' if response.failure.retryable else 'not retryable'}"
+            f"): {response.failure.message}"
         )
 
     def _report_failure(self, response: FailedPlanResponseV1) -> None:

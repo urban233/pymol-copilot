@@ -1480,7 +1480,11 @@ class ExecutionRequestV1:
 
 
 def encode_json(
-    value: PlanRequestV1 | ValidatedPlanResponseV1 | FailedPlanResponseV1,
+    value: PlanRequestV1
+    | ValidatedPlanResponseV1
+    | FailedPlanResponseV1
+    | RejectRequestV1
+    | CancelRequestV1,
 ) -> str:
     """Encode a supported protocol value as compact JSON.
 

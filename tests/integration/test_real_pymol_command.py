@@ -68,7 +68,6 @@ from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
-from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import register_copilot
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.executor import REASON_OK
@@ -91,9 +90,11 @@ OBJECT_NAME = "two_chain_fixture"
 FIXTURE_PATH = (
     Path(__file__).resolve().parent / "testdata" / "two_chain_fixture.pdb"
 )
-#: The completion `FakeEngine` renders for `FIXTURE_INTENT`: the same
-#: two-command plan the old fixture lifecycle always returned, so this
-#: module's own printed-output assertions stay meaningful unchanged.
+#: The intent this module's own `copilot` invocations send.
+INTENT = "Select chain A and color it red."
+#: The completion `FakeEngine` renders for `INTENT`: the same two-command
+#: plan the old fixture lifecycle always returned, so this module's own
+#: printed-output assertions stay meaningful unchanged.
 _FIXTURE_COMPLETION = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
 )
@@ -500,7 +501,7 @@ def _run_copilot(cmd: PyMOLCmd, finished: threading.Event) -> float:
         AssertionError: If the callback did not complete within the
             invocation deadline.
     """
-    return _run_pymol_command(cmd, finished, f"copilot {FIXTURE_INTENT}")
+    return _run_pymol_command(cmd, finished, f"copilot {INTENT}")
 
 
 def _run_copilot_apply(

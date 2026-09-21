@@ -144,11 +144,10 @@ PLAN_TTL_SECONDS = 300.0
 
 #: `preparing`'s own accepted contract manifest. Every field is the
 #: literal "1" because none of plan.py, policy.py, or snapshot.py defines
-#: its own version constant yet -- this mirrors exactly what the fixture
-#: lifecycle it replaces already asserted
-#: (`pmc_server.lifecycle.FIXTURE_MANIFEST`), just no longer paired with a
-#: fixture plan or a fixture snapshot identity. A future major version in
-#: any of those three modules must update this constant, in this module,
+#: its own version constant yet -- this mirrors
+#: `pmc_client.command.CONTRACT_MANIFEST` exactly, the versions the client
+#: itself declares on every request. A future major version in any of
+#: those three modules must update this constant, in this module,
 #: alongside it -- there is nowhere else that decides what this server
 #: accepts.
 ACCEPTED_CONTRACT_MANIFEST = ContractManifestV1(

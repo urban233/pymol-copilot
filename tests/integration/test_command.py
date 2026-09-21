@@ -22,9 +22,9 @@ from typing import Any
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import PLAN_ID_DISPLAY_PREFIX
 from pmc_client.command import CopilotCommandClient
+from pmc_client.command import PlanTransport
 from pmc_client.session import extract_live_snapshot
 from pmc_client.transport import TransportError
 from pmc_core.executor import EXECUTOR_VERSION
@@ -43,6 +43,7 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 from pmc_core.snapshot import ObjectSnapshot
@@ -53,6 +54,7 @@ from pmc_core.snapshot import to_json
 SESSION_ID = "22222222-2222-4222-8222-222222222222"
 CREATED_AT = "2026-08-26T14:22:03.123Z"
 OBJECT_NAME = "fx"
+INTENT = "Select chain A and color it red."
 
 
 @dataclass(frozen=True)
@@ -313,6 +315,22 @@ def _mismatched_probe(
     return lambda _request: report
 
 
+def _default_rejected(request: RejectRequestV1) -> FailedPlanResponseV1:
+    """Build a correlated `rejected` response for any reject request.
+
+    Args:
+        request: Request whose correlation values are copied.
+
+    Returns:
+        A `rejected`, non-retryable typed failure response.
+    """
+    return FailedPlanResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        failure=FailureEnvelopeV1("rejected", "rejected", False),
+    )
+
+
 @dataclass
 class RecordingTransport:
     """Record requests and return a supplied typed response."""
@@ -321,6 +339,10 @@ class RecordingTransport:
         [PlanRequestV1], ValidatedPlanResponseV1 | FailedPlanResponseV1
     ]
     requests: list[PlanRequestV1]
+    reject_response_factory: Callable[
+        [RejectRequestV1], FailedPlanResponseV1
+    ] = _default_rejected
+    reject_requests: list[RejectRequestV1] = field(default_factory=list)
 
     def submit(
         self, request: PlanRequestV1
@@ -335,6 +357,18 @@ class RecordingTransport:
         """
         self.requests.append(request)
         return self.response_factory(request)
+
+    def reject(self, request: RejectRequestV1) -> FailedPlanResponseV1:
+        """Record and handle one reject request.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            The typed response produced by the reject response factory.
+        """
+        self.reject_requests.append(request)
+        return self.reject_response_factory(request)
 
 
 def fixture_plan() -> ActionPlan:
@@ -406,7 +440,7 @@ def uuid_factory() -> Callable[[], uuid.UUID]:
 
 
 def _client(
-    transport: RecordingTransport,
+    transport: PlanTransport,
     output: Callable[[str], None],
     *,
     probe: Callable[[FidelityRequest], FidelityReport],
@@ -445,13 +479,13 @@ def test_copilot_builds_request_from_the_live_session_not_a_literal() -> None:
         transport, lambda _text: None, probe=_exact_probe(session)
     )
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     request = requests[0]
     assert request.request_id == "33333333-3333-4333-8333-333333333333"
     assert request.session_id == SESSION_ID
     assert request.created_at == CREATED_AT
-    assert request.intent == FIXTURE_INTENT
+    assert request.intent == INTENT
     assert request.snapshot.digest == expected_digest
     assert request.snapshot.digest != "sha256:example-chain-a-digest"
     assert request.snapshot.object_name == OBJECT_NAME
@@ -471,7 +505,7 @@ def test_exact_outcome_is_applicable_and_prints_the_approval_line() -> None:
         probe=_exact_probe(session),
     )
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert output[0].startswith("copilot fidelity: exact")
     assert f"object {OBJECT_NAME}" in output[0]
@@ -501,7 +535,7 @@ def test_non_exact_outcome_prints_the_plan_but_marks_it_non_applicable() -> (
         probe=_mismatched_probe(session),
     )
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert output[0].startswith("copilot fidelity: NOT EXACT")
     assert "1 | select copilot_selection, chain A" in output[1]
@@ -539,7 +573,7 @@ def test_server_inapplicable_overrides_an_exact_local_outcome() -> None:
         probe=_exact_probe(session),
     )
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert output[0].startswith("copilot fidelity: exact")
     assert "(inspectable only -- NOT applicable)" in output[1]
@@ -555,8 +589,8 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
         transport, lambda _text: None, probe=_exact_probe(session)
     )
 
-    client.copilot(FIXTURE_INTENT)
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
+    client.copilot(INTENT)
 
     assert requests[0].session_id == requests[1].session_id == client.session_id
     assert requests[0].request_id != requests[1].request_id
@@ -565,8 +599,8 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
     )
 
 
-def test_registers_both_copilot_commands() -> None:
-    """Registration exposes both commands, bound to the same client."""
+def test_registers_all_three_copilot_commands() -> None:
+    """Registration exposes all three commands, bound to the same client."""
     session = _RecordingSession()
     client = CopilotCommandClient(
         RecordingTransport(validated_response, []), lambda _text: None
@@ -576,6 +610,7 @@ def test_registers_both_copilot_commands() -> None:
 
     assert session.commands["copilot"] == client.copilot
     assert session.commands["copilot_apply"] == client.copilot_apply
+    assert session.commands["copilot_reject"] == client.copilot_reject
 
 
 def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
@@ -604,7 +639,7 @@ def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
         probe=_exact_probe(session),
     )
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert output == ["copilot failed (policy; not retryable): command denied"]
 
@@ -631,6 +666,19 @@ def test_transport_failure_reports_bounded_diagnostic() -> None:
                 f"loopback request failed: {request.request_id}"
             )
 
+        def reject(self, request: RejectRequestV1) -> FailedPlanResponseV1:
+            """Raise a bounded transport failure for any reject request.
+
+            Args:
+                request: Request that would have been submitted.
+
+            Raises:
+                TransportError: Always, to simulate an unavailable server.
+            """
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
     output: list[str] = []
     session = _RecordingSession()
     client = CopilotCommandClient(
@@ -642,7 +690,7 @@ def test_transport_failure_reports_bounded_diagnostic() -> None:
     )
     client.register(session)
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert output == [
         "copilot unavailable: loopback request failed: "
@@ -686,7 +734,7 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
         probe=_exact_probe(session),
     )
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert len(output) == 1
     assert output[0].startswith("copilot validation failed: status=failed;")
@@ -706,7 +754,7 @@ def test_a_target_resolution_failure_sends_nothing() -> None:
     )
     client.register(empty_session)
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert requests == []
     assert len(output) == 1
@@ -744,8 +792,8 @@ def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
         probe=_exact_probe(session),
     )
 
-    client.copilot(FIXTURE_INTENT)
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
+    client.copilot(INTENT)
     output.clear()
     client.copilot_apply(f"{PLAN_ID_DISPLAY_PREFIX}{first_id}")
 
@@ -771,7 +819,7 @@ def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
         output.append,
         probe=_exact_probe(probe_session),
     )
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
     first_plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
     output.clear()
 
@@ -780,7 +828,7 @@ def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
     # Mutates the client's own registered session (_client()'s second
     # return value), not the separate one the probe was built from above.
     session.has_molecule = False
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
     output.clear()
 
     client.copilot_apply(first_plan_id)
@@ -816,7 +864,7 @@ def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
     )
     client.register(session)
 
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
 
     assert requests == []
     assert len(output) == 1
@@ -849,7 +897,7 @@ def test_copilot_apply_with_a_mismatched_id() -> None:
         output.append,
         probe=_exact_probe(session),
     )
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
     output.clear()
 
     client.copilot_apply(f"{PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan")
@@ -869,7 +917,7 @@ def test_copilot_apply_refuses_a_non_applicable_pending_plan() -> None:
         output.append,
         probe=_mismatched_probe(session),
     )
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
     output.clear()
 
     client.copilot_apply(
@@ -893,7 +941,7 @@ def test_copilot_apply_refuses_an_applicable_pending_plan_too() -> None:
         output.append,
         probe=_exact_probe(session),
     )
-    client.copilot(FIXTURE_INTENT)
+    client.copilot(INTENT)
     output.clear()
 
     client.copilot_apply(
@@ -905,6 +953,173 @@ def test_copilot_apply_refuses_an_applicable_pending_plan_too() -> None:
         f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555 "
         "is applicable, but apply is not implemented yet (master plan "
         "item 10). Nothing was applied."
+    ]
+
+
+def test_copilot_reject_with_no_pending_plan() -> None:
+    """copilot_reject refuses when no plan has ever been submitted."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client = CopilotCommandClient(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client.register(session)
+
+    client.copilot_reject(f"{PLAN_ID_DISPLAY_PREFIX}not-a-real-id")
+
+    assert output == ["copilot_reject: no pending plan for this session"]
+
+
+def test_copilot_reject_with_a_mismatched_id() -> None:
+    """copilot_reject refuses an id that is not the pending plan's own."""
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_reject(f"{PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan")
+
+    assert output == [
+        f"copilot_reject: plan {PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan "
+        "is not the pending plan"
+    ]
+    assert transport.reject_requests == []
+
+
+def test_copilot_reject_round_trip_clears_the_pending_plan() -> None:
+    """A matching copilot_reject reaches the server and clears the plan."""
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_reject(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_reject: plan "
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555 "
+        "rejected. Nothing was applied."
+    ]
+    assert len(transport.reject_requests) == 1
+    reject_request = transport.reject_requests[0]
+    assert reject_request.session_id == client.session_id
+    assert reject_request.plan_id == "55555555-5555-4555-8555-555555555555"
+
+    output.clear()
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == ["copilot_apply: no pending plan for this session"]
+
+
+def test_copilot_reject_transport_failure_reports_bounded_diagnostic() -> None:
+    """A raised TransportError from reject is caught and reported."""
+
+    @dataclass
+    class RaisingRejectTransport:
+        """Transport double that raises only when rejecting."""
+
+        def submit(
+            self, request: PlanRequestV1
+        ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+            """Answer submit normally, so a plan can become pending.
+
+            Args:
+                request: Request to record and handle.
+
+            Returns:
+                A successful typed response.
+            """
+            return validated_response(request)
+
+        def reject(self, request: RejectRequestV1) -> FailedPlanResponseV1:
+            """Raise a bounded transport failure for any reject request.
+
+            Args:
+                request: Request that would have been submitted.
+
+            Raises:
+                TransportError: Always, to simulate an unavailable server.
+            """
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RaisingRejectTransport(), output.append, probe=_exact_probe(session)
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_reject(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_reject unavailable: loopback request failed: "
+        "44444444-4444-4444-8444-444444444444"
+    ]
+
+
+def test_copilot_reject_reports_a_non_rejected_terminal() -> None:
+    """A terminal other than `rejected` is reported, not silently accepted.
+
+    `pending_approval`'s own expiry check can win over a reject that
+    arrives too late (docs/master_plan.md item 8); this proves the client
+    reports whatever the server actually decided rather than assuming its
+    own request was honored.
+    """
+
+    def expired_response(request: RejectRequestV1) -> FailedPlanResponseV1:
+        """Build a correlated `expired` response for any reject request.
+
+        Args:
+            request: Request whose correlation values are copied.
+
+        Returns:
+            An `expired`, retryable typed failure response.
+        """
+        return FailedPlanResponseV1(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            failure=FailureEnvelopeV1(
+                "expired", "the plan's TTL had already passed", True
+            ),
+        )
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], reject_response_factory=expired_response
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_reject(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_reject failed (expired; retryable): "
+        "the plan's TTL had already passed"
     ]
 
 

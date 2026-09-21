@@ -8,17 +8,37 @@ from http.client import HTTPConnection
 from http.client import HTTPException
 from http.client import HTTPResponse
 
+from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
 PLAN_PATH = "/v1/plan"
+#: docs/master_plan.md item 8's own request-graph endpoints
+#: (`pmc_server.transport.REJECT_PATH`/`CANCEL_PATH`), redefined here with
+#: matching literal values: `pmc_client` cannot depend on `pmc_server`
+#: (tools/bazel/check_dependency_boundaries.py), so every endpoint path
+#: this client uses is its own copy of the server's own constant, exactly
+#: as `PLAN_PATH` already is.
+REJECT_PATH = "/v1/reject"
+CANCEL_PATH = "/v1/cancel"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
+#: `PlanRequestV1` now carries the full canonical snapshot JSON, not
+#: merely its identity (docs/master_plan.md item 8), so the request side
+#: of this transport needs the same wider bound
+#: `pmc_server.transport.MAX_EXECUTION_REQUEST_BYTES` already enforces --
+#: recomputed here from the same public `pmc_core.executor` constant for
+#: the same dependency-boundary reason `REJECT_PATH` above is redefined.
+#: Every response this transport reads stays bounded at MAX_MESSAGE_BYTES:
+#: no response ever carries a snapshot.
+MAX_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + MAX_MESSAGE_BYTES
 
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
 
@@ -68,8 +88,99 @@ class LoopbackPlanClient:
         Raises:
             TransportError: If HTTP or protocol validation fails.
         """
+        decoded = self._send(request, PLAN_PATH)
+        match decoded:
+            case ValidatedPlanResponseV1() as response:
+                self._validate_correlation(request, response)
+                if (
+                    response.snapshot_digest != request.snapshot.digest
+                    or response.validation.snapshot_digest
+                    != request.snapshot.digest
+                ):
+                    raise TransportError(
+                        "server response does not match request snapshot identity"
+                    )
+                return response
+            case FailedPlanResponseV1() as response:
+                self._validate_correlation(request, response)
+                return response
+
+    def reject(self, request: RejectRequestV1) -> FailedPlanResponseV1:
+        """Submit a reject request and verify its typed correlated response.
+
+        Args:
+            request: Typed reject request to send to the loopback server.
+
+        Returns:
+            The typed failure response returned by the server, whose
+            `failure.category` names whichever terminal the graph reached
+            (`rejected` on an ordinary success, `expired` if the plan's
+            TTL had already passed).
+
+        Raises:
+            TransportError: If HTTP or protocol validation fails.
+        """
+        decoded = self._send(request, REJECT_PATH)
+        match decoded:
+            case FailedPlanResponseV1() as response:
+                self._validate_correlation(request, response)
+                return response
+            case _:
+                raise TransportError(
+                    "server response has an unsupported V1 shape for /v1/reject"
+                )
+
+    def cancel(self, request: CancelRequestV1) -> FailedPlanResponseV1:
+        """Submit a cancel request and verify its typed correlated response.
+
+        Args:
+            request: Typed cancel request to send to the loopback server.
+
+        Returns:
+            The typed failure response returned by the server, whose
+            `failure.category` names whichever terminal the graph reached.
+
+        Raises:
+            TransportError: If HTTP or protocol validation fails.
+        """
+        decoded = self._send(request, CANCEL_PATH)
+        match decoded:
+            case FailedPlanResponseV1() as response:
+                self._validate_correlation(request, response)
+                return response
+            case _:
+                raise TransportError(
+                    "server response has an unsupported V1 shape for /v1/cancel"
+                )
+
+    def _send(
+        self,
+        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1,
+        path: str,
+    ) -> PLAN_RESPONSE:
+        """POST one typed request and decode its typed response.
+
+        Shared by `submit`, `reject`, and `cancel`: the connection,
+        timeout, and error handling are identical regardless of which
+        endpoint or request shape is involved. Each caller still runs its
+        own correlation check afterward, since what "belongs to this
+        request" means is the same test for all three but must be checked
+        against each one's own identifiers.
+
+        Args:
+            request: The typed request to encode and send.
+            path: The server path to POST to.
+
+        Returns:
+            The decoded typed response.
+
+        Raises:
+            TransportError: If HTTP or protocol validation fails, or the
+                response is not one of this protocol's two response
+                shapes.
+        """
         payload = encode_json(request).encode("utf-8")
-        if len(payload) > MAX_MESSAGE_BYTES:
+        if len(payload) > MAX_REQUEST_BYTES:
             raise TransportError("request exceeds the V1 transport limit")
         connection = HTTPConnection(
             LOOPBACK_HOST, self._port, timeout=self._timeout_seconds
@@ -77,7 +188,7 @@ class LoopbackPlanClient:
         try:
             connection.request(
                 "POST",
-                PLAN_PATH,
+                path,
                 body=payload,
                 headers={
                     "Content-Type": "application/json",
@@ -104,27 +215,17 @@ class LoopbackPlanClient:
                 "server response does not match V1 protocol"
             ) from error
         match decoded:
-            case ValidatedPlanResponseV1() as response:
-                self._validate_correlation(request, response)
-                if (
-                    response.snapshot_digest != request.snapshot.digest
-                    or response.validation.snapshot_digest
-                    != request.snapshot.digest
-                ):
-                    raise TransportError(
-                        "server response does not match request snapshot identity"
-                    )
-                return response
-            case FailedPlanResponseV1() as response:
-                self._validate_correlation(request, response)
-                return response
+            case ValidatedPlanResponseV1() | FailedPlanResponseV1():
+                return decoded
             case _:
                 raise TransportError(
                     "server response has an unsupported V1 shape"
                 )
 
     def _validate_correlation(
-        self, request: PlanRequestV1, response: PLAN_RESPONSE
+        self,
+        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1,
+        response: PLAN_RESPONSE,
     ) -> None:
         """Verify that a response belongs to the submitted request.
 
