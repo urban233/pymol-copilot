@@ -820,31 +820,112 @@ def _build_validating(
     return _validating
 
 
-def _pending_approval(state: RequestState) -> dict[str, object]:
-    """Park for approval, for real; the resume path is still a stub.
+#: `pending_approval`'s resume contract: `pmc_agent.session.
+#: RequestGraphSession` resumes the parked thread with exactly
+#: `{"action": <one of these values>}`, and this node maps that value to
+#: the terminal status it ends the request at. Kept as plain string
+#: constants, not something richer shared between the two modules, because
+#: `pmc_agent.session` imports this module and not the reverse -- these
+#: three strings are the whole of that contract.
+RESUME_ACTION_REJECT = "reject"
+RESUME_ACTION_CANCEL = "cancel"
+RESUME_ACTION_SUPERSEDE = "supersede"
 
-    docs/master_plan.md item 8, step 8 replaces the return below with real
-    reject/cancel/supersede/expire handling driven by whatever resumes this
-    call. This stub's own job -- proving the graph genuinely parks rather
-    than merely setting a status -- is not deferred, per the module
-    docstring's finding about `interrupt`.
+_RESUME_ACTION_TERMINALS: dict[str, str] = {
+    RESUME_ACTION_REJECT: TERMINAL_REJECTED,
+    RESUME_ACTION_CANCEL: TERMINAL_CANCELLED,
+    RESUME_ACTION_SUPERSEDE: TERMINAL_SUPERSEDED,
+}
+
+
+def _parse_timestamp(text: str) -> datetime:
+    """Parse the protocol's own RFC3339 UTC wire form.
+
+    The exact inverse of `_format_timestamp`.
 
     Args:
-        state: The request state entering `pending_approval`. Every field
-            `interrupt` reports here (`plan_id`, `expires_at`) was already
-            committed by `validating`'s own success path, never minted in
-            this call.
+        text: A timestamp in `YYYY-MM-DDTHH:MM:SS.sssZ` form.
 
     Returns:
-        A partial update to a terminal status once resumed.
+        The parsed, timezone-aware `datetime`.
     """
-    interrupt(
-        {"plan_id": state.get("plan_id"), "expires_at": state.get("expires_at")}
-    )
-    return {
-        "status": TERMINAL_ASK,
-        "history": (*state["history"], TERMINAL_ASK),
-    }
+    return datetime.fromisoformat(text[:-1] + "+00:00")
+
+
+def _build_pending_approval(
+    *, clock: Callable[[], datetime]
+) -> Callable[[RequestState], dict[str, object]]:
+    """Close a `pending_approval` node body over its injected clock.
+
+    Args:
+        clock: Reports the current moment, checked fresh on every resume
+            against `state["expires_at"]`. Unlike `plan_id` and
+            `expires_at` themselves, checking the *current* moment against
+            an already-fixed expiry on every re-entry is exactly what
+            expiry requires, and carries none of the module docstring's
+            re-minting hazard: nothing this call reads from `clock()` is
+            ever written into a value the model or a user saw before this
+            call.
+
+    Returns:
+        The `pending_approval` node body.
+    """
+
+    def _pending_approval(state: RequestState) -> dict[str, object]:
+        """Park for approval; resolve whatever resumes it.
+
+        Expiry is checked before the resume value is honored
+        (SPECIFICATION.md:432-435): a reject, cancel, or supersede
+        arriving after `expires_at` has passed reports `expired`, not the
+        action that was actually requested -- the plan was already
+        invalid by the time it arrived, regardless of which action asked.
+
+        Args:
+            state: The request state entering `pending_approval`.
+                `plan_id` and `expires_at` were already committed by
+                `validating`'s own success path (see the module
+                docstring); this call mints nothing.
+
+        Returns:
+            A partial update to `TERMINAL_EXPIRED`, `TERMINAL_REJECTED`,
+            `TERMINAL_CANCELLED`, or `TERMINAL_SUPERSEDED`, once resumed
+            with a recognized action; to `TERMINAL_FAILED` if resumed with
+            anything else, since an unrecognized resume value is this
+            graph's own defect to surface, never a state to guess past.
+        """
+        resume_value = interrupt(
+            {"plan_id": state["plan_id"], "expires_at": state["expires_at"]}
+        )
+        expires_at = state["expires_at"]
+        if expires_at is not None and clock() >= _parse_timestamp(expires_at):
+            return {
+                "status": TERMINAL_EXPIRED,
+                "history": (*state["history"], TERMINAL_EXPIRED),
+            }
+        action = (
+            resume_value.get("action")
+            if isinstance(resume_value, dict)
+            else None
+        )
+        terminal = (
+            _RESUME_ACTION_TERMINALS.get(action)
+            if isinstance(action, str)
+            else None
+        )
+        if terminal is None:
+            return _failed(
+                state,
+                category="unrecognized_resume",
+                message="pending_approval was resumed with an "
+                "unrecognized action",
+                retryable=True,
+            )
+        return {
+            "status": terminal,
+            "history": (*state["history"], terminal),
+        }
+
+    return _pending_approval
 
 
 def build_request_graph(
@@ -920,10 +1001,11 @@ def build_request_graph(
         ttl_seconds=ttl_seconds,
         max_repair_attempts=max_repair_attempts,
     )
+    pending_approval = _build_pending_approval(clock=clock)
     graph.add_node(STATE_PREPARING, _preparing)
     graph.add_node(STATE_GENERATING, generating)  # pyrefly: ignore[bad-argument-type]
     graph.add_node(STATE_VALIDATING, validating)  # pyrefly: ignore[bad-argument-type]
-    graph.add_node(STATE_PENDING_APPROVAL, _pending_approval)
+    graph.add_node(STATE_PENDING_APPROVAL, pending_approval)  # pyrefly: ignore[bad-argument-type]
 
     graph.set_entry_point(STATE_PREPARING)
     for name in (

@@ -7,6 +7,7 @@ py_library(
         "graph.py",
         "prompt.py",
         "runtime.py",
+        "session.py",
     ],
     imports = [".."],
     deps = [
