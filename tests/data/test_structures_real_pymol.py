@@ -12,8 +12,10 @@ This module rules that out per structure, through the real
 `pmc_sidecar.fidelity` child that `pmc_core.executor.probe_fidelity()`
 spawns -- the same production reconstruction path the dataset run uses,
 not a test-local re-implementation. A structure that is not a fixed
-point is excluded from the matrix here rather than silently poisoning
-the corpus.
+point fails here, loudly and by name, rather than silently poisoning
+every sample built on it; keeping the matrix admissible is then an
+edit to `pmc_data.structures`, not something this module does on its
+own.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

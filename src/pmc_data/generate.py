@@ -17,11 +17,10 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import hashlib
 import json
+from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-
-from collections.abc import Callable
 
 from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import EXECUTOR_VERSION

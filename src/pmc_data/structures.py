@@ -275,11 +275,11 @@ def _atom_plans(spec: StructureSpec) -> tuple[_AtomPlan, ...]:
                             resn=resn,
                             name="CB",
                             alt=alt,
+                            elem="C",
+                            hetatm=False,
                             # Half each, not the 0.6/0.4 a real PDB
                             # would carry: see the module docstring on
                             # single-precision round-tripping.
-                            elem="C",
-                            hetatm=False,
                             q=0.5,
                         )
                     )

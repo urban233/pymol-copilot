@@ -312,11 +312,15 @@ def render_table(report: CorpusReport) -> str:
     Returns:
         The table text, ending in a newline.
     """
-    lines = [
+    header = (
         f"{'category':<44} {'att':>6} {'kept':>6} {'rej':>6} "
-        f"{'unsup':>6} {'vac':>6} {'subst':>6} {'rate':>7}",
-        "-" * 92,
-    ]
+        f"{'unsup':>6} {'vac':>6} {'subst':>6} {'rate':>7}"
+    )
+    # Measured, not a literal: a hand-counted rule drifts from the
+    # columns beside it the moment one of them is widened, and the two
+    # were already two characters apart.
+    rule = "-" * len(header)
+    lines = [header, rule]
     for category in report.categories:
         rate = (
             "n/a"
@@ -334,7 +338,7 @@ def render_table(report: CorpusReport) -> str:
         if report.rejection_rate is None
         else f"{report.rejection_rate:.1%}"
     )
-    lines.append("-" * 92)
+    lines.append(rule)
     lines.append(
         f"{'TOTAL':<44} {report.attempted:>6} {report.kept:>6} "
         f"{report.rejected:>6} {report.unsupported:>6} "
@@ -382,14 +386,7 @@ def write_rejections(path: Path, rejections: Iterable[Rejection]) -> int:
         for rejection in rejections:
             handle.write(
                 json.dumps(
-                    {
-                        "sample_id": rejection.sample_id,
-                        "category": rejection.category,
-                        "difficulty": rejection.difficulty,
-                        "status": rejection.status,
-                        "reason": rejection.reason,
-                        "detail": rejection.detail,
-                    },
+                    rejection.to_dict(),
                     sort_keys=True,
                     separators=(",", ":"),
                 )

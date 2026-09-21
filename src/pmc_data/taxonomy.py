@@ -869,8 +869,14 @@ def stratified_subset[T](
     the plans are emitted grouped by expression, so the tail is not a
     random sample of the whole. Instead each category is shuffled with
     the run's seed and the budget is spent round-robin across
-    categories, so a category is only absent if it had no members and
-    the smallest categories survive.
+    categories, so the smallest categories survive and no category is
+    dropped while the budget is at least the number of categories.
+
+    Below that the budget cannot reach them all, and what it does reach
+    is the first `budget` categories in name order. That is the one
+    case where a category is absent despite having members, so a caller
+    that needs full coverage must keep the budget at or above the
+    category count.
 
     Args:
         items: Everything that could be attempted.

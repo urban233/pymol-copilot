@@ -50,16 +50,19 @@ STRUCTURES = tuple(
 )
 
 ATTEMPTS = tuple(
-    (snapshot, candidate)
+    (spec.spec_id, snapshot, candidate)
     for spec, snapshot in STRUCTURES
     for candidate in enumerate_plans(snapshot, seed=spec.seed)
 )
 
-CANDIDATES = tuple(candidate for _, candidate in ATTEMPTS)
+CANDIDATES = tuple(candidate for _, _, candidate in ATTEMPTS)
 
 #: Every structure's canonical JSON, so the no-change check below
 #: serializes each of the 24 structures once rather than once per plan.
-BASE_JSON = {id(snapshot): to_json(snapshot) for _, snapshot in STRUCTURES}
+#: Keyed by spec id rather than by id(snapshot): a CPython object
+#: address is only unique while that object is alive, so the mapping
+#: would silently collide the moment a snapshot stopped being held.
+BASE_JSON = {spec.spec_id: to_json(snapshot) for spec, snapshot in STRUCTURES}
 
 
 def _selects_nothing(
@@ -103,11 +106,12 @@ def _expressions_in(plan: ActionPlan) -> tuple[SelectionExpression, ...]:
 
 
 def _predicts_no_change(
-    snapshot: ObjectSnapshot, plan: ActionPlan
+    spec_id: str, snapshot: ObjectSnapshot, plan: ActionPlan
 ) -> bool | None:
     """Whether a plan's predicted result equals the structure it began as.
 
     Args:
+        spec_id: The structure's spec id, which keys its base JSON.
         snapshot: The structure the plan runs against.
         plan: The plan to predict.
 
@@ -126,7 +130,7 @@ def _predicts_no_change(
         for marker in outcome.unsupported
     ):
         return None
-    return to_json(outcome.snapshot) == BASE_JSON[id(snapshot)]
+    return to_json(outcome.snapshot) == BASE_JSON[spec_id]
 
 
 def test_the_enumeration_is_not_trivially_small() -> None:
@@ -267,7 +271,7 @@ def test_no_generated_expression_selects_nothing() -> None:
     """
     empty = [
         (candidate.category, expression.render())
-        for snapshot, candidate in ATTEMPTS
+        for _, snapshot, candidate in ATTEMPTS
         for expression in _expressions_in(candidate.plan)
         if _selects_nothing(snapshot, expression)
     ]
@@ -289,8 +293,8 @@ def test_only_deliberately_inert_plans_predict_no_change() -> None:
     """
     inert = [
         candidate.category
-        for snapshot, candidate in ATTEMPTS
-        if _predicts_no_change(snapshot, candidate.plan)
+        for spec_id, snapshot, candidate in ATTEMPTS
+        if _predicts_no_change(spec_id, snapshot, candidate.plan)
     ]
 
     assert len(inert) == len(STRUCTURES)

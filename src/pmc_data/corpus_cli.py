@@ -24,7 +24,10 @@ would let a rejection disappear:
 
 `--slice` writes the first two into the committed conformance
 directory instead, and no report: the slice's report would restate
-what the samples beside it already say.
+what the samples beside it already say. A slice run that fails partway
+writes nothing at all -- with no report beside them there is nowhere
+to record that the tracked files were replaced by something
+incomplete, so they are left exactly as they were.
 
 The run is deterministic in its seed: the structures, the plans, the
 subset chosen when a budget is set, and the sample identities all
@@ -44,6 +47,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from pmc_core.plan import HideOperation
+from pmc_core.plan import ShowOperation
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_data.generate import verify_sample
 from pmc_data.report import CorpusReport
@@ -140,6 +145,12 @@ def _verify(numbered: tuple[int, Attempt]) -> Sample | Rejection:
 def _has_unobservable_representation(attempt: Attempt) -> bool:
     """Whether an attempt shows a representation the snapshot cannot see.
 
+    Read off the typed operations rather than matched against rendered
+    .pml text: a change to `ShowOperation.render()`'s spacing would
+    silently turn a text match into "no such attempt exists", and this
+    predicate is the only thing that keeps the committed slice covering
+    the unsupported path at all.
+
     Args:
         attempt: The attempt to inspect.
 
@@ -147,9 +158,9 @@ def _has_unobservable_representation(attempt: Attempt) -> bool:
         True when the plan names one of those four representations.
     """
     return any(
-        line.startswith(f"show {rep},") or line.startswith(f"hide {rep},")
-        for line in attempt.candidate.plan.render_pml().splitlines()
-        for rep in UNOBSERVABLE_REPRESENTATIONS
+        isinstance(operation, ShowOperation | HideOperation)
+        and operation.representation in UNOBSERVABLE_REPRESENTATIONS
+        for operation in attempt.candidate.plan.operations
     )
 
 
@@ -254,7 +265,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--target", type=int, default=None)
+    parser.add_argument(
+        "--target",
+        type=int,
+        default=None,
+        help=(
+            "The most attempts to make, not the number of samples to "
+            "keep: an attempt the oracle cannot grade is reported "
+            "rather than kept, so the corpus is smaller than this."
+        ),
+    )
     parser.add_argument(
         "--workers", type=int, default=min(8, (os.cpu_count() or 2))
     )
@@ -334,6 +354,13 @@ def run(argv: list[str]) -> int:
     target = (
         args.target if args.target is not None else config.get("samples_target")
     )
+    # The same floor --target is held to. Without this a configured 0 or
+    # a negative budget produces an empty attempt set, an empty corpus
+    # and a bare non-zero exit, which reads like the pipeline broke.
+    if target is not None and target < 1:
+        raise SystemExit(
+            f"{config_path}: samples_target must be at least 1, not {target}"
+        )
 
     attempts = plan_attempts(seed, None if args.slice else target)
     if args.slice:
@@ -367,6 +394,20 @@ def run(argv: list[str]) -> int:
             results.append(result)
     except BaseException:
         pool.shutdown(wait=True, cancel_futures=True)
+        if args.slice:
+            # The slice is a committed, tracked artifact and writes no
+            # report, so there is nowhere beside it to record that what
+            # replaced it was incomplete. Truncating it in place would
+            # leave a smaller slice that still passes its own replay
+            # test while covering less than its name claims, so it is
+            # left exactly as it was.
+            print(
+                f"PARTIAL: failed after {len(results)} of "
+                f"{len(attempts)} attempts; {run_dir} left unchanged",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise
         # A full run is thousands of spawned PyMOL processes over
         # hours. An unexpected failure at attempt 3,500 has still
         # measured 3,499 attempts, and throwing those away would turn
@@ -378,7 +419,7 @@ def run(argv: list[str]) -> int:
             run_dir,
             results,
             seed=seed,
-            slice_only=args.slice,
+            slice_only=False,
             complete=False,
         )
         print(

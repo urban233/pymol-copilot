@@ -12,10 +12,17 @@ bazel run //src/pmc_data:corpus_cli -- --workers 8
 ```
 
 It declares the `seed` every structure, plan and sample identity
-derives from, and the `samples_target` the run is budgeted to. When
-the target is below the number of enumerated plans, the subset is
-chosen stratified across categories rather than truncated, so a
-budget never silently drops a whole category.
+derives from, and the `samples_target` the run is budgeted to.
+
+`samples_target` bounds *attempts*, not kept samples: an attempt the
+oracle cannot grade is reported as unsupported rather than kept, so
+the corpus that comes out is smaller than the number here.
+
+When the target is below the number of enumerated plans, the subset is
+chosen stratified across categories rather than truncated, so a budget
+at or above the number of categories never drops one. Below that it
+cannot reach them all, and it covers the first `samples_target`
+categories in name order.
 
 Both can be overridden on the command line with `--seed` and
 `--target`. `--slice` instead regenerates the small committed

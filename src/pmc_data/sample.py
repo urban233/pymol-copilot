@@ -696,6 +696,25 @@ class Rejection:
     reason: str
     detail: str
 
+    def to_dict(self) -> dict[str, Any]:
+        """Render this rejection as a JSON-safe mapping.
+
+        Kept here beside the fields rather than spelled out again by
+        whoever writes the file, so renaming one is a single edit
+        instead of a silently divergent writer.
+
+        Returns:
+            A plain dict with this record's fields.
+        """
+        return {
+            "sample_id": self.sample_id,
+            "category": self.category,
+            "difficulty": self.difficulty,
+            "status": self.status,
+            "reason": self.reason,
+            "detail": self.detail,
+        }
+
 
 def to_json_line(sample: Sample) -> str:
     """Serialize one sample as a deterministic JSONL line.
@@ -759,4 +778,10 @@ def read_samples(path: Path) -> tuple[Sample, ...]:
             raise InvalidSampleError(
                 f"{path}:{number}: line is not valid JSON"
             ) from error
+        except InvalidSampleError as error:
+            # Re-raised with the same file:line context the JSON branch
+            # already carried. A corpus is thousands of lines long, and
+            # "field 'intent' must be a non-empty string" names no line
+            # at all.
+            raise InvalidSampleError(f"{path}:{number}: {error}") from error
     return tuple(samples)
