@@ -90,19 +90,19 @@ Every item carries a **State**. The values are:
 | 1 | Lemonade spike | Hannah | **done** — PR #25 | — | 9, 17 |
 | 2 | Command language | Martin | **done** — PR #27 | — | 4, 6, 7, 8, 10, 13, 14 |
 | 3 | Snapshot | Hannah | **done** — PR #28 | — | 4, 7, 10 |
-| 4 | Sidecar executor | Hannah | **ready** | 2 ✓, 3 ✓ | 7, 8, 14, 16 |
-| 5 | Structure card | Martin | **in review** — PR #29 | — | 13, 14 |
-| 6 | Error envelope | Martin | **ready** | 2 ✓ | 8, 11 |
-| 7 | Live extraction and fidelity gate | Hannah | **blocked** | 3 ✓, 4 | 10, 11 |
-| 8 | LangGraph request graph | Hannah | **blocked** | 0 ✓, 2 ✓, 4, 6 | 9, 10, 11, 12 |
+| 4 | Sidecar executor | Hannah | **done** — PR #33 | — | 7, 8, 14, 16 |
+| 5 | Structure card | Martin | **done** — PR #29 | — | 13, 14 |
+| 6 | Error envelope | Martin | **done** — PR #31 | — | 8, 11 |
+| 7 | Live extraction and fidelity gate | Hannah | **done** — PR #37 | — | 10, 11 |
+| 8 | LangGraph request graph | Hannah | **in progress** | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
 | 9 | Inference abstraction and Lemonade | Hannah | **blocked** | 0 ✓, 1 ✓, 8 | 12, 16, 19 |
-| 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7, 8 | 11, 12 |
-| 11 | Output and diagnostics | Hannah | **blocked** | 6, 7, 8, 10 | 12 |
+| 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7 ✓, 8 | 11, 12 |
+| 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
-| 13 | Prompt builder | Martin | **blocked** | 2 ✓, 5 | 14, 16 |
-| 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4, 5, 13 | 15, 16 |
+| 13 | Prompt builder | Martin | **blocked** | 2 ✓, 5 ✓ | 14, 16 |
+| 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4 ✓, 5 ✓, 13 | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
-| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4, 13, 14, 15, 9 | 17, 18 |
+| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13, 14, 15, 9 | 17, 18 |
 | 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
 | 19 | Integration | Joint | **blocked** | 12, 17 | — |
@@ -114,17 +114,18 @@ flowchart LR
   classDef done fill:#1f6f3f,stroke:#0d3d22,color:#fff
   classDef review fill:#8a6d1a,stroke:#4d3c0c,color:#fff
   classDef ready fill:#1f4f8f,stroke:#0d2a4d,color:#fff
+  classDef progress fill:#6a3d9a,stroke:#3a1f57,color:#fff
   classDef blocked fill:#3a3a3a,stroke:#1a1a1a,color:#ddd
 
   I0["0 · dependency split"]:::done
   I1["1 · Lemonade spike"]:::done
   I2["2 · command language"]:::done
   I3["3 · snapshot"]:::done
-  I4["4 · sidecar executor"]:::ready
-  I5["5 · structure card"]:::review
-  I6["6 · error envelope"]:::ready
-  I7["7 · fidelity gate"]:::blocked
-  I8["8 · request graph"]:::blocked
+  I4["4 · sidecar executor"]:::done
+  I5["5 · structure card"]:::done
+  I6["6 · error envelope"]:::done
+  I7["7 · fidelity gate"]:::done
+  I8["8 · request graph"]:::progress
   I9["9 · inference"]:::blocked
   I10["10 · apply and recovery"]:::blocked
   I11["11 · output"]:::blocked
@@ -182,6 +183,10 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 
 ### What this graph says today
 
+> **Note, 2026-09-21.** The three bullets and the hand-off list below
+> describe week 1, before items 4–8 existed. Kept for its own history;
+> what is actually true today follows it.
+
 - **Week 1 is four fifths done.** Items 0, 1, 2 and 3 are merged; item 5 is an
   open pull request with green CI on all three operating systems.
 - **The critical path runs through item 4.** The sidecar executor is unblocked,
@@ -193,6 +198,13 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   `src/pmc_core/errors.py`, `src/pmc_agent/inference/` and the prompt builder do
   not exist; `src/pmc_train/` is still an empty package; `tests/recovery/` holds
   only a readme.
+
+**Today:** items 0 through 7 are all merged. `src/pmc_core/executor.py`,
+`src/pmc_core/errors.py`, and `src/pmc_agent/inference/` all exist and are
+covered; item 8 (the LangGraph request graph) is in progress on
+`feat/langgraph-request-graph`, unblocked on every prerequisite, and is the
+single item now gating the rest of Hannah's own work (9, 10, 11, 12) plus
+Martin's item 16. Nothing downstream of item 8 has begun.
 
 ### Cross-owner hand-offs
 
@@ -207,6 +219,11 @@ The week 1 note below is now more specific:
   fake adapter, so this is a hand-off rather than a blocker.
 - **Hannah → Martin, later:** item 9's engine interface is what item 16 runs
   the untuned baseline through — the dashed edge above.
+
+**Today:** items 4 and 6 both landed, so both hand-offs above are delivered.
+Item 8's own engine interface and fake adapter (`src/pmc_agent/inference/`)
+already exist, ahead of item 9 — see item 9's own note. The two "later"
+hand-offs are unchanged and still pending.
 
 ### Risks carried out of week 1
 
@@ -405,6 +422,12 @@ condition. If the spike showed grammar can't be enforced, implement
 syntax-only and record that limitation in the code and the readme rather
 than pretending.
 ```
+
+> **Note, 2026-09-21.** `src/pmc_agent/inference/`'s engine interface
+> (`base.py`) and its fake adapter (`fake.py`) landed in item 8's own step
+> 2, designed against the request graph as a real consumer rather than in
+> the abstract. What remains here is `lemonade.py` and startup capability
+> probing only.
 
 ### 10. Approval, apply, recovery — the safety centerpiece
 

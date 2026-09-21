@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Server-owned lifecycle for the LangGraph request graph.
 
-docs/master_plan.md item 8's own replacement for the fixture lifecycle this
+docs/master_plan.md item 8's own replacement for the hardcoded fixture this
 module used to hold: `PlanRequestLifecycle` pattern-matched one exact
 request shape and answered with one constant plan, never called a model,
 and held no per-session state. `RequestGraphLifecycle` instead routes every

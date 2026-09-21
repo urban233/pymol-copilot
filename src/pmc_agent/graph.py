@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The LangGraph request graph: states, the request's own typed shape.
 
-docs/master_plan.md item 8 replaces the hardcoded fixture lifecycle in
-`src/pmc_server/lifecycle.py` with this graph. The state space is
+docs/master_plan.md item 8 replaces the hardcoded fixture that used to sit
+in `src/pmc_server/lifecycle.py` with this graph. The state space is
 SPECIFICATION.md:417-426's own domain model, restated here as the graph's
 node names:
 
