@@ -347,7 +347,7 @@ def apply_plan(snapshot: ObjectSnapshot, plan: ActionPlan) -> ExpectedOutcome:
     `expected_resulting_fingerprint` the executor compares against.
 
     Per verb: `select` changes nothing about the object and only binds a
-    name; `color` sets every matching atom's colour index in every
+    name; `color` sets every matching atom's color index in every
     state; `show` and `hide` add or remove a representation; `orient`
     moves only the camera, which is why it is unpredictable.
 
@@ -372,7 +372,7 @@ def apply_plan(snapshot: ObjectSnapshot, plan: ActionPlan) -> ExpectedOutcome:
             snapshot=None, selection_counts=(), unsupported=unsupported
         )
 
-    # Atom state is per-object, not per-state: colour and representation
+    # Atom state is per-object, not per-state: color and representation
     # membership are read once by extraction and repeated into every
     # state, so an edit is applied at the same position in each.
     per_state: list[list[AtomRecord]] = [

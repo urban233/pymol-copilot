@@ -110,7 +110,7 @@ _HETERO_FIRST_RESV = 901
 _POLYMER_REP = "lines"
 _HETERO_REP = "spheres"
 
-#: The colour polymer and hetero atoms start in. Any valid index works;
+#: The color polymer and hetero atoms start in. Any valid index works;
 #: these two differ so a `color` command has something to change.
 _POLYMER_COLOR = COLOR_INDEX_BY_NAME["green"]
 _HETERO_COLOR = COLOR_INDEX_BY_NAME["yellow"]

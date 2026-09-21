@@ -395,7 +395,7 @@ py_test(
 # src/pmc_data/colors.py into the source tree via
 # BUILD_WORKSPACE_DIRECTORY and is run by hand when PyMOL changes, the
 # same shape as :capture_pymol_errors above. The frozen table it writes
-# is what the dataset oracle predicts colours with; the
+# is what the dataset oracle predicts colors with; the
 # :real_pymol_allowlist test below is the target that fails when that
 # table stops matching live PyMOL.
 py_binary(

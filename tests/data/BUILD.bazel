@@ -201,3 +201,16 @@ py_test(
         "//src/pmc_data:pmc_data",
     ],
 )
+
+py_test(
+    name = "taxonomy",
+    size = "medium",
+    timeout = "short",
+    srcs = ["test_taxonomy.py"],
+    main = "test_taxonomy.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)

@@ -43,7 +43,7 @@ from pmc_core.snapshot import SNAPSHOT_VERSION
 #: `requirements.in` pins it. Frozen here rather than read at runtime
 #: because this module must import without PyMOL present;
 #: `tests/data/test_conformance_real_pymol.py` asserts the live build
-#: still matches, the same guard the frozen colour table carries.
+#: still matches, the same guard the frozen color table carries.
 PINNED_PYMOL_VERSION = "3.2.0.2"
 
 #: The assertion kinds a sample can actually carry evidence for.

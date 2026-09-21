@@ -12,6 +12,7 @@ py_library(
         "pdb.py",
         "sample.py",
         "structures.py",
+        "taxonomy.py",
         "verifier.py",
     ],
     data = [

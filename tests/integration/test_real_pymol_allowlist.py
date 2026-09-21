@@ -129,11 +129,11 @@ def test_every_allowlisted_representation_is_accepted_by_show(
 def test_frozen_color_indices_match_real_pymol(
     real_pymol: Any,
 ) -> None:
-    """The dataset oracle predicts colour as the index PyMOL records.
+    """The dataset oracle predicts color as the index PyMOL records.
 
     pmc_data.colors freezes the name-to-index mapping so the oracle can
     predict an AtomRecord.color without importing PyMOL. A drifted index
-    would not fail loudly: it would make every generated colour sample
+    would not fail loudly: it would make every generated color sample
     mismatch at the executor's fidelity gate and be rejected, which
     looks like a broken oracle rather than a stale table.
 

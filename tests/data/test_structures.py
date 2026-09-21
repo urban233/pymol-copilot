@@ -115,7 +115,7 @@ def test_every_starting_representation_is_observable() -> None:
 
 
 def test_states_differ_only_in_coordinates() -> None:
-    """Extraction reads colour and reps once, not once per state."""
+    """Extraction reads color and reps once, not once per state."""
     spec = next(
         spec
         for spec in enumerate_structures(SEED)

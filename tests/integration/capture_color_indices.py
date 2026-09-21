@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Capture real PyMOL colour indices into the frozen pmc_data table.
+"""Capture real PyMOL color indices into the frozen pmc_data table.
 
 Run this to regenerate `src/pmc_data/colors.py`:
 
@@ -11,9 +11,9 @@ The dataset oracle has to predict `color` as the integer index a snapshot
 actually records (`pmc_core.snapshot.AtomRecord.color`), and it has to do
 so without PyMOL -- that is the whole point of an independent oracle. The
 old verifier asked `cmd.get_color_index()` for the expected value, which
-made the colour assertion a PyMOL-versus-PyMOL comparison rather than an
+made the color assertion a PyMOL-versus-PyMOL comparison rather than an
 independent one. `pmc_core.plan.COLOR_ALLOWLIST` freezes the 177 accepted
-colour *names* for the same no-PyMOL-import reason but records no index,
+color *names* for the same no-PyMOL-import reason but records no index,
 so the mapping is frozen here instead.
 
 `tests/integration/test_real_pymol_allowlist.py` is the target that fails
@@ -36,7 +36,7 @@ winstage.ensure_importable()
 TABLE_RELATIVE_PATH = pathlib.PurePath("src/pmc_data/colors.py")
 
 _HEADER = '''# Copyright 2026 PyMOL Copilot contributors.
-"""The frozen PyMOL colour name-to-index table the oracle predicts with.
+"""The frozen PyMOL color name-to-index table the oracle predicts with.
 
 Generated once from `cmd.get_color_index()` against
 pymol-open-source-whl 3.2.0.2 and frozen here, exactly as
@@ -59,7 +59,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from types import MappingProxyType
 
-#: Every accepted colour name mapped to the stable index PyMOL assigns it.
+#: Every accepted color name mapped to the stable index PyMOL assigns it.
 COLOR_INDEX_BY_NAME: Mapping[str, int] = MappingProxyType(
     {
 '''
@@ -70,7 +70,7 @@ _FOOTER = """    }
 
 
 def main() -> int:
-    """Write the frozen colour index table into the source tree.
+    """Write the frozen color index table into the source tree.
 
     Returns:
         The process exit code: 0 on success, 1 if PyMOL does not

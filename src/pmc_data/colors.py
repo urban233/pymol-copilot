@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""The frozen PyMOL colour name-to-index table the oracle predicts with.
+"""The frozen PyMOL color name-to-index table the oracle predicts with.
 
 Generated once from `cmd.get_color_index()` against
 pymol-open-source-whl 3.2.0.2 and frozen here, exactly as
@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from types import MappingProxyType
 
-#: Every accepted colour name mapped to the stable index PyMOL assigns it.
+#: Every accepted color name mapped to the stable index PyMOL assigns it.
 COLOR_INDEX_BY_NAME: Mapping[str, int] = MappingProxyType(
     {
         "actinium": 5364,
