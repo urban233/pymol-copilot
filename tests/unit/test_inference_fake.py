@@ -5,6 +5,8 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import pytest
 
+from pmc_agent.inference import CompletionRequest as PublicCompletionRequest
+from pmc_agent.inference import FakeEngine as PublicFakeEngine
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
@@ -83,3 +85,45 @@ def test_engine_failure_message_stays_bounded_and_printable() -> None:
     encoded = failure.message.encode("utf-8")
     assert len(encoded) <= 256
     assert all(0x20 <= ord(char) < 0x7F for char in failure.message)
+
+
+@pytest.mark.parametrize(
+    ("max_tokens", "deadline_seconds"),
+    [(0, 1.0), (-1, 1.0), (1, 0.0), (1, -0.1)],
+)
+def test_invalid_completion_bounds_are_rejected(
+    max_tokens: int, deadline_seconds: float
+) -> None:
+    """A request cannot claim a non-positive resource bound.
+
+    Args:
+        max_tokens: The invalid token limit under test.
+        deadline_seconds: The invalid deadline under test.
+    """
+    with pytest.raises(ValueError, match="must be positive"):
+        CompletionRequest(
+            prompt="select chain A",
+            grammar=None,
+            max_tokens=max_tokens,
+            deadline_seconds=deadline_seconds,
+        )
+
+
+def test_unknown_result_and_failure_states_are_rejected() -> None:
+    """The public interface cannot acquire undeclared status strings."""
+    with pytest.raises(ValueError, match="unknown completion stop reason"):
+        CompletionResult("text", "model", "unexpected")
+    with pytest.raises(ValueError, match="unknown engine failure category"):
+        EngineFailure("unexpected", "message")
+
+
+def test_the_package_exports_the_supported_contract() -> None:
+    """Callers need not import implementation internals to use the seam."""
+    request = PublicCompletionRequest(
+        prompt="select chain A", grammar=None, max_tokens=8, deadline_seconds=1.0
+    )
+    engine = PublicFakeEngine([CompletionResult("text", "model", STOP_END)])
+    result = engine.complete(request, cancel=CancelToken())
+
+    assert isinstance(result, CompletionResult)
+    assert result.text == "text"
