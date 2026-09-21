@@ -244,6 +244,44 @@ def test_an_unreachable_health_check_stops_before_load_or_completion() -> None:
     assert [request.url.path for request in requests] == ["/api/v1/health"]
 
 
+def test_a_probe_does_not_follow_a_redirect_to_another_origin() -> None:
+    """A caller-injected redirect policy cannot escape the local probe."""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record the health request and offer a forbidden remote redirect.
+
+        Args:
+            request: The startup health request sent by the adapter.
+
+        Returns:
+            A redirect which must be returned as an unavailable response.
+        """
+        requests.append(request)
+        return httpx.Response(
+            302, headers={"location": "http://example.com/api/v1/health"}
+        )
+
+    client = httpx.Client(
+        base_url=_BASE_URL,
+        follow_redirects=True,
+        transport=httpx.MockTransport(handler),
+    )
+
+    result = connect_lemonade(
+        base_url=_BASE_URL,
+        model_name=_MODEL,
+        checkpoint=_CHECKPOINT,
+        client=client,
+    )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNAVAILABLE
+    assert [str(request.url) for request in requests] == [
+        f"{_BASE_URL}/api/v1/health"
+    ]
+
+
 def test_a_missing_model_fails_before_load() -> None:
     """The cheap exact-model lookup is the first identity assertion."""
     requests: list[httpx.Request] = []
@@ -395,3 +433,7 @@ def test_every_failed_grammar_canary_refuses_to_return_an_engine(
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_REFUSED_GRAMMAR
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

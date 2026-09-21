@@ -283,6 +283,46 @@ def test_nonlocal_or_nonorigin_urls_are_rejected_before_the_transport_is_used(
     assert requests == []
 
 
+def test_a_completion_does_not_follow_a_redirect_to_another_origin() -> None:
+    """A caller-injected redirect policy cannot escape the local server."""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        """Record the local request and offer a forbidden remote redirect.
+
+        Args:
+            request: The completion request sent by the adapter.
+
+        Returns:
+            A redirect which must be returned as an unavailable response.
+        """
+        requests.append(request)
+        return httpx.Response(
+            302,
+            headers={"location": "http://example.com/api/v1/chat/completions"},
+        )
+
+    client = httpx.Client(
+        base_url=_BASE_URL,
+        follow_redirects=True,
+        transport=httpx.MockTransport(handler),
+    )
+    engine = LemonadeEngine(
+        base_url=_BASE_URL,
+        model_name=_MODEL,
+        checkpoint=_CHECKPOINT,
+        client=client,
+    )
+
+    result = engine.complete(_request(), cancel=CancelToken())
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNAVAILABLE
+    assert [str(request.url) for request in requests] == [
+        f"{_BASE_URL}/api/v1/chat/completions"
+    ]
+
+
 def test_a_cancelled_token_prevents_network_io() -> None:
     """Cancellation before streaming begins cannot send a completion."""
     requests: list[httpx.Request] = []
@@ -497,3 +537,7 @@ def test_hostile_server_errors_are_normalized_before_reaching_history() -> None:
     assert result.category == ENGINE_UNAVAILABLE
     assert len(result.message.encode("ascii")) <= 256
     assert all(0x20 <= ord(char) < 0x7F for char in result.message)
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

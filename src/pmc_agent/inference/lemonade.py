@@ -386,6 +386,10 @@ class LemonadeEngine:
                 _CHAT_COMPLETIONS_PATH,
                 json=self._request_body(request),
                 timeout=self._timeout_for_remaining_deadline(remaining_seconds),
+                # A redirect may point at an arbitrary remote origin. The
+                # configured local origin is the only destination permitted
+                # for this adapter, including when tests inject a client.
+                follow_redirects=False,
             ) as response:
                 if response.status_code >= 400:
                     response.read()
@@ -525,7 +529,11 @@ def _request(
         check, since a model 404 has distinct identity semantics.
     """
     try:
-        response = engine._client.request(method, path, json=body)
+        # A redirect may point at an arbitrary remote origin. Keep the
+        # startup capability probe at the single configured local origin too.
+        response = engine._client.request(
+            method, path, json=body, follow_redirects=False
+        )
     except httpx.RequestError as error:
         return _failure(ENGINE_UNAVAILABLE, str(error))
     except Exception as error:  # The capability boundary is total too.

@@ -14,8 +14,6 @@ import time
 
 import httpx
 import pytest
-
-from lemonade_support import lemonade_base_url as _lemonade_base_url  # noqa: F401
 from pmc_agent.inference.base import ENGINE_TIMEOUT
 from pmc_agent.inference.base import STOP_CANCELLED
 from pmc_agent.inference.base import STOP_END
@@ -33,6 +31,8 @@ _GRAMMAR = f'root ::= "{_GRAMMAR_SENTINEL}"'
 _GRAMMAR_PROMPT = "What is the capital of France? Answer with one word."
 _DEADLINE_GRACE_SECONDS = 1.0
 _IDLE_WAIT_SECONDS = 10.0
+
+pytest_plugins = ("lemonade_support",)
 
 
 @pytest.fixture(scope="session")
@@ -202,3 +202,7 @@ def test_cancelling_a_real_stream_leaves_lemonade_idle(
     assert isinstance(result, CompletionResult)
     assert result.stop_reason == STOP_CANCELLED
     _wait_until_model_is_idle(lemonade_base_url)
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

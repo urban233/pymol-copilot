@@ -127,3 +127,7 @@ def test_the_package_exports_the_supported_contract() -> None:
 
     assert isinstance(result, CompletionResult)
     assert result.text == "text"
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))
