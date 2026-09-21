@@ -52,7 +52,6 @@ from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
 from pmc_data.sample import ASSERTION_SELECTION_COUNTS
 from pmc_data.sample import Assertion as SampleAssertion
 from pmc_data.sample import Sample
-from pmc_data.sample import SampleVersions  # noqa: F401  # re-exported for callers.
 from pmc_data.sample import StructureIdentity
 from pmc_data.sample import VerificationRecord
 from pmc_data.sample import current_versions
