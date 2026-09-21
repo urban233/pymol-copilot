@@ -43,6 +43,7 @@ from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.snapshot import to_json
 
 FIXTURE_INTENT = "Select chain A and color it red."
 FIXTURE_MANIFEST = ContractManifestV1("1", "1", "1")
@@ -355,6 +356,11 @@ class CopilotCommandClient:
                 atom_count=atom_count,
                 state_count=state_count,
             ),
+            # docs/master_plan.md item 8's request graph lives in the
+            # server and needs the full canonical snapshot to validate
+            # against, not merely its identity; this call site already had
+            # it in hand.
+            snapshot_json=to_json(snapshot),
             fidelity=to_wire(outcome),
         )
         try:

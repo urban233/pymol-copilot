@@ -73,6 +73,8 @@ py_test(
     main = "test_client_server_command.py",
     deps = [
         "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
@@ -98,6 +100,8 @@ py_test(
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",

@@ -5,10 +5,17 @@ Every collaborator here is a real production component: real headless
 Open-Source PyMOL (`pymol.finish_launching(['pymol', '-qc'])`), PyMOL's own
 command registry (`cmd.extend`/`cmd.do`), the real authenticated loopback
 server (`pmc_server.transport.LoopbackPlanServer`) driven by the real
-`pmc_server.lifecycle.PlanRequestLifecycle`, and the real
-`pmc_client.transport.LoopbackPlanClient` and
-`pmc_client.command.register_copilot`. Nothing here is a transport, server,
-policy, or PyMOL test double.
+`pmc_server.lifecycle.RequestGraphLifecycle` and request graph
+(`pmc_agent.graph`), and the real `pmc_client.transport.LoopbackPlanClient`
+and `pmc_client.command.register_copilot`. Nothing here is a transport,
+server, policy, or PyMOL test double -- except the inference engine
+(`pmc_agent.inference.fake.FakeEngine`, scripted to render the same plan the
+old fixture lifecycle always returned) and the sidecar executor (a fake
+reporting success without spawning a second real PyMOL process): item 8
+docs its own graph tests exhaustively against a fake engine, and this
+module's own real-PyMOL evidence is about the client's live extraction and
+the transport/lifecycle/policy path around the graph, not about a second
+real sidecar spawn stacked on top of `check_fidelity`'s existing one.
 
 PyMOL only supports one `finish_launching` call per interpreter, so it is
 launched exactly once for the whole test module (session-scoped fixture) and
@@ -56,15 +63,25 @@ from typing import Protocol
 
 import pytest
 
+from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
+from pmc_agent.inference.base import STOP_END
+from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.session import RequestGraphSession
 from pmc_client.command import FIXTURE_INTENT
 from pmc_client.command import register_copilot
 from pmc_client.transport import LoopbackPlanClient
+from pmc_core.executor import REASON_OK
+from pmc_core.executor import STATUS_OK
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
+from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
-from pmc_server.lifecycle import PlanRequestLifecycle
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
+from pmc_server.lifecycle import RequestGraphLifecycle
 from pmc_server.transport import LoopbackPlanServer
 
 import winstage
@@ -73,6 +90,12 @@ CREDENTIAL = "real-pymol-integration-secret"
 OBJECT_NAME = "two_chain_fixture"
 FIXTURE_PATH = (
     Path(__file__).resolve().parent / "testdata" / "two_chain_fixture.pdb"
+)
+#: The completion `FakeEngine` renders for `FIXTURE_INTENT`: the same
+#: two-command plan the old fixture lifecycle always returned, so this
+#: module's own printed-output assertions stay meaningful unchanged.
+_FIXTURE_COMPLETION = (
+    "select copilot_selection, chain A\ncolor red, copilot_selection\n"
 )
 #: Raised from the pre-item-7 value of 5.0: copilot now spawns a real
 #: sidecar subprocess for its own fidelity check on every invocation
@@ -305,6 +328,61 @@ def always_deny(_plan: ActionPlan) -> PlanDecision:
         A PlanDecision that denies the plan with no per-operation detail.
     """
     return PlanDecision(decisions=(), allowed=False)
+
+
+def _always_ok_executor(_request: ExecutionRequest) -> ExecutionReport:
+    """Report success for any request, without spawning a second real PyMOL.
+
+    Args:
+        _request: Ignored.
+
+    Returns:
+        A minimal `STATUS_OK` report.
+    """
+    return ExecutionReport(
+        executor_version=1,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest="sha256:test",
+        resulting_fingerprint="sha256:" + "0" * 64,
+        selection_counts=(),
+        command_outcomes=(),
+        child_pid=1234,
+        child_terminated=True,
+        elapsed_seconds=0.01,
+    )
+
+
+def _lifecycle(
+    *,
+    policy_validator: Callable[[ActionPlan], PlanDecision] = evaluate_plan,
+    max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
+) -> RequestGraphLifecycle:
+    """Build a lifecycle over a fresh session, scripted to render the fixture.
+
+    Args:
+        policy_validator: Forwarded to `RequestGraphSession`. Defaults to
+            the graph's own real `evaluate_plan`.
+        max_repair_attempts: Forwarded to `RequestGraphSession`. Defaults
+            to the graph's own real repair budget.
+
+    Returns:
+        A lifecycle whose engine renders `_FIXTURE_COMPLETION` for every
+        call scripted, and whose graph never spawns a second real sidecar.
+    """
+    engine = FakeEngine(
+        [
+            CompletionResult(_FIXTURE_COMPLETION, "m-1", STOP_END)
+            for _ in range(3)
+        ]
+    )
+    session = RequestGraphSession(
+        engine=engine,
+        executor=_always_ok_executor,
+        policy_validator=policy_validator,
+        max_repair_attempts=max_repair_attempts,
+    )
+    return RequestGraphLifecycle(session=session)
 
 
 class _SynchronizingExtension:
@@ -543,7 +621,7 @@ def test_success_path_previews_without_mutating_session(
     """
     requests: list[PlanRequestV1] = []
     output: list[str] = []
-    lifecycle = PlanRequestLifecycle()
+    lifecycle = _lifecycle()
 
     def record_lifecycle(
         request: PlanRequestV1,
@@ -617,7 +695,8 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
     """A real server-side policy denial reports a bounded diagnostic only."""
     output: list[str] = []
     server = LoopbackPlanServer(
-        CREDENTIAL, PlanRequestLifecycle(policy_validator=always_deny)
+        CREDENTIAL,
+        _lifecycle(policy_validator=always_deny, max_repair_attempts=0),
     )
     try:
         server.start()
@@ -642,8 +721,8 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
         server.close()
 
     assert output == [
-        "copilot failed (policy_denied; not retryable): "
-        "plan was denied by server policy"
+        "copilot failed (repair_exhausted; retryable): "
+        "the repair budget was spent with no validated plan"
     ]
     assert_session_unchanged(before, after)
 
@@ -652,7 +731,7 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     loaded_fixture: PyMOLCmd,
 ) -> None:
     """An unreachable loopback port reports a bounded diagnostic only."""
-    dead_server = LoopbackPlanServer(CREDENTIAL, PlanRequestLifecycle())
+    dead_server = LoopbackPlanServer(CREDENTIAL, _lifecycle())
     dead_port = dead_server.port
     dead_server.close()
 

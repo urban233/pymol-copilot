@@ -740,13 +740,26 @@ def _build_validating(
 
         decision = policy_validator(plan)
         if not decision.allowed:
-            denied = next(d for d in decision.decisions if not d.allowed)
+            # pmc_core.policy.PlanDecision's own docstring: `allowed` is
+            # False either when some per-operation decision denies, or
+            # when the plan shape itself is outside the accepted form --
+            # the latter can leave `decisions` with no denied entry at
+            # all (or even empty), so this must not assume one exists.
+            denied = next(
+                (d for d in decision.decisions if not d.allowed), None
+            )
             return _attempt_failed(
                 state,
                 source="policy",
                 category="policy_denied",
-                command_index=denied.operation_index,
-                message=denied.reason,
+                command_index=(
+                    denied.operation_index if denied is not None else None
+                ),
+                message=(
+                    denied.reason
+                    if denied is not None
+                    else "plan was denied by server policy"
+                ),
             )
 
         report = executor(

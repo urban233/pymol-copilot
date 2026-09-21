@@ -415,6 +415,35 @@ def test_an_ordinary_policy_denial_does_get_its_repair() -> None:
     assert result["plan"] is not None
 
 
+def test_a_whole_plan_denial_with_no_per_operation_decision_fails_closed() -> (
+    None
+):
+    """A denial naming no operation is a bounded failure, never a crash.
+
+    `pmc_core.policy.PlanDecision`'s own docstring: `allowed` is False
+    either when some per-operation decision denies, or when the plan
+    shape itself is outside the accepted form -- the latter can leave
+    `decisions` empty even though the plan is denied. `validating` must
+    not assume a denied entry always exists to explain itself with.
+    """
+
+    def _always_deny(_plan: ActionPlan) -> PlanDecision:
+        return PlanDecision(decisions=(), allowed=False)
+
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    executor = FakeExecutor([])
+
+    result = _run(
+        engine, executor, policy_validator=_always_deny, max_repair_attempts=0
+    )
+
+    assert executor.calls == []
+    assert result["status"] == TERMINAL_FAILED
+    failure = result["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert failure.category == "repair_exhausted"
+
+
 def test_every_executor_call_receives_its_own_execution_request() -> None:
     """No attempt's `ExecutionRequest` is reused across a repair."""
     engine = FakeEngine(

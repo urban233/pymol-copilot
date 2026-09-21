@@ -450,7 +450,15 @@ class FidelityOutcomeV1:
 
 @dataclass(frozen=True)
 class PlanRequestV1:
-    """A strictly decoded request sent from client to server."""
+    """A strictly decoded request sent from client to server.
+
+    `snapshot_json` carries the full canonical snapshot document itself,
+    not merely its identity: docs/master_plan.md item 8's request graph
+    lives in the server, so the bytes `validating` needs to run a fresh
+    sidecar must arrive with the request that triggers it.
+    `PLAN_PATH`'s own body cap rose to `MAX_EXECUTION_REQUEST_BYTES`
+    (`pmc_server.transport`) to carry it.
+    """
 
     request_id: str
     session_id: str
@@ -458,6 +466,7 @@ class PlanRequestV1:
     contract_manifest: ContractManifestV1
     intent: str
     snapshot: StructureSnapshotV1
+    snapshot_json: str
     fidelity: FidelityOutcomeV1
     protocol_version: str = PROTOCOL_VERSION
 
@@ -475,6 +484,7 @@ class PlanRequestV1:
             "contractManifest": self.contract_manifest.to_dict(),
             "intent": self.intent,
             "snapshot": self.snapshot.to_dict(),
+            "snapshotJson": self.snapshot_json,
             "fidelity": self.fidelity.to_dict(),
         }
 
@@ -502,6 +512,7 @@ class PlanRequestV1:
                 "contractManifest",
                 "intent",
                 "snapshot",
+                "snapshotJson",
                 "fidelity",
             },
         )
@@ -519,7 +530,113 @@ class PlanRequestV1:
             ),
             intent=intent,
             snapshot=StructureSnapshotV1.from_dict(data["snapshot"]),
+            snapshot_json=_string(data["snapshotJson"], name="snapshotJson"),
             fidelity=FidelityOutcomeV1.from_dict(data["fidelity"]),
+        )
+
+
+@dataclass(frozen=True)
+class RejectRequestV1:
+    """A strictly decoded request to reject a session's pending plan.
+
+    `plan_id` guards against rejecting a plan the caller no longer knows
+    about: docs/master_plan.md item 8's `pending_approval` refuses a
+    mismatched id without touching the thread
+    (`pmc_agent.session.RequestGraphSession.reject`).
+    """
+
+    request_id: str
+    session_id: str
+    plan_id: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+            "planId": self.plan_id,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> RejectRequestV1:
+        """Decode and validate a V1 reject request.
+
+        Args:
+            value: JSON-like value containing a reject request.
+
+        Returns:
+            The validated reject request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="RejectRequestV1",
+            required={"protocolVersion", "requestId", "sessionId", "planId"},
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
+            plan_id=_uuid4(data["planId"], name="planId"),
+        )
+
+
+@dataclass(frozen=True)
+class CancelRequestV1:
+    """A strictly decoded request to cancel a session's pending plan.
+
+    Carries no `plan_id`: docs/master_plan.md item 8's resume table gives
+    `/v1/cancel` no plan identifier to match, unlike `/v1/reject`.
+    """
+
+    request_id: str
+    session_id: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> CancelRequestV1:
+        """Decode and validate a V1 cancel request.
+
+        Args:
+            value: JSON-like value containing a cancel request.
+
+        Returns:
+            The validated cancel request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="CancelRequestV1",
+            required={"protocolVersion", "requestId", "sessionId"},
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
         )
 
 
@@ -1447,3 +1564,47 @@ def decode_execution_request_json(value: str) -> ExecutionRequestV1:
     except (ValueError, RecursionError) as error:
         raise ProtocolDecodeError("invalid JSON") from error
     return ExecutionRequestV1.from_dict(decoded)
+
+
+def decode_reject_request_json(value: str) -> RejectRequestV1:
+    """Decode JSON strictly as a V1 reject request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed reject request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    # Same hostile-JSON handling as decode_json: deeply nested arrays raise
+    # RecursionError and an over-long integer literal raises a plain
+    # ValueError, neither of which is ProtocolDecodeError on its own.
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return RejectRequestV1.from_dict(decoded)
+
+
+def decode_cancel_request_json(value: str) -> CancelRequestV1:
+    """Decode JSON strictly as a V1 cancel request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed cancel request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    # Same hostile-JSON handling as decode_json: deeply nested arrays raise
+    # RecursionError and an over-long integer literal raises a plain
+    # ValueError, neither of which is ProtocolDecodeError on its own.
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return CancelRequestV1.from_dict(decoded)

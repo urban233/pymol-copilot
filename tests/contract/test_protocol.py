@@ -1,6 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Contract tests for strict V1 client-server protocol codecs."""
 
+import json
 from dataclasses import replace
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -33,15 +34,19 @@ from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
+from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.protocol import decode_cancel_request_json
 from pmc_core.protocol import decode_execution_error
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_plan
+from pmc_core.protocol import decode_reject_request_json
 from pmc_core.protocol import encode_json
 from pmc_core.protocol import encode_plan
 
@@ -49,6 +54,8 @@ REQUEST_IDS = {
     "requestId": "11111111-1111-4111-8111-111111111111",
     "sessionId": "22222222-2222-4222-8222-222222222222",
 }
+
+PLAN_ID = "33333333-3333-4333-8333-333333333333"
 
 
 def fixture_plan() -> ActionPlan:
@@ -96,12 +103,38 @@ def request() -> PlanRequestV1:
             atom_count=2,
             state_count=1,
         ),
+        snapshot_json="{}",
         fidelity=FidelityOutcomeV1(
             status=FIDELITY_EXACT,
             reason=REASON_OK,
             mismatch_count=0,
             mismatches=(),
         ),
+    )
+
+
+def reject_request() -> RejectRequestV1:
+    """Build the accepted reject-request fixture.
+
+    Returns:
+        The accepted reject request.
+    """
+    return RejectRequestV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
+        plan_id=PLAN_ID,
+    )
+
+
+def cancel_request() -> CancelRequestV1:
+    """Build the accepted cancel-request fixture.
+
+    Returns:
+        The accepted cancel request.
+    """
+    return CancelRequestV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
     )
 
 
@@ -1055,6 +1088,76 @@ def test_request_with_a_full_mismatch_list_stays_well_under_the_transport_cap() 
     encoded = encode_json(full_request).encode("utf-8")
 
     assert len(encoded) < max_message_bytes
+
+
+def test_reject_request_fixture_round_trips_as_strict_json() -> None:
+    """The accepted reject request survives JSON encoding and decoding."""
+    encoded = json.dumps(reject_request().to_dict())
+    assert decode_reject_request_json(encoded) == reject_request()
+
+
+def test_reject_request_rejects_unknown_fields() -> None:
+    """Reject requests with unknown fields are rejected."""
+    payload = reject_request().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        RejectRequestV1.from_dict(payload)
+
+
+@pytest.mark.parametrize("field", ["requestId", "sessionId", "planId"])
+def test_reject_request_rejects_non_v4_identifiers(field: str) -> None:
+    """Reject requests with non-v4 identifiers are rejected.
+
+    Args:
+        field: Identifier field to replace with an invalid value.
+    """
+    payload = reject_request().to_dict()
+    payload[field] = "11111111-1111-3111-8111-111111111111"
+
+    with pytest.raises(ProtocolDecodeError, match="UUIDv4"):
+        RejectRequestV1.from_dict(payload)
+
+
+def test_reject_request_json_rejects_invalid_json() -> None:
+    """Hostile, non-JSON reject request bodies fail closed."""
+    with pytest.raises(ProtocolDecodeError):
+        decode_reject_request_json("{not valid json")
+
+
+def test_cancel_request_fixture_round_trips_as_strict_json() -> None:
+    """The accepted cancel request survives JSON encoding and decoding."""
+    encoded = json.dumps(cancel_request().to_dict())
+    assert decode_cancel_request_json(encoded) == cancel_request()
+
+
+def test_cancel_request_rejects_unknown_fields() -> None:
+    """Cancel requests with unknown fields are rejected."""
+    payload = cancel_request().to_dict()
+    payload["unexpected"] = True
+
+    with pytest.raises(ProtocolDecodeError):
+        CancelRequestV1.from_dict(payload)
+
+
+@pytest.mark.parametrize("field", ["requestId", "sessionId"])
+def test_cancel_request_rejects_non_v4_identifiers(field: str) -> None:
+    """Cancel requests with non-v4 identifiers are rejected.
+
+    Args:
+        field: Identifier field to replace with an invalid value.
+    """
+    payload = cancel_request().to_dict()
+    payload[field] = "11111111-1111-3111-8111-111111111111"
+
+    with pytest.raises(ProtocolDecodeError, match="UUIDv4"):
+        CancelRequestV1.from_dict(payload)
+
+
+def test_cancel_request_json_rejects_invalid_json() -> None:
+    """Hostile, non-JSON cancel request bodies fail closed."""
+    with pytest.raises(ProtocolDecodeError):
+        decode_cancel_request_json("{not valid json")
 
 
 if __name__ == "__main__":
