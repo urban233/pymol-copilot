@@ -185,6 +185,7 @@ py_test(
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
         "//tools/winstage:winstage",
     ],
 )

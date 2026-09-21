@@ -37,8 +37,23 @@ from pmc_core.plan import NameTerm
 from pmc_core.plan import ResiTerm
 from pmc_core.plan import ResnTerm
 from pmc_core.plan import SelectionExpression
+from pmc_core.executor import STATUS_OK
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import ColorOperation
+from pmc_core.plan import HideOperation
+from pmc_core.plan import NamedSelection
+from pmc_core.plan import OrientOperation
+from pmc_core.plan import SelectOperation
+from pmc_core.plan import ShowOperation
+from pmc_core.snapshot import extract
+from pmc_core.snapshot import diff
 from pmc_core.snapshot import reconstruct
+from pmc_core.snapshot import structure_digest
+from pmc_core.snapshot import to_json
+from pmc_data.oracle import UNSUPPORTED_CAMERA_VIEW
+from pmc_data.oracle import apply_plan
 from pmc_data.oracle import selected_serials
+from pmc_sidecar.child import run_plan
 from pmc_data.structures import OBJECT_NAME
 from pmc_data.structures import build_structure
 from pmc_data.structures import enumerate_structures
@@ -252,6 +267,232 @@ def test_every_expression_matches_somewhere() -> None:
     ]
 
     assert never_matched == []
+
+
+#: Plans covering every verb and every target form the language has: a
+#: bare expression target, a named-selection target, several selections
+#: in one plan, and a show/hide pair whose order decides the result.
+_CHAIN_A = _expression(_clause(Factor(ChainTerm("A"))))
+_HETATM = _expression(_clause(Factor(HetatmTerm())))
+_BACKBONE = _expression(
+    _clause(Factor(NameTerm("CA"))), _clause(Factor(NameTerm("N")))
+)
+
+PREDICTABLE_PLANS: tuple[tuple[str, ActionPlan], ...] = (
+    (
+        "select_then_color_named",
+        ActionPlan(
+            operations=(
+                SelectOperation(
+                    selection_name="copilot_target", expression=_CHAIN_A
+                ),
+                ColorOperation(
+                    color="red", target=NamedSelection("copilot_target")
+                ),
+            )
+        ),
+    ),
+    (
+        "color_an_expression_directly",
+        ActionPlan(operations=(ColorOperation(color="blue", target=_HETATM),)),
+    ),
+    (
+        "show_cartoon",
+        ActionPlan(
+            operations=(
+                ShowOperation(representation="cartoon", target=_CHAIN_A),
+            )
+        ),
+    ),
+    (
+        "hide_the_starting_representation",
+        ActionPlan(
+            operations=(HideOperation(representation="lines", target=_CHAIN_A),)
+        ),
+    ),
+    (
+        "show_then_hide_the_same_representation",
+        ActionPlan(
+            operations=(
+                ShowOperation(representation="spheres", target=_BACKBONE),
+                HideOperation(representation="spheres", target=_BACKBONE),
+            )
+        ),
+    ),
+    (
+        "two_selections_and_two_colors",
+        ActionPlan(
+            operations=(
+                SelectOperation(
+                    selection_name="copilot_first", expression=_CHAIN_A
+                ),
+                SelectOperation(
+                    selection_name="copilot_second", expression=_HETATM
+                ),
+                ColorOperation(
+                    color="green", target=NamedSelection("copilot_first")
+                ),
+                ColorOperation(
+                    color="magenta", target=NamedSelection("copilot_second")
+                ),
+                ShowOperation(
+                    representation="sticks",
+                    target=NamedSelection("copilot_first"),
+                ),
+            )
+        ),
+    ),
+    (
+        "color_everything_then_recolor_a_part",
+        ActionPlan(
+            operations=(
+                ColorOperation(
+                    color="white",
+                    target=_expression(
+                        _clause(Factor(HetatmTerm(), negated=True)),
+                        _clause(Factor(HetatmTerm())),
+                    ),
+                ),
+                ColorOperation(color="orange", target=_HETATM),
+            )
+        ),
+    ),
+)
+
+#: The structure the plan predictions run against. Rich enough to have
+#: several chains, hetero atoms, altlocs, insertion codes and two
+#: states, so a prediction has every field kind to get wrong.
+PLAN_SPEC = next(
+    spec
+    for spec in enumerate_structures(SEED)
+    if spec.spec_id == "everything_small"
+)
+
+
+@pytest.fixture
+def reconstructed(real_pymol: Any) -> Iterator[Any]:
+    """Rebuild the plan structure fresh for one test and delete it after.
+
+    Args:
+        real_pymol: The real PyMOL cmd module.
+
+    Yields:
+        The real PyMOL cmd module with the structure reconstructed.
+    """
+    reconstruct(real_pymol, build_structure(PLAN_SPEC))
+    real_pymol.sync()
+    try:
+        yield real_pymol
+    finally:
+        real_pymol.delete(OBJECT_NAME)
+        for name in ("copilot_target", "copilot_first", "copilot_second"):
+            real_pymol.delete(name)
+
+
+@pytest.mark.parametrize(
+    ("label", "plan"),
+    PREDICTABLE_PLANS,
+    ids=[label for label, _ in PREDICTABLE_PLANS],
+)
+def test_predicted_snapshot_matches_extraction(
+    label: str, plan: ActionPlan, reconstructed: Any
+) -> None:
+    """The predicted snapshot must be what extraction actually reports.
+
+    This is the claim the executor's fidelity gate rests on: the
+    oracle's `to_json` hash is handed in as
+    `expected_resulting_fingerprint`, so anything less than byte
+    equality here means every sample in the category is rejected.
+
+    Args:
+        label: The plan's descriptive identity.
+        plan: The typed plan to run.
+        reconstructed: Real PyMOL with the structure already rebuilt.
+    """
+    snapshot = build_structure(PLAN_SPEC)
+    expected = apply_plan(snapshot, plan)
+    assert expected.snapshot is not None, f"{label}: nothing predicted"
+
+    result = run_plan(reconstructed, plan)
+    reconstructed.sync()
+    assert result.status == STATUS_OK, f"{label}: {result.command_outcomes}"
+
+    extracted = extract(reconstructed, OBJECT_NAME)
+
+    assert diff(expected.snapshot, extracted) == [], f"{label}: fields differ"
+    assert to_json(extracted) == to_json(expected.snapshot), (
+        f"{label}: prediction differs from extraction in bytes"
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "plan"),
+    PREDICTABLE_PLANS,
+    ids=[label for label, _ in PREDICTABLE_PLANS],
+)
+def test_predicted_selection_counts_match_real_pymol(
+    label: str, plan: ActionPlan, reconstructed: Any
+) -> None:
+    """Counts are the only assertion available for an unpredictable plan.
+
+    They are also the check that `cmd.count_atoms` counts an atom once
+    rather than once per state, which the oracle assumes when it reads
+    membership off the first state alone.
+
+    Args:
+        label: The plan's descriptive identity.
+        plan: The typed plan to run.
+        reconstructed: Real PyMOL with the structure already rebuilt.
+    """
+    expected = apply_plan(build_structure(PLAN_SPEC), plan)
+
+    result = run_plan(reconstructed, plan)
+    reconstructed.sync()
+    assert result.status == STATUS_OK, f"{label}: {result.command_outcomes}"
+
+    observed = tuple(
+        (name, reconstructed.count_atoms(name))
+        for name, _ in expected.selection_counts
+    )
+
+    assert observed == expected.selection_counts
+
+
+def test_orient_changes_only_the_camera(reconstructed: Any) -> None:
+    """The oracle refuses to predict the view; this says what it may claim.
+
+    `orient` is marked unsupported because PyMOL's view matrix cannot
+    be predicted without reimplementing its principal-axis fit. What
+    can be asserted is the rest: nothing structural moves, and the
+    camera really did.
+
+    Args:
+        reconstructed: Real PyMOL with the structure already rebuilt.
+    """
+    snapshot = build_structure(PLAN_SPEC)
+    plan = ActionPlan(
+        operations=(
+            SelectOperation(
+                selection_name="copilot_target", expression=_CHAIN_A
+            ),
+            OrientOperation(target=NamedSelection("copilot_target")),
+        )
+    )
+    expected = apply_plan(snapshot, plan)
+
+    assert expected.snapshot is None
+    assert UNSUPPORTED_CAMERA_VIEW in expected.unsupported
+
+    result = run_plan(reconstructed, plan)
+    reconstructed.sync()
+    assert result.status == STATUS_OK
+
+    extracted = extract(reconstructed, OBJECT_NAME)
+
+    assert structure_digest(extracted) == structure_digest(snapshot), (
+        "orient changed structural state, not only the camera"
+    )
+    assert extracted.view != snapshot.view, "orient did not move the camera"
 
 
 if __name__ == "__main__":
