@@ -58,7 +58,6 @@ from pmc_agent.prompt import PROMPT_BUILDER
 from pmc_agent.prompt import AttemptFailure
 from pmc_agent.prompt import PromptInputs
 from pmc_agent.prompt import build_default_prompt
-from pmc_core.errors import normalize_message
 from pmc_core.executor import EXECUTOR_VERSION
 from pmc_core.executor import OUTCOME_ERROR
 from pmc_core.executor import REASON_COMMAND_FAILURE
@@ -73,6 +72,7 @@ from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
@@ -142,17 +142,13 @@ MAX_REPAIR_ATTEMPTS = 2
 #: wall clock directly, so a test controls it exactly.
 PLAN_TTL_SECONDS = 300.0
 
-#: `preparing`'s own accepted contract manifest. Every field is the
-#: literal "1" because none of plan.py, policy.py, or snapshot.py defines
-#: its own version constant yet -- this mirrors
-#: `pmc_client.command.CONTRACT_MANIFEST` exactly, the versions the client
-#: itself declares on every request. A future major version in any of
-#: those three modules must update this constant, in this module,
-#: alongside it -- there is nowhere else that decides what this server
-#: accepts.
-ACCEPTED_CONTRACT_MANIFEST = ContractManifestV1(
-    plan_version="1", policy_version="1", snapshot_version="1"
-)
+#: `preparing`'s own accepted contract manifest --
+#: `pmc_core.protocol.CURRENT_CONTRACT_MANIFEST`, the one shared constant
+#: `pmc_client.command.CONTRACT_MANIFEST` also declares on every request,
+#: rather than a second, independently-typed literal that could silently
+#: drift from it. See that constant's own docstring for why every field is
+#: still the literal "1".
+ACCEPTED_CONTRACT_MANIFEST = CURRENT_CONTRACT_MANIFEST
 
 #: `generating`'s own defaults for a bounded completion. Independent of
 #: every other deadline in this repository (`pmc_core.executor`'s,
@@ -447,6 +443,34 @@ def _preparing(state: RequestState) -> dict[str, object]:
     }
 
 
+def _sanitize_question(text: str, *, maximum: int = 200) -> str:
+    """Bound a model's clarification question for safe display.
+
+    Deliberately not `pmc_core.errors.normalize_message`: that pipeline
+    lowercases its input and replaces every quoted span with a fixed
+    redaction marker, both exactly right for a raw PyMOL exception message
+    and exactly wrong for a clarifying question, which routinely quotes the
+    very chain or residue names the user needs to read back
+    (`Did you mean chain "A" or "B"?` must not become
+    `did you mean chain "<redacted>" or "<redacted>"?`). This guarantees
+    only the two properties `question` actually needs downstream: one
+    printable-ASCII line, bounded in length.
+
+    Args:
+        text: The model's raw `ask:` question text.
+        maximum: The greatest number of characters to keep.
+
+    Returns:
+        A single-line, printable-ASCII, length-bounded question.
+    """
+    collapsed = " ".join(text.split())
+    printable = "".join(
+        character if 0x20 <= ord(character) < 0x7F else "?"
+        for character in collapsed
+    )
+    return _bounded(printable, maximum=maximum)
+
+
 def _classify_completion(
     state: RequestState, *, completion: str, model_identity: str, attempt: int
 ) -> dict[str, object]:
@@ -486,7 +510,7 @@ def _classify_completion(
             "attempt": attempt,
             "completion": completion,
             "model_identity": model_identity,
-            "question": normalize_message(question),
+            "question": _sanitize_question(question),
         }
     return {
         "status": STATE_VALIDATING,

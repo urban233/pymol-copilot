@@ -39,6 +39,12 @@ VALID_PML_FORMS = (
     "orient not chain A\n",
     "select copilot_a, chain A\ncolor red, copilot_a\n",
     "select copilot_a, chain A\nshow sticks, copilot_a\norient copilot_a\n",
+    # Regression: pmc_core.plan.MAX_CHAIN_IDENTIFIER allows any 1-4
+    # character chain id, including "if" and "else" -- both must screen
+    # ordinary on their own, unlike the corpus's own "A if True else B"
+    # conditional-expression form, which needs both words present.
+    "orient chain if\n",
+    "orient chain else\n",
 )
 
 #: A small, deliberately unremarkable set of ordinary mistakes a model

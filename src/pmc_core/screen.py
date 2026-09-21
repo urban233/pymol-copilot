@@ -102,13 +102,26 @@ _HOSTILE_CHARACTERS = frozenset(
 #: one at a time, which would leave the next one unnamed here as a gap.
 _CALL_FORM = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\s*\(")
 
-#: Python keywords with no legitimate use in this language: a bare lambda
-#: expression, and the two halves of a conditional expression. Matched as
-#: whole words so a chain or selection name that merely contains one of
-#: these letters in sequence -- there is no such name in the accepted
-#: corpus, but this module does not assume there never will be -- is not
-#: screened as hostile on that basis alone.
-_HOSTILE_KEYWORDS = re.compile(r"\b(?:lambda|if|else)\b")
+#: A bare lambda expression. Matched as a whole word, but with no co-
+#: occurrence condition needed the way `if`/`else` below have one:
+#: `pmc_core.plan.MAX_CHAIN_IDENTIFIER` caps a chain identifier at 4
+#: characters, and no selection-name or verb token is "lambda" either, so
+#: this word cannot appear in this language's own accepted vocabulary at
+#: all.
+_HOSTILE_LAMBDA = re.compile(r"\blambda\b")
+
+#: The two halves of a conditional expression, each matched as a whole
+#: word. Unlike `lambda`, `if` and `else` are individually indistinguishable
+#: from a legitimate chain identifier -- both are within
+#: `pmc_core.plan.MAX_CHAIN_IDENTIFIER`'s 4-character limit and contain only
+#: letters, so `chain if` or `chain else` alone is ordinary, parseable text
+#: for a structure with a chain literally named that. A real conditional
+#: expression needs both halves, so `screen_completion` requires both
+#: keywords present before treating the pair as hostile, catching the
+#: adversarial corpus's own `"... if True else ..."` form without flagging
+#: either word alone.
+_HOSTILE_IF = re.compile(r"\bif\b")
+_HOSTILE_ELSE = re.compile(r"\belse\b")
 
 
 def screen_completion(text: str) -> str:
@@ -126,6 +139,11 @@ def screen_completion(text: str) -> str:
         return SCREEN_HOSTILE
     if _CALL_FORM.search(text) is not None:
         return SCREEN_HOSTILE
-    if _HOSTILE_KEYWORDS.search(text) is not None:
+    if _HOSTILE_LAMBDA.search(text) is not None:
+        return SCREEN_HOSTILE
+    if (
+        _HOSTILE_IF.search(text) is not None
+        and _HOSTILE_ELSE.search(text) is not None
+    ):
         return SCREEN_HOSTILE
     return SCREEN_ORDINARY

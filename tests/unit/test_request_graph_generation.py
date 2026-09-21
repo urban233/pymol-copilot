@@ -262,6 +262,29 @@ def test_an_explicit_ask_line_reaches_ask_with_its_bounded_question() -> None:
     assert result["question"] == "which chain do you mean?"
 
 
+def test_an_ask_questions_case_and_quoted_names_survive_bounding() -> None:
+    """A realistic question is bounded, not mangled like a PyMOL exception.
+
+    Regression: the question path used to run through
+    `pmc_core.errors.normalize_message`, built to sanitize a raw PyMOL
+    exception -- it lowercases its input and replaces every quoted span
+    with a fixed redaction marker, destroying exactly the chain names a
+    clarifying question needs to read back.
+    """
+    engine = FakeEngine(
+        [
+            CompletionResult(
+                'ask: Did you mean chain "A" or "B"?', "m-1", STOP_END
+            )
+        ]
+    )
+
+    result = _run(engine, _state())
+
+    assert result["status"] == TERMINAL_ASK
+    assert result["question"] == 'Did you mean chain "A" or "B"?'
+
+
 @pytest.mark.parametrize(
     "category",
     [

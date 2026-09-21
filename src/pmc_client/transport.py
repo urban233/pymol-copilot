@@ -8,7 +8,7 @@ from http.client import HTTPConnection
 from http.client import HTTPException
 from http.client import HTTPResponse
 
-from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
+from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
@@ -33,12 +33,14 @@ MAX_MESSAGE_BYTES = 64 * 1024
 #: `PlanRequestV1` now carries the full canonical snapshot JSON, not
 #: merely its identity (docs/master_plan.md item 8), so the request side
 #: of this transport needs the same wider bound
-#: `pmc_server.transport.MAX_EXECUTION_REQUEST_BYTES` already enforces --
-#: recomputed here from the same public `pmc_core.executor` constant for
-#: the same dependency-boundary reason `REJECT_PATH` above is redefined.
-#: Every response this transport reads stays bounded at MAX_MESSAGE_BYTES:
-#: no response ever carries a snapshot.
-MAX_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + MAX_MESSAGE_BYTES
+#: `pmc_server.transport`'s own `/v1/plan` handler enforces --
+#: `pmc_core.executor.MAX_EXECUTION_REQUEST_BYTES`, imported directly
+#: rather than recomputed: unlike `REJECT_PATH` above, `pmc_client` already
+#: depends on `pmc_core` for other reasons, so there is no dependency-
+#: boundary reason to keep a second, independently-computed copy of this
+#: one. Every response this transport reads stays bounded at
+#: MAX_MESSAGE_BYTES: no response ever carries a snapshot.
+MAX_REQUEST_BYTES = MAX_EXECUTION_REQUEST_BYTES
 
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
 
@@ -50,11 +52,30 @@ class TransportError(RuntimeError):
     """Raised when the local server transport cannot be trusted."""
 
 
+#: `/v1/plan` now answers synchronously from inside the request graph
+#: (docs/master_plan.md item 8), not a fixture echo: `pmc_server.lifecycle
+#: .RequestGraphLifecycle` can drive up to three full generate-then-validate
+#: attempts (one initial plus two repairs) before the HTTP response is ever
+#: written, each bounded by the graph's own 30-second generation deadline
+#: and 30-second sidecar-validation deadline. `pmc_client` cannot import
+#: those bounds directly (`pmc_agent` is off limits for code running inside
+#: PyMOL's interpreter), so this default is that worst case -- 3 * (30 + 30)
+#: = 180 seconds -- with headroom, computed here rather than left at a
+#: value sized for the old fixture echo. `/v1/reject` and `/v1/cancel`
+#: resume a single already-parked attempt and return far sooner, but share
+#: this same generous bound rather than a second, separately-tuned one.
+DEFAULT_TIMEOUT_SECONDS = 200.0
+
+
 class LoopbackPlanClient:
     """Send one strict V1 plan request to the local loopback server."""
 
     def __init__(
-        self, port: int, credential: str, *, timeout_seconds: float = 5.0
+        self,
+        port: int,
+        credential: str,
+        *,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
         """Configure a finite-timeout client for one server endpoint.
 
@@ -62,6 +83,11 @@ class LoopbackPlanClient:
             port: The server's ephemeral loopback port.
             credential: The ephemeral credential sent as an HTTP header.
             timeout_seconds: The finite request and response timeout.
+                Defaults to a bound above the request graph's own worst-case
+                generate-then-validate duration; a caller talking to a
+                server it knows answers faster (or that has no request
+                graph behind it at all, as in a transport-only test) may
+                still pass a smaller value.
 
         Raises:
             ValueError: If an argument cannot form a bounded local connection.

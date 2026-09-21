@@ -263,6 +263,20 @@ class ContractManifestV1:
         )
 
 
+#: The one contract manifest this system currently agrees on, everywhere a
+#: version needs stating: `pmc_client.command` declares it on every
+#: request, and `pmc_agent.graph` fails closed on anything else. A single
+#: shared constant rather than one independently-typed literal per side,
+#: since neither `pmc_core.plan`, `pmc_core.policy`, nor `pmc_core.snapshot`
+#: defines its own version constant yet -- every field is the literal "1"
+#: for that reason alone. A future major version in any of those three
+#: modules must update this constant, here, alongside it; there is nowhere
+#: else that decides what this system accepts.
+CURRENT_CONTRACT_MANIFEST = ContractManifestV1(
+    plan_version="1", policy_version="1", snapshot_version="1"
+)
+
+
 @dataclass(frozen=True)
 class StructureSnapshotV1:
     """A computed structure-snapshot identity: no snapshot bytes travel here.

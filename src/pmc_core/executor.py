@@ -93,6 +93,20 @@ EXECUTOR_VERSION = 1
 #: .pml text.
 DEFAULT_MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
 
+#: The transport-level body cap for any request carrying a full canonical
+#: snapshot document rather than merely its identity: `/v1/validate`
+#: (docs/master_plan.md item 4) and, since item 8, `/v1/plan`. In the worst
+#: case each byte of the canonical inner document needs one extra escape
+#: byte once embedded as a JSON string, with 64 KiB of headroom left for
+#: the surrounding request envelope. A single shared constant rather than
+#: one independently-recomputed copy per side of the loopback boundary
+#: (`pmc_server.transport`, which enforces it, and `pmc_client.transport`,
+#: which sizes its own request check against the same bound) -- both
+#: already import `DEFAULT_MAX_SNAPSHOT_BYTES` from this module, so this is
+#: the one place a future change to either number takes effect everywhere
+#: at once.
+MAX_EXECUTION_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + 64 * 1024
+
 #: The default wall-clock deadline, in seconds, for the whole spawned child
 #: process.
 DEFAULT_DEADLINE_SECONDS = 30.0

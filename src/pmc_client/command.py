@@ -43,9 +43,9 @@ from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
 from pmc_core.executor import probe_fidelity
+from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
-from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
@@ -53,12 +53,12 @@ from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.snapshot import to_json
 
-#: The contract versions this client declares on every request. A single
-#: fixed constant because neither plan.py, policy.py, nor snapshot.py
-#: defines its own version yet -- mirrors
-#: `pmc_agent.graph.ACCEPTED_CONTRACT_MANIFEST` exactly, which is what the
-#: server actually checks a request against.
-CONTRACT_MANIFEST = ContractManifestV1("1", "1", "1")
+#: The contract versions this client declares on every request --
+#: `pmc_core.protocol.CURRENT_CONTRACT_MANIFEST`, the one shared constant
+#: `pmc_agent.graph.ACCEPTED_CONTRACT_MANIFEST` also checks a request
+#: against, rather than a second, independently-typed literal that could
+#: silently drift from it.
+CONTRACT_MANIFEST = CURRENT_CONTRACT_MANIFEST
 
 #: The literal a plan id is displayed and re-entered with, so a console
 #: user can copy the exact `copilot_apply <id>` line `copilot` prints.

@@ -10,7 +10,7 @@ from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from threading import Thread
 
-from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
+from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
@@ -43,11 +43,11 @@ CANCEL_PATH = "/v1/cancel"
 VALIDATE_PATH = "/v1/validate"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
-#: `/v1/validate` carries a snapshot JSON document inside a JSON string. In
-#: the worst case each byte of the canonical inner document needs one extra
-#: escape byte, with the ordinary 64 KiB budget left for the action-plan
-#: envelope. Responses stay on the shared 64 KiB bound.
-MAX_EXECUTION_REQUEST_BYTES = 2 * DEFAULT_MAX_SNAPSHOT_BYTES + MAX_MESSAGE_BYTES
+#: `/v1/validate` and (since docs/master_plan.md item 8) `/v1/plan` both
+#: carry a snapshot JSON document rather than merely its identity;
+#: `pmc_core.executor.MAX_EXECUTION_REQUEST_BYTES` is the one shared bound
+#: for both, and for `pmc_client.transport`'s own matching request-side
+#: check. Responses stay on this module's own 64 KiB `MAX_MESSAGE_BYTES`.
 REQUEST_TIMEOUT_SECONDS = 5.0
 
 LOGGER = logging.getLogger(__name__)
