@@ -16,7 +16,9 @@ one exact request shape and answers with one module-level constant:
 
 ```python
 FIXTURE_INTENT = "Select chain A and color it red."
-FIXTURE_PLAN = ActionPlan(operations=(SelectOperation(...), ColorOperation(...)))
+FIXTURE_PLAN = ActionPlan(
+    operations=(SelectOperation(...), ColorOperation(...))
+)
 ```
 
 It never calls a model, never spawns a sidecar, holds no per-session state,
