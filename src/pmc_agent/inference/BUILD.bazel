@@ -6,6 +6,7 @@ py_library(
         "__init__.py",
         "base.py",
         "fake.py",
+        "lemonade.py",
     ],
     imports = ["../.."],
     deps = [
