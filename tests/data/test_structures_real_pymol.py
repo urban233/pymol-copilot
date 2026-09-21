@@ -18,15 +18,19 @@ the corpus.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import functools
+
 import pytest
 
 from pmc_core.executor import EXECUTOR_VERSION
 from pmc_core.executor import STATUS_OK
+from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
 from pmc_core.executor import probe_fidelity
 from pmc_core.snapshot import diff
 from pmc_core.snapshot import from_json
 from pmc_core.snapshot import to_json
+from pmc_data.structures import StructureSpec
 from pmc_data.structures import build_structure
 from pmc_data.structures import enumerate_structures
 
@@ -35,6 +39,29 @@ from pmc_data.structures import enumerate_structures
 SEED = 20260921
 
 STRUCTURE_SPECS = enumerate_structures(SEED)
+
+
+@functools.lru_cache(maxsize=None)
+def _probe(spec: StructureSpec) -> FidelityReport:
+    """Reconstruct one structure in real PyMOL, once per spec.
+
+    Each call spawns a real `pmc_sidecar.fidelity` child, so the two
+    assertions below share one probe rather than paying for the same
+    PyMOL process twice. A StructureSpec is a frozen dataclass of
+    plain scalars, so it is a sound cache key.
+
+    Args:
+        spec: The structure spec to probe.
+
+    Returns:
+        The fidelity report for that structure.
+    """
+    return probe_fidelity(
+        FidelityRequest(
+            executor_version=EXECUTOR_VERSION,
+            snapshot_json=to_json(build_structure(spec)),
+        )
+    )
 
 
 @pytest.mark.parametrize(
@@ -47,12 +74,7 @@ def test_every_structure_is_a_reconstruction_fixed_point(spec: object) -> None:
         spec: The structure spec under test.
     """
     built = build_structure(spec)  # pyrefly: ignore.
-    report = probe_fidelity(
-        FidelityRequest(
-            executor_version=EXECUTOR_VERSION,
-            snapshot_json=to_json(built),
-        )
-    )
+    report = _probe(spec)
 
     assert report.status == STATUS_OK, (
         f"{spec.spec_id}: fidelity probe failed: "  # pyrefly: ignore.
@@ -86,12 +108,7 @@ def test_reconstruction_is_byte_identical_not_merely_equivalent(
         spec: The structure spec under test.
     """
     built = build_structure(spec)  # pyrefly: ignore.
-    report = probe_fidelity(
-        FidelityRequest(
-            executor_version=EXECUTOR_VERSION,
-            snapshot_json=to_json(built),
-        )
-    )
+    report = _probe(spec)
 
     assert report.reconstructed_snapshot_json is not None
     assert to_json(from_json(report.reconstructed_snapshot_json)) == to_json(

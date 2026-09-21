@@ -101,7 +101,12 @@ def main() -> int:
 
     body = "".join(f'        "{name}": {index},\n' for name, index in pairs)
     destination = pathlib.Path(workspace) / TABLE_RELATIVE_PATH
-    destination.write_text(_HEADER + body + _FOOTER, encoding="utf-8")
+    # Fixed newline, not the platform's: default text mode writes CRLF
+    # on Windows, which would leave `git status` dirty after a
+    # regeneration that changed nothing.
+    destination.write_text(
+        _HEADER + body + _FOOTER, encoding="utf-8", newline="\n"
+    )
     print(f"WROTE {destination} ({len(pairs)} colors)")
     return 0
 

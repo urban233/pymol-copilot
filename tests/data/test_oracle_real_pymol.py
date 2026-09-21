@@ -425,10 +425,23 @@ def test_predicted_snapshot_matches_extraction(
     )
 
 
+#: Only the plans that actually name a selection. A plan whose target
+#: is a bare expression predicts no counts at all, so running it here
+#: would compare two empty tuples and pay for a real reconstruction to
+#: do it.
+COUNTED_PLANS: tuple[tuple[str, ActionPlan], ...] = tuple(
+    (label, plan)
+    for label, plan in PREDICTABLE_PLANS
+    if any(
+        isinstance(operation, SelectOperation) for operation in plan.operations
+    )
+)
+
+
 @pytest.mark.parametrize(
     ("label", "plan"),
-    PREDICTABLE_PLANS,
-    ids=[label for label, _ in PREDICTABLE_PLANS],
+    COUNTED_PLANS,
+    ids=[label for label, _ in COUNTED_PLANS],
 )
 def test_predicted_selection_counts_match_real_pymol(
     label: str, plan: ActionPlan, reconstructed: Any
@@ -445,6 +458,7 @@ def test_predicted_selection_counts_match_real_pymol(
         reconstructed: Real PyMOL with the structure already rebuilt.
     """
     expected = apply_plan(build_structure(PLAN_SPEC), plan)
+    assert expected.selection_counts, f"{label}: nothing to count"
 
     result = run_plan(reconstructed, plan)
     reconstructed.sync()
