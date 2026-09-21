@@ -209,8 +209,9 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 The week 1 note below is now more specific:
 
 - **Hannah → Martin: settled.** Item 4 was the one hand-off blocking the
-  entire data and model half, and it merged as PR #33. Martin's items 14 and
-  16 now wait only on his own item 13.
+  entire data and model half, and it merged as PR #33. Item 13 is now merged
+  too, so Martin's item 14 is ready; item 16 still waits on items 9, 14, and
+  15.
 - **Martin → Hannah: settled.** Items 2 and 6 are both delivered, so Hannah's
   items 8 and 11 are no longer waiting on anything of Martin's.
 - **Martin → Hannah, delivered:** item 13 emits the grammar item 9's engine
@@ -403,7 +404,7 @@ hetero atoms.
 
 ### 8. LangGraph request graph
 
-**Size:** ~4 days · **State:** ready — blocks 9, 10, 11, 12
+**Size:** ~4 days · **State:** in progress — blocks 9, 10, 11, 12
 
 ```
 Build the request graph in src/pmc_agent/ using LangGraph. States: received,
