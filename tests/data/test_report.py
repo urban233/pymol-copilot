@@ -20,15 +20,16 @@ from pathlib import Path
 
 import pytest
 
-from pmc_data.generate import REASON_NOT_GRADABLE
+from pmc_data.sample import REASON_NOT_GRADABLE
 from pmc_data.generate import REASON_SELECTION_COUNT_MISMATCH
-from pmc_data.generate import STATUS_UNSUPPORTED
-from pmc_data.generate import Rejection
+from pmc_data.sample import STATUS_UNSUPPORTED
+from pmc_data.sample import Rejection
 from pmc_data.report import build_report
 from pmc_data.report import render_table
 from pmc_data.report import write_rejections
 from pmc_data.report import write_report
 from pmc_data.sample import ASSERTION_COMMANDS_SUCCEEDED
+from pmc_data.sample import FINGERPRINT_PREFIX
 from pmc_data.sample import Assertion
 from pmc_data.sample import PINNED_PYMOL_VERSION
 from pmc_data.sample import Sample
@@ -48,12 +49,22 @@ SPEC = next(
 )
 
 
-def _sample(category: str, *, unsupported: tuple[str, ...] = ()) -> Sample:
+def _sample(
+    category: str,
+    *,
+    unsupported: tuple[str, ...] = (),
+    no_change: bool = False,
+    empty_selection: bool = False,
+) -> Sample:
     """Build a kept sample in one category.
 
     Args:
         category: The category to record.
         unsupported: Assertion markers the sample could not evaluate.
+        no_change: Whether the predicted result equals the structure
+            the plan started from, which is recorded as a fingerprint
+            over the very bytes the structure identity already hashes.
+        empty_selection: Whether to record a selection matching no atom.
 
     Returns:
         The assembled sample.
@@ -90,9 +101,13 @@ def _sample(category: str, *, unsupported: tuple[str, ...] = ()) -> Sample:
         verification=VerificationRecord(
             status="ok",
             reason="ok",
-            expected_fingerprint=None,
+            expected_fingerprint=FINGERPRINT_PREFIX + "a" * 64
+            if no_change
+            else None,
             resulting_fingerprint=None,
-            selection_counts=(),
+            selection_counts=(("copilot_sel0001", 0),)
+            if empty_selection
+            else (),
             command_verbs=("color",),
         ),
     )
@@ -271,6 +286,82 @@ def test_every_rejection_is_written_not_just_summarized(
         "child_crash",
         REASON_NOT_GRADABLE,
     ]
+
+
+def test_a_sample_that_predicts_no_change_is_counted_apart() -> None:
+    """A rate of 0% over such samples is not evidence the oracle is right.
+
+    The plan ran, the two sides agreed, and the sample is genuinely
+    kept -- but what they agreed on is that the structure was
+    unchanged, which any oracle at all would have predicted correctly
+    by saying nothing ever happens.
+    """
+    report = build_report(
+        [_sample("a"), _sample("a", no_change=True)],
+        [],
+        seed=SEED,
+    )
+
+    category = report.categories[0]
+    assert category.kept == 2
+    assert category.no_op == 1
+    assert category.vacuous == 1
+    assert category.substantive == 1
+    assert report.no_op == 1
+    assert report.substantive == 1
+
+
+def test_a_sample_that_grades_an_empty_selection_is_counted_apart() -> None:
+    """An expected count of zero is met by zero however it was computed."""
+    report = build_report(
+        [_sample("a", empty_selection=True), _sample("a")],
+        [],
+        seed=SEED,
+    )
+
+    category = report.categories[0]
+    assert category.empty_selection == 1
+    assert category.no_op == 0
+    assert category.vacuous == 1
+    assert category.substantive == 1
+
+
+def test_a_sample_that_is_vacuous_twice_over_is_counted_once() -> None:
+    """`vacuous` is the union of the two, not their sum.
+
+    Summing them would let a category report more vacuous samples than
+    it kept, and `substantive` would go negative.
+    """
+    report = build_report(
+        [_sample("a", no_change=True, empty_selection=True)],
+        [],
+        seed=SEED,
+    )
+
+    category = report.categories[0]
+    assert category.no_op == 1
+    assert category.empty_selection == 1
+    assert category.vacuous == 1
+    assert category.substantive == 0
+
+
+def test_a_report_says_when_its_run_did_not_finish() -> None:
+    """Partial counts read as a whole run unless the report says otherwise.
+
+    A run that dies partway still writes what it measured, which is
+    worth far more than nothing after hours of spawned PyMOL
+    processes -- but only if nobody mistakes it for the whole corpus.
+    """
+    whole = build_report([_sample("a")], [], seed=SEED)
+    partial = build_report([_sample("a")], [], seed=SEED, complete=False)
+
+    assert whole.complete is True
+    assert whole.to_dict()["complete"] is True
+    assert "INCOMPLETE" not in render_table(whole)
+
+    assert partial.complete is False
+    assert partial.to_dict()["complete"] is False
+    assert "INCOMPLETE" in render_table(partial)
 
 
 def test_the_table_totals_match_the_report() -> None:

@@ -37,10 +37,10 @@ from pmc_core.executor import ExecutionRequest
 from pmc_core.executor import SelectionCount
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
-from pmc_data.generate import REASON_NOT_GRADABLE
+from pmc_data.sample import REASON_NOT_GRADABLE
 from pmc_data.generate import REASON_SELECTION_COUNT_MISMATCH
-from pmc_data.generate import STATUS_UNSUPPORTED
-from pmc_data.generate import Rejection
+from pmc_data.sample import STATUS_UNSUPPORTED
+from pmc_data.sample import Rejection
 from pmc_data.generate import verify_sample
 from pmc_data.oracle import apply_plan
 from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT

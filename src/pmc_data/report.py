@@ -3,7 +3,7 @@
 
 Item 14 asks for the rejection rate per category, reported honestly,
 with any category the oracle cannot grade marked unsupported rather
-than guessed. Three rules follow, and they are what this module exists
+than guessed. Four rules follow, and they are what this module exists
 to enforce rather than leave to whoever reads the numbers:
 
 - **An unsupported category is not a failure.** A plan naming the
@@ -16,10 +16,25 @@ to enforce rather than leave to whoever reads the numbers:
 - **A rate over no gradable attempts is None, not zero.** Zero would
   read as "nothing went wrong" for a category where nothing was ever
   measured.
+- **A sample that could not have failed is counted apart from one that
+  could.** A plan that predicts no observable change, or that grades a
+  selection matching no atom, is met by the same result whatever the
+  oracle computed. It is still a kept sample -- the two sides did
+  agree -- but a rejection rate of 0% over a category made mostly of
+  those says far less than the same rate over a category where every
+  sample predicted something specific. The counts are reported so a
+  reader can tell the two apart instead of having to trust that they
+  are the same.
 
 Every rejection keeps the reason the executor actually gave, so a
 fidelity mismatch -- real PyMOL disagreeing with the oracle -- stays
 distinguishable from a plan PyMOL refused to run.
+
+Nothing here imports the execution stack. Aggregating a run's outcome
+is arithmetic over records, so this module reaches for
+`pmc_data.sample` and no further: a module that only counts has no
+business pulling in the executor, the sidecar protocol and the prompt
+builder in order to name the outcome of a run it never performed.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -32,8 +47,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from pmc_data.generate import STATUS_UNSUPPORTED
-from pmc_data.generate import Rejection
+from pmc_data.sample import STATUS_UNSUPPORTED
+from pmc_data.sample import Rejection
 from pmc_data.sample import Sample
 
 
@@ -48,6 +63,11 @@ class CategoryReport:
         rejected: Attempts that were gradable and failed.
         unsupported: Attempts the oracle could not grade at all.
         rejected_by_reason: How many rejections carried each reason.
+            Counts the `rejected` column only, so its values sum to
+            `rejected` rather than to `rejected + unsupported`. An
+            ungradable attempt is not a rejection under any reason;
+            it is counted in `unsupported`, and `rejections.jsonl`
+            still records it individually with its own reason.
         unsupported_assertions: Assertions that kept samples in this
             category could not evaluate, and how often. A kept sample
             can still carry one of these -- an oriented plan is
@@ -55,6 +75,12 @@ class CategoryReport:
             made at all.
         rejection_rate: rejected / (kept + rejected), or None when no
             attempt in this category was gradable.
+        no_op: Kept samples whose predicted result is byte-identical to
+            the structure they started from.
+        empty_selection: Kept samples that graded a selection matching
+            no atom.
+        vacuous: Kept samples that are either of the two above. Their
+            union, not their sum: one sample can be both.
     """
 
     category: str
@@ -65,6 +91,22 @@ class CategoryReport:
     rejected_by_reason: Mapping[str, int]
     unsupported_assertions: Mapping[str, int]
     rejection_rate: float | None
+    no_op: int
+    empty_selection: int
+    vacuous: int
+
+    @property
+    def substantive(self) -> int:
+        """Kept samples that predicted something that could have failed.
+
+        This is the denominator a reader should have in mind for
+        `rejection_rate`: a category whose kept samples are all vacuous
+        would report a 0% rejection rate having tested nothing.
+
+        Returns:
+            Kept samples less the vacuous ones.
+        """
+        return self.kept - self.vacuous
 
     def to_dict(self) -> dict[str, Any]:
         """Render this category's counts as a JSON-safe mapping.
@@ -81,6 +123,10 @@ class CategoryReport:
             "rejected_by_reason": dict(self.rejected_by_reason),
             "unsupported_assertions": dict(self.unsupported_assertions),
             "rejection_rate": self.rejection_rate,
+            "no_op": self.no_op,
+            "empty_selection": self.empty_selection,
+            "vacuous": self.vacuous,
+            "substantive": self.substantive,
         }
 
 
@@ -95,6 +141,12 @@ class CorpusReport:
         rejected: Gradable attempts that failed.
         unsupported: Attempts no assertion could be made about.
         rejection_rate: rejected / (kept + rejected), or None.
+        no_op: Kept samples predicting no observable change.
+        empty_selection: Kept samples grading an empty selection.
+        vacuous: The union of the two above.
+        complete: Whether every planned attempt was actually made. A
+            run that died partway still writes what it had, and a
+            report that did not say so would be read as a whole run.
         categories: Per-category counts, ordered by category name.
     """
 
@@ -104,7 +156,20 @@ class CorpusReport:
     rejected: int
     unsupported: int
     rejection_rate: float | None
+    no_op: int
+    empty_selection: int
+    vacuous: int
+    complete: bool
     categories: tuple[CategoryReport, ...]
+
+    @property
+    def substantive(self) -> int:
+        """Kept samples that predicted something that could have failed.
+
+        Returns:
+            Kept samples less the vacuous ones.
+        """
+        return self.kept - self.vacuous
 
     def to_dict(self) -> dict[str, Any]:
         """Render the whole report as a JSON-safe mapping.
@@ -119,6 +184,11 @@ class CorpusReport:
             "rejected": self.rejected,
             "unsupported": self.unsupported,
             "rejection_rate": self.rejection_rate,
+            "no_op": self.no_op,
+            "empty_selection": self.empty_selection,
+            "vacuous": self.vacuous,
+            "substantive": self.substantive,
+            "complete": self.complete,
             "categories": [category.to_dict() for category in self.categories],
         }
 
@@ -145,6 +215,7 @@ def build_report(
     rejections: Iterable[Rejection],
     *,
     seed: int,
+    complete: bool = True,
 ) -> CorpusReport:
     """Aggregate one run's samples and rejections into a report.
 
@@ -152,6 +223,8 @@ def build_report(
         samples: The verified samples.
         rejections: Every attempt that did not become a sample.
         seed: The seed the run used.
+        complete: Whether every planned attempt was made. False when a
+            run is reporting what it salvaged after failing partway.
 
     Returns:
         The assembled report.
@@ -159,19 +232,28 @@ def build_report(
     kept: Counter[str] = Counter()
     rejected: Counter[str] = Counter()
     unsupported: Counter[str] = Counter()
+    no_op: Counter[str] = Counter()
+    empty_selection: Counter[str] = Counter()
+    vacuous: Counter[str] = Counter()
     reasons: dict[str, Counter[str]] = {}
     markers: dict[str, Counter[str]] = {}
 
     for sample in samples:
         kept[sample.category] += 1
+        if sample.predicted_no_change:
+            no_op[sample.category] += 1
+        if sample.graded_empty_selection:
+            empty_selection[sample.category] += 1
+        if sample.predicted_no_change or sample.graded_empty_selection:
+            vacuous[sample.category] += 1
         for marker in sample.unsupported_assertions:
             markers.setdefault(sample.category, Counter())[marker] += 1
 
     for rejection in rejections:
         if rejection.status == STATUS_UNSUPPORTED:
             unsupported[rejection.category] += 1
-        else:
-            rejected[rejection.category] += 1
+            continue
+        rejected[rejection.category] += 1
         reasons.setdefault(rejection.category, Counter())[rejection.reason] += 1
 
     categories = sorted(set(kept) | set(rejected) | set(unsupported))
@@ -191,6 +273,9 @@ def build_report(
                 sorted(markers.get(category, Counter()).items())
             ),
             rejection_rate=_rate(kept[category], rejected[category]),
+            no_op=no_op[category],
+            empty_selection=empty_selection[category],
+            vacuous=vacuous[category],
         )
         for category in categories
     )
@@ -205,6 +290,10 @@ def build_report(
         rejected=total_rejected,
         unsupported=total_unsupported,
         rejection_rate=_rate(total_kept, total_rejected),
+        no_op=sum(no_op.values()),
+        empty_selection=sum(empty_selection.values()),
+        vacuous=sum(vacuous.values()),
+        complete=complete,
         categories=per_category,
     )
 
@@ -215,13 +304,18 @@ def render_table(report: CorpusReport) -> str:
     Args:
         report: The report to render.
 
+    The vacuous and substantive columns exist so the rate beside them
+    can be read at its real weight: a 0% rate over a category with no
+    substantive samples means nothing was tested, not that nothing
+    went wrong.
+
     Returns:
         The table text, ending in a newline.
     """
     lines = [
         f"{'category':<44} {'att':>6} {'kept':>6} {'rej':>6} "
-        f"{'unsup':>6} {'rate':>7}",
-        "-" * 79,
+        f"{'unsup':>6} {'vac':>6} {'subst':>6} {'rate':>7}",
+        "-" * 92,
     ]
     for category in report.categories:
         rate = (
@@ -232,23 +326,35 @@ def render_table(report: CorpusReport) -> str:
         lines.append(
             f"{category.category:<44} {category.attempted:>6} "
             f"{category.kept:>6} {category.rejected:>6} "
-            f"{category.unsupported:>6} {rate:>7}"
+            f"{category.unsupported:>6} {category.vacuous:>6} "
+            f"{category.substantive:>6} {rate:>7}"
         )
     overall = (
         "n/a"
         if report.rejection_rate is None
         else f"{report.rejection_rate:.1%}"
     )
-    lines.append("-" * 79)
+    lines.append("-" * 92)
     lines.append(
         f"{'TOTAL':<44} {report.attempted:>6} {report.kept:>6} "
-        f"{report.rejected:>6} {report.unsupported:>6} {overall:>7}"
+        f"{report.rejected:>6} {report.unsupported:>6} "
+        f"{report.vacuous:>6} {report.substantive:>6} {overall:>7}"
     )
+    if not report.complete:
+        lines.append(
+            "INCOMPLETE: the run failed partway; these counts describe "
+            "only the attempts that finished."
+        )
     return "\n".join(lines) + "\n"
 
 
 def write_report(path: Path, report: CorpusReport) -> None:
     """Write a report as deterministic JSON.
+
+    The newline is fixed rather than left to the platform, for the
+    same reason `pmc_data.sample.write_samples` fixes it: default text
+    mode would emit CRLF on Windows and a report regenerated from the
+    same seed would no longer be byte-identical.
 
     Args:
         path: The file to write.
@@ -257,6 +363,7 @@ def write_report(path: Path, report: CorpusReport) -> None:
     path.write_text(
         json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -271,7 +378,7 @@ def write_rejections(path: Path, rejections: Iterable[Rejection]) -> int:
         How many rejections were written.
     """
     written = 0
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
         for rejection in rejections:
             handle.write(
                 json.dumps(

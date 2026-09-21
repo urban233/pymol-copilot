@@ -67,6 +67,21 @@ SUPPORTED_ASSERTION_KINDS = frozenset(
     )
 )
 
+#: The prefix every snapshot fingerprint carries, as `pmc_sidecar.child`
+#: writes it. Named here rather than spelled twice, because comparing a
+#: recorded fingerprint against a recorded snapshot hash -- which is how
+#: `Sample.predicted_no_change` works -- depends on the two agreeing.
+FINGERPRINT_PREFIX = "sha256:"
+
+#: The status recorded when the oracle cannot grade a category at all,
+#: as distinct from a plan that was graded and failed. These are
+#: reported separately, because an unsupported category is not evidence
+#: of anything going wrong.
+STATUS_UNSUPPORTED = "unsupported"
+
+#: The reason recorded alongside it.
+REASON_NOT_GRADABLE = "not_gradable"
+
 
 class InvalidSampleError(ValueError):
     """Raised when a sample record is incomplete or self-contradictory.
@@ -111,6 +126,27 @@ def _required_int(data: Mapping[str, Any], key: str) -> int:
     value = data.get(key)
     if isinstance(value, bool) or not isinstance(value, int):
         raise InvalidSampleError(f"field {key!r} must be an integer")
+    return value
+
+
+def _optional_string(data: Mapping[str, Any], key: str) -> str | None:
+    """Read a field that is either a string or explicitly absent.
+
+    Args:
+        data: The raw mapping being decoded.
+        key: The field name.
+
+    Returns:
+        The field's string value, or None when it is null or absent.
+
+    Raises:
+        InvalidSampleError: If the field is present and not a string.
+    """
+    value = data.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise InvalidSampleError(f"field {key!r} must be a string or null")
     return value
 
 
@@ -424,15 +460,35 @@ class VerificationRecord:
             raise InvalidSampleError(
                 "selection_counts and command_verbs must both be lists"
             )
+        if not all(isinstance(verb, str) for verb in verbs):
+            raise InvalidSampleError("every command verb must be a string")
+        pairs: list[tuple[str, int]] = []
+        for entry in counts:
+            # Read rather than coerced: str()/int() would quietly turn a
+            # malformed record into a well-formed-looking one, and a
+            # decoded count is evidence about how many atoms a selection
+            # actually held.
+            if (
+                not isinstance(entry, list | tuple)
+                or len(entry) != 2
+                or not isinstance(entry[0], str)
+                or isinstance(entry[1], bool)
+                or not isinstance(entry[1], int)
+            ):
+                raise InvalidSampleError(
+                    f"selection_counts entry is not a (name, count) pair: "
+                    f"{entry!r}"
+                )
+            pairs.append((entry[0], entry[1]))
         return VerificationRecord(
             status=_required_string(data, "status"),
             reason=_required_string(data, "reason"),
-            expected_fingerprint=data.get("expected_fingerprint"),
-            resulting_fingerprint=data.get("resulting_fingerprint"),
-            selection_counts=tuple(
-                (str(name), int(count)) for name, count in counts
+            expected_fingerprint=_optional_string(data, "expected_fingerprint"),
+            resulting_fingerprint=_optional_string(
+                data, "resulting_fingerprint"
             ),
-            command_verbs=tuple(str(verb) for verb in verbs),
+            selection_counts=tuple(pairs),
+            command_verbs=tuple(verbs),
         )
 
 
@@ -483,6 +539,49 @@ class Sample:
                 "evaluated assertion"
             )
 
+    @property
+    def predicted_no_change(self) -> bool:
+        """Whether the fidelity gate compared the structure to itself.
+
+        A plan can be legal, run cleanly and change nothing observable
+        -- hiding a representation no atom is shown in is the common
+        case. The sample is then real evidence that the oracle and
+        PyMOL agree the state is unchanged, but it cannot distinguish a
+        correct oracle from one that predicts "nothing happened" for
+        everything. So it is a *weaker* sample than one whose predicted
+        snapshot actually differs, and `pmc_data.report` counts it in
+        its own column rather than letting it inflate a rejection rate
+        computed over both kinds together.
+
+        Derived rather than stored: both values are already recorded,
+        so this holds for every corpus ever written, including ones
+        generated before the distinction was drawn.
+
+        Returns:
+            True when the predicted resulting snapshot is byte-identical
+            to the input structure's.
+        """
+        if self.verification.expected_fingerprint is None:
+            return False
+        return self.verification.expected_fingerprint == (
+            FINGERPRINT_PREFIX + self.structure.snapshot_sha256
+        )
+
+    @property
+    def graded_empty_selection(self) -> bool:
+        """Whether a selection this sample graded matched no atom.
+
+        An expected count of zero is met by an actual count of zero
+        whatever the oracle did, so such a sample is weak for the same
+        reason `predicted_no_change` is, and is counted the same way.
+
+        Returns:
+            True when any recorded selection count is zero.
+        """
+        return any(
+            count == 0 for _, count in self.verification.selection_counts
+        )
+
     def to_dict(self) -> dict[str, Any]:
         """Render this sample as a JSON-safe mapping.
 
@@ -526,12 +625,20 @@ class Sample:
                 "missing required non-empty field: 'assertions'"
             )
         raw_unsupported = data.get("unsupported_assertions")
-        if not isinstance(raw_unsupported, list):
+        if not isinstance(raw_unsupported, list) or not all(
+            isinstance(marker, str) for marker in raw_unsupported
+        ):
             raise InvalidSampleError(
                 "missing required field: 'unsupported_assertions'"
             )
         raw_plan_json = data.get("plan_json")
-        if not isinstance(raw_plan_json, list) or not raw_plan_json:
+        if (
+            not isinstance(raw_plan_json, list)
+            or not raw_plan_json
+            or not all(
+                isinstance(command, Mapping) for command in raw_plan_json
+            )
+        ):
             raise InvalidSampleError(
                 "missing required non-empty field: 'plan_json'"
             )
@@ -552,11 +659,42 @@ class Sample:
             assertions=tuple(
                 Assertion.from_dict(entry) for entry in raw_assertions
             ),
-            unsupported_assertions=tuple(str(x) for x in raw_unsupported),
+            unsupported_assertions=tuple(raw_unsupported),
             verification=VerificationRecord.from_dict(
                 _required_mapping(data, "verification")
             ),
         )
+
+
+@dataclass(frozen=True)
+class Rejection:
+    """One attempted sample that was not verified, and why.
+
+    A rejection is recorded, never repaired and never silently
+    dropped: the per-category rejection rate is only honest if every
+    attempt is accounted for.
+
+    It lives beside `Sample` rather than beside the code that produces
+    it, because what consumes it -- `pmc_data.report` -- aggregates the
+    two together and has no business importing the execution stack to
+    name the outcome of a run it never performs.
+
+    Attributes:
+        sample_id: The identity the sample would have had.
+        category: The taxonomy category that was attempted.
+        difficulty: The difficulty label that was attempted.
+        status: The executor's status, or "unsupported" when the
+            oracle could not grade the category at all.
+        reason: The executor's reason code, or the oracle's reason.
+        detail: What actually went wrong, for a reader to audit.
+    """
+
+    sample_id: str
+    category: str
+    difficulty: str
+    status: str
+    reason: str
+    detail: str
 
 
 def to_json_line(sample: Sample) -> str:
@@ -577,6 +715,11 @@ def to_json_line(sample: Sample) -> str:
 def write_samples(path: Path, samples: Iterable[Sample]) -> int:
     """Write samples to a JSONL file, one per line.
 
+    The newline is fixed rather than left to the platform: the default
+    text mode translates "\\n" to "\\r\\n" on Windows, which would make a
+    corpus regenerated from the same seed differ in bytes from the one
+    it is meant to reproduce.
+
     Args:
         path: The file to write.
         samples: The samples to write, in order.
@@ -585,7 +728,7 @@ def write_samples(path: Path, samples: Iterable[Sample]) -> int:
         How many samples were written.
     """
     written = 0
-    with path.open("w", encoding="utf-8") as handle:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
         for sample in samples:
             handle.write(to_json_line(sample) + "\n")
             written += 1

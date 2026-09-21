@@ -50,7 +50,11 @@ from pmc_data.oracle import expected_chain_atom_ids
 from pmc_data.sample import ASSERTION_COMMANDS_SUCCEEDED
 from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
 from pmc_data.sample import ASSERTION_SELECTION_COUNTS
+from pmc_data.sample import FINGERPRINT_PREFIX
+from pmc_data.sample import REASON_NOT_GRADABLE
+from pmc_data.sample import STATUS_UNSUPPORTED
 from pmc_data.sample import Assertion as SampleAssertion
+from pmc_data.sample import Rejection
 from pmc_data.sample import Sample
 from pmc_data.sample import StructureIdentity
 from pmc_data.sample import VerificationRecord
@@ -377,41 +381,6 @@ def load_generation_requests(
 type EXECUTOR = Callable[[ExecutionRequest], ExecutionReport]
 
 
-@dataclass(frozen=True)
-class Rejection:
-    """One attempted sample that was not verified, and why.
-
-    A rejection is recorded, never repaired and never silently
-    dropped: the per-category rejection rate is only honest if every
-    attempt is accounted for.
-
-    Attributes:
-        sample_id: The identity the sample would have had.
-        category: The taxonomy category that was attempted.
-        difficulty: The difficulty label that was attempted.
-        status: The executor's status, or "unsupported" when the
-            oracle could not grade the category at all.
-        reason: The executor's reason code, or the oracle's reason.
-        detail: What actually went wrong, for a reader to audit.
-    """
-
-    sample_id: str
-    category: str
-    difficulty: str
-    status: str
-    reason: str
-    detail: str
-
-
-#: The status recorded when the oracle cannot grade a category at all,
-#: as distinct from a plan that was graded and failed. These are
-#: reported separately, because an unsupported category is not evidence
-#: of anything going wrong.
-STATUS_UNSUPPORTED = "unsupported"
-
-#: The reason recorded alongside it.
-REASON_NOT_GRADABLE = "not_gradable"
-
 #: The reason recorded when a run was clean but the oracle's predicted
 #: selection counts and the executor's observed ones disagree.
 REASON_SELECTION_COUNT_MISMATCH = "selection_count_mismatch"
@@ -430,7 +399,7 @@ def _fingerprint_of(snapshot: ObjectSnapshot) -> str:
         The fingerprint text.
     """
     return (
-        "sha256:"
+        FINGERPRINT_PREFIX
         + hashlib.sha256(to_json(snapshot).encode("utf-8")).hexdigest()
     )
 
@@ -485,6 +454,7 @@ def verify_sample(
         )
 
     snapshot_json = to_json(snapshot)
+    input_digest = structure_digest(snapshot)
     fingerprint = (
         None
         if expected.snapshot is None
@@ -497,7 +467,7 @@ def verify_sample(
             executor_version=EXECUTOR_VERSION,
             plan=candidate.plan,
             snapshot_json=snapshot_json,
-            expected_snapshot_digest=structure_digest(snapshot),
+            expected_snapshot_digest=input_digest,
             expected_resulting_fingerprint=fingerprint,
             deadline_seconds=deadline_seconds,
         )
@@ -569,7 +539,7 @@ def verify_sample(
             snapshot_sha256=hashlib.sha256(
                 snapshot_json.encode("utf-8")
             ).hexdigest(),
-            structure_digest=structure_digest(snapshot),
+            structure_digest=input_digest,
         ),
         versions=current_versions(
             card_version=prompt.card_version,

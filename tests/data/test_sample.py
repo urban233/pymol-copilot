@@ -18,6 +18,7 @@ import pytest
 
 from pmc_data.sample import ASSERTION_COMMANDS_SUCCEEDED
 from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
+from pmc_data.sample import FINGERPRINT_PREFIX
 from pmc_data.sample import Assertion
 from pmc_data.sample import InvalidSampleError
 from pmc_data.sample import PINNED_PYMOL_VERSION
@@ -212,6 +213,65 @@ def test_a_recorded_spec_rebuilds_the_structure_it_names() -> None:
     rebuilt = build_structure(StructureSpec.from_dict(recorded.spec))
 
     assert structure_digest(rebuilt) == structure_digest(build_structure(SPEC))
+
+
+def test_a_sample_knows_when_it_predicted_no_change() -> None:
+    """Both halves of the comparison are already recorded on the sample.
+
+    Deriving this rather than storing a flag is what lets a corpus
+    written before the distinction existed be measured for it.
+    """
+    unchanged = _sample(
+        verification=VerificationRecord(
+            status="ok",
+            reason="ok",
+            # The same bytes the structure identity hashes, so the
+            # oracle predicted the structure it was handed.
+            expected_fingerprint=FINGERPRINT_PREFIX + "a" * 64,
+            resulting_fingerprint=FINGERPRINT_PREFIX + "a" * 64,
+            selection_counts=(),
+            command_verbs=("hide",),
+        )
+    )
+
+    assert unchanged.structure.snapshot_sha256 == "a" * 64
+    assert unchanged.predicted_no_change is True
+    assert _sample().predicted_no_change is False
+
+
+def test_a_sample_with_no_predicted_snapshot_did_not_predict_no_change() -> (
+    None
+):
+    """An absent prediction is not a prediction that nothing happened."""
+    unpredicted = _sample(
+        verification=VerificationRecord(
+            status="ok",
+            reason="ok",
+            expected_fingerprint=None,
+            resulting_fingerprint=None,
+            selection_counts=(("copilot_a", 28),),
+            command_verbs=("orient",),
+        )
+    )
+
+    assert unpredicted.predicted_no_change is False
+
+
+def test_a_sample_knows_when_it_graded_an_empty_selection() -> None:
+    """A zero expected count is met by zero whatever the oracle did."""
+    empty = _sample(
+        verification=VerificationRecord(
+            status="ok",
+            reason="ok",
+            expected_fingerprint="sha256:x",
+            resulting_fingerprint="sha256:x",
+            selection_counts=(("copilot_a", 28), ("copilot_b", 0)),
+            command_verbs=("select", "select"),
+        )
+    )
+
+    assert empty.graded_empty_selection is True
+    assert _sample().graded_empty_selection is False
 
 
 if __name__ == "__main__":

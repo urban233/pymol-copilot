@@ -34,6 +34,13 @@ more Python, so they are settled against real headless PyMOL:
 | `test_generate_sample_real_pymol.py` | End-to-end generation through the production execution boundary. |
 | `test_conformance_real_pymol.py` | The committed slice still verifies against today's contracts. |
 
+The committed slice is two files, not one. `samples.jsonl` holds what
+verified; `rejections.jsonl` holds the one deliberately ungradable
+attempt, which can never appear in the first because it is not a
+sample. A slice carrying only the samples would be evidence that the
+happy path still works and no evidence at all that the pipeline still
+refuses to grade what it cannot.
+
 ## Findings worth knowing before changing any of this
 
 Each cost a failing run to discover, and each is load-bearing.
@@ -70,3 +77,32 @@ One further limitation is documented rather than fixed: a structure is
 reconstructed from pseudoatoms and has no secondary structure, so
 `show cartoon` sets a representation bit while nothing renders. The
 snapshot records the bit, and the bit is what is graded.
+
+## A kept sample that could not have failed
+
+A plan can be legal, run cleanly, agree with the oracle, and still
+establish almost nothing -- because what the two sides agreed on was
+that nothing happened. Hiding a representation no atom is shown in,
+showing one they all already carry, coloring atoms the colour they
+already are, or grading a selection that matches no atom are all of
+this kind: the fidelity gate ends up comparing the structure against
+itself, which an oracle that predicted "nothing ever changes" would
+also pass.
+
+This was not caught by reading the code. It was found by measuring a
+generated corpus: at one point 88% of the `hide` category and 22% of
+the whole corpus were of this kind, and the 0% rejection rate for
+`hide` was therefore measuring almost nothing. Two defences now stand:
+
+- `tests/data/test_taxonomy.py` asserts that no enumerated expression
+  matches nothing, and that the only plans predicting no observable
+  change are the one deliberate inert `hide` per structure and the
+  deliberately unobservable representations, which carry their own
+  marker.
+- `pmc_data.report` counts such samples per category in `no_op`,
+  `empty_selection` and `vacuous`, alongside a `substantive` count.
+  Deriving them from fields every sample already records means an
+  older corpus can be measured for this too, without regenerating it.
+
+Both are needed. The first keeps the corpus honest; the second keeps
+it honest about itself if the first is ever weakened.

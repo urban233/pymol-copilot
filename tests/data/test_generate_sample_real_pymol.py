@@ -26,7 +26,7 @@ import sys
 import pytest
 
 from pmc_core.executor import REASON_OK
-from pmc_data.generate import Rejection
+from pmc_data.sample import Rejection
 from pmc_data.generate import verify_sample
 from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
 from pmc_data.sample import Sample
