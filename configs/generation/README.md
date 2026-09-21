@@ -1,17 +1,36 @@
 # Generation configuration
 
-This directory is owned by model-data generation. Issue #1 defined no
-configuration schema or behavior for it; task M-01 (issue #8) introduces the
-first one below, bounded by that task's containment: no teacher access, no
-curation, no production execution path -- see
-`docs/codev/wave/pymol-copilot.md`'s M-01 entry.
+This directory is owned by model-data generation.
+
+## `corpus.json`
+
+The standing configuration for the generalized dataset run (master
+plan item 14), consumed by `pmc_data.corpus_cli`:
+
+```
+bazel run //src/pmc_data:corpus_cli -- --workers 8
+```
+
+It declares the `seed` every structure, plan and sample identity
+derives from, and the `samples_target` the run is budgeted to. When
+the target is below the number of enumerated plans, the subset is
+chosen stratified across categories rather than truncated, so a
+budget never silently drops a whole category.
+
+Both can be overridden on the command line with `--seed` and
+`--target`. `--slice` instead regenerates the small committed
+conformance slice under `src/pmc_data/conformance/`.
 
 ## `chain_a_red_structures.json`
 
-Declares generation requests consumed by `pmc_data.generate`. Each entry
-reapplies the one accepted canonical plan (`select copilot_selection, chain
-A` / `color red, copilot_selection`) to a different controlled structure and
-is verified through `pmc_data.verifier.verify_gold_case` before it may ever
-be written as a gold record -- see `pmc_data/generate.py` for the schema and
-`tests/data/test_generate_real_pymol.py` for the real-PyMOL conformance
-evidence.
+The original single-fixture pipeline (issue #8). Each entry reapplies
+the one accepted canonical plan (`select copilot_selection, chain A` /
+`color red, copilot_selection`) to a different controlled structure and
+is verified through `pmc_data.verifier.verify_gold_case` before it may
+ever be written as a gold record -- see `pmc_data/generate.py` for the
+schema and `tests/data/test_generate_real_pymol.py` for the real-PyMOL
+conformance evidence.
+
+It is kept as it was. The generalized pipeline adds a `Sample` record
+beside `GoldCase` rather than replacing it, so the two hand-authored
+gold records keep their fixed-plan drift guard.
