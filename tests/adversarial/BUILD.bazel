@@ -57,11 +57,27 @@ py_test(
     ],
 )
 
+py_test(
+    name = "model_authority",
+    size = "small",
+    srcs = ["test_model_authority.py"],
+    main = "test_model_authority.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)
+
 test_suite(
     name = "all",
     tests = [
         ":denied_forms",
         ":hostile_screen",
+        ":model_authority",
         ":parser_rejections",
         ":parser_totality",
     ],
