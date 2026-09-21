@@ -21,6 +21,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from collections.abc import Callable
+
+from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
+from pmc_core.executor import EXECUTOR_VERSION
+from pmc_core.executor import OUTCOME_ERROR
+from pmc_core.executor import REASON_OK
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import execute
+from pmc_core.prompt import build_for_data
+from pmc_core.protocol import encode_plan
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import structure_digest
+from pmc_core.snapshot import to_json
 from pmc_data.gold_case import ASSERTION_KIND_CHAIN_MEMBERSHIP
 from pmc_data.gold_case import ASSERTION_KIND_COLOR_STATE
 from pmc_data.gold_case import ASSERTION_KIND_NO_UNINTENDED_CHANGE
@@ -31,7 +45,19 @@ from pmc_data.gold_case import GoldCase
 from pmc_data.gold_case import InvalidGoldCaseError
 from pmc_data.gold_case import Provenance
 from pmc_data.gold_case import required_string
+from pmc_data.oracle import apply_plan
 from pmc_data.oracle import expected_chain_atom_ids
+from pmc_data.sample import ASSERTION_COMMANDS_SUCCEEDED
+from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
+from pmc_data.sample import ASSERTION_SELECTION_COUNTS
+from pmc_data.sample import Assertion as SampleAssertion
+from pmc_data.sample import Sample
+from pmc_data.sample import SampleVersions  # noqa: F401  # re-exported for callers.
+from pmc_data.sample import StructureIdentity
+from pmc_data.sample import VerificationRecord
+from pmc_data.sample import current_versions
+from pmc_data.structures import StructureSpec
+from pmc_data.taxonomy import PlanCandidate
 from pmc_data.verifier import PyMOLCmd
 from pmc_data.verifier import VerifierResult
 from pmc_data.verifier import verify_gold_case
@@ -343,4 +369,225 @@ def load_generation_requests(
     return tuple(
         _request_from_dict(entry, repo_root=repo_root)
         for entry in data["requests"]
+    )
+
+
+#: The type of the execution seam verify_sample() drives. Injectable so
+#: a hermetic test can prove the promotion guard without spawning real
+#: PyMOL -- the same shape pmc_server.validation already uses.
+type EXECUTOR = Callable[[ExecutionRequest], ExecutionReport]
+
+
+@dataclass(frozen=True)
+class Rejection:
+    """One attempted sample that was not verified, and why.
+
+    A rejection is recorded, never repaired and never silently
+    dropped: the per-category rejection rate is only honest if every
+    attempt is accounted for.
+
+    Attributes:
+        sample_id: The identity the sample would have had.
+        category: The taxonomy category that was attempted.
+        difficulty: The difficulty label that was attempted.
+        status: The executor's status, or "unsupported" when the
+            oracle could not grade the category at all.
+        reason: The executor's reason code, or the oracle's reason.
+        detail: What actually went wrong, for a reader to audit.
+    """
+
+    sample_id: str
+    category: str
+    difficulty: str
+    status: str
+    reason: str
+    detail: str
+
+
+#: The status recorded when the oracle cannot grade a category at all,
+#: as distinct from a plan that was graded and failed. These are
+#: reported separately, because an unsupported category is not evidence
+#: of anything going wrong.
+STATUS_UNSUPPORTED = "unsupported"
+
+#: The reason recorded alongside it.
+REASON_NOT_GRADABLE = "not_gradable"
+
+#: The reason recorded when a run was clean but the oracle's predicted
+#: selection counts and the executor's observed ones disagree.
+REASON_SELECTION_COUNT_MISMATCH = "selection_count_mismatch"
+
+
+def _fingerprint_of(snapshot: ObjectSnapshot) -> str:
+    """Compute the fingerprint the executor compares a run against.
+
+    Must match `pmc_sidecar.child` exactly: "sha256:" followed by the
+    hex digest of the canonical snapshot JSON's UTF-8 bytes.
+
+    Args:
+        snapshot: The predicted resulting snapshot.
+
+    Returns:
+        The fingerprint text.
+    """
+    return (
+        "sha256:"
+        + hashlib.sha256(to_json(snapshot).encode("utf-8")).hexdigest()
+    )
+
+
+def verify_sample(
+    snapshot: ObjectSnapshot,
+    spec: StructureSpec,
+    candidate: PlanCandidate,
+    *,
+    sample_id: str,
+    executor: EXECUTOR = execute,
+    deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
+) -> Sample | Rejection:
+    """Generate one sample and keep it only if every assertion passes.
+
+    The oracle predicts the whole resulting snapshot first, and its
+    fingerprint is handed to the executor as
+    `expected_resulting_fingerprint`. The boundary then fails the run
+    closed with `REASON_FIDELITY_MISMATCH` if real PyMOL disagrees, so
+    the verdict is the executor's own, computed against an expectation
+    it did not produce.
+
+    A plan the oracle cannot predict a snapshot for -- one that
+    orients -- passes no fingerprint and is graded on its selection
+    counts instead, recording `camera_view` as unsupported. A plan the
+    oracle cannot grade at all is not a sample and is returned as a
+    rejection with status `unsupported`, so it appears in the report
+    rather than vanishing.
+
+    Args:
+        snapshot: The controlled structure to run against.
+        spec: The spec that structure was built from.
+        candidate: The plan, category, difficulty and intent.
+        sample_id: The identity to record.
+        executor: The execution seam to drive.
+        deadline_seconds: Wall-clock deadline for the child process.
+
+    Returns:
+        The verified Sample, or the Rejection explaining why not.
+    """
+    expected = apply_plan(snapshot, candidate.plan)
+    if expected.snapshot is None and not expected.selection_counts:
+        # Nothing about the result can be checked. "The command ran" is
+        # not verification, so this is reported rather than promoted.
+        return Rejection(
+            sample_id=sample_id,
+            category=candidate.category,
+            difficulty=candidate.difficulty,
+            status=STATUS_UNSUPPORTED,
+            reason=REASON_NOT_GRADABLE,
+            detail=f"unsupported: {', '.join(expected.unsupported)}",
+        )
+
+    snapshot_json = to_json(snapshot)
+    fingerprint = (
+        None
+        if expected.snapshot is None
+        else _fingerprint_of(expected.snapshot)
+    )
+    prompt = build_for_data(snapshot, candidate.intent)
+
+    report = executor(
+        ExecutionRequest(
+            executor_version=EXECUTOR_VERSION,
+            plan=candidate.plan,
+            snapshot_json=snapshot_json,
+            expected_snapshot_digest=structure_digest(snapshot),
+            expected_resulting_fingerprint=fingerprint,
+            deadline_seconds=deadline_seconds,
+        )
+    )
+
+    observed_counts = tuple(
+        (count.name, count.atom_count) for count in report.selection_counts
+    )
+    if report.reason != REASON_OK:
+        failing = [
+            f"#{outcome.index} {outcome.verb}: {outcome.error}"
+            for outcome in report.command_outcomes
+            if outcome.status == OUTCOME_ERROR
+        ]
+        return Rejection(
+            sample_id=sample_id,
+            category=candidate.category,
+            difficulty=candidate.difficulty,
+            status=report.status,
+            reason=report.reason,
+            detail="; ".join(failing) or report.reason,
+        )
+    if observed_counts != expected.selection_counts:
+        # The boundary reported success, but the counts it observed are
+        # not the ones the oracle predicted. Never repaired: a
+        # disagreement is the finding, not a thing to paper over.
+        return Rejection(
+            sample_id=sample_id,
+            category=candidate.category,
+            difficulty=candidate.difficulty,
+            status=report.status,
+            reason=REASON_SELECTION_COUNT_MISMATCH,
+            detail=(
+                f"predicted={expected.selection_counts} "
+                f"observed={observed_counts}"
+            ),
+        )
+
+    assertions: list[SampleAssertion] = []
+    if fingerprint is not None:
+        assertions.append(
+            SampleAssertion(
+                kind=ASSERTION_RESULTING_SNAPSHOT, detail=fingerprint
+            )
+        )
+    if expected.selection_counts:
+        assertions.append(
+            SampleAssertion(
+                kind=ASSERTION_SELECTION_COUNTS,
+                detail=str(list(expected.selection_counts)),
+            )
+        )
+    assertions.append(
+        SampleAssertion(
+            kind=ASSERTION_COMMANDS_SUCCEEDED,
+            detail=f"{len(report.command_outcomes)} commands",
+        )
+    )
+
+    return Sample(
+        sample_id=sample_id,
+        intent=candidate.intent,
+        category=candidate.category,
+        difficulty=candidate.difficulty,
+        structure=StructureIdentity(
+            spec_id=spec.spec_id,
+            seed=spec.seed,
+            snapshot_sha256=hashlib.sha256(
+                snapshot_json.encode("utf-8")
+            ).hexdigest(),
+            structure_digest=structure_digest(snapshot),
+        ),
+        versions=current_versions(
+            card_version=prompt.card_version,
+            prompt_version=prompt.prompt_version,
+        ),
+        plan_pml=candidate.plan.render_pml(),
+        plan_json=tuple(encode_plan(candidate.plan)),
+        prompt_text=prompt.text(),
+        assertions=tuple(assertions),
+        unsupported_assertions=expected.unsupported,
+        verification=VerificationRecord(
+            status=report.status,
+            reason=report.reason,
+            expected_fingerprint=fingerprint,
+            resulting_fingerprint=report.resulting_fingerprint,
+            selection_counts=observed_counts,
+            command_verbs=tuple(
+                outcome.verb for outcome in report.command_outcomes
+            ),
+        ),
     )

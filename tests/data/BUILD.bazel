@@ -214,3 +214,34 @@ py_test(
         "//src/pmc_data:pmc_data",
     ],
 )
+
+py_test(
+    name = "generate_sample",
+    size = "small",
+    srcs = ["test_generate_sample.py"],
+    main = "test_generate_sample.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# End-to-end generation through the production execution boundary: each
+# sample spawns a real pmc_sidecar.child process running real headless
+# PyMOL, so this is excluded from concurrent scheduling like every other
+# real-PyMOL target here.
+py_test(
+    name = "generate_sample_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_generate_sample_real_pymol.py"],
+    main = "test_generate_sample_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
