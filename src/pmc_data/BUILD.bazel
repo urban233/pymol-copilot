@@ -5,6 +5,7 @@ py_library(
     name = "pmc_data",
     srcs = [
         "__init__.py",
+        "colors.py",
         "generate.py",
         "gold_case.py",
         "oracle.py",

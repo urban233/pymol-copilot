@@ -34,6 +34,7 @@ import winstage
 
 from pmc_core.plan import COLOR_ALLOWLIST
 from pmc_core.plan import REPRESENTATION_ALLOWLIST
+from pmc_data.colors import COLOR_INDEX_BY_NAME
 
 
 @pytest.fixture(scope="module")
@@ -123,6 +124,33 @@ def test_every_allowlisted_representation_is_accepted_by_show(
             rejected.append(representation)
 
     assert rejected == []
+
+
+def test_frozen_color_indices_match_real_pymol(
+    real_pymol: Any,
+) -> None:
+    """The dataset oracle predicts colour as the index PyMOL records.
+
+    pmc_data.colors freezes the name-to-index mapping so the oracle can
+    predict an AtomRecord.color without importing PyMOL. A drifted index
+    would not fail loudly: it would make every generated colour sample
+    mismatch at the executor's fidelity gate and be rejected, which
+    looks like a broken oracle rather than a stale table.
+
+    Args:
+        real_pymol: The real PyMOL cmd module.
+    """
+    drifted = [
+        (name, index, real_pymol.get_color_index(name))
+        for name, index in COLOR_INDEX_BY_NAME.items()
+        if real_pymol.get_color_index(name) != index
+    ]
+
+    assert drifted == [], (
+        "pmc_data.colors has drifted from the PyMOL it was generated "
+        "against; regenerate it with "
+        "bazel run //tests/integration:capture_color_indices"
+    )
 
 
 def test_the_allowlists_hold_no_duplicates() -> None:

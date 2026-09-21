@@ -1,6 +1,18 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "colors",
+    size = "small",
+    srcs = ["test_colors.py"],
+    main = "test_colors.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
     name = "gold_case",
     size = "small",
     srcs = ["test_gold_case.py"],
