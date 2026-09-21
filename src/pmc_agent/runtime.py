@@ -4,8 +4,6 @@
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from typing import TypedDict
-
-import httpx
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -52,15 +50,3 @@ def build_intent_graph() -> (
     graph.set_finish_point("pass_through")
     return graph.compile()
 
-
-def build_engine_client(base_url: str, timeout: float) -> httpx.Client:
-    """Configure an `httpx.Client` for the local Lemonade endpoint.
-
-    Args:
-        base_url: The Lemonade engine's local base URL.
-        timeout: The finite request timeout, in seconds.
-
-    Returns:
-        A configured client. No request is sent.
-    """
-    return httpx.Client(base_url=base_url, timeout=timeout)
