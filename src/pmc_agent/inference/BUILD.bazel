@@ -8,5 +8,9 @@ py_library(
         "fake.py",
     ],
     imports = ["../.."],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "@pypi//httpx",
+    ],
     visibility = ["//src:subsystems", "//src:tests"],
 )
