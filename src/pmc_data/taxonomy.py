@@ -5,14 +5,27 @@ This module turns one controlled structure into the plans the corpus is
 generated from, each labelled with a category, a difficulty and a
 templated natural-language intent.
 
-Two properties matter more than breadth. **Categories are derived from
-the plan's own shape** -- its verbs, its term kinds and its boolean
-composition -- rather than hand-labelled at the call site, so the
-per-category rejection report cannot drift from what was actually
-generated. And **terms are instantiated from the structure's real
+Three properties matter more than breadth. **Categories are derived
+from the plan's own shape** -- its verbs, its term kinds and its
+boolean composition -- rather than hand-labelled at the call site, so
+the per-category rejection report cannot drift from what was actually
+generated. **Terms are instantiated from the structure's real
 content**: a plan selects a chain the structure has and a residue name
 it carries, so an empty result means the oracle and PyMOL disagree
 rather than that the plan asked for something absent.
+
+And **a plan is aimed at something it can actually change**. Both of
+the other two properties can hold while the plan still predicts a
+result byte-identical to the structure it started from, and such a
+plan is graded by comparing the structure against itself -- which any
+oracle at all would pass. Two ways in were found by measuring a
+generated corpus rather than by reading the code: an expression whose
+composition matches nothing though each of its terms matches something
+(`not chain A` where A is the only chain), and a `show` or `hide` of a
+representation the selected atoms respectively already are or are not
+shown in. Both are closed here. One deliberate no-op `hide` per
+structure survives, because the form is legal and worth learning, and
+`pmc_data.report` counts it in its own column.
 
 Intents are templated from the plan, not written by a teacher model.
 Item 14 is program-first for each verb, and teacher back-translation
@@ -53,6 +66,9 @@ from pmc_core.plan import OPERATION
 from pmc_core.plan import REPRESENTATION_ALLOWLIST
 from pmc_core.snapshot import MOLECULE_REP_NAMES
 from pmc_core.snapshot import ObjectSnapshot
+from pmc_data.colors import COLOR_INDEX_BY_NAME
+from pmc_data.oracle import UnsupportedAssertionError
+from pmc_data.oracle import selected_serials
 
 #: Difficulty labels, assigned from the plan's own shape.
 DIFFICULTY_BASIC = "basic"
@@ -72,6 +88,13 @@ _REPRESENTATIONS_PER_EXPRESSION = 3
 #: state they are unsupported rather than leave them missing.
 UNOBSERVABLE_REPRESENTATIONS = tuple(
     name for name in REPRESENTATION_ALLOWLIST if name not in MOLECULE_REP_NAMES
+)
+
+#: The representations that are both legal to emit and visible in a
+#: snapshot, so showing or hiding one is something the fidelity gate
+#: can actually check.
+OBSERVABLE_REPRESENTATIONS = tuple(
+    name for name in REPRESENTATION_ALLOWLIST if name in MOLECULE_REP_NAMES
 )
 
 
@@ -101,20 +124,12 @@ def _terms_of(plan: ActionPlan) -> tuple[TERM, ...]:
     Returns:
         The terms, including repeats.
     """
-    terms: list[TERM] = []
-    for operation in plan.operations:
-        expression: SelectionExpression | None = None
-        if isinstance(operation, SelectOperation):
-            expression = operation.expression
-        elif isinstance(
-            getattr(operation, "target", None), SelectionExpression
-        ):
-            expression = operation.target  # pyrefly: ignore.
-        if expression is None:
-            continue
-        for clause in expression.clauses:
-            terms.extend(factor.term for factor in clause.factors)
-    return tuple(terms)
+    return tuple(
+        factor.term
+        for expression in _expressions_of(plan)
+        for clause in expression.clauses
+        for factor in clause.factors
+    )
 
 
 def _expressions_of(plan: ActionPlan) -> tuple[SelectionExpression, ...]:
@@ -347,6 +362,129 @@ def _structure_terms(snapshot: ObjectSnapshot) -> dict[str, list[TERM]]:
     return drawn
 
 
+def _selects_something(
+    snapshot: ObjectSnapshot, expression: SelectionExpression
+) -> bool:
+    """Whether an expression matches at least one atom of a structure.
+
+    This is the guard `_structure_terms` describes but cannot enforce
+    on its own: drawing every term from the structure keeps a *term*
+    from matching nothing, while a composition of matching terms can
+    still match nothing -- `not chain A` on a structure whose only
+    chain is A is the case that actually occurred.
+
+    The oracle is asked here, and the oracle is also what predicts the
+    result the sample is graded on. That is not circular, because the
+    grading itself is still done by real PyMOL: if the oracle were
+    wrong about what an expression matches, the selection counts would
+    disagree and the attempt would be rejected. All this decides is
+    which plans are worth attempting.
+
+    Args:
+        snapshot: The structure to evaluate against.
+        expression: The expression to test.
+
+    Returns:
+        True when at least one atom matches, and for an expression the
+        oracle cannot evaluate at all. Those are generated on purpose
+        so the report can state the category is unsupported; they never
+        reach the executor, so they cannot grade vacuously.
+    """
+    try:
+        return bool(selected_serials(snapshot, expression))
+    except UnsupportedAssertionError:
+        return True
+
+
+def _negation_selects_something(snapshot: ObjectSnapshot, term: TERM) -> bool:
+    """Whether negating one term still leaves atoms selected.
+
+    Args:
+        snapshot: The structure to evaluate against.
+        term: The term to negate.
+
+    Returns:
+        True when `not <term>` matches at least one atom.
+    """
+    return _selects_something(
+        snapshot,
+        SelectionExpression(
+            clauses=(AndClause(factors=(Factor(term, negated=True),)),)
+        ),
+    )
+
+
+def _carried_representations(
+    snapshot: ObjectSnapshot, expression: SelectionExpression
+) -> tuple[str, ...]:
+    """Report which representations an expression's atoms are shown in.
+
+    Showing a representation the atoms already carry, or hiding one
+    they do not, leaves the snapshot byte-identical. The plan is legal
+    and runs cleanly, but the fidelity gate then compares the
+    structure against itself, which any oracle at all would pass. Plan
+    enumeration uses this to aim `show` and `hide` at representations
+    where the two verbs actually do something.
+
+    Args:
+        snapshot: The structure to read.
+        expression: The expression whose atoms to inspect.
+
+    Returns:
+        The observable representations at least one selected atom is
+        currently shown in, in allowlist order. Empty for an
+        expression the oracle cannot evaluate.
+    """
+    try:
+        serials = selected_serials(snapshot, expression)
+    except UnsupportedAssertionError:
+        return ()
+    carried = {
+        rep
+        for atom in snapshot.states[0].atoms
+        if atom.serial in serials
+        for rep in atom.reps
+    }
+    return tuple(name for name in OBSERVABLE_REPRESENTATIONS if name in carried)
+
+
+def _redundant_colors(
+    snapshot: ObjectSnapshot, expression: SelectionExpression
+) -> frozenset[str]:
+    """Report the colors that would leave an expression's atoms alone.
+
+    Coloring a selection the color every one of its atoms already is
+    changes nothing, for the same reason hiding an absent
+    representation changes nothing. Excluded by index rather than by
+    name, since two accepted names can share one PyMOL index and only
+    the index reaches the snapshot.
+
+    Args:
+        snapshot: The structure to read.
+        expression: The expression whose atoms to inspect.
+
+    Returns:
+        The color names that would be a no-op here. Empty when the
+        selected atoms do not all share one color, and for an
+        expression the oracle cannot evaluate.
+    """
+    try:
+        serials = selected_serials(snapshot, expression)
+    except UnsupportedAssertionError:
+        return frozenset()
+    present = {
+        atom.color
+        for atom in snapshot.states[0].atoms
+        if atom.serial in serials
+    }
+    if len(present) != 1:
+        return frozenset()
+    current = present.pop()
+    return frozenset(
+        name for name in COLOR_ALLOWLIST if COLOR_INDEX_BY_NAME[name] == current
+    )
+
+
 def _candidate_expressions(
     snapshot: ObjectSnapshot, rng: random.Random
 ) -> tuple[SelectionExpression, ...]:
@@ -355,6 +493,10 @@ def _candidate_expressions(
     Covers each term kind on its own, a negation, an intersection, a
     union, and a union of intersections -- every shape the language can
     express, since it has no parentheses.
+
+    An expression that matches no atom of this structure is dropped,
+    whatever shape it has: it would be graded against an equally empty
+    actual result and pass regardless of what the oracle computed.
 
     Args:
         snapshot: The structure to draw terms from.
@@ -383,7 +525,24 @@ def _candidate_expressions(
     names = drawn["name"]
     hetatm = drawn.get("hetatm")
 
-    add(AndClause(factors=(Factor(rng.choice(chains), negated=True),)))
+    # A negated chain reads best, but `not chain A` matches nothing on
+    # a single-chain structure -- and an empty selection agrees with
+    # any oracle at all. Half the controlled structures have one chain,
+    # so fall back to negating a residue or atom name there rather than
+    # spending the negation shape on a selection that cannot fail.
+    for group in (chains, resns, names):
+        negatable = [
+            term
+            for term in group
+            if _negation_selects_something(snapshot, term)
+        ]
+        if negatable:
+            add(
+                AndClause(
+                    factors=(Factor(rng.choice(negatable), negated=True),)
+                )
+            )
+            break
     if hetatm:
         add(AndClause(factors=(Factor(hetatm[0], negated=True),)))
         add(
@@ -409,6 +568,8 @@ def _candidate_expressions(
 
     unique: dict[str, SelectionExpression] = {}
     for expression in expressions:
+        if not _selects_something(snapshot, expression):
+            continue
         unique.setdefault(expression.render(), expression)
     return tuple(unique.values())
 
@@ -464,9 +625,6 @@ def enumerate_plans(
     # two-selection plan shape below always has two genuinely different
     # selections to name rather than the same one twice.
     partners = expressions[1:] + expressions[:1]
-    observable = [
-        name for name in REPRESENTATION_ALLOWLIST if name in MOLECULE_REP_NAMES
-    ]
     candidates: list[PlanCandidate] = []
     index = 0
     # Its own cycle, stepping by exactly one per expression: the plan
@@ -474,11 +632,37 @@ def enumerate_plans(
     # only ever reach half of these four.
     unobservable_cycle = itertools.cycle(UNOBSERVABLE_REPRESENTATIONS)
 
-    for expression, partner in zip(expressions, partners, strict=True):
+    for position, (expression, partner) in enumerate(
+        zip(expressions, partners, strict=True)
+    ):
         described = describe_expression(expression)
         partner_described = describe_expression(partner)
-        colors = rng.sample(list(COLOR_ALLOWLIST), _COLORS_PER_EXPRESSION)
-        reps = rng.sample(observable, _REPRESENTATIONS_PER_EXPRESSION)
+        redundant = _redundant_colors(snapshot, expression)
+        colors = rng.sample(
+            [name for name in COLOR_ALLOWLIST if name not in redundant],
+            _COLORS_PER_EXPRESSION,
+        )
+
+        # `show` aims at a representation these atoms are not in and
+        # `hide` at one they are, so both verbs change the snapshot the
+        # fidelity gate compares. Drawing either from all ten
+        # observable representations instead made most `hide` plans
+        # assert that nothing happened -- see the module docstring.
+        carried = _carried_representations(snapshot, expression)
+        absent = [
+            name for name in OBSERVABLE_REPRESENTATIONS if name not in carried
+        ]
+        shown = rng.sample(absent, _REPRESENTATIONS_PER_EXPRESSION)
+        # Empty only for an expression the oracle cannot evaluate, and
+        # nothing about those is verified, so any representation does.
+        hidden = list(carried) if carried else [shown[0]]
+        partner_shown = rng.choice(
+            [
+                name
+                for name in OBSERVABLE_REPRESENTATIONS
+                if name not in _carried_representations(snapshot, partner)
+            ]
+        )
 
         for color in colors:
             index += 1
@@ -510,7 +694,7 @@ def enumerate_plans(
                 )
             )
 
-        for representation in reps:
+        for representation in shown:
             index += 1
             candidates.append(
                 _candidate(
@@ -525,6 +709,8 @@ def enumerate_plans(
                     f"Show {described} as {representation}.",
                 )
             )
+
+        for representation in hidden:
             index += 1
             candidates.append(
                 _candidate(
@@ -538,6 +724,28 @@ def enumerate_plans(
                     ),
                     f"Hide the {representation} representation for "
                     f"{described}.",
+                )
+            )
+
+        # Hiding a representation nothing is shown in is a legal request
+        # a user really does make, and a model should learn to emit it,
+        # so the form stays in the corpus -- but it predicts no change,
+        # and a corpus where most `hide` plans were this shape would
+        # have a rejection rate that measured almost nothing. One per
+        # structure keeps the form without letting it crowd out the
+        # plans that can actually fail; pmc_data.report counts it.
+        if position == 0:
+            index += 1
+            candidates.append(
+                _candidate(
+                    ActionPlan(
+                        operations=(
+                            HideOperation(
+                                representation=shown[0], target=expression
+                            ),
+                        )
+                    ),
+                    f"Hide the {shown[0]} representation for {described}.",
                 )
             )
 
@@ -570,13 +778,13 @@ def enumerate_plans(
                             color=colors[0], target=NamedSelection(name)
                         ),
                         ShowOperation(
-                            representation=reps[0],
+                            representation=shown[0],
                             target=NamedSelection(name),
                         ),
                     )
                 ),
                 f"Select {described}, color it {colors[0]} and show it as "
-                f"{reps[0]}.",
+                f"{shown[0]}.",
             )
         )
 
@@ -586,15 +794,15 @@ def enumerate_plans(
                 ActionPlan(
                     operations=(
                         ShowOperation(
-                            representation=reps[0], target=expression
+                            representation=shown[0], target=expression
                         ),
                         HideOperation(
-                            representation=reps[1], target=expression
+                            representation=hidden[0], target=expression
                         ),
                     )
                 ),
-                f"Show {described} as {reps[0]}, then hide its {reps[1]} "
-                "representation.",
+                f"Show {described} as {shown[0]}, then hide its "
+                f"{hidden[0]} representation.",
             )
         )
 
@@ -617,13 +825,13 @@ def enumerate_plans(
                             target=NamedSelection(first_name),
                         ),
                         ShowOperation(
-                            representation=reps[1],
+                            representation=partner_shown,
                             target=NamedSelection(second_name),
                         ),
                     )
                 ),
                 f"Select {described} and color it {colors[1]}, then select "
-                f"{partner_described} and show it as {reps[1]}.",
+                f"{partner_described} and show it as {partner_shown}.",
             )
         )
 

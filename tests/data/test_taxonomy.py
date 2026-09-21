@@ -26,9 +26,17 @@ import pytest
 from pmc_core.parser import parse_pml
 from pmc_core.plan import COMMAND_ALLOWLIST
 from pmc_core.plan import TERM_TYPES
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import SelectionExpression
+from pmc_core.plan import SelectOperation
 from pmc_core.policy import evaluate_plan
 from pmc_core.prompt import MAX_INTENT_CHARACTERS
 from pmc_core.prompt import MIN_INTENT_CHARACTERS
+from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import to_json
+from pmc_data.oracle import UnsupportedAssertionError
+from pmc_data.oracle import apply_plan
+from pmc_data.oracle import selected_serials
 from pmc_data.structures import build_structure
 from pmc_data.structures import enumerate_structures
 from pmc_data.taxonomy import UNOBSERVABLE_REPRESENTATIONS
@@ -41,11 +49,84 @@ STRUCTURES = tuple(
     (spec, build_structure(spec)) for spec in enumerate_structures(SEED)
 )
 
-CANDIDATES = tuple(
-    candidate
+ATTEMPTS = tuple(
+    (snapshot, candidate)
     for spec, snapshot in STRUCTURES
     for candidate in enumerate_plans(snapshot, seed=spec.seed)
 )
+
+CANDIDATES = tuple(candidate for _, candidate in ATTEMPTS)
+
+#: Every structure's canonical JSON, so the no-change check below
+#: serializes each of the 24 structures once rather than once per plan.
+BASE_JSON = {id(snapshot): to_json(snapshot) for _, snapshot in STRUCTURES}
+
+
+def _selects_nothing(
+    snapshot: ObjectSnapshot, expression: SelectionExpression
+) -> bool:
+    """Whether an expression matches no atom of a structure.
+
+    Args:
+        snapshot: The structure to evaluate against.
+        expression: The expression to test.
+
+    Returns:
+        True when nothing matches. False for an expression the oracle
+        cannot evaluate: those never reach the executor, so they are
+        never graded at all, vacuously or otherwise.
+    """
+    try:
+        return not selected_serials(snapshot, expression)
+    except UnsupportedAssertionError:
+        return False
+
+
+def _expressions_in(plan: ActionPlan) -> tuple[SelectionExpression, ...]:
+    """Collect every selection expression one plan evaluates.
+
+    Args:
+        plan: The plan to read.
+
+    Returns:
+        The expressions it selects with or targets directly, in order.
+    """
+    found: list[SelectionExpression] = []
+    for operation in plan.operations:
+        if isinstance(operation, SelectOperation):
+            found.append(operation.expression)
+            continue
+        target = getattr(operation, "target", None)
+        if isinstance(target, SelectionExpression):
+            found.append(target)
+    return tuple(found)
+
+
+def _predicts_no_change(
+    snapshot: ObjectSnapshot, plan: ActionPlan
+) -> bool | None:
+    """Whether a plan's predicted result equals the structure it began as.
+
+    Args:
+        snapshot: The structure the plan runs against.
+        plan: The plan to predict.
+
+    Returns:
+        True or False, or None when the oracle cannot predict this plan
+        at all or the plan is one it deliberately cannot observe.
+    """
+    try:
+        outcome = apply_plan(snapshot, plan)
+    except UnsupportedAssertionError:
+        return None
+    if outcome.snapshot is None:
+        return None
+    if any(
+        marker.startswith("unobservable_representation")
+        for marker in outcome.unsupported
+    ):
+        return None
+    return to_json(outcome.snapshot) == BASE_JSON[id(snapshot)]
 
 
 def test_the_enumeration_is_not_trivially_small() -> None:
@@ -173,6 +254,47 @@ def test_selection_names_are_never_reused_within_a_plan() -> None:
             if line.startswith("select ")
         ]
         assert len(created) == len(set(created))
+
+
+def test_no_generated_expression_selects_nothing() -> None:
+    """An empty selection agrees with any oracle, so none may be emitted.
+
+    Drawing terms from the structure keeps a single term from matching
+    nothing, but a composition of matching terms still can: `not chain
+    A` matches no atom of a structure whose only chain is A, and half
+    the standing matrix is single-chain. A plan built on one would be
+    graded by comparing an empty expectation against an empty result.
+    """
+    empty = [
+        (candidate.category, expression.render())
+        for snapshot, candidate in ATTEMPTS
+        for expression in _expressions_in(candidate.plan)
+        if _selects_nothing(snapshot, expression)
+    ]
+
+    assert empty == []
+
+
+def test_only_deliberately_inert_plans_predict_no_change() -> None:
+    """A plan graded against an unchanged structure tests almost nothing.
+
+    Showing a representation the atoms already carry, hiding one they
+    do not, or coloring them the color they already are all run
+    cleanly and leave the snapshot byte-identical, so the fidelity gate
+    compares the structure against itself. Exactly one such plan is
+    emitted per structure, on purpose, because the form is legal and
+    worth learning; `pmc_data.report` counts those in their own column.
+    Plans whose representation the snapshot cannot observe are a
+    separate, already-marked case and are not counted here.
+    """
+    inert = [
+        candidate.category
+        for snapshot, candidate in ATTEMPTS
+        if _predicts_no_change(snapshot, candidate.plan)
+    ]
+
+    assert len(inert) == len(STRUCTURES)
+    assert {category.split("/")[0] for category in inert} == {"hide"}
 
 
 if __name__ == "__main__":
