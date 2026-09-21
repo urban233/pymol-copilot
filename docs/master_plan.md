@@ -99,10 +99,10 @@ Every item carries a **State**. The values are:
 | 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7 ✓, 8 | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
-| 13 | Prompt builder | Martin | **in review** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
-| 14 | Dataset generation | Martin | **blocked** | 2 ✓, 4 ✓, 5 ✓, 13 | 15, 16 |
+| 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
+| 14 | Dataset generation | Martin | **ready** | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
-| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13, 14, 15, 9 | 17, 18 |
+| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13 ✓, 14, 15, 9 | 17, 18 |
 | 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
 | 19 | Integration | Joint | **blocked** | 12, 17 | — |
@@ -129,8 +129,8 @@ flowchart LR
   I10["10 · apply and recovery"]:::blocked
   I11["11 · output"]:::blocked
   I12["12 · end-to-end suite"]:::blocked
-  I13["13 · prompt builder"]:::review
-  I14["14 · dataset"]:::blocked
+  I13["13 · prompt builder"]:::done
+  I14["14 · dataset"]:::ready
   I15["15 · gold set"]:::blocked
   I16["16 · eval and baseline"]:::blocked
   I17["17 · fine-tuning"]:::blocked
@@ -191,16 +191,16 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   It gates items 9, 10, 11 and 12 — her entire remaining chain — so nothing
   on the runtime side can begin until it lands, which makes it the
   highest-value thing on the board.
-- **Martin has no `ready` item, because item 13 is in review.** Every other
-  item of his sits behind it: item 14 needs it `done`, and 15, 16, 17 and 18
-  sit behind 14. His highest-value action is getting PR #41 reviewed and
-  merged, which turns item 14 `ready` and reopens the model half.
-- **Nothing downstream of the shared core has merged.**
+- **Item 14 is Martin's, and it is the longest single item left.** At ~5
+  days it is the biggest remaining piece of the model half, and items 15,
+  16, 17 and 18 all sit behind it. It is also the first item to call the
+  prompt builder's `build_for_data()` seam for real, rather than through the
+  parity test that stands in for a caller today.
+- **Nothing downstream of the shared core has merged beyond item 13.**
   `src/pmc_agent/inference/` does not exist; `src/pmc_agent/runtime.py` is
   still the 66-line pass-through stub from the dependency split, not item 8's
   graph; `src/pmc_train/` holds only `__init__.py`; `tests/recovery/` holds
-  only a readme. `src/pmc_core/prompt.py` and `src/pmc_core/grammar.py` exist
-  on `feat/prompt-builder` but are not on `main`.
+  only a readme.
 
 ### Cross-owner hand-offs
 
@@ -211,8 +211,12 @@ The week 1 note below is now more specific:
   16 now wait only on his own item 13.
 - **Martin → Hannah: settled.** Items 2 and 6 are both delivered, so Hannah's
   items 8 and 11 are no longer waiting on anything of Martin's.
-- **Martin → Hannah, in review:** item 13 emits the grammar item 9's engine
-  enforces at runtime, and it is open as PR #41. This is a hand-off rather
+- **Martin → Hannah, delivered:** item 13 emits the grammar item 9's engine
+  enforces at runtime — `pmc_core.grammar.build_grammar()`, GBNF, the form
+  the Lemonade spike proved is enforced per request, with `GRAMMAR_VERSION`
+  stamped into every prompt. Item 13 also ships `build_for_runtime()`, the
+  seam items 8 and 9 call instead of assembling a prompt of their own. This
+  is a hand-off rather
   than a prerequisite, and the reason is specific: item 9's contract takes an
   *optional grammar* as a parameter, so neither its adapters nor its startup
   capability probe need item 13's grammar in particular. The Lemonade spike
@@ -486,7 +490,7 @@ this machine.
 
 ### 13. Prompt builder
 
-**Size:** ~2 days · **State:** in review (PR #41)
+**Size:** ~2 days · **State:** done (PR #41)
 
 ```
 Add the prompt builder that turns a structure card plus a user intent into
@@ -498,7 +502,7 @@ they ever diverge.
 
 ### 14. Dataset generation
 
-**Size:** ~5 days · **State:** blocked on 13
+**Size:** ~5 days · **State:** ready — blocks 15, 16
 
 ```
 Generalize src/pmc_data/ from the one chain-A/red fixture to the full
@@ -530,7 +534,7 @@ and report the observed error rate as a number.
 
 ### 16. Eval harness and untuned baseline
 
-**Size:** ~3 days · **State:** blocked on 9, 13, 14, 15
+**Size:** ~3 days · **State:** blocked on 9, 14, 15
 
 ```
 Build the offline eval harness: per sample, generate a plan, parse it,
