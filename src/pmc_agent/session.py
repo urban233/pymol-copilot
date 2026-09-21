@@ -12,12 +12,13 @@ Locking exists because `LoopbackPlanServer` is a `ThreadingHTTPServer`: two
 requests for the same session can arrive on two threads at once, and without
 a lock they could both observe an unparked thread and both invoke the graph
 concurrently, or a reject could interleave with a submit that is still
-minting the very plan it names. One `threading.Lock` per session id, held
-for the whole graph invocation, makes "at most one active request per
-session" true rather than nearly true, while sessions with different ids
-stay fully concurrent. The lock table itself is guarded by a second lock,
-held only long enough to find or create one session's lock -- never for the
-graph invocation itself.
+minting the very plan it names. One live lock per session id, held for the
+whole graph invocation, makes "at most one active request per session" true
+rather than nearly true, while sessions with different ids stay fully
+concurrent. The registry reference-counts waiting operations, so a lock is
+removed only after its final user leaves; retaining neither locks nor
+checkpointed snapshots after a terminal request bounds a long-lived server's
+memory to its currently pending plans and in-flight requests.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -37,9 +38,11 @@ from pmc_agent.graph import RESUME_ACTION_CANCEL
 from pmc_agent.graph import RESUME_ACTION_REJECT
 from pmc_agent.graph import RESUME_ACTION_SUPERSEDE
 from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
+from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.prompt import PROMPT_BUILDER
 from pmc_agent.prompt import build_default_prompt
@@ -106,6 +109,15 @@ def _thread_config(session_id: str):
     return {"configurable": {"thread_id": session_id}}
 
 
+class _SessionSlot:
+    """One session lock and the number of operations using or waiting on it."""
+
+    def __init__(self) -> None:
+        """Create an unlocked, unreferenced session slot."""
+        self.lock = threading.Lock()
+        self.operations = 0
+
+
 class RequestGraphSession:
     """One compiled request graph, one checkpointer, per-session locking."""
 
@@ -151,7 +163,10 @@ class RequestGraphSession:
             ttl_seconds: How long a minted plan stays approvable.
             max_repair_attempts: SPECIFICATION.md:640's repair budget.
         """
-        self._clock = clock
+        self._sessions_guard = threading.Lock()
+        self._sessions: dict[str, _SessionSlot] = {}
+        self._active_cancellations: dict[str, CancelToken] = {}
+        self._checkpointer = InMemorySaver()
         self._graph = build_request_graph(
             engine=engine,
             prompt_builder=prompt_builder,
@@ -165,25 +180,69 @@ class RequestGraphSession:
             validation_deadline_seconds=validation_deadline_seconds,
             ttl_seconds=ttl_seconds,
             max_repair_attempts=max_repair_attempts,
-        ).compile(checkpointer=InMemorySaver())
-        self._locks_guard = threading.Lock()
-        self._locks: dict[str, threading.Lock] = {}
+            cancel_token_source=self._active_cancel_token,
+        ).compile(checkpointer=self._checkpointer)
 
-    def _lock_for(self, session_id: str) -> threading.Lock:
-        """Find or create the one lock guarding `session_id`'s thread.
+    def _active_cancel_token(self, session_id: str) -> CancelToken:
+        """Return `session_id`'s active token, or an unreachable fallback.
+
+        The fallback keeps a direct misuse of a compiled session graph from
+        turning into a graph exception. Normal `submit()` always installs the
+        token before invoking, so it cannot be reached by a real request.
 
         Args:
-            session_id: The session to look up.
+            session_id: The session currently being generated or validated.
 
         Returns:
-            That session's lock, created on first use and reused after.
+            The session's active cancellation token.
         """
-        with self._locks_guard:
-            lock = self._locks.get(session_id)
-            if lock is None:
-                lock = threading.Lock()
-                self._locks[session_id] = lock
-            return lock
+        with self._sessions_guard:
+            token = self._active_cancellations.get(session_id)
+        return token if token is not None else CancelToken()
+
+    def _acquire_session(self, session_id: str) -> _SessionSlot:
+        """Reserve and acquire the serialized-operation slot for a session.
+
+        Args:
+            session_id: The session whose graph operation is starting.
+
+        Returns:
+            The acquired session slot. The caller must pass it to
+            `_release_session` in a `finally` block.
+        """
+        with self._sessions_guard:
+            slot = self._sessions.get(session_id)
+            if slot is None:
+                slot = _SessionSlot()
+                self._sessions[session_id] = slot
+            slot.operations += 1
+        slot.lock.acquire()
+        return slot
+
+    def _release_session(self, session_id: str, slot: _SessionSlot) -> None:
+        """Release one operation and remove its idle lock-table entry.
+
+        A waiter increments `operations` before it waits for `slot.lock`, so
+        deleting the registry entry after release cannot create a second lock
+        for the same session while another caller is queued on this one.
+
+        Args:
+            session_id: The session whose operation has completed.
+            slot: The acquired slot returned by `_acquire_session`.
+        """
+        slot.lock.release()
+        with self._sessions_guard:
+            slot.operations -= 1
+            if slot.operations == 0 and self._sessions.get(session_id) is slot:
+                del self._sessions[session_id]
+
+    def _delete_thread(self, session_id: str) -> None:
+        """Remove every checkpoint for a terminal request's session.
+
+        Args:
+            session_id: The LangGraph thread id to prune.
+        """
+        self._checkpointer.delete_thread(session_id)
 
     def _is_pending(self, session_id: str) -> bool:
         """Return whether `session_id`'s thread is parked at approval.
@@ -241,12 +300,14 @@ class RequestGraphSession:
             status, or a parked one carrying `"__interrupt__"`.
         """
         config = _thread_config(session_id)
-        with self._lock_for(session_id):
+        slot = self._acquire_session(session_id)
+        try:
             if self._is_pending(session_id):
                 self._graph.invoke(
                     Command(resume={"action": RESUME_ACTION_SUPERSEDE}),
                     config,
                 )
+                self._delete_thread(session_id)
             initial_state: RequestState = {
                 "request_id": request_id,
                 "session_id": session_id,
@@ -269,7 +330,26 @@ class RequestGraphSession:
                 "question": None,
                 "completion": None,
             }
-            return self._graph.invoke(initial_state, config)
+            cancel_token = CancelToken()
+            with self._sessions_guard:
+                self._active_cancellations[session_id] = cancel_token
+            try:
+                result = self._graph.invoke(initial_state, config)
+            except BaseException:
+                self._delete_thread(session_id)
+                raise
+            finally:
+                with self._sessions_guard:
+                    if (
+                        self._active_cancellations.get(session_id)
+                        is cancel_token
+                    ):
+                        del self._active_cancellations[session_id]
+            if result.get("status") != STATE_PENDING_APPROVAL:
+                self._delete_thread(session_id)
+            return result
+        finally:
+            self._release_session(session_id, slot)
 
     def reject(
         self, *, session_id: str, plan_id: str
@@ -291,15 +371,20 @@ class RequestGraphSession:
             touched.
         """
         config = _thread_config(session_id)
-        with self._lock_for(session_id):
+        slot = self._acquire_session(session_id)
+        try:
             if not self._is_pending(session_id):
                 return None
             snapshot = self._graph.get_state(config)
             if snapshot.values.get("plan_id") != plan_id:
                 return None
-            return self._graph.invoke(
+            result = self._graph.invoke(
                 Command(resume={"action": RESUME_ACTION_REJECT}), config
             )
+            self._delete_thread(session_id)
+            return result
+        finally:
+            self._release_session(session_id, slot)
 
     def cancel(self, *, session_id: str) -> dict[str, object] | None:
         """Resume `session_id`'s pending plan as cancelled.
@@ -312,10 +397,40 @@ class RequestGraphSession:
             is `cancelled` unless expiry won first), or None when there is
             no pending plan to cancel.
         """
+        # Do not acquire the session lock before signalling: `submit()` holds
+        # it while `engine.complete()` is in flight. The live token makes the
+        # signal reachable immediately, while acquiring afterwards waits only
+        # to serialize the graph transition or collect its terminal result.
+        with self._sessions_guard:
+            active_token = self._active_cancellations.get(session_id)
+        if active_token is not None:
+            active_token.cancel()
+            slot = self._acquire_session(session_id)
+            try:
+                # A cancellation that raced the last few instructions of
+                # validation may have parked just before it was observed.
+                # Resolve that parked plan too; otherwise the generating or
+                # validating node has already ended it as cancelled.
+                if self._is_pending(session_id):
+                    result = self._graph.invoke(
+                        Command(resume={"action": RESUME_ACTION_CANCEL}),
+                        _thread_config(session_id),
+                    )
+                    self._delete_thread(session_id)
+                    return result
+                return {"status": TERMINAL_CANCELLED}
+            finally:
+                self._release_session(session_id, slot)
+
         config = _thread_config(session_id)
-        with self._lock_for(session_id):
+        slot = self._acquire_session(session_id)
+        try:
             if not self._is_pending(session_id):
                 return None
-            return self._graph.invoke(
+            result = self._graph.invoke(
                 Command(resume={"action": RESUME_ACTION_CANCEL}), config
             )
+            self._delete_thread(session_id)
+            return result
+        finally:
+            self._release_session(session_id, slot)

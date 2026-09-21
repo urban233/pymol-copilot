@@ -123,6 +123,29 @@ _HOSTILE_LAMBDA = re.compile(r"\blambda\b")
 _HOSTILE_IF = re.compile(r"\bif\b")
 _HOSTILE_ELSE = re.compile(r"\belse\b")
 
+#: Every verb name in `tests/adversarial/denied_forms.UNKNOWN_VERB_FORMS`
+#: that names a real, dangerous PyMOL or system capability outside this
+#: language's own five verbs (select, color, show, hide, orient) --
+#: interpreter access, process/shell execution, file or session I/O,
+#: destructive session mutation, and settings/key-binding/plugin
+#: reconfiguration. `_CALL_FORM` and `_HOSTILE_CHARACTERS` do not catch
+#: these: a bare verb word like `run script.py` or `delete all` carries
+#: no parenthesis and no punctuation this module already screens on.
+#: Matched as whole words, not by verb position, so a verb named this
+#: deep inside otherwise-unrelated text is still caught.
+#:
+#: Deliberately excludes `orientate`, which UNKNOWN_VERB_FORMS also
+#: carries: it is one character away from the accepted verb `orient`, the
+#: shape of an honest typo rather than an attempt at any of the
+#: capabilities above, and is exactly the kind of case repair exists for.
+_HOSTILE_VERBS = re.compile(
+    r"\b(?:"
+    r"python|run|system|spawn|cd|load|save|fetch|png|export|"
+    r"delete|remove|alter|create|quit|reinitialize|set|set_key|"
+    r"plugin|import|extend|alias|api|label|feedback"
+    r")\b"
+)
+
 
 def screen_completion(text: str) -> str:
     """Screen a rejected completion for whether it may be repaired.
@@ -145,5 +168,7 @@ def screen_completion(text: str) -> str:
         _HOSTILE_IF.search(text) is not None
         and _HOSTILE_ELSE.search(text) is not None
     ):
+        return SCREEN_HOSTILE
+    if _HOSTILE_VERBS.search(text) is not None:
         return SCREEN_HOSTILE
     return SCREEN_ORDINARY

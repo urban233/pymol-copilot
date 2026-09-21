@@ -11,6 +11,7 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from denied_forms import DENIED_EXPRESSION_FORMS
 from denied_forms import LEXICALLY_DENIED_FORMS
+from denied_forms import UNKNOWN_VERB_FORMS
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
 from pmc_core.screen import SCREEN_HOSTILE
@@ -87,6 +88,46 @@ def test_every_lexically_denied_form_screens_hostile(text: str) -> None:
         text: One case from denied_forms.LEXICALLY_DENIED_FORMS.
     """
     assert screen_completion(text) == SCREEN_HOSTILE
+
+
+#: "orientate chain A" is UNKNOWN_VERB_FORMS's one deliberate exception:
+#: `_HOSTILE_VERBS` in screen.py excludes it on purpose, since it is one
+#: character away from the accepted verb `orient` -- the shape of an honest
+#: typo, not an attempt at any of the other forms' real capabilities.
+_ORIENTATE_TYPO_CASE_ID = "verb_with_suffix"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        text
+        for text, case_id in UNKNOWN_VERB_FORMS
+        if case_id != _ORIENTATE_TYPO_CASE_ID
+    ],
+    ids=[
+        case_id
+        for _, case_id in UNKNOWN_VERB_FORMS
+        if case_id != _ORIENTATE_TYPO_CASE_ID
+    ],
+)
+def test_every_unknown_verb_form_screens_hostile(text: str) -> None:
+    """Every unrecognized-verb case in the corpus screens hostile.
+
+    Args:
+        text: One case from denied_forms.UNKNOWN_VERB_FORMS, other than the
+            "orientate" typo case, which is asserted separately below.
+    """
+    assert screen_completion(text) == SCREEN_HOSTILE
+
+
+def test_the_orientate_typo_screens_ordinary() -> None:
+    """A misspelled "orient" stays eligible for repair, not filed as hostile."""
+    text = next(
+        text
+        for text, case_id in UNKNOWN_VERB_FORMS
+        if case_id == _ORIENTATE_TYPO_CASE_ID
+    )
+    assert screen_completion(text) == SCREEN_ORDINARY
 
 
 @pytest.mark.parametrize("text", VALID_PML_FORMS)

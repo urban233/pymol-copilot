@@ -50,6 +50,7 @@ from langgraph.graph import END
 from langgraph.graph import StateGraph
 from langgraph.types import interrupt
 
+from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import EngineFailure
@@ -178,6 +179,24 @@ EMPTY_COMPLETION_QUESTION = (
 FAILURE_CONTRACT_MISMATCH = "contract_mismatch"
 FAILURE_MALFORMED_SNAPSHOT = "malformed_snapshot"
 FAILURE_NO_TARGET_OBJECT = "no_target_object"
+
+#: `generating`'s own failure category for a completion that stopped
+#: before finishing -- `outcome.stop_reason` was something other than
+#: `STOP_END` (a `max_tokens` truncation or a deadline cutoff, per
+#: `pmc_agent.inference.base`'s own STOP_* constants). A completion that
+#: stops early can still parse cleanly if the cut landed on a line
+#: boundary, so this check has to run before the completion is ever
+#: classified or handed to the parser -- accepting a truncated plan as
+#: complete would mean validating and approving less than the model
+#: actually intended.
+FAILURE_ENGINE_INCOMPLETE = "engine_incomplete"
+
+#: The owner of a compiled graph supplies a stable cancellation token for
+#: each active session. Keeping the token out of `RequestState` matters:
+#: state is checkpointed, whereas this is live, process-local coordination
+#: that must disappear with the invocation rather than be serialized into
+#: every checkpoint.
+type CANCEL_TOKEN_SOURCE = Callable[[str], CancelToken]
 
 #: `validating`'s own failure categories, for the infrastructure-level
 #: executor outcomes that never enter the repair loop (see
@@ -388,6 +407,38 @@ def _failed(
     }
 
 
+def _cancelled(state: RequestState, *, attempt: int) -> dict[str, object]:
+    """Build the terminal update for a request cancelled before approval.
+
+    Args:
+        state: The request state at the point cancellation was observed.
+        attempt: The number of completion calls that have begun so far.
+
+    Returns:
+        A partial update ending the request at `TERMINAL_CANCELLED`.
+    """
+    return {
+        "status": TERMINAL_CANCELLED,
+        "history": (*state["history"], TERMINAL_CANCELLED),
+        "attempt": attempt,
+    }
+
+
+def _new_cancel_token(_session_id: str) -> CancelToken:
+    """Return an unshared cancellation token for a bare graph invocation.
+
+    `RequestGraphSession` replaces this default with its own per-active-run
+    lookup. The standalone graph tests intentionally need no such registry.
+
+    Args:
+        _session_id: Ignored; present to match `CANCEL_TOKEN_SOURCE`.
+
+    Returns:
+        A new, unset cancellation token.
+    """
+    return CancelToken()
+
+
 def _preparing(state: RequestState) -> dict[str, object]:
     """Resolve the request's target object; verify its contract manifest.
 
@@ -527,6 +578,7 @@ def _build_generating(
     prompt_builder: PROMPT_BUILDER,
     max_tokens: int,
     deadline_seconds: float,
+    cancel_token_source: CANCEL_TOKEN_SOURCE,
 ) -> Callable[[RequestState], dict[str, object]]:
     """Close a `generating` node body over its injected engine and prompt.
 
@@ -543,6 +595,8 @@ def _build_generating(
         prompt_builder: Builds the prompt from this request's own inputs.
         max_tokens: The token budget given to every completion.
         deadline_seconds: The wall-clock budget given to every completion.
+        cancel_token_source: Finds the live cancellation token for this
+            session's active graph invocation.
 
     Returns:
         The `generating` node body.
@@ -559,6 +613,9 @@ def _build_generating(
             to `TERMINAL_ASK` on a clarification or empty completion, or
             advancing to `STATE_VALIDATING` otherwise.
         """
+        cancel_token = cancel_token_source(state["session_id"])
+        if cancel_token.is_cancelled():
+            return _cancelled(state, attempt=state["attempt"])
         prompt = prompt_builder(
             PromptInputs(
                 intent=state["intent"],
@@ -574,14 +631,20 @@ def _build_generating(
                 max_tokens=max_tokens,
                 deadline_seconds=deadline_seconds,
             ),
-            cancel=CancelToken(),
+            cancel=cancel_token,
         )
         attempt = state["attempt"] + 1
+        # Check the token even when the engine did not return
+        # `STOP_CANCELLED`: adapters are cooperative and a cancellation can
+        # race a normally completed response. Once the user cancelled, the
+        # response must never continue to parsing, validation, or approval.
+        if cancel_token.is_cancelled():
+            return _cancelled(state, attempt=attempt)
         if isinstance(outcome, EngineFailure):
             failed = _failed(
                 state,
                 category=outcome.category,
-                message=outcome.message,
+                message=_bounded(outcome.message),
                 # An engine failure says nothing about this request's own
                 # intent or plan; a fresh request could plausibly succeed
                 # where this one hit an unavailable or timed-out engine.
@@ -589,10 +652,32 @@ def _build_generating(
             )
             failed["attempt"] = attempt
             return failed
+        if outcome.stop_reason != STOP_END:
+            # A completion that stopped early can still parse as a
+            # complete, valid plan if the cut landed on a line boundary --
+            # this has to be checked before classification or parsing, or
+            # a truncated plan would be silently validated and approved as
+            # though it were whatever the model actually intended.
+            failed = _failed(
+                state,
+                category=FAILURE_ENGINE_INCOMPLETE,
+                message=_bounded(
+                    "the engine stopped before finishing "
+                    f"(stop_reason={outcome.stop_reason})"
+                ),
+                retryable=True,
+            )
+            failed["attempt"] = attempt
+            return failed
         return _classify_completion(
             state,
             completion=outcome.text,
-            model_identity=outcome.model_identity,
+            # The engine's own stable identity, never the per-call
+            # result's own claim: SPECIFICATION.md:541 requires this be
+            # re-verified at approval, which only means something if this
+            # graph never trusts a result to assert its own provenance in
+            # the first place.
+            model_identity=engine.model_identity,
             attempt=attempt,
         )
 
@@ -631,6 +716,7 @@ def _build_validating(
     deadline_seconds: float,
     ttl_seconds: float,
     max_repair_attempts: int,
+    cancel_token_source: CANCEL_TOKEN_SOURCE,
 ) -> Callable[[RequestState], dict[str, object]]:
     """Close a `validating` node body over its injected executor and clock.
 
@@ -662,6 +748,8 @@ def _build_validating(
         max_repair_attempts: SPECIFICATION.md:640's repair budget --
             `MAX_REPAIR_ATTEMPTS` by default, injectable only so a test can
             prove the bound is actually enforced by lowering or raising it.
+        cancel_token_source: Finds the live cancellation token for this
+            session's active graph invocation.
 
     Returns:
         The `validating` node body.
@@ -738,6 +826,10 @@ def _build_validating(
             to `STATE_PENDING_APPROVAL` with `plan`, `plan_id`, and
             `expires_at` all committed, on success.
         """
+        cancel_token = cancel_token_source(state["session_id"])
+        if cancel_token.is_cancelled():
+            return _cancelled(state, attempt=state["attempt"])
+
         completion = state["completion"]
         assert completion is not None, (
             "validating always follows generating, which always sets "
@@ -795,6 +887,11 @@ def _build_validating(
                 deadline_seconds=deadline_seconds,
             )
         )
+        # Validation itself is safe and side-effect free, but it may take
+        # long enough that a user cancels while the fresh sidecar runs. Do
+        # not mint or park a plan after that cancellation.
+        if cancel_token.is_cancelled():
+            return _cancelled(state, attempt=state["attempt"])
         if report.status == STATUS_OK:
             now = clock()
             return {
@@ -978,6 +1075,7 @@ def build_request_graph(
     validation_deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
     ttl_seconds: float = PLAN_TTL_SECONDS,
     max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
+    cancel_token_source: CANCEL_TOKEN_SOURCE = _new_cancel_token,
 ) -> StateGraph[RequestState]:  # pyrefly: ignore[bad-specialization]
     """Build the uncompiled request graph, wired but not yet compiled.
 
@@ -1015,6 +1113,10 @@ def build_request_graph(
             the engine, not a spawned process.
         ttl_seconds: How long a minted plan stays approvable.
         max_repair_attempts: SPECIFICATION.md:640's repair budget.
+        cancel_token_source: Finds the live cancellation token for one
+            session. Defaults to independent unset tokens for callers that
+            use a bare graph; `RequestGraphSession` supplies tokens that a
+            concurrent `/v1/cancel` can signal.
 
     Returns:
         The graph, with every node and edge from `preparing` onward wired,
@@ -1026,6 +1128,7 @@ def build_request_graph(
         prompt_builder=prompt_builder,
         max_tokens=max_tokens,
         deadline_seconds=deadline_seconds,
+        cancel_token_source=cancel_token_source,
     )
     validating = _build_validating(
         executor=executor,
@@ -1036,6 +1139,7 @@ def build_request_graph(
         deadline_seconds=validation_deadline_seconds,
         ttl_seconds=ttl_seconds,
         max_repair_attempts=max_repair_attempts,
+        cancel_token_source=cancel_token_source,
     )
     pending_approval = _build_pending_approval(clock=clock)
     graph.add_node(STATE_PREPARING, _preparing)

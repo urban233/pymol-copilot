@@ -25,7 +25,6 @@ from pmc_agent.graph import STATE_PENDING_APPROVAL
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
 from pmc_agent.graph import TERMINAL_REJECTED
-from pmc_agent.graph import TERMINAL_SUPERSEDED
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
@@ -112,6 +111,45 @@ class _SlowEngine:
         """
         del request, cancel
         time.sleep(self._delay_seconds)
+        return CompletionResult(
+            _VALID_COMPLETION, self.model_identity, STOP_END
+        )
+
+
+class _CancellableEngine:
+    """An engine that proves it received a live cancellation token."""
+
+    def __init__(self) -> None:
+        """Create an engine that runs until its caller cancels it."""
+        self.started = threading.Event()
+        self.observed_cancellation = threading.Event()
+
+    @property
+    def model_identity(self) -> str:
+        """Return the fixed identity for this test-only engine."""
+        return "cancellable-fake-v1"
+
+    def complete(
+        self, request: CompletionRequest, *, cancel: CancelToken
+    ) -> CompletionResult | EngineFailure:
+        """Wait for cancellation, then report a completion race.
+
+        The normal-looking result makes the graph's post-call token check
+        load-bearing: it must still terminate as cancelled rather than parse
+        or approve this text.
+
+        Args:
+            request: Ignored by this deterministic fake.
+            cancel: The signal the graph must supply from `/v1/cancel`.
+
+        Returns:
+            A valid-looking completion after recording cancellation.
+        """
+        del request
+        self.started.set()
+        while not cancel.is_cancelled():
+            time.sleep(0.001)
+        self.observed_cancellation.set()
         return CompletionResult(
             _VALID_COMPLETION, self.model_identity, STOP_END
         )
@@ -296,6 +334,44 @@ def test_cancel_reaches_cancelled() -> None:
     assert result["status"] == TERMINAL_CANCELLED
 
 
+def test_cancel_interrupts_an_inflight_generation_and_prunes_its_thread() -> (
+    None
+):
+    """`cancel()` signals a live generation without waiting for its lock.
+
+    The graph is deliberately still inside `engine.complete()` when cancel
+    starts. A fresh token inside the graph, or acquiring the session lock
+    before signalling it, would deadlock this test until the generation's
+    deadline rather than completing promptly.
+    """
+    engine = _CancellableEngine()
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    submitted: list[dict[str, object]] = []
+    worker = threading.Thread(
+        target=lambda: submitted.append(
+            session.submit(**_submit_kwargs(request_id="r-1"))
+        )
+    )
+
+    worker.start()
+    assert engine.started.wait(timeout=1.0)
+    cancelled = session.cancel(session_id=_SESSION_ID)
+    worker.join(timeout=1.0)
+
+    assert not worker.is_alive()
+    assert engine.observed_cancellation.is_set()
+    assert cancelled is not None
+    assert cancelled["status"] == TERMINAL_CANCELLED
+    assert submitted[0]["status"] == TERMINAL_CANCELLED
+    assert session._sessions == {}
+    assert (
+        session._graph.get_state(
+            {"configurable": {"thread_id": _SESSION_ID}}
+        ).values
+        == {}
+    )
+
+
 def test_a_second_submit_reaches_superseded_and_leaves_one_pending_plan() -> (
     None
 ):
@@ -313,23 +389,15 @@ def test_a_second_submit_reaches_superseded_and_leaves_one_pending_plan() -> (
     assert second["request_id"] == "r-2"
 
     config = {"configurable": {"thread_id": _SESSION_ID}}
-    history = list(session._graph.get_state_history(config))
-    # `get_state_history` also carries a run-boundary "input" checkpoint
-    # that copies the prior run's own final values forward before the new
-    # run's initial state is applied -- filtered out here by `next == ()`,
-    # which only the actually-completed superseded run itself satisfies.
-    superseded = [
-        entry.values
-        for entry in history
-        if entry.next == ()
-        and entry.values.get("status") == TERMINAL_SUPERSEDED
-    ]
-    assert len(superseded) == 1
-    assert superseded[0]["request_id"] == "r-1"
-
     snapshot = session._graph.get_state(config)
     assert snapshot.next == (STATE_PENDING_APPROVAL,)
     assert snapshot.values["request_id"] == "r-2"
+    # Supersession reached a terminal state before the second initial state
+    # was invoked, so it must not retain the first request's full snapshot.
+    assert all(
+        entry.values.get("request_id") != "r-1"
+        for entry in session._graph.get_state_history(config)
+    )
 
 
 def test_a_reject_one_tick_past_the_ttl_reaches_expired_not_rejected() -> None:
@@ -399,16 +467,10 @@ def test_two_concurrent_submits_produce_one_superseded_and_one_pending() -> (
         assert snapshot.next == (STATE_PENDING_APPROVAL,)
         winner = snapshot.values["request_id"]
         assert winner in ("r-1", "r-2")
-        loser = "r-2" if winner == "r-1" else "r-1"
-
-        history = list(session._graph.get_state_history(config))
-        superseded_request_ids = {
-            entry.values.get("request_id")
-            for entry in history
-            if entry.next == ()
-            and entry.values.get("status") == TERMINAL_SUPERSEDED
-        }
-        assert superseded_request_ids == {loser}
+        assert all(
+            entry.values.get("request_id") in (None, winner)
+            for entry in session._graph.get_state_history(config)
+        )
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 from langgraph.checkpoint.memory import InMemorySaver
 
 from pmc_agent.graph import ACCEPTED_CONTRACT_MANIFEST
+from pmc_agent.graph import FAILURE_ENGINE_INCOMPLETE
 from pmc_agent.graph import STATE_PENDING_APPROVAL
 from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import TERMINAL_ASK
@@ -22,6 +23,8 @@ from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
 from pmc_agent.inference.base import STOP_END
+from pmc_agent.inference.base import STOP_DEADLINE
+from pmc_agent.inference.base import STOP_LENGTH
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.base import ENGINE_REFUSED_GRAMMAR
@@ -190,8 +193,21 @@ def test_a_first_pass_success_calls_the_engine_exactly_once() -> None:
     assert "__interrupt__" in result
     assert result["status"] == STATE_PENDING_APPROVAL
     assert result["completion"] == "orient chain A\n"
-    assert result["model_identity"] == "m-1"
+    assert result["model_identity"] == engine.model_identity
     assert result["attempt"] == 1
+
+
+def test_the_engine_identity_wins_over_a_completion_claim() -> None:
+    """Approval provenance comes from the engine, not response metadata."""
+    engine = FakeEngine(
+        [CompletionResult("orient chain A\n", "claimed-model", STOP_END)],
+        model_identity="verified-engine-model",
+    )
+
+    result = _run(engine, _state())
+
+    assert result["status"] == STATE_PENDING_APPROVAL
+    assert result["model_identity"] == "verified-engine-model"
 
 
 def test_a_contract_manifest_mismatch_never_calls_the_engine() -> None:
@@ -309,6 +325,44 @@ def test_every_engine_failure_category_reaches_failed(category: str) -> None:
     assert isinstance(failure, FailureEnvelopeV1)
     assert failure.category == category
     assert failure.message == "engine says no"
+
+
+def test_an_engine_failure_message_is_bounded_before_reaching_the_wire() -> (
+    None
+):
+    """An adapter cannot turn its diagnostic into an oversized response."""
+    engine = FakeEngine([EngineFailure(ENGINE_UNKNOWN, "x" * 500)])
+
+    result = _run(engine, _state())
+
+    failure = result["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert len(failure.message) == 200
+    assert failure.message.endswith("...")
+
+
+@pytest.mark.parametrize(
+    "stop_reason", [STOP_LENGTH, STOP_DEADLINE], ids=["length", "deadline"]
+)
+def test_a_partial_completion_never_reaches_validation(
+    stop_reason: str,
+) -> None:
+    """A clean line-boundary truncation is still not an approvable plan.
+
+    Args:
+        stop_reason: The non-natural completion stop the engine reports.
+    """
+    engine = FakeEngine(
+        [CompletionResult("orient chain A\n", "m-1", stop_reason)]
+    )
+
+    result = _run(engine, _state())
+
+    assert result["status"] == TERMINAL_FAILED
+    failure = result["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert failure.category == FAILURE_ENGINE_INCOMPLETE
+    assert result["attempt"] == 1
 
 
 @pytest.mark.parametrize(
