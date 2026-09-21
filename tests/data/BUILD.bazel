@@ -134,3 +134,34 @@ py_test(
         "//tools/winstage:winstage",
     ],
 )
+
+py_test(
+    name = "structures",
+    size = "small",
+    srcs = ["test_structures.py"],
+    main = "test_structures.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# The admission gate for the controlled structure matrix. Spawns a real
+# pmc_sidecar.fidelity child per structure through
+# pmc_core.executor.probe_fidelity(), so it is excluded from concurrent
+# scheduling for the same reason as every other real-PyMOL target here.
+py_test(
+    name = "structures_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_structures_real_pymol.py"],
+    main = "test_structures_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)

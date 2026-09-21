@@ -10,6 +10,7 @@ py_library(
         "gold_case.py",
         "oracle.py",
         "pdb.py",
+        "structures.py",
         "verifier.py",
     ],
     data = [
