@@ -12,8 +12,14 @@ PyMOL. This binary therefore never imports PyMOL itself -- the child
 is the only thing that does, which is why the whole run stays outside
 `bazel test`: a few thousand samples is a few thousand processes.
 
-Output goes to a content-addressed directory under `--out`, whose
-contents `.gitignore` excludes. Three files, because a summary alone
+Output goes to `seed-<seed>-<identity>/` under `--out`, whose contents
+`.gitignore` excludes. The identity digests the budget and every
+contract version as well as the seed, because those decide the content
+too: naming the directory for the seed alone let a `--target 100` run
+overwrite a four-thousand-attempt corpus in place. A run is written
+beside its destination and moved in only once it is complete, so a
+failed run leaves a `.partial` directory rather than something that
+looks like the corpus and is not. Three files, because a summary alone
 would let a rejection disappear:
 
 - `samples.jsonl` -- verified samples only.
@@ -39,16 +45,20 @@ recorded seed worth anything.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import argparse
+import hashlib
 import json
 import os
+import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from pmc_core.card import CARD_VERSION
 from pmc_core.plan import HideOperation
 from pmc_core.plan import ShowOperation
+from pmc_core.prompt import PROMPT_VERSION
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_data.generate import verify_sample
 from pmc_data.report import CorpusReport
@@ -58,6 +68,7 @@ from pmc_data.report import write_rejections
 from pmc_data.report import write_report
 from pmc_data.sample import Rejection
 from pmc_data.sample import Sample
+from pmc_data.sample import current_versions
 from pmc_data.sample import write_samples
 from pmc_data.structures import StructureSpec
 from pmc_data.structures import build_structure
@@ -271,6 +282,39 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     return tuple(sorted(chosen.values(), key=lambda a: order[identity(a)]))
 
 
+def run_identity(seed: int, target: int | None) -> str:
+    """Digest everything that decides what a run's content will be.
+
+    The output directory was named for the seed alone, which is a
+    claim the seed cannot support. `--target 100` and the configured
+    four-thousand budget produce different corpora from the same seed,
+    and so does the same budget under a changed contract; all of them
+    landed in one directory, where each silently replaced the last. A
+    measured 3,695-sample corpus was reduced to 53 that way, with
+    nothing but `report.json`'s own `attempted` count to show for it.
+
+    Args:
+        seed: The run's seed.
+        target: The attempt budget, or None for the whole enumeration.
+
+    Returns:
+        A short hex digest over the seed, the budget and every contract
+        version a sample records.
+    """
+    material = json.dumps(
+        {
+            "seed": seed,
+            "target": target,
+            "versions": current_versions(
+                card_version=CARD_VERSION, prompt_version=PROMPT_VERSION
+            ).to_dict(),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:12]
+
+
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse this binary's command line.
 
@@ -394,11 +438,23 @@ def run(argv: list[str]) -> int:
     )
 
     if args.slice:
-        run_dir = REPO_ROOT / "src" / "pmc_data" / "conformance"
+        # The slice is a single tracked artifact with one identity, and
+        # it is written in place: its guard against a partial run is to
+        # write nothing at all, below.
+        run_dir = write_dir = partial_dir = (
+            REPO_ROOT / "src" / "pmc_data" / "conformance"
+        )
     else:
         out_dir = args.out if args.out.is_absolute() else REPO_ROOT / args.out
-        run_dir = out_dir / f"seed-{seed}"
-    run_dir.mkdir(parents=True, exist_ok=True)
+        run_dir = out_dir / f"seed-{seed}-{run_identity(seed, target)}"
+        # Written beside the destination rather than into it, so a run
+        # that dies partway cannot leave a half-corpus sitting where a
+        # complete one is expected. The completed run is moved into
+        # place in one step at the end.
+        write_dir = out_dir / f".{run_dir.name}.incomplete"
+        partial_dir = out_dir / f"{run_dir.name}.partial"
+        shutil.rmtree(write_dir, ignore_errors=True)
+    write_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[Sample | Rejection] = []
     # Not a `with` block: on the way out through an exception that
@@ -440,15 +496,22 @@ def run(argv: list[str]) -> int:
         # incomplete, and the exception carries on out of here to end
         # the process non-zero with its traceback intact.
         _write_run(
-            run_dir,
+            write_dir,
             results,
             seed=seed,
             slice_only=False,
             complete=False,
         )
+        # Kept under its own name. A partial run is worth keeping, but
+        # it is not this identity's corpus, and putting it there would
+        # leave the next reader holding something narrower than the
+        # directory name promises.
+        shutil.rmtree(partial_dir, ignore_errors=True)
+        write_dir.replace(partial_dir)
         print(
-            f"PARTIAL {run_dir}: wrote {len(results)} of "
-            f"{len(attempts)} attempts before failing",
+            f"PARTIAL {partial_dir}: wrote {len(results)} of "
+            f"{len(attempts)} attempts before failing; "
+            f"{run_dir} left unchanged",
             file=sys.stderr,
             flush=True,
         )
@@ -457,8 +520,14 @@ def run(argv: list[str]) -> int:
         pool.shutdown(wait=True)
 
     report = _write_run(
-        run_dir, results, seed=seed, slice_only=args.slice, complete=True
+        write_dir, results, seed=seed, slice_only=args.slice, complete=True
     )
+    if write_dir != run_dir:
+        # Same identity means the same bytes, so replacing an existing
+        # corpus here is a no-op in content. The rename is what makes
+        # the directory appear complete or not at all.
+        shutil.rmtree(run_dir, ignore_errors=True)
+        write_dir.replace(run_dir)
     print(render_table(report), end="", flush=True)
     print(f"WROTE {run_dir}", flush=True)
     return 0 if report.kept else 1

@@ -4,7 +4,7 @@ Generated artifacts belong here only when content-addressed and intentionally
 produced by a data task. Generated contents are ignored; this README is
 tracked.
 
-## `samples/seed-<seed>/`
+## `samples/seed-<seed>-<identity>/`
 
 The verified dataset corpus, written by
 
@@ -29,11 +29,25 @@ disappear:
   what it measured rather than discarding hours of verified work, and
   says so here rather than passing for a whole corpus.
 
-The directory is named for the seed rather than a timestamp: the run
-is deterministic in its seed, and nothing nondeterministic is recorded
-in a sample, so regenerating at the same seed reproduces these files
-byte for byte. That is what makes the seed each sample carries worth
-anything.
+The directory is named for the run's inputs rather than a timestamp:
+the run is deterministic in them, and nothing nondeterministic is
+recorded in a sample, so regenerating with the same inputs reproduces
+these files byte for byte. That is what makes the seed each sample
+carries worth anything.
+
+The seed is not the whole of those inputs, so it is not the whole of
+the name. The attempt budget decides how much of the enumeration is
+run, and the contract versions decide what a sample even looks like;
+`<identity>` is a digest over all three. Naming the directory for the
+seed alone made two different corpora share it, and the second
+replaced the first with no warning -- a 3,695-sample run was cut to 53
+that way.
+
+A run writes beside its destination and is moved into place in one
+step once it is complete. A run that fails partway is left as
+`seed-<seed>-<identity>.partial/`, with its `report.json` saying
+`complete: false`, and the complete corpus it would have replaced is
+untouched.
 
 A small fixed slice of this corpus is committed under
 `src/pmc_data/conformance/` -- its samples and its one ungradable
