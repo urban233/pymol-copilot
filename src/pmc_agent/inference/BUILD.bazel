@@ -6,7 +6,12 @@ py_library(
         "__init__.py",
         "base.py",
         "fake.py",
+        "lemonade.py",
     ],
     imports = ["../.."],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "@pypi//httpx",
+    ],
     visibility = ["//src:subsystems", "//src:tests"],
 )

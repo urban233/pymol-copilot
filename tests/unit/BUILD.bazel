@@ -50,6 +50,32 @@ py_test(
 )
 
 py_test(
+    name = "inference_lemonade",
+    size = "small",
+    srcs = ["test_inference_lemonade.py"],
+    main = "test_inference_lemonade.py",
+    deps = [
+        "@pypi//httpx",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "inference_lemonade_probe",
+    size = "small",
+    srcs = ["test_inference_lemonade_probe.py"],
+    main = "test_inference_lemonade_probe.py",
+    deps = [
+        "@pypi//httpx",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "request_graph_transitions",
     size = "small",
     srcs = ["test_request_graph_transitions.py"],

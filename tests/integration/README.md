@@ -1,5 +1,23 @@
 # Integration tests
 
+## Opt-in local Lemonade evidence
+
+`//tests/integration:lemonade_real` is tagged `external` and inherits only
+`PMC_LEMONADE_BASE_URL`. It skips successfully when that variable is unset.
+When supplied, the value must be the same bare loopback HTTP origin accepted
+by the production adapter; a remote address is a test failure, never a
+fallback route. Start the spike container with
+`docker compose -f tests/discovery/lemonade/compose.yaml up -d`, then run:
+
+```text
+PMC_LEMONADE_BASE_URL=http://localhost:13305 bazel test //tests/integration:lemonade_real --lockfile_mode=error --test_output=all
+```
+
+The real suite records positive grammar enforcement, deadline, token-limit,
+and streaming-cancellation evidence. Its intentionally ignored-grammar case
+is hermetic in `//tests/unit:inference_lemonade_probe`, because a working
+server cannot demonstrate a grammar it ignores.
+
 Owned by cross-subsystem evidence: the non-mutating copilot command seam,
 the loopback transport, the real client-server round trip, and the
 real-PyMOL conformance suite that drives the two-chain fixture through a
