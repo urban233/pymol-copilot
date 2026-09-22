@@ -82,6 +82,10 @@ def _sample(**overrides: object) -> Sample:
         "prompt_text": "prompt-version=1\ncard-version=1\n",
         "assertions": (
             Assertion(kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:x"),
+            Assertion(
+                kind=ASSERTION_SELECTION_COUNTS,
+                detail="[('copilot_a', 28)]",
+            ),
             Assertion(kind=ASSERTION_COMMANDS_SUCCEEDED, detail="2 commands"),
         ),
         "unsupported_assertions": (),
@@ -209,15 +213,103 @@ def test_an_assertion_contradicting_its_own_verification_is_rejected() -> None:
                 Assertion(
                     kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:other"
                 ),
+                # Correct, so the record fails on the claim under test
+                # rather than on a missing one.
+                Assertion(
+                    kind=ASSERTION_SELECTION_COUNTS,
+                    detail="[('copilot_a', 28)]",
+                ),
             )
         )
 
     with pytest.raises(InvalidSampleError, match="selection_counts"):
         _sample(
             assertions=(
+                Assertion(kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:x"),
                 Assertion(
                     kind=ASSERTION_SELECTION_COUNTS,
                     detail="[('copilot_a', 999)]",
+                ),
+            )
+        )
+
+
+def test_a_sample_that_only_ran_commands_is_rejected() -> None:
+    """A record claiming only that commands ran is not a sample.
+
+    This is the direct-expression `orient` shape exactly: nothing was
+    predicted, nothing was counted, and the sole assertion says how
+    many commands PyMOL accepted. `verify_sample` reports that attempt
+    as ungradable, so the record must not be able to reach disk and
+    read back as a verified sample -- and the assertion detail can
+    claim any number at all without being evidence of anything.
+    """
+    with pytest.raises(InvalidSampleError, match="independently evaluated"):
+        _sample(
+            assertions=(
+                Assertion(
+                    kind=ASSERTION_COMMANDS_SUCCEEDED, detail="999 commands"
+                ),
+            ),
+            verification=VerificationRecord(
+                status="ok",
+                reason="ok",
+                expected_fingerprint=None,
+                resulting_fingerprint=None,
+                selection_counts=(),
+                command_verbs=("orient",) * 999,
+            ),
+        )
+
+
+def test_evidence_the_verification_holds_must_be_asserted() -> None:
+    """A sample must claim every kind of evidence it actually has.
+
+    Dropping the assertion while keeping the evidence is the same
+    record with a weaker claim on it, which is how a graded sample
+    could come back as one that was never graded on that axis.
+    """
+    with pytest.raises(InvalidSampleError, match="resulting_snapshot"):
+        _sample(
+            assertions=(
+                Assertion(
+                    kind=ASSERTION_SELECTION_COUNTS,
+                    detail="[('copilot_a', 28)]",
+                ),
+                Assertion(
+                    kind=ASSERTION_COMMANDS_SUCCEEDED, detail="2 commands"
+                ),
+            )
+        )
+
+    with pytest.raises(InvalidSampleError, match="selection_counts"):
+        _sample(
+            assertions=(
+                Assertion(kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:x"),
+                Assertion(
+                    kind=ASSERTION_COMMANDS_SUCCEEDED, detail="2 commands"
+                ),
+            )
+        )
+
+
+def test_a_commands_assertion_must_count_the_verbs_beside_it() -> None:
+    """The commands assertion is checked like every other one.
+
+    It is the weakest assertion a sample carries, which is why it
+    cannot be the only one; that is no reason to let it state a number
+    the verification's own verbs contradict.
+    """
+    with pytest.raises(InvalidSampleError, match="commands_succeeded"):
+        _sample(
+            assertions=(
+                Assertion(kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:x"),
+                Assertion(
+                    kind=ASSERTION_SELECTION_COUNTS,
+                    detail="[('copilot_a', 28)]",
+                ),
+                Assertion(
+                    kind=ASSERTION_COMMANDS_SUCCEEDED, detail="7 commands"
                 ),
             )
         )
@@ -339,7 +431,7 @@ def test_a_sample_with_no_predicted_snapshot_did_not_predict_no_change() -> (
             expected_fingerprint=None,
             resulting_fingerprint=None,
             selection_counts=(("copilot_a", 28),),
-            command_verbs=("orient",),
+            command_verbs=("select", "orient"),
         ),
     )
 
@@ -349,6 +441,14 @@ def test_a_sample_with_no_predicted_snapshot_did_not_predict_no_change() -> (
 def test_a_sample_knows_when_it_graded_an_empty_selection() -> None:
     """A zero expected count is met by zero whatever the oracle did."""
     empty = _sample(
+        assertions=(
+            Assertion(kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:x"),
+            Assertion(
+                kind=ASSERTION_SELECTION_COUNTS,
+                detail="[('copilot_a', 28), ('copilot_b', 0)]",
+            ),
+            Assertion(kind=ASSERTION_COMMANDS_SUCCEEDED, detail="2 commands"),
+        ),
         verification=VerificationRecord(
             status="ok",
             reason="ok",
@@ -356,7 +456,7 @@ def test_a_sample_knows_when_it_graded_an_empty_selection() -> None:
             resulting_fingerprint="sha256:x",
             selection_counts=(("copilot_a", 28), ("copilot_b", 0)),
             command_verbs=("select", "select"),
-        )
+        ),
     )
 
     assert empty.graded_empty_selection is True

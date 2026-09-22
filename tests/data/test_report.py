@@ -29,6 +29,8 @@ from pmc_data.report import render_table
 from pmc_data.report import write_rejections
 from pmc_data.report import write_report
 from pmc_data.sample import ASSERTION_COMMANDS_SUCCEEDED
+from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
+from pmc_data.sample import ASSERTION_SELECTION_COUNTS
 from pmc_data.sample import FINGERPRINT_PREFIX
 from pmc_data.sample import Assertion
 from pmc_data.sample import PINNED_PYMOL_VERSION
@@ -94,9 +96,29 @@ def _sample(
         plan_pml="color red, chain A\n",
         plan_json=({"verb": "color"},),
         prompt_text="prompt-version=1\n",
+        # A kept sample states what it was graded on. It is graded on a
+        # predicted snapshot here -- on the structure's own bytes when
+        # the prediction was that nothing changes, on other bytes
+        # otherwise -- because a sample asserting nothing but that the
+        # commands ran is one `Sample` refuses to be.
         assertions=(
-            Assertion(kind=ASSERTION_COMMANDS_SUCCEEDED, detail="1 command"),
-        ),
+            Assertion(
+                kind=ASSERTION_RESULTING_SNAPSHOT,
+                detail=FINGERPRINT_PREFIX
+                + ("a" * 64 if no_change else "c" * 64),
+            ),
+        )
+        + (
+            (
+                Assertion(
+                    kind=ASSERTION_SELECTION_COUNTS,
+                    detail="[('copilot_sel0001', 0)]",
+                ),
+            )
+            if empty_selection
+            else ()
+        )
+        + (Assertion(kind=ASSERTION_COMMANDS_SUCCEEDED, detail="1 commands"),),
         unsupported_assertions=unsupported,
         verification=VerificationRecord(
             status="ok",
@@ -104,12 +126,10 @@ def _sample(
             # Both fingerprints or neither, which is the only shape a
             # kept sample can have: the executor reported success, so
             # what it produced is what it was graded against.
-            expected_fingerprint=FINGERPRINT_PREFIX + "a" * 64
-            if no_change
-            else None,
-            resulting_fingerprint=FINGERPRINT_PREFIX + "a" * 64
-            if no_change
-            else None,
+            expected_fingerprint=FINGERPRINT_PREFIX
+            + ("a" * 64 if no_change else "c" * 64),
+            resulting_fingerprint=FINGERPRINT_PREFIX
+            + ("a" * 64 if no_change else "c" * 64),
             selection_counts=(("copilot_sel0001", 0),)
             if empty_selection
             else (),

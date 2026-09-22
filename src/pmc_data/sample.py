@@ -29,6 +29,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 import json
 from collections.abc import Iterable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -69,6 +70,16 @@ SUPPORTED_ASSERTION_KINDS = frozenset(
     )
 )
 
+#: The kinds that are evidence about the *result* of a plan rather than
+#: about the run that produced it. `commands_succeeded` says only that
+#: PyMOL raised nothing, which `pmc_data.generate` refuses to call
+#: verification: it is the whole reason a direct `orient` is reported
+#: ungradable rather than kept. A sample must therefore carry one of
+#: these, or it asserts no more than the attempts that were turned away.
+INDEPENDENT_ASSERTION_KINDS = frozenset(
+    (ASSERTION_RESULTING_SNAPSHOT, ASSERTION_SELECTION_COUNTS)
+)
+
 #: The prefix every snapshot fingerprint carries, as `pmc_sidecar.child`
 #: writes it. Named here rather than spelled twice, because comparing a
 #: recorded fingerprint against a recorded snapshot hash -- which is how
@@ -83,6 +94,23 @@ STATUS_UNSUPPORTED = "unsupported"
 
 #: The reason recorded alongside it.
 REASON_NOT_GRADABLE = "not_gradable"
+
+
+def commands_succeeded_detail(verbs: Sequence[str]) -> str:
+    """Render the detail a `commands_succeeded` assertion carries.
+
+    Written once and read by both sides: `pmc_data.generate` builds the
+    assertion with it and `Sample.__post_init__` checks the assertion
+    against it, so the claim cannot drift away from the verbs the
+    verification recorded beside it.
+
+    Args:
+        verbs: The verbs the run reported, in order.
+
+    Returns:
+        The assertion detail for that many commands.
+    """
+    return f"{len(verbs)} commands"
 
 
 class InvalidSampleError(ValueError):
@@ -541,12 +569,26 @@ class Sample:
         compared against each other because a record whose assertions
         disagree with its own verification is evidence about nothing.
 
+        A successful verification is not on its own enough. What was
+        independently checked has to be stated too: a record whose only
+        assertion is `commands_succeeded` claims no more than that
+        PyMOL raised nothing, which is exactly the claim
+        `pmc_data.generate` refuses to grade when it turns away a
+        direct `orient`. Such a record decoded cleanly and counted as
+        kept. So a sample must carry an assertion from
+        `INDEPENDENT_ASSERTION_KINDS`, and must carry each one whose
+        evidence its own verification holds -- otherwise dropping an
+        assertion while keeping the evidence turns a graded sample into
+        an ungraded one that still reads like a graded one.
+
         Raises:
-            InvalidSampleError: If the sample carries no assertion, if
-                its verification did not succeed, if a recorded
-                fingerprint disagrees with the one it was graded
-                against, or if an assertion's detail disagrees with
-                the verification beside it.
+            InvalidSampleError: If the sample carries no assertion or
+                no independently evaluated one, if its verification did
+                not succeed, if a recorded fingerprint disagrees with
+                the one it was graded against, if evidence the
+                verification holds is claimed by no assertion, or if an
+                assertion's detail disagrees with the verification
+                beside it.
         """
         if not self.assertions:
             raise InvalidSampleError(
@@ -568,6 +610,29 @@ class Sample:
                 f"{self.sample_id!r}: graded against {expected!r} but "
                 f"recorded {verification.resulting_fingerprint!r}"
             )
+        kinds = {assertion.kind for assertion in self.assertions}
+        if not kinds & INDEPENDENT_ASSERTION_KINDS:
+            raise InvalidSampleError(
+                f"{self.sample_id!r}: a sample must carry an independently "
+                f"evaluated assertion, one of "
+                f"{sorted(INDEPENDENT_ASSERTION_KINDS)}, not only "
+                f"{sorted(kinds)}"
+            )
+        if expected is not None and ASSERTION_RESULTING_SNAPSHOT not in kinds:
+            raise InvalidSampleError(
+                f"{self.sample_id!r}: graded against {expected!r} but "
+                f"carries no {ASSERTION_RESULTING_SNAPSHOT} assertion"
+            )
+        if (
+            verification.selection_counts
+            and ASSERTION_SELECTION_COUNTS not in kinds
+        ):
+            raise InvalidSampleError(
+                f"{self.sample_id!r}: the verification recorded "
+                f"{list(verification.selection_counts)!r} but the sample "
+                f"carries no {ASSERTION_SELECTION_COUNTS} assertion"
+            )
+        commands_detail = commands_succeeded_detail(verification.command_verbs)
         for assertion in self.assertions:
             if (
                 assertion.kind == ASSERTION_RESULTING_SNAPSHOT
@@ -585,6 +650,14 @@ class Sample:
                     f"{self.sample_id!r}: {ASSERTION_SELECTION_COUNTS} "
                     f"asserts {assertion.detail!r} but the verification "
                     f"recorded {list(verification.selection_counts)!r}"
+                )
+            if assertion.kind == ASSERTION_COMMANDS_SUCCEEDED and (
+                assertion.detail != commands_detail
+            ):
+                raise InvalidSampleError(
+                    f"{self.sample_id!r}: {ASSERTION_COMMANDS_SUCCEEDED} "
+                    f"asserts {assertion.detail!r} but the verification "
+                    f"recorded {list(verification.command_verbs)!r}"
                 )
 
     @property

@@ -58,6 +58,7 @@ from pmc_data.sample import Rejection
 from pmc_data.sample import Sample
 from pmc_data.sample import StructureIdentity
 from pmc_data.sample import VerificationRecord
+from pmc_data.sample import commands_succeeded_detail
 from pmc_data.sample import current_versions
 from pmc_data.structures import StructureSpec
 from pmc_data.taxonomy import PlanCandidate
@@ -519,6 +520,12 @@ def verify_sample(
             ),
         )
 
+    # Read once and recorded twice, in the commands assertion and in
+    # the verification beside it. `Sample.__post_init__` checks the two
+    # against each other, so they are derived from one value here
+    # rather than computed independently and hoped to agree.
+    command_verbs = tuple(outcome.verb for outcome in report.command_outcomes)
+
     assertions: list[SampleAssertion] = []
     if fingerprint is not None:
         assertions.append(
@@ -536,7 +543,7 @@ def verify_sample(
     assertions.append(
         SampleAssertion(
             kind=ASSERTION_COMMANDS_SUCCEEDED,
-            detail=f"{len(report.command_outcomes)} commands",
+            detail=commands_succeeded_detail(command_verbs),
         )
     )
 
@@ -569,8 +576,6 @@ def verify_sample(
             expected_fingerprint=fingerprint,
             resulting_fingerprint=report.resulting_fingerprint,
             selection_counts=observed_counts,
-            command_verbs=tuple(
-                outcome.verb for outcome in report.command_outcomes
-            ),
+            command_verbs=command_verbs,
         ),
     )
