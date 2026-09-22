@@ -159,6 +159,7 @@ search-path = [
     "tests/adversarial",
     "tests/contract",
     "tests/integration",
+    "tests/recovery",
     "tools/winstage",
 ]
 
