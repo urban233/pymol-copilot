@@ -312,9 +312,17 @@ def test_the_slice_records_the_ungradable_attempts_it_made() -> None:
     }
 
     for kind, found in by_kind.items():
-        assert len(found) == 1, f"{kind}: {REJECTIONS}"
-        assert found[0]["status"] == STATUS_UNSUPPORTED, kind
-        assert found[0]["reason"] == REASON_NOT_GRADABLE, kind
+        # At least one, not exactly one. `conformance_slice` appends a
+        # polymer attempt deliberately but picks the direct-`orient`
+        # one as a byproduct of covering the verb axis, so how many of
+        # each it lands on is not something it promises. Pinning the
+        # count made this assert a coincidence: adding a structure or
+        # reordering the enumeration could put a second one in the
+        # slice and fail a check about a path that is in fact covered.
+        assert found, f"{kind}: {REJECTIONS}"
+        for rejection in found:
+            assert rejection["status"] == STATUS_UNSUPPORTED, kind
+            assert rejection["reason"] == REASON_NOT_GRADABLE, kind
 
 
 def test_every_committed_structure_appears_in_the_slice() -> None:

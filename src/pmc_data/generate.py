@@ -25,6 +25,7 @@ from pathlib import Path
 from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import EXECUTOR_VERSION
 from pmc_core.executor import OUTCOME_ERROR
+from pmc_core.executor import REASON_FIDELITY_MISMATCH
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
@@ -481,6 +482,19 @@ def verify_sample(
             for outcome in report.command_outcomes
             if outcome.status == OUTCOME_ERROR
         ]
+        if report.reason == REASON_FIDELITY_MISMATCH:
+            # The fidelity gate fails a run in which every command
+            # reported success, so there is no failing outcome to name
+            # and the detail would otherwise repeat the reason code and
+            # say nothing else. This is the one rejection that is real
+            # PyMOL disagreeing with the oracle -- the finding this
+            # whole pipeline exists to surface -- so it records what
+            # the two sides actually produced, which is the only thing
+            # rejections.jsonl can be diagnosed from afterwards.
+            failing.append(
+                f"expected {fingerprint} but the run produced "
+                f"{report.resulting_fingerprint}"
+            )
         return Rejection(
             sample_id=sample_id,
             category=candidate.category,

@@ -202,10 +202,11 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     stand in for a term axis would spend the axis on a sample that can
     never be verified -- which is how `hetatm` first went uncovered,
     swallowed by a two-selection plan that paired it with `polymer`.
-    That one polymer attempt never reaches `samples.jsonl`, because it
-    is not a sample; it is written to the committed
-    `rejections.jsonl`, so the slice carries evidence of the
-    ungradable path rather than only of the happy one.
+    That polymer attempt never reaches `samples.jsonl`, because it is
+    not a sample; it is written to the committed `rejections.jsonl`
+    alongside the direct-`orient` attempt the loop above already
+    covers, so the slice carries evidence of both ungradable paths
+    rather than only of the happy one.
 
     An attempt is identified by its structure *and* its plan text, not
     by the plan text alone: two structures with the same shape can draw

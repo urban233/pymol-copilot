@@ -50,7 +50,7 @@ step once it is complete. A run that fails partway is left as
 untouched.
 
 A small fixed slice of this corpus is committed under
-`src/pmc_data/conformance/` -- its samples and its one ungradable
-attempt, but no report, which would only restate them -- and replayed
+`src/pmc_data/conformance/` -- its samples and its ungradable
+attempts, but no report, which would only restate them -- and replayed
 by `bazel test`. The full run is deliberately not committed, since a
 few thousand samples is a few thousand spawned PyMOL processes.

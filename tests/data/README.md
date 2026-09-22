@@ -35,8 +35,9 @@ more Python, so they are settled against real headless PyMOL:
 | `test_conformance_real_pymol.py` | The committed slice still verifies against today's contracts. |
 
 The committed slice is two files, not one. `samples.jsonl` holds what
-verified; `rejections.jsonl` holds the one deliberately ungradable
-attempt, which can never appear in the first because it is not a
+verified; `rejections.jsonl` holds the deliberately ungradable
+attempts -- one naming the polymer flag, one orienting straight at an
+expression -- which can never appear in the first because neither is a
 sample. A slice carrying only the samples would be evidence that the
 happy path still works and no evidence at all that the pipeline still
 refuses to grade what it cannot.
