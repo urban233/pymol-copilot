@@ -1,5 +1,12 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
-# Targets arrive with the recovery evidence they exercise. Keeping this
-# package explicit from the first step makes recovery tests independently
-# addressable without adding a production dependency.
+py_test(
+    name = "recovery_point",
+    size = "small",
+    srcs = ["test_recovery_point.py"],
+    main = "test_recovery_point.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+    ],
+)
