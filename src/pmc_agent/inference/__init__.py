@@ -7,6 +7,7 @@ from pmc_agent.inference.base import ENGINE_TIMEOUT
 from pmc_agent.inference.base import ENGINE_UNAVAILABLE
 from pmc_agent.inference.base import ENGINE_UNKNOWN
 from pmc_agent.inference.base import STOP_CANCELLED
+from pmc_agent.inference.base import STOP_DEADLINE
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import STOP_LENGTH
 from pmc_agent.inference.base import STOP_REASONS
@@ -24,6 +25,7 @@ __all__ = [
     "ENGINE_UNAVAILABLE",
     "ENGINE_UNKNOWN",
     "STOP_CANCELLED",
+    "STOP_DEADLINE",
     "STOP_END",
     "STOP_LENGTH",
     "STOP_REASONS",

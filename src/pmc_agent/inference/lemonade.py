@@ -83,19 +83,22 @@ def _local_origin(base_url: str) -> tuple[str, str, int]:
     """
     try:
         url = httpx.URL(base_url)
+        authority = base_url.split("://", maxsplit=1)[1]
+        authority = authority.split("/", maxsplit=1)[0]
+        authority = authority.split("?", maxsplit=1)[0]
+        authority = authority.split("#", maxsplit=1)[0]
         host = url.host.lower()
         port = url.port if url.port is not None else 80
-    except (httpx.InvalidURL, TypeError, ValueError) as error:
+    except (httpx.InvalidURL, IndexError, TypeError, ValueError) as error:
         raise ValueError(
             "Lemonade base_url must be a valid local HTTP origin"
         ) from error
 
     if (
         url.scheme != "http"
-        or url.username
-        or url.password
-        or url.query
-        or url.fragment
+        or "@" in authority
+        or "?" in base_url
+        or "#" in base_url
         or url.path not in {"", "/"}
         or not _is_loopback_host(host)
     ):

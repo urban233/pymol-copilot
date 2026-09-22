@@ -29,6 +29,7 @@ itself, not by this token.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import math
 import threading
 from dataclasses import dataclass
 from typing import Protocol
@@ -136,12 +137,16 @@ class CompletionRequest:
         """Reject locally invalid completion bounds.
 
         Raises:
-            ValueError: The token limit or deadline is not positive.
+            ValueError: The token limit is not positive, or the deadline is
+                not finite and positive.
         """
         if self.max_tokens <= 0:
             raise ValueError("max_tokens must be positive")
-        if self.deadline_seconds <= 0:
-            raise ValueError("deadline_seconds must be positive")
+        if (
+            not math.isfinite(self.deadline_seconds)
+            or self.deadline_seconds <= 0
+        ):
+            raise ValueError("deadline_seconds must be positive and finite")
 
 
 @dataclass(frozen=True)
