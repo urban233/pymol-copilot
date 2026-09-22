@@ -67,6 +67,14 @@ py_binary(
         "//src/pmc_data:pmc_data",
         "//src/pmc_sidecar:pmc_sidecar",
     ],
+    # Visible to tests so //tests/data:corpus_cli can import the module
+    # and settle how a run names and promotes its directory, which is
+    # the part of this binary that can destroy a corpus and the part
+    # that needs no PyMOL to exercise. Runtime closures are unaffected:
+    # nothing ships from here, and this target already depends on
+    # pmc_data, which tools/bazel/check_dependency_boundaries.py
+    # forbids every runtime root anyway.
+    visibility = ["//src:tests"],
 )
 
 # The committed conformance slice, exported so tests/data can replay it

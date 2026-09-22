@@ -22,7 +22,13 @@ deliberately not proved in the same place.
 
 *Structural* claims -- that the expression tree is evaluated with the
 right precedence, that a record round-trips, that every enumerated plan
-satisfies policy -- are settled hermetically, without PyMOL.
+satisfies policy -- are settled hermetically, without PyMOL. So is one
+claim that is not about a record at all: `test_corpus_cli.py` settles
+how a run names its output directory and how it moves a finished
+corpus into place, because both ways a corpus is lost -- a name that
+does not distinguish it from a different one, and a promotion that
+deletes the destination before writing it -- are decided entirely
+outside PyMOL, and neither shows up in any sample.
 
 *Claims about Open-Source PyMOL's own behavior* cannot be settled by
 more Python, so they are settled against real headless PyMOL:

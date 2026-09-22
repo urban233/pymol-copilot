@@ -37,17 +37,25 @@ carries worth anything.
 
 The seed is not the whole of those inputs, so it is not the whole of
 the name. The attempt budget decides how much of the enumeration is
-run, and the contract versions decide what a sample even looks like;
-`<identity>` is a digest over all three. Naming the directory for the
-seed alone made two different corpora share it, and the second
-replaced the first with no warning -- a 3,695-sample run was cut to 53
-that way.
+run, the contract versions decide what a sample even looks like, and
+the generator decides what there is to attempt at all; `<identity>` is
+a digest over all of them, the generator included as the structures it
+built and the plans it enumerated rather than as a version someone has
+to remember to bump. Naming the directory for the seed alone made two
+different corpora share it, and the second replaced the first with no
+warning -- a 3,695-sample run was cut to 53 that way.
 
-A run writes beside its destination and is moved into place in one
-step once it is complete. A run that fails partway is left as
-`seed-<seed>-<identity>.partial/`, with its `report.json` saying
-`complete: false`, and the complete corpus it would have replaced is
-untouched.
+A run writes beside its destination, under a staging name of its own,
+and is moved into place in one step once it is complete. The move
+never deletes what is already there: an identity whose corpus already
+exists keeps it, a rerun that reproduces it is simply discarded, and a
+rerun that does *not* reproduce it is kept as
+`seed-<seed>-<identity>.<token>.rerun/` and reported as a failure --
+the identity promised those bytes, so a disagreement is a finding
+about the generator and not something to overwrite. A run that fails
+partway is left as `seed-<seed>-<identity>.<token>.partial/`, with its
+`report.json` saying `complete: false`, and the complete corpus it
+would have replaced is untouched.
 
 A small fixed slice of this corpus is committed under
 `src/pmc_data/conformance/` -- its samples and its ungradable

@@ -13,14 +13,19 @@ is the only thing that does, which is why the whole run stays outside
 `bazel test`: a few thousand samples is a few thousand processes.
 
 Output goes to `seed-<seed>-<identity>/` under `--out`, whose contents
-`.gitignore` excludes. The identity digests the budget and every
-contract version as well as the seed, because those decide the content
-too: naming the directory for the seed alone let a `--target 100` run
-overwrite a four-thousand-attempt corpus in place. A run is written
-beside its destination and moved in only once it is complete, so a
-failed run leaves a `.partial` directory rather than something that
-looks like the corpus and is not. Three files, because a summary alone
-would let a rejection disappear:
+`.gitignore` excludes. The identity digests the budget, every contract
+version and the structures and plans the generator produced, as well
+as the seed, because those decide the content too: naming the
+directory for the seed alone let a `--target 100` run overwrite a
+four-thousand-attempt corpus in place. A run is written beside its
+destination, under a name of its own that no concurrent run can be
+holding, and moved in only once it is complete, so a failed run leaves
+a `.partial` directory rather than something that looks like the
+corpus and is not. The move never deletes what is already there: an
+identity that already has a corpus keeps it, and a rerun that produced
+something different is kept beside it and reported instead of replacing
+it. Three files, because a summary alone would let a rejection
+disappear:
 
 - `samples.jsonl` -- verified samples only.
 - `rejections.jsonl` -- every attempt that did not become one, with
@@ -45,9 +50,11 @@ recorded seed worth anything.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import argparse
+import filecmp
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -60,6 +67,7 @@ from pmc_core.plan import HideOperation
 from pmc_core.plan import ShowOperation
 from pmc_core.prompt import PROMPT_VERSION
 from pmc_core.snapshot import ObjectSnapshot
+from pmc_core.snapshot import to_json
 from pmc_data.generate import verify_sample
 from pmc_data.report import CorpusReport
 from pmc_data.report import build_report
@@ -283,7 +291,9 @@ def conformance_slice(attempts: Sequence[Attempt]) -> tuple[Attempt, ...]:
     return tuple(sorted(chosen.values(), key=lambda a: order[identity(a)]))
 
 
-def run_identity(seed: int, target: int | None) -> str:
+def run_identity(
+    seed: int, target: int | None, attempts: Sequence[Attempt]
+) -> str:
     """Digest everything that decides what a run's content will be.
 
     The output directory was named for the seed alone, which is a
@@ -294,14 +304,49 @@ def run_identity(seed: int, target: int | None) -> str:
     measured 3,695-sample corpus was reduced to 53 that way, with
     nothing but `report.json`'s own `attempted` count to show for it.
 
+    The attempts themselves are digested, not only the seed and the
+    budget that select them. `pmc_data.structures` and
+    `pmc_data.taxonomy` are inputs to a run exactly as much as the seed
+    is, and neither moves a contract version when it changes: the
+    commit that added the missing verb and target forms took the
+    enumeration from 9,594 plans to 11,274 without altering one value
+    `current_versions()` returns, so the old corpus and the new one
+    would have been the same directory.
+
+    What is digested is what those two modules actually produced --
+    every structure this run built, by its spec and the bytes of the
+    structure itself, and every plan, by its canonical .pml. That is
+    stronger than a hand-maintained schema version, which records that
+    someone remembered to bump it: a structure whose atoms change while
+    its spec stays put moves this digest, and a version constant would
+    not have noticed.
+
     Args:
         seed: The run's seed.
         target: The attempt budget, or None for the whole enumeration.
+        attempts: The attempts this run will make, in order.
 
     Returns:
-        A short hex digest over the seed, the budget and every contract
-        version a sample records.
+        A short hex digest over the seed, the budget, every contract
+        version a sample records, and the structures and plans the
+        enumeration produced.
     """
+    structures: dict[str, dict[str, str]] = {}
+    plans: list[list[str]] = []
+    for attempt in attempts:
+        spec_id = attempt.spec.spec_id
+        if spec_id not in structures:
+            # Hashed once per structure rather than once per attempt:
+            # the whole enumeration is thousands of plans over a dozen
+            # or so structures, all of which are already built and in
+            # memory by the time this is called.
+            structures[spec_id] = {
+                "spec": json.dumps(attempt.spec.to_dict(), sort_keys=True),
+                "snapshot_sha256": hashlib.sha256(
+                    to_json(attempt.snapshot).encode("utf-8")
+                ).hexdigest(),
+            }
+        plans.append([spec_id, attempt.candidate.plan.render_pml()])
     material = json.dumps(
         {
             "seed": seed,
@@ -309,6 +354,8 @@ def run_identity(seed: int, target: int | None) -> str:
             "versions": current_versions(
                 card_version=CARD_VERSION, prompt_version=PROMPT_VERSION
             ).to_dict(),
+            "structures": structures,
+            "plans": plans,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -399,6 +446,74 @@ def _write_run(
     return report
 
 
+def _same_corpus(left: Path, right: Path) -> bool:
+    """Compare two corpus directories file by file.
+
+    Args:
+        left: One directory.
+        right: The other.
+
+    Returns:
+        True when both hold the same file names and the same bytes.
+    """
+    names = {
+        path.relative_to(left) for path in left.rglob("*") if path.is_file()
+    }
+    if names != {
+        path.relative_to(right) for path in right.rglob("*") if path.is_file()
+    }:
+        return False
+    # shallow=False: equal size and mtime is not equal content, and a
+    # regenerated corpus carries whatever mtime the run gave it.
+    return all(
+        filecmp.cmp(left / name, right / name, shallow=False) for name in names
+    )
+
+
+def _promote(write_dir: Path, run_dir: Path, kept_dir: Path) -> Path:
+    """Move a completed run into place without deleting a corpus.
+
+    The move used to be `rmtree(run_dir)` followed by a rename, which
+    deletes a known-good corpus first and loses it outright if anything
+    goes wrong in between. It is a rename onto a name nothing holds
+    instead, which either happens or does not; the destination is never
+    removed, and a rerun that disagrees with what is already there is
+    kept beside it rather than allowed to overwrite it. An identity is
+    a promise that the content is the same, so a rerun that breaks the
+    promise is a finding, and this is the one place that could destroy
+    the evidence for it.
+
+    Args:
+        write_dir: The staging directory holding the completed run.
+        run_dir: The destination this identity names.
+        kept_dir: Where to keep the run if the destination is occupied
+            by something else.
+
+    Returns:
+        The directory that now holds this run's output: `run_dir` when
+        the run was promoted or an identical corpus was already there,
+        and `kept_dir` when it was not.
+    """
+    try:
+        # Not shutil.move: that copies into an existing destination
+        # directory, which is exactly the overwrite this refuses. A
+        # rename fails instead, and both directories are siblings, so
+        # it cannot fail for being across devices either.
+        os.replace(write_dir, run_dir)
+    except OSError:
+        if not run_dir.exists():
+            raise
+    else:
+        return run_dir
+    if _same_corpus(write_dir, run_dir):
+        # The identity held: what is there is what this run produced,
+        # so there is nothing to promote and nothing to report.
+        shutil.rmtree(write_dir)
+        return run_dir
+    write_dir.replace(kept_dir)
+    return kept_dir
+
+
 def run(argv: list[str]) -> int:
     """Generate the corpus and write it with its report.
 
@@ -406,10 +521,12 @@ def run(argv: list[str]) -> int:
         argv: The arguments after the program name.
 
     Returns:
-        The process exit code. Zero whenever the run completed, even
-        with rejections: a rejection is a measurement, not an error.
-        Non-zero only when the run produced no verified sample at all,
-        which means something is broken rather than merely hard.
+        The process exit code. Zero whenever the run completed and
+        landed, even with rejections: a rejection is a measurement, not
+        an error. Non-zero when the run produced no verified sample at
+        all, or when a corpus of the same identity was already in place
+        and disagreed with this one -- both mean something is broken
+        rather than merely hard.
     """
     args = _parse_args(argv)
     config_path = (
@@ -442,20 +559,35 @@ def run(argv: list[str]) -> int:
         # The slice is a single tracked artifact with one identity, and
         # it is written in place: its guard against a partial run is to
         # write nothing at all, below.
-        run_dir = write_dir = partial_dir = (
+        run_dir = write_dir = kept_dir = partial_dir = (
             REPO_ROOT / "src" / "pmc_data" / "conformance"
         )
+        write_dir.mkdir(parents=True, exist_ok=True)
     else:
         out_dir = args.out if args.out.is_absolute() else REPO_ROOT / args.out
-        run_dir = out_dir / f"seed-{seed}-{run_identity(seed, target)}"
+        run_dir = (
+            out_dir / f"seed-{seed}-{run_identity(seed, target, attempts)}"
+        )
         # Written beside the destination rather than into it, so a run
         # that dies partway cannot leave a half-corpus sitting where a
         # complete one is expected. The completed run is moved into
         # place in one step at the end.
-        write_dir = out_dir / f".{run_dir.name}.incomplete"
-        partial_dir = out_dir / f"{run_dir.name}.partial"
-        shutil.rmtree(write_dir, ignore_errors=True)
-    write_dir.mkdir(parents=True, exist_ok=True)
+        #
+        # The staging name carries a token of this run's own, because a
+        # fixed one is shared by every run of the same identity: two
+        # such runs at once wrote into one directory and deleted each
+        # other's output, and the second to fail replaced the first's
+        # `.partial` as well. Nothing downstream reads these names --
+        # the token only has to differ.
+        token = secrets.token_hex(4)
+        write_dir = out_dir / f".{run_dir.name}.{token}.incomplete"
+        partial_dir = out_dir / f"{run_dir.name}.{token}.partial"
+        kept_dir = out_dir / f"{run_dir.name}.{token}.rerun"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        # Not exist_ok: the token makes this name this run's alone, so
+        # finding it taken means the assumption is wrong and the run
+        # should say so rather than write into someone else's staging.
+        write_dir.mkdir()
 
     results: list[Sample | Rejection] = []
     # Not a `with` block: on the way out through an exception that
@@ -506,8 +638,9 @@ def run(argv: list[str]) -> int:
         # Kept under its own name. A partial run is worth keeping, but
         # it is not this identity's corpus, and putting it there would
         # leave the next reader holding something narrower than the
-        # directory name promises.
-        shutil.rmtree(partial_dir, ignore_errors=True)
+        # directory name promises. Nothing is removed to make room:
+        # the name is this run's, so an earlier partial run of the same
+        # identity keeps its own evidence.
         write_dir.replace(partial_dir)
         print(
             f"PARTIAL {partial_dir}: wrote {len(results)} of "
@@ -524,11 +657,22 @@ def run(argv: list[str]) -> int:
         write_dir, results, seed=seed, slice_only=args.slice, complete=True
     )
     if write_dir != run_dir:
-        # Same identity means the same bytes, so replacing an existing
-        # corpus here is a no-op in content. The rename is what makes
-        # the directory appear complete or not at all.
-        shutil.rmtree(run_dir, ignore_errors=True)
-        write_dir.replace(run_dir)
+        landed = _promote(write_dir, run_dir, kept_dir)
+        if landed != run_dir:
+            # The identity promised that a rerun reproduces the corpus
+            # already sitting there, and it did not. Both are kept and
+            # the run ends non-zero: quietly replacing one with the
+            # other would destroy the only evidence of a generator that
+            # no longer reproduces its own output.
+            print(render_table(report), end="", flush=True)
+            print(
+                f"REFUSED {run_dir}: a different corpus of the same "
+                f"identity is already there; this run was kept at "
+                f"{landed} and nothing was replaced",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 1
     print(render_table(report), end="", flush=True)
     print(f"WROTE {run_dir}", flush=True)
     return 0 if report.kept else 1

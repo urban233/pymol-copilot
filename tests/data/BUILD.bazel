@@ -258,6 +258,24 @@ py_test(
     ],
 )
 
+# The corpus generator's own naming and promotion, which decide whether
+# a run can destroy a corpus it did not produce. Depends on the binary
+# rather than the library because that is where corpus_cli.py lives; it
+# imports the module and never calls run(), so no PyMOL child is
+# spawned and this stays a small test.
+py_test(
+    name = "corpus_cli",
+    size = "small",
+    srcs = ["test_corpus_cli.py"],
+    main = "test_corpus_cli.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:corpus_cli",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
 # Replays the committed conformance slice through the production
 # execution boundary, one spawned pmc_sidecar.child per sample. This is
 # the CI-sized stand-in for the corpus run, which is a bazel run.
