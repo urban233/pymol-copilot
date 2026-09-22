@@ -27,11 +27,16 @@ item 10's own states, reached only after a plan already sits at
   `submit`, `reject`, and `cancel` are this package's only public entry
   points; `pmc_server.lifecycle.RequestGraphLifecycle` is the one caller.
 - `inference/` is the local-model boundary: `base.py`'s `InferenceEngine`
-  Protocol (bounded completion, typed failure, never an exception) and
-  `fake.py`'s scripted `FakeEngine`, which every test in this package runs
-  against. docs/master_plan.md item 9 adds the one production
-  implementation, `lemonade.py`, against this same interface; nothing here
-  changes when it lands.
+  Protocol accepts only a prompt, optional grammar, token and time bounds,
+  cancellation, and a model identity; it returns a completion or typed
+  failure, never an engine exception. `fake.py`'s scripted `FakeEngine`
+  drives hermetic graph tests. `lemonade.py` is the production adapter: it
+  streams only to one caller-selected loopback Lemonade origin, applies every
+  bound, and has no remote or alternate-origin fallback. Its
+  `connect_lemonade()` startup constructor proves the exact catalog and
+  loaded checkpoint, then requires a grammar canary to produce its forced
+  sentinel. A refused or silently ignored grammar is a hard failure, never
+  an unconstrained or syntax-only mode.
 - `prompt.py` is a placeholder seam, not a real prompt: `PROMPT_BUILDER`
   and a minimal default that stamps the card version, the contract
   manifest, and prior failures into bounded text. docs/master_plan.md item

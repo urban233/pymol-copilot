@@ -132,6 +132,17 @@ class CompletionRequest:
     max_tokens: int
     deadline_seconds: float
 
+    def __post_init__(self) -> None:
+        """Reject locally invalid completion bounds.
+
+        Raises:
+            ValueError: The token limit or deadline is not positive.
+        """
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+        if self.deadline_seconds <= 0:
+            raise ValueError("deadline_seconds must be positive")
+
 
 @dataclass(frozen=True)
 class CompletionResult:
@@ -152,6 +163,17 @@ class CompletionResult:
     model_identity: str
     stop_reason: str
 
+    def __post_init__(self) -> None:
+        """Reject an unrecognized successful completion state.
+
+        Raises:
+            ValueError: The stop reason is outside the stable interface.
+        """
+        if self.stop_reason not in STOP_REASONS:
+            raise ValueError(
+                f"unknown completion stop reason: {self.stop_reason}"
+            )
+
 
 @dataclass(frozen=True)
 class EngineFailure:
@@ -169,6 +191,17 @@ class EngineFailure:
 
     category: str
     message: str
+
+    def __post_init__(self) -> None:
+        """Reject an unrecognized typed engine-failure category.
+
+        Raises:
+            ValueError: The category is outside the stable interface.
+        """
+        if self.category not in ENGINE_FAILURE_CATEGORIES:
+            raise ValueError(
+                f"unknown engine failure category: {self.category}"
+            )
 
 
 class InferenceEngine(Protocol):
