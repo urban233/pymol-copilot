@@ -9,8 +9,8 @@ at once, so a small committed slice catches it in a minute or two
 rather than letting it surface in a months-old corpus.
 
 The slice is two files. `samples.jsonl` holds what verified;
-`rejections.jsonl` holds what did not, which for the slice is the one
-deliberately ungradable attempt. A slice with only the first would be
+`rejections.jsonl` holds what did not, which for the slice is the two
+deliberately ungradable attempts. A slice with only the first would be
 evidence that the happy path still works and no evidence at all that
 the pipeline still refuses to grade what it cannot.
 
@@ -144,11 +144,12 @@ def test_every_committed_sample_still_verifies(sample: Sample) -> None:
     assert report.resulting_fingerprint == (
         sample.verification.resulting_fingerprint
     )
-    assert tuple(
-        (count.name, count.atom_count) for count in report.selection_counts
-    ) == sample.verification.selection_counts, (
-        f"{sample.sample_id}: selection counts drifted"
-    )
+    assert (
+        tuple(
+            (count.name, count.atom_count) for count in report.selection_counts
+        )
+        == sample.verification.selection_counts
+    ), f"{sample.sample_id}: selection counts drifted"
 
 
 @pytest.mark.parametrize(
@@ -280,25 +281,40 @@ def test_the_slice_records_both_kinds_of_unsupported_assertion() -> None:
     }
 
 
-def test_the_slice_records_the_ungradable_attempt_it_made() -> None:
-    """The slice must carry its own evidence of the ungradable path.
+def test_the_slice_records_the_ungradable_attempts_it_made() -> None:
+    """The slice must carry its own evidence of every ungradable path.
 
-    An attempt naming the polymer flag is generated on purpose, so that
-    the pipeline is seen to classify it as unsupported rather than
-    guess at it. It can never appear in `samples.jsonl` -- it is not a
-    verified sample -- so the only place it can be committed is beside
-    it, and a slice that dropped it would look exactly like a pipeline
-    that had quietly stopped generating it at all.
+    Two kinds of attempt are generated deliberately and can never be
+    verified. One names the polymer flag, which the snapshot format
+    declares outside itself. The other orients straight at an
+    expression: the oracle refuses to predict a camera move, and with
+    no `select` beside it there are no selection counts to grade
+    instead. Both are legal requests a user really makes, and the
+    corpus records the pipeline declining to grade them rather than
+    guessing.
+
+    Neither can appear in `samples.jsonl`, because neither is a
+    sample, so the only place they can be committed is beside it -- and
+    a slice that dropped one would look exactly like a pipeline that
+    had quietly stopped generating it at all.
     """
-    polymer = [
-        rejection
-        for rejection in REJECTIONS
-        if "polymer" in rejection["category"]
-    ]
+    by_kind = {
+        "polymer": [
+            rejection
+            for rejection in REJECTIONS
+            if "polymer" in rejection["category"]
+        ],
+        "direct orient": [
+            rejection
+            for rejection in REJECTIONS
+            if rejection["category"].split("/")[0] == "orient"
+        ],
+    }
 
-    assert len(polymer) == 1, REJECTIONS
-    assert polymer[0]["status"] == STATUS_UNSUPPORTED
-    assert polymer[0]["reason"] == REASON_NOT_GRADABLE
+    for kind, found in by_kind.items():
+        assert len(found) == 1, f"{kind}: {REJECTIONS}"
+        assert found[0]["status"] == STATUS_UNSUPPORTED, kind
+        assert found[0]["reason"] == REASON_NOT_GRADABLE, kind
 
 
 def test_every_committed_structure_appears_in_the_slice() -> None:

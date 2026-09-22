@@ -36,11 +36,11 @@ startup and scales linearly with the attempt count. Measured on a
 12-core Apple Silicon machine at `--workers 8`: the configured
 4,000-attempt run takes ten and a half minutes, and the shorter runs
 agree with it -- 240 attempts in 44s, 1,200 in 214s. That puts the
-full 9,594-plan enumeration (`--target` omitted) at roughly half an
-hour. More workers than physical cores will not help; the 8-worker
-run already measures 7.3x parallelism.
+full 11,274-plan enumeration (`--target` omitted) at roughly three
+quarters of an hour. More workers than physical cores will not help;
+the 8-worker run already measures 7.3x parallelism.
 
-`--slice` is 52 attempts, about twelve seconds.
+`--slice` is 54 attempts, about thirteen seconds.
 
 ## `chain_a_red_structures.json`
 

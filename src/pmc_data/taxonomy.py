@@ -727,6 +727,30 @@ def enumerate_plans(
                 )
             )
 
+        # `hide` aimed at a named selection rather than straight at an
+        # expression. Both target forms are legal for every verb that
+        # takes one, and `color` and `show` already emit both; without
+        # this the corpus never hides through a name, and `hide+select`
+        # is not a category at all.
+        index += 1
+        name = _named(index)
+        candidates.append(
+            _candidate(
+                ActionPlan(
+                    operations=(
+                        SelectOperation(
+                            selection_name=name, expression=expression
+                        ),
+                        HideOperation(
+                            representation=hidden[0],
+                            target=NamedSelection(name),
+                        ),
+                    )
+                ),
+                f"Select {described} and hide its {hidden[0]} representation.",
+            )
+        )
+
         # Hiding a representation nothing is shown in is a legal request
         # a user really does make, and a model should learn to emit it,
         # so the form stays in the corpus -- but it predicts no change,
@@ -762,6 +786,23 @@ def enumerate_plans(
                     )
                 ),
                 f"Select {described} and orient the view on it.",
+            )
+        )
+
+        # `orient` aimed straight at an expression, the other accepted
+        # target form. It can never become a sample: the oracle refuses
+        # to predict a camera move, and with no `select` beside it
+        # there are no selection counts to grade instead, so
+        # `verify_sample` reports it unsupported. That is the point of
+        # emitting it -- the form is legal and a user really does ask
+        # for it, and the corpus should show the pipeline declining to
+        # grade it rather than omitting it and looking like the form
+        # was never considered.
+        index += 1
+        candidates.append(
+            _candidate(
+                ActionPlan(operations=(OrientOperation(target=expression),)),
+                f"Orient the view on {described}.",
             )
         )
 
@@ -850,6 +891,23 @@ def enumerate_plans(
                     )
                 ),
                 f"Show {described} as {unobservable}.",
+            )
+        )
+        # The same name through `hide`. Showing one of these and hiding
+        # it are different requests reaching the same contract limit,
+        # and only the first was emitted -- so the marker the report
+        # counts was evidence about `show` alone.
+        index += 1
+        candidates.append(
+            _candidate(
+                ActionPlan(
+                    operations=(
+                        HideOperation(
+                            representation=unobservable, target=expression
+                        ),
+                    )
+                ),
+                f"Hide the {unobservable} representation for {described}.",
             )
         )
 

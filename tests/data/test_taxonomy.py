@@ -24,11 +24,15 @@ from collections import Counter
 import pytest
 
 from pmc_core.parser import parse_pml
+from pmc_core.plan import ARGUMENT_FORM_TARGET
 from pmc_core.plan import COMMAND_ALLOWLIST
+from pmc_core.plan import TARGET_TYPES
 from pmc_core.plan import TERM_TYPES
 from pmc_core.plan import ActionPlan
+from pmc_core.plan import HideOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.plan import SelectOperation
+from pmc_core.plan import ShowOperation
 from pmc_core.policy import evaluate_plan
 from pmc_core.prompt import MAX_INTENT_CHARACTERS
 from pmc_core.prompt import MIN_INTENT_CHARACTERS
@@ -63,6 +67,79 @@ CANDIDATES = tuple(candidate for _, _, candidate in ATTEMPTS)
 #: address is only unique while that object is alive, so the mapping
 #: would silently collide the moment a snapshot stopped being held.
 BASE_JSON = {spec.spec_id: to_json(snapshot) for spec, snapshot in STRUCTURES}
+
+
+#: Every verb that accepts a target, mapped from the operation type it
+#: produces. Derived from the allowlist rather than listed, so a verb
+#: gaining or losing a target form changes what the two tests below
+#: expect instead of leaving them asserting yesterday's contract.
+TARGET_VERBS = {
+    rule.operation_type: rule.verb
+    for rule in COMMAND_ALLOWLIST.values()
+    if ARGUMENT_FORM_TARGET in rule.argument_forms
+}
+
+
+def test_every_accepted_verb_and_target_form_is_enumerated() -> None:
+    """Each verb taking a target must be emitted with both target forms.
+
+    The grammar's `target ::= sel-name | expression` makes these two
+    different commands: one acts through a name an earlier `select`
+    created, the other carries the expression inline, and PyMOL
+    resolves them by different routes. A verb emitted with only one
+    form leaves the other wholly unexercised, and nothing fails --
+    the category simply never appears, which is the absence this
+    module exists to catch.
+
+    Both sides are derived from the contract, so a verb that gains a
+    target form fails here rather than going quietly uncovered.
+    """
+    # `select` is the one allowlisted verb that takes no target. The
+    # comprehension names it directly so the type checker can narrow
+    # the operation union; the allowlist is still what decides which
+    # verbs are expected, and this keeps the two from drifting apart.
+    assert SelectOperation not in TARGET_VERBS
+
+    expected = {
+        (verb, target_type.__name__)
+        for verb in TARGET_VERBS.values()
+        for target_type in TARGET_TYPES
+    }
+
+    emitted = {
+        (TARGET_VERBS[type(operation)], type(operation.target).__name__)
+        for candidate in CANDIDATES
+        for operation in candidate.plan.operations
+        if not isinstance(operation, SelectOperation)
+    }
+
+    assert emitted == expected
+
+
+def test_every_unobservable_representation_is_shown_and_hidden() -> None:
+    """Each unobservable representation must reach both show and hide.
+
+    Showing one of these and hiding it are different requests that
+    happen to reach the same contract limit, and the
+    `unobservable_representation:` marker the report counts is
+    recorded per representation, not per verb. Emitting only the
+    `show` form left every one of those markers as evidence about
+    `show` alone while the report read as though the representation
+    were covered.
+    """
+    emitted = {
+        (TARGET_VERBS[type(operation)], operation.representation)
+        for candidate in CANDIDATES
+        for operation in candidate.plan.operations
+        if isinstance(operation, ShowOperation | HideOperation)
+        and operation.representation in UNOBSERVABLE_REPRESENTATIONS
+    }
+
+    assert emitted == {
+        (verb, representation)
+        for verb in ("show", "hide")
+        for representation in UNOBSERVABLE_REPRESENTATIONS
+    }
 
 
 def _selects_nothing(
