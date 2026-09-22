@@ -7,6 +7,8 @@ import pytest
 
 from pmc_agent.inference import CompletionRequest as PublicCompletionRequest
 from pmc_agent.inference import FakeEngine as PublicFakeEngine
+from pmc_agent.inference import STOP_DEADLINE as PUBLIC_STOP_DEADLINE
+from pmc_agent.inference.base import STOP_DEADLINE
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
@@ -89,12 +91,20 @@ def test_engine_failure_message_stays_bounded_and_printable() -> None:
 
 @pytest.mark.parametrize(
     ("max_tokens", "deadline_seconds"),
-    [(0, 1.0), (-1, 1.0), (1, 0.0), (1, -0.1)],
+    [
+        (0, 1.0),
+        (-1, 1.0),
+        (1, 0.0),
+        (1, -0.1),
+        (1, float("inf")),
+        (1, float("-inf")),
+        (1, float("nan")),
+    ],
 )
 def test_invalid_completion_bounds_are_rejected(
     max_tokens: int, deadline_seconds: float
 ) -> None:
-    """A request cannot claim a non-positive resource bound.
+    """A request cannot claim a non-positive or non-finite resource bound.
 
     Args:
         max_tokens: The invalid token limit under test.
@@ -130,6 +140,7 @@ def test_the_package_exports_the_supported_contract() -> None:
 
     assert isinstance(result, CompletionResult)
     assert result.text == "text"
+    assert PUBLIC_STOP_DEADLINE == STOP_DEADLINE
 
 
 if __name__ == "__main__":

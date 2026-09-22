@@ -283,6 +283,9 @@ def test_every_supported_loopback_origin_is_accepted(base_url: str) -> None:
         "https://127.0.0.1",
         "http://localhost/api/v1",
         "http://user@localhost",
+        "http://@localhost",
+        "http://localhost?",
+        "http://localhost#",
         "http://[::1",
     ],
 )
