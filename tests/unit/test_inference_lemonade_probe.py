@@ -49,7 +49,9 @@ def _canary_response(text: str = "pmc-grammar-probe-ok") -> httpx.Response:
     """
     return httpx.Response(
         200,
-        content=_event(text) + _event("", finish_reason="stop") + b"data: [DONE]\n\n",
+        content=_event(text)
+        + _event("", finish_reason="stop")
+        + b"data: [DONE]\n\n",
     )
 
 
@@ -168,7 +170,9 @@ def _happy_handler(
     return handler
 
 
-def _connect(handler: _HANDLER, *, backend: str = "cpu") -> LemonadeEngine | EngineFailure:
+def _connect(
+    handler: _HANDLER, *, backend: str = "cpu"
+) -> LemonadeEngine | EngineFailure:
     """Connect through a hermetic scripted transport.
 
     Args:
@@ -314,7 +318,9 @@ def test_a_missing_model_fails_before_load() -> None:
     ]
 
 
-def test_a_catalog_response_with_a_different_model_id_fails_before_load() -> None:
+def test_a_catalog_response_with_a_different_model_id_fails_before_load() -> (
+    None
+):
     """A 200 response must identify the exact model requested by its URL."""
     requests: list[httpx.Request] = []
     responses = iter(

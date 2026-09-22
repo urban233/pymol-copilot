@@ -85,9 +85,7 @@ def _event(
     if content is not None:
         delta["content"] = content
     choice: dict[str, object] = {"delta": delta, "finish_reason": finish_reason}
-    return (
-        f"data: {json.dumps({'model': model, 'choices': [choice]})}\n\n".encode()
-    )
+    return f"data: {json.dumps({'model': model, 'choices': [choice]})}\n\n".encode()
 
 
 def _done() -> bytes:
@@ -154,7 +152,9 @@ def _engine(
     )
 
 
-def _successful_response(text: str = "hello", reason: str = "stop") -> httpx.Response:
+def _successful_response(
+    text: str = "hello", reason: str = "stop"
+) -> httpx.Response:
     """Build a successful SSE response.
 
     Args:
@@ -164,7 +164,10 @@ def _successful_response(text: str = "hello", reason: str = "stop") -> httpx.Res
     Returns:
         A complete streamed HTTP response.
     """
-    return httpx.Response(200, content=_event(content=text) + _event(finish_reason=reason) + _done())
+    return httpx.Response(
+        200,
+        content=_event(content=text) + _event(finish_reason=reason) + _done(),
+    )
 
 
 @pytest.mark.parametrize(
@@ -180,7 +183,9 @@ def test_a_streamed_completion_accumulates_text_and_maps_its_stop_reason(
         reason: The server's terminal SSE reason.
         expected_stop: The interface stop reason expected for it.
     """
-    engine = _engine(lambda _request: _successful_response("hello world", reason))
+    engine = _engine(
+        lambda _request: _successful_response("hello world", reason)
+    )
 
     result = engine.complete(_request(), cancel=CancelToken())
 
@@ -191,7 +196,9 @@ def test_a_streamed_completion_accumulates_text_and_maps_its_stop_reason(
     )
 
 
-def test_every_request_is_streaming_deterministic_and_only_sends_grammar_when_set() -> None:
+def test_every_request_is_streaming_deterministic_and_only_sends_grammar_when_set() -> (
+    None
+):
     """No adapter path can accidentally issue an uncancellable request."""
     bodies: list[dict[str, object]] = []
 
@@ -410,8 +417,7 @@ def test_each_http_phase_timeout_is_bounded_by_the_remaining_deadline() -> None:
     assert isinstance(result, CompletionResult)
     assert len(observed) == 1
     assert all(
-        value is not None and value <= 0.5
-        for value in observed[0].values()
+        value is not None and value <= 0.5 for value in observed[0].values()
     )
 
 
@@ -448,7 +454,9 @@ def test_a_server_error_is_typed_as_unavailable() -> None:
     assert result.category == ENGINE_UNAVAILABLE
 
 
-def test_deadline_discards_partial_text(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_deadline_discards_partial_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A deadline failure cannot feed a truncated plan to the graph.
 
     Args:
@@ -473,7 +481,10 @@ def test_cancellation_closes_the_stream_and_returns_received_text() -> None:
     """A cancellation turns the partial streamed result into a terminal result."""
     cancel = CancelToken()
     stream = _ChunkStream(
-        (_event(content="before cancel"), _event(finish_reason="stop") + _done()),
+        (
+            _event(content="before cancel"),
+            _event(finish_reason="stop") + _done(),
+        ),
         before_chunk=lambda index: cancel.cancel() if index == 1 else None,
     )
     engine = _engine(lambda _request: httpx.Response(200, stream=stream))
@@ -496,7 +507,9 @@ def test_a_grammar_rejection_is_not_misreported_as_an_outage() -> None:
         )
     )
 
-    result = engine.complete(_request(grammar='root ::= "ok"'), cancel=CancelToken())
+    result = engine.complete(
+        _request(grammar='root ::= "ok"'), cancel=CancelToken()
+    )
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_REFUSED_GRAMMAR

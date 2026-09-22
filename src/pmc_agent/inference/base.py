@@ -170,7 +170,9 @@ class CompletionResult:
             ValueError: The stop reason is outside the stable interface.
         """
         if self.stop_reason not in STOP_REASONS:
-            raise ValueError(f"unknown completion stop reason: {self.stop_reason}")
+            raise ValueError(
+                f"unknown completion stop reason: {self.stop_reason}"
+            )
 
 
 @dataclass(frozen=True)
@@ -197,7 +199,9 @@ class EngineFailure:
             ValueError: The category is outside the stable interface.
         """
         if self.category not in ENGINE_FAILURE_CATEGORIES:
-            raise ValueError(f"unknown engine failure category: {self.category}")
+            raise ValueError(
+                f"unknown engine failure category: {self.category}"
+            )
 
 
 class InferenceEngine(Protocol):

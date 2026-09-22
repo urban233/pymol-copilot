@@ -51,8 +51,7 @@ from pmc_core.errors import normalize_message
 DEFAULT_BASE_URL = "http://localhost:13305"
 DEFAULT_MODEL_NAME = "Llama-3.2-1B-Instruct-GGUF"
 DEFAULT_CHECKPOINT = (
-    "unsloth/Llama-3.2-1B-Instruct-GGUF:"
-    "Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf"
+    "unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf"
 )
 DEFAULT_BACKEND = "cpu"
 DEFAULT_CONTEXT_SIZE = 4096
@@ -84,7 +83,9 @@ def _local_origin(base_url: str) -> tuple[str, str, int]:
         host = url.host.lower()
         port = url.port if url.port is not None else 80
     except (TypeError, ValueError) as error:
-        raise ValueError("Lemonade base_url must be a valid local HTTP origin") from error
+        raise ValueError(
+            "Lemonade base_url must be a valid local HTTP origin"
+        ) from error
 
     if (
         url.scheme != "http"
@@ -95,7 +96,9 @@ def _local_origin(base_url: str) -> tuple[str, str, int]:
         or url.path not in {"", "/"}
         or not _is_loopback_host(host)
     ):
-        raise ValueError("Lemonade base_url must be a bare loopback HTTP origin")
+        raise ValueError(
+            "Lemonade base_url must be a bare loopback HTTP origin"
+        )
     return url.scheme, host, port
 
 
@@ -401,7 +404,9 @@ class LemonadeEngine:
                         return _failure(
                             ENGINE_REFUSED_GRAMMAR, _response_message(response)
                         )
-                    return _failure(ENGINE_UNAVAILABLE, _response_message(response))
+                    return _failure(
+                        ENGINE_UNAVAILABLE, _response_message(response)
+                    )
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if cancel.is_cancelled():
@@ -410,9 +415,12 @@ class LemonadeEngine:
                             model_identity=self.model_identity,
                             stop_reason=STOP_CANCELLED,
                         )
-                    if self._remaining_deadline(
-                        started_at, request.deadline_seconds
-                    ) <= 0:
+                    if (
+                        self._remaining_deadline(
+                            started_at, request.deadline_seconds
+                        )
+                        <= 0
+                    ):
                         return _failure(
                             ENGINE_TIMEOUT,
                             "Lemonade completion exceeded its deadline",
@@ -461,7 +469,9 @@ class LemonadeEngine:
         except httpx.TimeoutException as error:
             return _failure(ENGINE_TIMEOUT, str(error))
         except httpx.HTTPStatusError as error:
-            return _failure(ENGINE_UNAVAILABLE, _response_message(error.response))
+            return _failure(
+                ENGINE_UNAVAILABLE, _response_message(error.response)
+            )
         except httpx.RequestError as error:
             return _failure(ENGINE_UNAVAILABLE, str(error))
         except Exception as error:  # The interface is total by contract.
@@ -615,7 +625,9 @@ def probe_capabilities(
     if model is None:
         return _unknown("Lemonade model response was not a JSON object")
     if model.get("id") != engine.model_name:
-        return _unknown("Lemonade model response reported an unexpected model id")
+        return _unknown(
+            "Lemonade model response reported an unexpected model id"
+        )
     actual_checkpoint = model.get("checkpoint")
     if actual_checkpoint != engine.checkpoint:
         return _unknown(
@@ -625,7 +637,9 @@ def probe_capabilities(
     recipe = model.get("recipe")
     context_length = model.get("context_length")
     if not isinstance(recipe, str) or not isinstance(context_length, int):
-        return _unknown("Lemonade model response omitted recipe or context length")
+        return _unknown(
+            "Lemonade model response omitted recipe or context length"
+        )
 
     load_result = _request(
         engine,
@@ -683,7 +697,9 @@ def probe_capabilities(
         or canary.text != _GRAMMAR_CANARY_OUTPUT
         or canary.stop_reason != STOP_END
     ):
-        detail = canary.message if isinstance(canary, EngineFailure) else canary.text
+        detail = (
+            canary.message if isinstance(canary, EngineFailure) else canary.text
+        )
         return _failure(
             ENGINE_REFUSED_GRAMMAR,
             f"Lemonade grammar canary did not return its sentinel: {detail}",

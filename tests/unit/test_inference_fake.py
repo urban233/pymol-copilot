@@ -120,7 +120,10 @@ def test_unknown_result_and_failure_states_are_rejected() -> None:
 def test_the_package_exports_the_supported_contract() -> None:
     """Callers need not import implementation internals to use the seam."""
     request = PublicCompletionRequest(
-        prompt="select chain A", grammar=None, max_tokens=8, deadline_seconds=1.0
+        prompt="select chain A",
+        grammar=None,
+        max_tokens=8,
+        deadline_seconds=1.0,
     )
     engine = PublicFakeEngine([CompletionResult("text", "model", STOP_END)])
     result = engine.complete(request, cancel=CancelToken())
