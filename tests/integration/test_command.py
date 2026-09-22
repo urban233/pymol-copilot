@@ -420,6 +420,8 @@ def validated_response(
         ),
         plan_id="55555555-5555-4555-8555-555555555555",
         snapshot_digest=request.snapshot.digest,
+        expires_at="2026-08-26T14:27:03.220Z",
+        model_identity="test-model@test-checkpoint",
     )
 
 
@@ -724,6 +726,8 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
             ),
             plan_id=response.plan_id,
             snapshot_digest=response.snapshot_digest,
+            expires_at=response.expires_at,
+            model_identity=response.model_identity,
         )
 
     output: list[str] = []

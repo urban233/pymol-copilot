@@ -181,6 +181,10 @@ class RequestGraphLifecycle:
             plan_id = result["plan_id"]
             assert isinstance(plan_id, str)
             digest = request.snapshot.digest
+            expires_at = result["expires_at"]
+            assert isinstance(expires_at, str)
+            model_identity = result["model_identity"]
+            assert isinstance(model_identity, str)
             return ValidatedPlanResponseV1(
                 request_id=request.request_id,
                 session_id=request.session_id,
@@ -200,6 +204,8 @@ class RequestGraphLifecycle:
                 ),
                 plan_id=plan_id,
                 snapshot_digest=digest,
+                expires_at=expires_at,
+                model_identity=model_identity,
             )
         return self._to_terminal_response(
             request.request_id, request.session_id, result

@@ -35,6 +35,11 @@ from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import CancelRequestV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
+from pmc_core.protocol import APPLY_OUTCOME_APPLIED
+from pmc_core.protocol import APPLY_OUTCOME_RESTORED
+from pmc_core.protocol import APPLY_OUTCOME_ROLLED_BACK
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import RejectRequestV1
@@ -43,6 +48,8 @@ from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
 from pmc_core.protocol import decode_cancel_request_json
+from pmc_core.protocol import decode_apply_outcome_request_json
+from pmc_core.protocol import decode_apply_request_json
 from pmc_core.protocol import decode_execution_error
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_plan
@@ -138,6 +145,25 @@ def cancel_request() -> CancelRequestV1:
     )
 
 
+def apply_request() -> ApplyRequestV1:
+    """Build the accepted apply-request fixture."""
+    return ApplyRequestV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
+        plan_id=PLAN_ID,
+    )
+
+
+def apply_outcome_request(outcome: str = APPLY_OUTCOME_APPLIED) -> ApplyOutcomeRequestV1:
+    """Build the accepted apply-outcome fixture."""
+    return ApplyOutcomeRequestV1(
+        request_id=REQUEST_IDS["requestId"],
+        session_id=REQUEST_IDS["sessionId"],
+        plan_id=PLAN_ID,
+        outcome=outcome,
+    )
+
+
 def response() -> ValidatedPlanResponseV1:
     """Build the accepted validated response fixture.
 
@@ -155,6 +181,8 @@ def response() -> ValidatedPlanResponseV1:
         ),
         plan_id="33333333-3333-4333-8333-333333333333",
         snapshot_digest="sha256:example-chain-a-digest",
+        expires_at="2026-08-26T14:27:03.220Z",
+        model_identity="test-model@test-checkpoint",
     )
 
 
@@ -305,6 +333,8 @@ def test_validated_response_accepts_matching_snapshot_digests_from_another_reque
         ),
         plan_id=fixture.plan_id,
         snapshot_digest="sha256:another-request-digest",
+        expires_at=fixture.expires_at,
+        model_identity=fixture.model_identity,
     )
 
     decoded = ValidatedPlanResponseV1.from_dict(
@@ -352,6 +382,8 @@ def _response_payload_with_command(
             "planId": "33333333-3333-4333-8333-333333333333",
             "planVersion": "1",
             "snapshotDigest": "sha256:example-chain-a-digest",
+            "expiresAt": "2026-08-26T14:27:03.220Z",
+            "modelIdentity": "test-model@test-checkpoint",
             "commands": commands,
         },
         "validation": {
@@ -1158,6 +1190,49 @@ def test_cancel_request_json_rejects_invalid_json() -> None:
     """Hostile, non-JSON cancel request bodies fail closed."""
     with pytest.raises(ProtocolDecodeError):
         decode_cancel_request_json("{not valid json")
+
+
+def test_apply_request_round_trips_and_requires_v4_identifiers() -> None:
+    """Approval requests use the same strict correlation boundary as reject."""
+    assert decode_apply_request_json(encode_json(apply_request())) == apply_request()
+    payload = apply_request().to_dict()
+    payload["planId"] = "11111111-1111-3111-8111-111111111111"
+    with pytest.raises(ProtocolDecodeError, match="UUIDv4"):
+        ApplyRequestV1.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        APPLY_OUTCOME_APPLIED,
+        APPLY_OUTCOME_RESTORED,
+        APPLY_OUTCOME_ROLLED_BACK,
+    ],
+)
+def test_apply_outcome_request_round_trips(outcome: str) -> None:
+    """Each allowed terminal apply outcome has one strict wire form."""
+    request = apply_outcome_request(outcome)
+    assert decode_apply_outcome_request_json(encode_json(request)) == request
+
+
+def test_apply_outcome_request_rejects_unknown_outcome() -> None:
+    """An apply outcome cannot create a new graph terminal by spelling."""
+    payload = apply_outcome_request().to_dict()
+    payload["outcome"] = "unexpected"
+    with pytest.raises(ProtocolDecodeError, match="unsupported apply outcome"):
+        ApplyOutcomeRequestV1.from_dict(payload)
+
+
+@pytest.mark.parametrize("field", ["expiresAt", "modelIdentity"])
+def test_validated_response_requires_approval_reverification_fields(
+    field: str,
+) -> None:
+    """Older peers missing approval-critical values fail closed."""
+    payload = response().to_dict()
+    action_plan = wire_plan(payload)
+    del action_plan[field]
+    with pytest.raises(ProtocolDecodeError):
+        ValidatedPlanResponseV1.from_dict(payload)
 
 
 if __name__ == "__main__":
