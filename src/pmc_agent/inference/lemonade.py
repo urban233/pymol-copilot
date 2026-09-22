@@ -26,8 +26,11 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 import ipaddress
 import json
 import math
+import threading
 import time
+from contextlib import suppress
 from dataclasses import dataclass
+from types import TracebackType
 from typing import Any
 
 import httpx
@@ -82,7 +85,7 @@ def _local_origin(base_url: str) -> tuple[str, str, int]:
         url = httpx.URL(base_url)
         host = url.host.lower()
         port = url.port if url.port is not None else 80
-    except (TypeError, ValueError) as error:
+    except (httpx.InvalidURL, TypeError, ValueError) as error:
         raise ValueError(
             "Lemonade base_url must be a valid local HTTP origin"
         ) from error
@@ -238,7 +241,8 @@ class LemonadeEngine:
                 probe.
             connect_timeout_seconds: Finite socket connection budget.
             read_timeout_seconds: Finite per-read HTTP budget.
-            client: An optional preconfigured client for hermetic tests.
+            client: An optional preconfigured client for hermetic tests. The
+                caller retains ownership of an injected client.
         """
         origin = _local_origin(base_url)
         if client is not None and _local_origin(str(client.base_url)) != origin:
@@ -255,15 +259,52 @@ class LemonadeEngine:
             read_timeout_seconds, "read_timeout_seconds"
         )
         self._capabilities: EngineCapabilities | None = None
-        self._client = client or httpx.Client(
-            base_url=base_url,
-            timeout=httpx.Timeout(
-                connect=connect_timeout_seconds,
-                read=read_timeout_seconds,
-                write=read_timeout_seconds,
-                pool=connect_timeout_seconds,
-            ),
+        self._owns_client = client is None
+        self._client = (
+            client
+            if client is not None
+            else httpx.Client(
+                base_url=base_url,
+                timeout=httpx.Timeout(
+                    connect=connect_timeout_seconds,
+                    read=read_timeout_seconds,
+                    write=read_timeout_seconds,
+                    pool=connect_timeout_seconds,
+                ),
+            )
         )
+
+    def close(self) -> None:
+        """Close transport resources owned by this engine.
+
+        An injected client remains the caller's responsibility. The client
+        created by production construction is closed idempotently.
+        """
+        if self._owns_client:
+            self._client.close()
+
+    def __enter__(self) -> LemonadeEngine:
+        """Return this engine for context-managed lifetime control.
+
+        Returns:
+            This engine.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close owned transport resources when leaving a context.
+
+        Args:
+            exc_type: The exception type leaving the context, if any.
+            exc_value: The exception leaving the context, if any.
+            traceback: The exception traceback, if any.
+        """
+        self.close()
 
     @property
     def model_identity(self) -> str:
@@ -383,6 +424,20 @@ class LemonadeEngine:
             return _failure(
                 ENGINE_TIMEOUT, "Lemonade completion exceeded its deadline"
             )
+
+        deadline_reached = threading.Event()
+        active_response: httpx.Response | None = None
+
+        def expire_deadline() -> None:
+            """Close an active stream when the absolute deadline expires."""
+            deadline_reached.set()
+            if active_response is not None:
+                with suppress(Exception):
+                    active_response.close()
+
+        deadline_timer = threading.Timer(remaining_seconds, expire_deadline)
+        deadline_timer.daemon = True
+        deadline_timer.start()
         try:
             with self._client.stream(
                 "POST",
@@ -394,6 +449,12 @@ class LemonadeEngine:
                 # for this adapter, including when tests inject a client.
                 follow_redirects=False,
             ) as response:
+                active_response = response
+                if deadline_reached.is_set():
+                    return _failure(
+                        ENGINE_TIMEOUT,
+                        "Lemonade completion exceeded its deadline",
+                    )
                 if response.status_code >= 400:
                     response.read()
                     if (
@@ -473,9 +534,21 @@ class LemonadeEngine:
                 ENGINE_UNAVAILABLE, _response_message(error.response)
             )
         except httpx.RequestError as error:
+            if deadline_reached.is_set():
+                return _failure(
+                    ENGINE_TIMEOUT,
+                    "Lemonade completion exceeded its deadline",
+                )
             return _failure(ENGINE_UNAVAILABLE, str(error))
         except Exception as error:  # The interface is total by contract.
+            if deadline_reached.is_set():
+                return _failure(
+                    ENGINE_TIMEOUT,
+                    "Lemonade completion exceeded its deadline",
+                )
             return _failure(ENGINE_UNKNOWN, str(error))
+        finally:
+            deadline_timer.cancel()
 
         if cancel.is_cancelled():
             return CompletionResult(
@@ -692,17 +765,13 @@ def probe_capabilities(
         ),
         cancel=CancelToken(),
     )
-    if (
-        isinstance(canary, EngineFailure)
-        or canary.text != _GRAMMAR_CANARY_OUTPUT
-        or canary.stop_reason != STOP_END
-    ):
-        detail = (
-            canary.message if isinstance(canary, EngineFailure) else canary.text
-        )
+    if isinstance(canary, EngineFailure):
+        return canary
+    if canary.text != _GRAMMAR_CANARY_OUTPUT or canary.stop_reason != STOP_END:
         return _failure(
             ENGINE_REFUSED_GRAMMAR,
-            f"Lemonade grammar canary did not return its sentinel: {detail}",
+            "Lemonade grammar canary did not return its sentinel: "
+            f"{canary.text}",
         )
 
     return EngineCapabilities(
@@ -755,6 +824,7 @@ def connect_lemonade(
     )
     capabilities = probe_capabilities(engine)
     if isinstance(capabilities, EngineFailure):
+        engine.close()
         return capabilities
     engine._set_capabilities(capabilities)
     return engine

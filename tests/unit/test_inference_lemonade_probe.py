@@ -9,7 +9,9 @@ from collections.abc import Callable
 import httpx
 import pytest
 
+from pmc_agent.inference import lemonade
 from pmc_agent.inference.base import ENGINE_REFUSED_GRAMMAR
+from pmc_agent.inference.base import ENGINE_TIMEOUT
 from pmc_agent.inference.base import ENGINE_UNAVAILABLE
 from pmc_agent.inference.base import ENGINE_UNKNOWN
 from pmc_agent.inference.base import EngineFailure
@@ -131,7 +133,7 @@ def _client(handler: _HANDLER) -> httpx.Client:
 def _happy_handler(
     *,
     device: str = "cpu",
-    canary: httpx.Response | None = None,
+    canary: httpx.Response | Exception | None = None,
     requests: list[httpx.Request] | None = None,
 ) -> _HANDLER:
     """Build the ordered response script for a successful probe.
@@ -150,7 +152,7 @@ def _happy_handler(
             httpx.Response(200, json=_catalog()),
             httpx.Response(200, json={"status": "success"}),
             httpx.Response(200, json=_health(device=device)),
-            canary or _canary_response(),
+            canary if canary is not None else _canary_response(),
         )
     )
 
@@ -165,7 +167,10 @@ def _happy_handler(
         """
         if requests is not None:
             requests.append(request)
-        return next(responses)
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     return handler
 
@@ -246,6 +251,72 @@ def test_an_unreachable_health_check_stops_before_load_or_completion() -> None:
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_UNAVAILABLE
     assert [request.url.path for request in requests] == ["/api/v1/health"]
+
+
+def test_failed_connect_closes_its_internally_owned_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed production startup cannot leak an HTTP connection pool.
+
+    Args:
+        monkeypatch: Pytest's controlled patching fixture.
+    """
+    owned_client = _client(
+        lambda _request: httpx.Response(503, content="still loading")
+    )
+
+    def client_factory(**_kwargs: object) -> httpx.Client:
+        """Return the observable client standing in for production.
+
+        Returns:
+            The client whose closed state the test asserts.
+        """
+        return owned_client
+
+    monkeypatch.setattr(lemonade.httpx, "Client", client_factory)
+
+    result = connect_lemonade(
+        base_url=_BASE_URL,
+        model_name=_MODEL,
+        checkpoint=_CHECKPOINT,
+    )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNAVAILABLE
+    assert owned_client.is_closed
+
+
+def test_an_owned_client_has_context_managed_lifetime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful production engine exposes explicit resource cleanup.
+
+    Args:
+        monkeypatch: Pytest's controlled patching fixture.
+    """
+    owned_client = _client(_happy_handler())
+
+    def client_factory(**_kwargs: object) -> httpx.Client:
+        """Return the observable client standing in for production.
+
+        Returns:
+            The client whose closed state the test asserts.
+        """
+        return owned_client
+
+    monkeypatch.setattr(lemonade.httpx, "Client", client_factory)
+
+    engine = connect_lemonade(
+        base_url=_BASE_URL,
+        model_name=_MODEL,
+        checkpoint=_CHECKPOINT,
+    )
+
+    assert isinstance(engine, LemonadeEngine)
+    with engine as entered:
+        assert entered is engine
+        assert not owned_client.is_closed
+    assert owned_client.is_closed
 
 
 def test_a_probe_does_not_follow_a_redirect_to_another_origin() -> None:
@@ -439,6 +510,31 @@ def test_every_failed_grammar_canary_refuses_to_return_an_engine(
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_REFUSED_GRAMMAR
+
+
+@pytest.mark.parametrize(
+    ("canary", "expected_category"),
+    [
+        (httpx.ReadTimeout("canary stalled"), ENGINE_TIMEOUT),
+        (httpx.Response(503, content="unavailable"), ENGINE_UNAVAILABLE),
+        (httpx.Response(200, content=b"malformed SSE"), ENGINE_UNKNOWN),
+    ],
+    ids=["timeout", "unavailable", "unknown"],
+)
+def test_non_grammar_canary_failures_keep_their_category(
+    canary: httpx.Response | Exception,
+    expected_category: str,
+) -> None:
+    """Startup diagnostics distinguish grammar refusal from other failures.
+
+    Args:
+        canary: The scripted transport or protocol failure.
+        expected_category: The category which must pass through unchanged.
+    """
+    result = _connect(_happy_handler(canary=canary))
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == expected_category
 
 
 if __name__ == "__main__":

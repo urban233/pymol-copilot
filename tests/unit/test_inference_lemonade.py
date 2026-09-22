@@ -4,6 +4,8 @@
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import json
+import threading
+import time
 from collections.abc import Callable
 from collections.abc import Iterator
 
@@ -63,6 +65,36 @@ class _ChunkStream(httpx.SyncByteStream):
     def close(self) -> None:
         """Record that the response stopped consuming this stream."""
         self.closed = True
+
+
+class _BlockingStream(httpx.SyncByteStream):
+    """A stream that remains blocked until another thread closes it."""
+
+    def __init__(self) -> None:
+        """Create a stream whose close signal releases its iterator."""
+        self._closed = threading.Event()
+
+    def __iter__(self) -> Iterator[bytes]:
+        """Yield partial text and then wait for the deadline watchdog.
+
+        Yields:
+            One partial SSE event before blocking.
+        """
+        yield _event(content="partial")
+        self._closed.wait(timeout=5.0)
+
+    @property
+    def closed(self) -> bool:
+        """Return whether the stream was closed.
+
+        Returns:
+            True once ``close()`` has released the blocked iterator.
+        """
+        return self._closed.is_set()
+
+    def close(self) -> None:
+        """Release the blocked iterator."""
+        self._closed.set()
 
 
 def _event(
@@ -251,6 +283,7 @@ def test_every_supported_loopback_origin_is_accepted(base_url: str) -> None:
         "https://127.0.0.1",
         "http://localhost/api/v1",
         "http://user@localhost",
+        "http://[::1",
     ],
 )
 def test_nonlocal_or_nonorigin_urls_are_rejected_before_the_transport_is_used(
@@ -276,7 +309,7 @@ def test_nonlocal_or_nonorigin_urls_are_rejected_before_the_transport_is_used(
         return _successful_response()
 
     client = httpx.Client(
-        base_url=base_url, transport=httpx.MockTransport(handler)
+        base_url=_BASE_URL, transport=httpx.MockTransport(handler)
     )
 
     with pytest.raises(ValueError):
@@ -419,6 +452,23 @@ def test_each_http_phase_timeout_is_bounded_by_the_remaining_deadline() -> None:
     assert all(
         value is not None and value <= 0.5 for value in observed[0].values()
     )
+
+
+def test_a_stalled_stream_is_closed_at_the_absolute_deadline() -> None:
+    """Repeated reads cannot reset and overrun the wall-clock budget."""
+    stream = _BlockingStream()
+    engine = _engine(lambda _request: httpx.Response(200, stream=stream))
+
+    started_at = time.monotonic()
+    result = engine.complete(
+        _request(deadline_seconds=0.05), cancel=CancelToken()
+    )
+    elapsed_seconds = time.monotonic() - started_at
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_TIMEOUT
+    assert elapsed_seconds < 0.5
+    assert stream.closed
 
 
 def test_connect_errors_are_typed_as_unavailable() -> None:
