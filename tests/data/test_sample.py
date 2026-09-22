@@ -18,6 +18,7 @@ import pytest
 
 from pmc_data.sample import ASSERTION_COMMANDS_SUCCEEDED
 from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
+from pmc_data.sample import ASSERTION_SELECTION_COUNTS
 from pmc_data.sample import FINGERPRINT_PREFIX
 from pmc_data.sample import Assertion
 from pmc_data.sample import InvalidSampleError
@@ -154,6 +155,74 @@ def test_a_sample_with_no_evaluated_assertion_is_rejected() -> None:
         _sample(assertions=())
 
 
+def test_a_failed_verification_cannot_be_recorded_as_a_sample() -> None:
+    """A `Sample` is the type for an attempt that passed.
+
+    An attempt that did not is a `Rejection`. Nothing enforced that,
+    so a persisted record saying `status="failed"` decoded cleanly and
+    `build_report` counted it among the kept -- a route by which a
+    known failure could have become training data.
+    """
+    with pytest.raises(InvalidSampleError, match="successful verification"):
+        _sample(
+            verification=VerificationRecord(
+                status="failed",
+                reason="fidelity_mismatch",
+                expected_fingerprint="sha256:x",
+                resulting_fingerprint="sha256:x",
+                selection_counts=(),
+                command_verbs=("select", "color"),
+            )
+        )
+
+
+def test_a_fingerprint_that_did_not_match_is_rejected() -> None:
+    """A sample graded against one fingerprint must record that one.
+
+    The status alone is not enough: a record can claim success while
+    the two fingerprints beside it disagree, and that record is
+    evidence of nothing.
+    """
+    with pytest.raises(InvalidSampleError, match="graded against"):
+        _sample(
+            verification=VerificationRecord(
+                status="ok",
+                reason="ok",
+                expected_fingerprint="sha256:x",
+                resulting_fingerprint="sha256:y",
+                selection_counts=(),
+                command_verbs=("select", "color"),
+            )
+        )
+
+
+def test_an_assertion_contradicting_its_own_verification_is_rejected() -> None:
+    """An assertion must state what the verification beside it recorded.
+
+    The assertions are what a reader audits the sample by. One that
+    names a fingerprint the run was never graded against describes a
+    different comparison than the one that happened.
+    """
+    with pytest.raises(InvalidSampleError, match="resulting_snapshot"):
+        _sample(
+            assertions=(
+                Assertion(
+                    kind=ASSERTION_RESULTING_SNAPSHOT, detail="sha256:other"
+                ),
+            )
+        )
+
+    with pytest.raises(InvalidSampleError, match="selection_counts"):
+        _sample(
+            assertions=(
+                Assertion(
+                    kind=ASSERTION_SELECTION_COUNTS,
+                    detail="[('copilot_a', 999)]",
+                ),
+            )
+        )
+
+
 def test_an_unsupported_assertion_kind_is_rejected() -> None:
     """Widening the closed set must be a deliberate edit, not a typo."""
     with pytest.raises(InvalidSampleError, match="unsupported assertion kind"):
@@ -222,6 +291,16 @@ def test_a_sample_knows_when_it_predicted_no_change() -> None:
     written before the distinction existed be measured for it.
     """
     unchanged = _sample(
+        # The assertion moves with the verification: a sample states
+        # in its assertions what it was actually graded against, and
+        # Sample rejects one whose two halves disagree.
+        assertions=(
+            Assertion(
+                kind=ASSERTION_RESULTING_SNAPSHOT,
+                detail=FINGERPRINT_PREFIX + "a" * 64,
+            ),
+            Assertion(kind=ASSERTION_COMMANDS_SUCCEEDED, detail="1 commands"),
+        ),
         verification=VerificationRecord(
             status="ok",
             reason="ok",
@@ -231,7 +310,7 @@ def test_a_sample_knows_when_it_predicted_no_change() -> None:
             resulting_fingerprint=FINGERPRINT_PREFIX + "a" * 64,
             selection_counts=(),
             command_verbs=("hide",),
-        )
+        ),
     )
 
     assert unchanged.structure.snapshot_sha256 == "a" * 64
@@ -244,6 +323,16 @@ def test_a_sample_with_no_predicted_snapshot_did_not_predict_no_change() -> (
 ):
     """An absent prediction is not a prediction that nothing happened."""
     unpredicted = _sample(
+        # What an orienting plan actually records: no snapshot
+        # assertion at all, because none was computed, and the
+        # selection counts it was graded on instead.
+        assertions=(
+            Assertion(
+                kind=ASSERTION_SELECTION_COUNTS,
+                detail="[('copilot_a', 28)]",
+            ),
+            Assertion(kind=ASSERTION_COMMANDS_SUCCEEDED, detail="2 commands"),
+        ),
         verification=VerificationRecord(
             status="ok",
             reason="ok",
@@ -251,7 +340,7 @@ def test_a_sample_with_no_predicted_snapshot_did_not_predict_no_change() -> (
             resulting_fingerprint=None,
             selection_counts=(("copilot_a", 28),),
             command_verbs=("orient",),
-        )
+        ),
     )
 
     assert unpredicted.predicted_no_change is False

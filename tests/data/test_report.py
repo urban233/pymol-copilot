@@ -101,10 +101,15 @@ def _sample(
         verification=VerificationRecord(
             status="ok",
             reason="ok",
+            # Both fingerprints or neither, which is the only shape a
+            # kept sample can have: the executor reported success, so
+            # what it produced is what it was graded against.
             expected_fingerprint=FINGERPRINT_PREFIX + "a" * 64
             if no_change
             else None,
-            resulting_fingerprint=None,
+            resulting_fingerprint=FINGERPRINT_PREFIX + "a" * 64
+            if no_change
+            else None,
             selection_counts=(("copilot_sel0001", 0),)
             if empty_selection
             else (),

@@ -34,6 +34,8 @@ from pathlib import Path
 from typing import Any
 
 from pmc_core.executor import EXECUTOR_VERSION
+from pmc_core.executor import REASON_OK
+from pmc_core.executor import STATUS_OK
 from pmc_core.grammar import GRAMMAR_VERSION
 from pmc_core.policy import POLICY_VERSION
 from pmc_core.protocol import PROTOCOL_VERSION
@@ -526,18 +528,64 @@ class Sample:
     verification: VerificationRecord
 
     def __post_init__(self) -> None:
-        """Reject a sample that establishes nothing.
+        """Reject a sample that establishes nothing, or that contradicts itself.
+
+        A `Sample` is the type for an attempt that *passed*; an attempt
+        that did not is a `Rejection`. Nothing enforced that, so a
+        record carrying `status="failed"` and a fingerprint that did
+        not match the one it was graded against decoded cleanly and
+        `pmc_data.report` counted it among the kept -- which is how a
+        failure persisted to disk could have become training data.
+        The invariant is checked here rather than in `from_dict` so it
+        holds for a constructed sample too, and the fields are
+        compared against each other because a record whose assertions
+        disagree with its own verification is evidence about nothing.
 
         Raises:
-            InvalidSampleError: If the sample carries no assertion. A
-                record with no evaluated assertion is not a verified
-                sample, whatever its verification status says.
+            InvalidSampleError: If the sample carries no assertion, if
+                its verification did not succeed, if a recorded
+                fingerprint disagrees with the one it was graded
+                against, or if an assertion's detail disagrees with
+                the verification beside it.
         """
         if not self.assertions:
             raise InvalidSampleError(
                 f"{self.sample_id!r}: a sample must carry at least one "
                 "evaluated assertion"
             )
+        verification = self.verification
+        if verification.status != STATUS_OK or verification.reason != REASON_OK:
+            raise InvalidSampleError(
+                f"{self.sample_id!r}: a sample must record a successful "
+                f"verification, not status={verification.status!r} "
+                f"reason={verification.reason!r}"
+            )
+        expected = verification.expected_fingerprint
+        if expected is not None and verification.resulting_fingerprint != (
+            expected
+        ):
+            raise InvalidSampleError(
+                f"{self.sample_id!r}: graded against {expected!r} but "
+                f"recorded {verification.resulting_fingerprint!r}"
+            )
+        for assertion in self.assertions:
+            if (
+                assertion.kind == ASSERTION_RESULTING_SNAPSHOT
+                and assertion.detail != expected
+            ):
+                raise InvalidSampleError(
+                    f"{self.sample_id!r}: {ASSERTION_RESULTING_SNAPSHOT} "
+                    f"asserts {assertion.detail!r} but the verification "
+                    f"was graded against {expected!r}"
+                )
+            if assertion.kind == ASSERTION_SELECTION_COUNTS and (
+                assertion.detail != str(list(verification.selection_counts))
+            ):
+                raise InvalidSampleError(
+                    f"{self.sample_id!r}: {ASSERTION_SELECTION_COUNTS} "
+                    f"asserts {assertion.detail!r} but the verification "
+                    f"recorded {list(verification.selection_counts)!r}"
+                )
 
     @property
     def predicted_no_change(self) -> bool:
