@@ -33,12 +33,12 @@ conformance slice under `src/pmc_data/conformance/`.
 Every attempt spawns one `pmc_sidecar.child` process that imports
 PyMOL and rebuilds the structure, so the run is CPU-bound in process
 startup and scales linearly with the attempt count. Measured on a
-12-core Apple Silicon machine at `--workers 8`: 240 attempts in 44s
-and 1,200 in 214s, so roughly 0.18s per attempt. That puts the
-configured 4,000-attempt run at about twelve minutes and the full
-9,594-plan enumeration (`--target` omitted) at about half an hour.
-More workers than physical cores will not help; the 8-worker run
-already measures 7.3x parallelism.
+12-core Apple Silicon machine at `--workers 8`: the configured
+4,000-attempt run takes ten and a half minutes, and the shorter runs
+agree with it -- 240 attempts in 44s, 1,200 in 214s. That puts the
+full 9,594-plan enumeration (`--target` omitted) at roughly half an
+hour. More workers than physical cores will not help; the 8-worker
+run already measures 7.3x parallelism.
 
 `--slice` is 52 attempts, about twelve seconds.
 

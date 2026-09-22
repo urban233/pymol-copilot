@@ -430,9 +430,9 @@ def run(argv: list[str]) -> int:
             )
             raise
         # A full run is thousands of spawned PyMOL processes: measured
-        # at 0.18s per attempt across eight workers, about twelve
-        # minutes for the configured four thousand and half an hour
-        # for the whole enumeration. An unexpected failure at attempt
+        # across eight workers at ten and a half minutes for the
+        # configured four thousand, and roughly half an hour for the
+        # whole enumeration. An unexpected failure at attempt
         # 3,500 has still measured 3,499 attempts, and throwing those
         # away would turn one failure into a much larger one. Nothing
         # is swallowed:
