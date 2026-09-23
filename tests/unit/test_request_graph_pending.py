@@ -28,6 +28,7 @@ from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
 from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
+from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_REJECTED
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CancelToken
@@ -43,6 +44,7 @@ from pmc_core.executor import ExecutionRequest
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
@@ -373,6 +375,38 @@ def test_apply_outcome_reaches_its_matching_terminal(
 
     assert result is not None
     assert result["status"] == expected
+
+
+def test_new_submit_cannot_replace_an_unreported_approved_plan() -> None:
+    """A lost apply reply or outcome must not erase the applying thread."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+
+    blocked = session.submit(**_submit_kwargs(request_id="r-2"))
+
+    assert blocked["status"] == TERMINAL_FAILED
+    failure = blocked["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert failure.category == "apply_outcome_required"
+    assert failure.retryable
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_APPLYING,)
+    assert session._pending_details[_SESSION_ID]["plan_id"] == first_id
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+
+    recorded = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="restored"
+    )
+    assert recorded is not None
+    assert recorded["status"] == TERMINAL_APPLY_FAILED_RESTORED
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    assert second["status"] == STATE_PENDING_APPROVAL
 
 
 def test_applied_plan_can_be_explicitly_rolled_back_once() -> None:

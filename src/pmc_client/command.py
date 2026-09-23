@@ -378,6 +378,8 @@ class CopilotCommandClient:
         self._pending_plan: PendingPlan | None = None
         self._applied_plan: AppliedPlan | None = None
         self._halted_recovery: str | None = None
+        self._uncertain_approval: str | None = None
+        self._unreported_outcome: tuple[str, str] | None = None
 
     @property
     def session_id(self) -> str:
@@ -442,8 +444,8 @@ class CopilotCommandClient:
         """Latch live operations after recovery can no longer be trusted."""
         self._halted_recovery = recovery_path or "an unavailable recovery path"
 
-    def _report_outcome(self, plan_id: str, outcome: str) -> None:
-        """Best-effort server bookkeeping after the local safety action."""
+    def _report_outcome(self, plan_id: str, outcome: str) -> bool:
+        """Report a local outcome, retaining it for retry if transport fails."""
         try:
             response = self._transport.report_apply_outcome(
                 ApplyOutcomeRequestV1(
@@ -454,13 +456,28 @@ class CopilotCommandClient:
                 )
             )
         except TransportError as error:
+            self._unreported_outcome = (plan_id, outcome)
             self._output(f"copilot recovery status unavailable: {error}")
-            return
+            return False
+        self._unreported_outcome = None
+        if (
+            outcome == APPLY_OUTCOME_RESTORED
+            and self._uncertain_approval == plan_id
+        ):
+            self._uncertain_approval = None
+            self._pending_plan = None
         if response.failure.category == "no_pending_plan":
             self._output(
                 "copilot recovery status was not recorded: no active "
                 "approved plan on the server"
             )
+        return True
+
+    def _settle_uncertain_approval(self, plan_id: str) -> bool:
+        """Close a possibly approved request that was never applied locally."""
+        if self._uncertain_approval != plan_id:
+            return True
+        return self._report_outcome(plan_id, APPLY_OUTCOME_RESTORED)
 
     def _refuse_approved_plan(self, pending: PendingPlan, message: str) -> None:
         """Close an approved server request when local checks refuse it."""
@@ -478,6 +495,24 @@ class CopilotCommandClient:
             return
         if self._cmd is None:
             raise RuntimeError("copilot invoked before register()")
+
+        if self._unreported_outcome is not None and not self._report_outcome(
+            *self._unreported_outcome
+        ):
+            self._output(
+                "copilot: previous apply outcome is still unconfirmed; "
+                "retry after the server is available."
+            )
+            return
+        if (
+            self._uncertain_approval is not None
+            and not self._settle_uncertain_approval(self._uncertain_approval)
+        ):
+            self._output(
+                "copilot: previous approval is still unconfirmed; "
+                "retry after the server is available."
+            )
+            return
 
         # SPECIFICATION.md:515/524-525: a new request unconditionally
         # supersedes any prior pending plan, whether or not this one goes
@@ -575,6 +610,11 @@ class CopilotCommandClient:
             self._output(
                 f"copilot_apply: {preliminary.refusal}. Nothing was applied."
             )
+            if (
+                pending is not None
+                and normalize_plan_id(plan_id) == pending.plan_id
+            ):
+                self._settle_uncertain_approval(pending.plan_id)
             return
         assert pending is not None
         try:
@@ -587,6 +627,7 @@ class CopilotCommandClient:
                 f"copilot_apply: could not verify the live session: {error}. "
                 "Nothing was applied."
             )
+            self._settle_uncertain_approval(pending.plan_id)
             return
         verdict = verify_approval(
             pending,
@@ -600,6 +641,7 @@ class CopilotCommandClient:
             self._output(
                 f"copilot_apply: {verdict.refusal}. Nothing was applied."
             )
+            self._settle_uncertain_approval(pending.plan_id)
             return
         # Constructing the store performs no filesystem write, but do it
         # before marking the server-side request as `applying`: if a runtime
@@ -607,6 +649,7 @@ class CopilotCommandClient:
         # an apply and no server request should be left awaiting an outcome.
         store = self._store_for_apply()
         if store is None:
+            self._settle_uncertain_approval(pending.plan_id)
             return
         normalized = normalize_plan_id(plan_id)
         try:
@@ -618,15 +661,18 @@ class CopilotCommandClient:
                 )
             )
         except TransportError as error:
+            self._uncertain_approval = pending.plan_id
             self._output(f"copilot_apply unavailable: {error}")
             return
         if isinstance(response, FailedPlanResponseV1):
+            self._uncertain_approval = None
             self._output(
                 f"copilot_apply refused ({response.failure.category}; "
                 f"{'retryable' if response.failure.retryable else 'not retryable'}"
                 f"): {response.failure.message}. Nothing was applied."
             )
             return
+        self._uncertain_approval = None
         if response.model_identity != pending.model_identity:
             self._refuse_approved_plan(
                 pending, "server model identity changed since preview"
@@ -828,13 +874,10 @@ class CopilotCommandClient:
     def copilot_reject(self, plan_id: str) -> None:
         """Reject the pending plan, if it matches; nothing is ever applied.
 
-        Mirrors `copilot_apply`'s own local refusal checks exactly, so an
-        unknown or mismatched plan is refused without ever contacting the
-        server. Unlike `copilot_apply`, a match does reach the server --
-        rejecting has something real to do -- and whatever terminal the
-        graph reports clears this client's own pending plan, since the
-        session's pending plan is resolved either way once the server has
-        answered.
+        An unknown or mismatched plan is refused locally. A matching plan
+        reaches the server; if a lost approval reply left it applying, a
+        reject refusal is reconciled as a restored outcome because no
+        local mutation has occurred.
 
         Args:
             plan_id: The plan identifier to reject, as the user typed it.
@@ -861,13 +904,31 @@ class CopilotCommandClient:
         except TransportError as error:
             self._output(f"copilot_reject unavailable: {error}")
             return
-        self._pending_plan = None
         if response.failure.category == "rejected":
+            self._pending_plan = None
+            if self._uncertain_approval == normalized:
+                self._uncertain_approval = None
             self._output(
                 f"copilot_reject: plan {_display_plan_id(normalized)} "
                 "rejected. Nothing was applied."
             )
             return
+        if (
+            response.failure.category == "no_pending_plan"
+            and self._uncertain_approval == normalized
+        ):
+            if self._settle_uncertain_approval(normalized):
+                self._output(
+                    f"copilot_reject: plan {_display_plan_id(normalized)} "
+                    "closed after approval. Nothing was applied."
+                )
+            else:
+                self._output(
+                    "copilot_reject: approval outcome is still unconfirmed; "
+                    "retry after the server is available."
+                )
+            return
+        self._pending_plan = None
         self._output(
             f"copilot_reject failed ({response.failure.category}; "
             f"{'retryable' if response.failure.retryable else 'not retryable'}"

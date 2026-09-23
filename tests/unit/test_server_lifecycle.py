@@ -372,6 +372,57 @@ def test_apply_returns_the_canonical_approved_plan_then_records_outcome() -> (
     assert terminal.failure.category == "applied"
 
 
+def test_submit_while_apply_outcome_is_missing_returns_typed_retryable_failure() -> (
+    None
+):
+    """The wire API preserves an applying plan until its outcome arrives."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    lifecycle = _lifecycle(engine)
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+    approved = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+    assert isinstance(approved, ValidatedPlanResponseV1)
+
+    next_request = dataclasses.replace(
+        request(), request_id="66666666-6666-4666-8666-666666666666"
+    )
+    blocked = lifecycle(next_request)
+
+    assert isinstance(blocked, FailedPlanResponseV1)
+    assert blocked.failure.category == "apply_outcome_required"
+    assert blocked.failure.retryable
+    replay = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="44444444-4444-4444-8444-444444444444",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+    assert isinstance(replay, ValidatedPlanResponseV1)
+    assert replay.plan_id == approved.plan_id
+    assert replay.action_plan == approved.action_plan
+
+    terminal = lifecycle.report_apply_outcome(
+        ApplyOutcomeRequestV1(
+            request_id="55555555-5555-4555-8555-555555555555",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+            outcome="restored",
+        )
+    )
+    assert terminal.failure.category == "apply_failed_restored"
+    next_preview = lifecycle(next_request)
+    assert isinstance(next_preview, ValidatedPlanResponseV1)
+
+
 def test_apply_after_expiry_returns_a_typed_terminal_not_a_plan() -> None:
     """The lifecycle must not turn an expired approval into executable text."""
     moment = [datetime(2026, 9, 21, tzinfo=UTC)]

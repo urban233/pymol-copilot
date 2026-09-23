@@ -43,6 +43,7 @@ from pmc_agent.graph import STATE_PENDING_APPROVAL
 from pmc_agent.graph import STATE_APPLYING
 from pmc_agent.graph import TERMINAL_APPLIED
 from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
+from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import STATE_RECEIVED
@@ -62,6 +63,7 @@ from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
@@ -319,6 +321,21 @@ class RequestGraphSession:
         config = _thread_config(session_id)
         slot = self._acquire_session(session_id)
         try:
+            if self._is_applying(session_id):
+                # An approved client may already have mutated the live
+                # session even if its outcome report was lost. Never replace
+                # this thread until the client supplies that outcome.
+                return {
+                    "status": TERMINAL_FAILED,
+                    "failure": FailureEnvelopeV1(
+                        category="apply_outcome_required",
+                        message=(
+                            "the previous approved plan still awaits its "
+                            "client apply outcome"
+                        ),
+                        retryable=True,
+                    ),
+                }
             if self._is_pending(session_id):
                 self._graph.invoke(
                     Command(resume={"action": RESUME_ACTION_SUPERSEDE}),

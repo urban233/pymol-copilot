@@ -1191,6 +1191,221 @@ def test_copilot_apply_can_retry_after_lost_approval_response(
     assert live.events == ["save", "select", "sync", "color", "sync"]
 
 
+def test_new_preview_settles_a_lost_approval_before_submitting(
+    tmp_path: Path,
+) -> None:
+    """A lost apply reply cannot strand or overwrite the approved request."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert live.events == []
+    assert transport.outcome_requests == []
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+
+
+def test_expired_local_retry_settles_a_lost_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A locally refused retry still reports that nothing was applied."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    client.copilot_apply(plan_id)
+    monkeypatch.setattr(
+        client,
+        "_now_factory",
+        lambda: datetime(2026, 8, 26, 14, 28, tzinfo=UTC),
+    )
+
+    client.copilot_apply(plan_id)
+
+    assert len(transport.apply_requests) == 1
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._pending_plan is None
+
+
+def test_reject_after_lost_approval_reports_no_local_mutation(
+    tmp_path: Path,
+) -> None:
+    """Rejecting an already approved plan closes its applying state."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    def already_approved(request: RejectRequestV1) -> FailedPlanResponseV1:
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1("no_pending_plan", "already approved", False),
+        )
+
+    transport.apply_response_factory = lost_apply
+    transport.reject_response_factory = already_approved
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    client.copilot_apply(plan_id)
+
+    client.copilot_reject(plan_id)
+
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._pending_plan is None
+    assert output[-1].endswith("closed after approval. Nothing was applied.")
+
+
+def test_new_preview_waits_and_retries_when_lost_approval_cannot_be_settled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unavailable outcome endpoint prevents an unsafe new submit."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def report_after_outage(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("outcome endpoint unavailable")
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", report_after_outage)
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 1
+    assert live.events == []
+    assert client._unreported_outcome == (
+        "55555555-5555-4555-8555-555555555555",
+        "restored",
+    )
+    assert any(
+        "previous approval is still unconfirmed" in line for line in output
+    )
+
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._unreported_outcome is None
+
+
+def test_new_preview_retries_lost_applied_outcome_before_submitting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A completed live apply is reported before the next graph request."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def report_after_outage(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("outcome response lost")
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", report_after_outage)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert live.events == ["save", "select", "sync", "color", "sync"]
+    assert client._unreported_outcome == (
+        "55555555-5555-4555-8555-555555555555",
+        "applied",
+    )
+    assert transport.outcome_requests == []
+
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied"
+    ]
+    assert client._unreported_outcome is None
+
+
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 def test_failed_second_apply_keeps_first_plan_rollback_available(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cleanup_fails: bool
