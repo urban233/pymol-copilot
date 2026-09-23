@@ -364,9 +364,12 @@ class CopilotCommandClient:
         self._timestamp_factory = timestamp_factory
         self._probe = probe
         self._deadline_seconds = deadline_seconds
-        self._recovery_store = (
-            RecoveryStore() if recovery_store is None else recovery_store
-        )
+        # Preview and every refusal path are read-only.  In particular, they
+        # must remain usable in a hermetic environment where a home directory
+        # is intentionally unavailable (as on Bazel's Windows test worker).
+        # Create the private on-disk store only after local approval checks
+        # have succeeded and live application can genuinely begin.
+        self._recovery_store = recovery_store
         self._dispatcher = dispatcher
         self._now_factory = now_factory
         self._session_id = str(uuid_factory())
@@ -405,7 +408,23 @@ class CopilotCommandClient:
 
     def close(self) -> None:
         """Remove this session's retained recovery point on shutdown."""
-        self._recovery_store.close()
+        if self._recovery_store is not None:
+            self._recovery_store.close()
+
+    def _store_for_apply(self) -> RecoveryStore | None:
+        """Create private recovery storage only at the mutation boundary."""
+        if self._recovery_store is not None:
+            return self._recovery_store
+        try:
+            self._recovery_store = RecoveryStore()
+        except RuntimeError as error:
+            detail = str(error).rstrip(".")
+            self._output(
+                "copilot_apply: could not initialize private recovery storage: "
+                f"{detail}. Nothing was applied."
+            )
+            return None
+        return self._recovery_store
 
     def _halted(self, command: str) -> bool:
         """Report the permanent failed-restore latch, if it is set."""
@@ -575,6 +594,13 @@ class CopilotCommandClient:
                 f"copilot_apply: {verdict.refusal}. Nothing was applied."
             )
             return
+        # Constructing the store performs no filesystem write, but do it
+        # before marking the server-side request as `applying`: if a runtime
+        # has no usable private home directory, there is no safe way to begin
+        # an apply and no server request should be left awaiting an outcome.
+        store = self._store_for_apply()
+        if store is None:
+            return
         normalized = normalize_plan_id(plan_id)
         try:
             response = self._transport.apply(
@@ -633,17 +659,18 @@ class CopilotCommandClient:
             object_name=object_name,
             plan_id=pending.plan_id,
             plan=response.action_plan,
-            store=self._recovery_store,
+            store=store,
             dispatcher=self._dispatcher,
         )
         self._pending_plan = None
-        self._report_apply_result(pending, object_name, outcome)
+        self._report_apply_result(pending, object_name, outcome, store)
 
     def _report_apply_result(
         self,
         pending: PendingPlan,
         object_name: str,
         outcome: ApplyOutcome,
+        store: RecoveryStore,
     ) -> None:
         """Render and record one result from the live apply boundary."""
         display_id = _display_plan_id(pending.plan_id)
@@ -664,7 +691,7 @@ class CopilotCommandClient:
             self._report_outcome(pending.plan_id, APPLY_OUTCOME_APPLIED)
             return
         if outcome.status == APPLY_RESTORED:
-            self._recovery_store.discard()
+            store.discard()
             self._output(
                 f"copilot_apply: plan {display_id} failed and the complete "
                 "session was restored cleanly."
@@ -700,7 +727,8 @@ class CopilotCommandClient:
         if self._cmd is None:
             raise RuntimeError("copilot_rollback invoked before register()")
         applied = self._applied_plan
-        if applied is None or self._recovery_store.retained is None:
+        store = self._recovery_store
+        if applied is None or store is None or store.retained is None:
             self._output("copilot_rollback: no retained recovery point")
             return
         if normalize_plan_id(plan_id) != applied.plan_id:
@@ -726,10 +754,10 @@ class CopilotCommandClient:
                 "copilot_rollback: the session changed after apply; those "
                 "later changes will be discarded."
             )
-        path = self._recovery_store.retained
+        path = store.retained
         assert path is not None
         try:
-            self._recovery_store.restore(self._cmd, path)
+            store.restore(self._cmd, path)
             mismatches = compare_recovery(
                 self._cmd,
                 object_name=applied.object_name,
@@ -737,7 +765,7 @@ class CopilotCommandClient:
                 names_before=applied.names_before,
             )
         except Exception:
-            preserved = self._recovery_store.preserve()
+            preserved = store.preserve()
             self._halt(str(preserved))
             self._output(
                 "copilot_rollback: recovery could not be verified. Recovery "
@@ -745,14 +773,14 @@ class CopilotCommandClient:
             )
             return
         if mismatches:
-            preserved = self._recovery_store.preserve()
+            preserved = store.preserve()
             self._halt(str(preserved))
             self._output(
                 "copilot_rollback: recovery comparison failed. Recovery point "
                 f"preserved at {preserved}. Restart PyMOL and load it manually."
             )
             return
-        self._recovery_store.consume()
+        store.consume()
         self._applied_plan = None
         self._output(
             f"copilot_rollback: plan {_display_plan_id(applied.plan_id)} rolled "

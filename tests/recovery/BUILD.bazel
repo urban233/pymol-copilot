@@ -1,11 +1,20 @@
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
+py_library(
+    name="session_fingerprint",
+    srcs=["session_fingerprint.py"],
+    imports=["."],
+    visibility=["//tests/recovery:__pkg__"],
+    deps=["//src/pmc_core:pmc_core"],
+)
+
 py_test(
-    name = "apply_engine",
-    size = "small",
-    srcs = ["test_apply_engine.py"],
-    main = "test_apply_engine.py",
-    deps = [
+    name="apply_engine",
+    size="small",
+    srcs=["test_apply_engine.py"],
+    main="test_apply_engine.py",
+    deps=[
         "@pypi//pytest",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
@@ -14,11 +23,11 @@ py_test(
 )
 
 py_test(
-    name = "approval_verification",
-    size = "small",
-    srcs = ["test_approval_verification.py"],
-    main = "test_approval_verification.py",
-    deps = [
+    name="approval_verification",
+    size="small",
+    srcs=["test_approval_verification.py"],
+    main="test_approval_verification.py",
+    deps=[
         "@pypi//pytest",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
@@ -26,22 +35,22 @@ py_test(
 )
 
 py_test(
-    name = "recovery_point",
-    size = "small",
-    srcs = ["test_recovery_point.py"],
-    main = "test_recovery_point.py",
-    deps = [
+    name="recovery_point",
+    size="small",
+    srcs=["test_recovery_point.py"],
+    main="test_recovery_point.py",
+    deps=[
         "@pypi//pytest",
         "//src/pmc_client:pmc_client",
     ],
 )
 
 py_test(
-    name = "rollback",
-    size = "small",
-    srcs = ["test_rollback.py"],
-    main = "test_rollback.py",
-    deps = [
+    name="rollback",
+    size="small",
+    srcs=["test_rollback.py"],
+    main="test_rollback.py",
+    deps=[
         "@pypi//pytest",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
@@ -49,18 +58,49 @@ py_test(
 )
 
 py_test(
-    name = "apply_real_pymol",
-    size = "large",
-    timeout = "moderate",
-    srcs = ["test_apply_real_pymol.py"],
-    main = "test_apply_real_pymol.py",
-    tags = ["exclusive"],
-    deps = [
+    name="apply_real_pymol",
+    size="large",
+    timeout="moderate",
+    srcs=["test_apply_real_pymol.py"],
+    main="test_apply_real_pymol.py",
+    tags=["exclusive"],
+    deps=[
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_sidecar:pmc_sidecar",
         "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name="no_live_mutation_real_pymol",
+    size="large",
+    timeout="moderate",
+    srcs=["test_no_live_mutation_real_pymol.py"],
+    main="test_no_live_mutation_real_pymol.py",
+    tags=["exclusive"],
+    deps=[
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        ":session_fingerprint",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name="no_mutation_sabotage",
+    size="small",
+    srcs=["test_no_mutation_sabotage.py"],
+    main="test_no_mutation_sabotage.py",
+    deps=[
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
     ],
 )

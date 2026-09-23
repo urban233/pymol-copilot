@@ -698,8 +698,8 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
     )
 
 
-def test_registers_all_three_copilot_commands() -> None:
-    """Registration exposes all three commands, bound to the same client."""
+def test_registers_all_four_copilot_commands() -> None:
+    """Registration exposes all four commands, bound to the same client."""
     session = _RecordingSession()
     client = CopilotCommandClient(
         RecordingTransport(validated_response, []), lambda _text: None
@@ -710,6 +710,62 @@ def test_registers_all_three_copilot_commands() -> None:
     assert session.commands["copilot"] == client.copilot
     assert session.commands["copilot_apply"] == client.copilot_apply
     assert session.commands["copilot_reject"] == client.copilot_reject
+    assert session.commands["copilot_rollback"] == client.copilot_rollback
+
+
+def test_preview_does_not_require_a_home_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read-only preview remains available in a hermetic Windows sandbox."""
+    requests: list[PlanRequestV1] = []
+
+    def unavailable_store() -> RecoveryStore:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr("pmc_client.command.RecoveryStore", unavailable_store)
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        lambda _text: None,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot(INTENT)
+
+    assert len(requests) == 1
+
+
+def test_apply_refuses_before_server_handshake_without_private_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing home directory cannot leave the server awaiting an outcome."""
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    def unavailable_store() -> RecoveryStore:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr("pmc_client.command.RecoveryStore", unavailable_store)
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: could not initialize private recovery storage: "
+        "Could not determine home directory. Nothing was applied."
+    ]
+    assert transport.apply_requests == []
+    assert transport.outcome_requests == []
+    assert live.events == []
 
 
 def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
