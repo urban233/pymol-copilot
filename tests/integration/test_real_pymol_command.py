@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Real-PyMOL, real-server evidence for the non-mutating copilot command.
+"""Real-PyMOL, real-server evidence for preview, apply, and rollback.
 
 Every collaborator here is a real production component: real headless
 Open-Source PyMOL (`pymol.finish_launching(['pymol', '-qc'])`), PyMOL's own
@@ -69,6 +69,7 @@ from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_client.command import register_copilot
+from pmc_client.recovery import RecoveryStore
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
@@ -525,6 +526,13 @@ def _run_copilot_apply(
     return _run_pymol_command(cmd, finished, f"copilot_apply {plan_id}")
 
 
+def _run_copilot_rollback(
+    cmd: PyMOLCmd, finished: threading.Event, plan_id: str
+) -> float:
+    """Dispatch one explicit full-session rollback and await its callback."""
+    return _run_pymol_command(cmd, finished, f"copilot_rollback {plan_id}")
+
+
 class RealPyMOLCmdExtension:
     """Adapter registering commands through PyMOL's own command system."""
 
@@ -605,20 +613,21 @@ def test_fixture_loads_with_two_atoms_per_chain(
     assert loaded_fixture.count_atoms("chain B") == 2
 
 
-def test_success_path_previews_without_mutating_session(
-    loaded_fixture: PyMOLCmd,
+def test_success_path_applies_then_rolls_back_the_real_session(
+    loaded_fixture: PyMOLCmd, tmp_path: Path
 ) -> None:
-    """A real, policy-allowed plan previews, refuses apply, and never mutates.
+    """A real approved plan mutates once and explicit rollback restores it.
 
     Covers the end-to-end path docs/master_plan.md item 7 requires: a real
     headless PyMOL, the real loopback server, `copilot <intent>` followed
     by `copilot_apply <plan-id>`, with a request carrying a computed
-    digest, the console reporting fidelity, and no live mutation across
-    either command.
+    digest, the console reporting fidelity, one live mutation after approval,
+    and complete-session rollback.
 
     Args:
         loaded_fixture: The real PyMOL cmd module with the two-chain
             fixture loaded.
+        tmp_path: Hermetic root for the private recovery-point lifecycle.
     """
     requests: list[PlanRequestV1] = []
     output: list[str] = []
@@ -638,7 +647,12 @@ def test_success_path_previews_without_mutating_session(
         requests.append(request)
         return lifecycle(request)
 
-    server = LoopbackPlanServer(CREDENTIAL, record_lifecycle)
+    server = LoopbackPlanServer(
+        CREDENTIAL,
+        record_lifecycle,
+        apply_handler=lifecycle.apply,
+        apply_outcome_handler=lifecycle.report_apply_outcome,
+    )
     try:
         server.start()
         finished = threading.Event()
@@ -650,6 +664,7 @@ def test_success_path_previews_without_mutating_session(
             ),
             LoopbackPlanClient(server.port, CREDENTIAL),
             output.append,
+            recovery_store=RecoveryStore(tmp_path),
         )
         before = capture_session_state(loaded_fixture)
 
@@ -665,6 +680,10 @@ def test_success_path_previews_without_mutating_session(
         )
 
         after_apply = capture_session_state(loaded_fixture)
+        assert _run_copilot_rollback(loaded_fixture, finished, plan_id) < (
+            INVOCATION_DEADLINE_SECONDS
+        )
+        after_rollback = capture_session_state(loaded_fixture)
     finally:
         server.close()
 
@@ -673,7 +692,7 @@ def test_success_path_previews_without_mutating_session(
     assert requests[0].snapshot.digest != "sha256:example-chain-a-digest"
     assert requests[0].snapshot.object_name == OBJECT_NAME
 
-    assert len(output) == 5, output
+    assert len(output) == 7, output
     assert output[0].startswith("copilot fidelity: exact")
     assert f"object {OBJECT_NAME}" in output[0]
     assert output[1].startswith("copilot plan:")
@@ -682,12 +701,14 @@ def test_success_path_previews_without_mutating_session(
     assert "2 | color red, copilot_selection" in output[1]
     assert output[2].startswith("copilot checked:")
     assert output[3].startswith("copilot apply with: copilot_apply ")
-    assert output[4] == (
-        f"copilot_apply: plan {plan_id} is applicable, but apply is not "
-        "implemented yet (master plan item 10). Nothing was applied."
+    assert output[4].startswith(f"copilot_apply: plan {plan_id} applied.")
+    assert output[5].startswith(
+        "copilot_rollback: replacing the entire session"
     )
+    assert output[6].endswith("rolled back and its recovery point was removed.")
     assert_session_unchanged(before, after_copilot)
-    assert_session_unchanged(before, after_apply)
+    assert after_apply != before
+    assert_session_unchanged(before, after_rollback)
 
 
 def test_typed_rejection_path_reports_bounded_diagnostic(

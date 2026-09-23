@@ -5,6 +5,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import json
 import logging
+import dataclasses
 from http import HTTPStatus
 from http.client import HTTPConnection
 
@@ -29,6 +30,8 @@ from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import CancelRequestV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
@@ -45,6 +48,8 @@ from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import to_json
 from pmc_server.transport import CANCEL_PATH
+from pmc_server.transport import APPLY_OUTCOME_PATH
+from pmc_server.transport import APPLY_PATH
 from pmc_server.transport import MAX_EXECUTION_REQUEST_BYTES
 from pmc_server.transport import REJECT_PATH
 from pmc_server.transport import VALIDATE_PATH
@@ -145,6 +150,72 @@ def test_client_round_trips_authenticated_request_over_loopback() -> None:
     assert server.host == LOOPBACK_HOST
     assert response.request_id == REQUEST_ID
     assert response.session_id == SESSION_ID
+
+
+def test_client_round_trips_apply_and_terminal_outcome_over_loopback() -> None:
+    """Both new approval paths use the same authenticated strict transport."""
+    apply_requests: list[ApplyRequestV1] = []
+    outcome_requests: list[ApplyOutcomeRequestV1] = []
+
+    def approved(request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        """Return a canonical approved response correlated to ``request``."""
+        apply_requests.append(request)
+        preview = validated_response(plan_request())
+        return dataclasses.replace(
+            preview,
+            request_id=request.request_id,
+            session_id=request.session_id,
+            plan_id=request.plan_id,
+        )
+
+    def recorded(request: ApplyOutcomeRequestV1) -> FailedPlanResponseV1:
+        """Record the outcome and answer with its terminal category."""
+        outcome_requests.append(request)
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1(request.outcome, request.outcome, False),
+        )
+
+    apply_request = ApplyRequestV1(
+        request_id="33333333-3333-4333-8333-333333333333",
+        session_id=SESSION_ID,
+        plan_id="44444444-4444-4444-8444-444444444444",
+    )
+    outcome_request = ApplyOutcomeRequestV1(
+        request_id="55555555-5555-4555-8555-555555555555",
+        session_id=SESSION_ID,
+        plan_id=apply_request.plan_id,
+        outcome="applied",
+    )
+    with LoopbackPlanServer(
+        "secret",
+        validated_response,
+        apply_handler=approved,
+        apply_outcome_handler=recorded,
+    ) as server:
+        client = LoopbackPlanClient(server.port, "secret")
+        response = client.apply(apply_request)
+        terminal = client.report_apply_outcome(outcome_request)
+
+    assert isinstance(response, ValidatedPlanResponseV1)
+    assert response.plan_id == apply_request.plan_id
+    assert terminal.failure.category == "applied"
+    assert apply_requests == [apply_request]
+    assert outcome_requests == [outcome_request]
+
+
+@pytest.mark.parametrize("path", [APPLY_PATH, APPLY_OUTCOME_PATH])
+def test_apply_paths_are_unrouted_without_handlers(path: str) -> None:
+    """Approval routes remain unavailable until their lifecycle is wired."""
+    with LoopbackPlanServer("secret", validated_response) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        connection.request("POST", path)
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.NOT_FOUND
 
 
 def test_server_rejects_wrong_credential_without_parsing_request() -> None:

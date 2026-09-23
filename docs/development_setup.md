@@ -41,6 +41,15 @@ To update the training dependency set, see the section below.
 Use `bazel clean` for ordinary cleanup. Use `bazel clean --expunge` only for a
 deliberate full cache reset or troubleshooting.
 
+## Manual recovery runbook
+
+Before a live approved apply, Copilot saves a complete private session at
+`~/.pymol-copilot/recovery/plan-<id>.pse` (0700 directory and 0600 file on
+POSIX). A successful `copilot_rollback p-<id>` consumes it. If Copilot reports
+that a restore could not be verified, it halts and preserves the path it
+prints. Restart PyMOL, then load that exact file manually with PyMOL's `load`
+command; do not continue issuing Copilot commands in the halted process.
+
 ## Training dependencies
 
 `SPECIFICATION.md:285-286` requires that runtime dependencies coexist with

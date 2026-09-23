@@ -145,5 +145,37 @@ def test_failed_restore_preserves_the_manual_recovery_file(
     assert outcome.recovery_path is not None and outcome.recovery_path.exists()
 
 
+def test_sabotaged_restore_comparison_refuses_to_consume_the_point(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A deliberately injected post-restore difference trips containment.
+
+    This is the small sabotage proof for the assertion layer itself: if the
+    full-session comparison were removed, this test would incorrectly report
+    a clean restore and the private point would be discarded.
+    """
+    events: list[str] = []
+    cmd = _Cmd(events)
+    monkeypatch.setattr("pmc_client.apply.extract", lambda *_args: _snapshot())
+    monkeypatch.setattr(
+        "pmc_client.apply.diff", lambda *_args: ["sabotaged snapshot differs"]
+    )
+
+    outcome = apply_plan(
+        cmd,
+        object_name="molecule",
+        plan_id="one",
+        plan=_plan(),
+        store=RecoveryStore(tmp_path),
+        dispatcher=lambda *_args: PlanRunResult(
+            STATUS_FAILED, REASON_COMMAND_FAILURE, ()
+        ),
+    )
+
+    assert outcome.status == APPLY_RESTORE_FAILED
+    assert outcome.mismatches == ("sabotaged snapshot differs",)
+    assert outcome.recovery_path is not None and outcome.recovery_path.exists()
+
+
 if __name__ == "__main__":
     raise SystemExit(0)

@@ -320,11 +320,13 @@ class RequestGraphSession:
                     config,
                 )
                 self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
             elif (
                 self._graph.get_state(config).values.get("status")
                 == TERMINAL_APPLIED
             ):
                 self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
             initial_state: RequestState = {
                 "request_id": request_id,
                 "session_id": session_id,
@@ -364,6 +366,7 @@ class RequestGraphSession:
                         del self._active_cancellations[session_id]
             if result.get("status") != STATE_PENDING_APPROVAL:
                 self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
             else:
                 # LangGraph's interrupted checkpoint retains its control
                 # fields but not every opaque domain value. Keep the exact
@@ -453,9 +456,29 @@ class RequestGraphSession:
         config = _thread_config(session_id)
         slot = self._acquire_session(session_id)
         try:
+            snapshot = self._graph.get_state(config)
+            if (
+                snapshot.values.get("status") == TERMINAL_APPLIED
+                and outcome == "rolled_back"
+                and snapshot.values.get("plan_id") == plan_id
+            ):
+                # ``applied`` is intentionally retained so an explicit
+                # rollback can be recorded later. It is otherwise terminal,
+                # so no second LangGraph interrupt exists to resume; perform
+                # this one final state transition under the same session lock
+                # and prune the thread immediately afterwards.
+                result: dict[str, object] = {
+                    "status": TERMINAL_ROLLED_BACK,
+                    "history": (
+                        *snapshot.values.get("history", ()),
+                        TERMINAL_ROLLED_BACK,
+                    ),
+                }
+                self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
+                return result
             if not self._is_applying(session_id):
                 return None
-            snapshot = self._graph.get_state(config)
             if snapshot.values.get("plan_id") != plan_id:
                 return None
             result = self._graph.invoke(
@@ -502,6 +525,7 @@ class RequestGraphSession:
                         _thread_config(session_id),
                     )
                     self._delete_thread(session_id)
+                    self._pending_details.pop(session_id, None)
                     return result
                 return {"status": TERMINAL_CANCELLED}
             finally:
@@ -516,6 +540,7 @@ class RequestGraphSession:
                 Command(resume={"action": RESUME_ACTION_CANCEL}), config
             )
             self._delete_thread(session_id)
+            self._pending_details.pop(session_id, None)
             return result
         finally:
             self._release_session(session_id, slot)

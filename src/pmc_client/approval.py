@@ -19,13 +19,33 @@ PLAN_ID_DISPLAY_PREFIX = "p-"
 class PendingApproval(Protocol):
     """The immutable pending-plan facts that local approval must check."""
 
-    plan_id: str
-    session_id: str
-    snapshot_digest: str
-    applicable: bool
-    fidelity: FidelityOutcome
-    expires_at: str
-    contract_manifest: ContractManifestV1
+    @property
+    def plan_id(self) -> str:
+        """Return the server-issued immutable plan identifier."""
+
+    @property
+    def session_id(self) -> str:
+        """Return the client session that owns the plan."""
+
+    @property
+    def snapshot_digest(self) -> str:
+        """Return the digest bound to the pending plan."""
+
+    @property
+    def applicable(self) -> bool:
+        """Return whether preview validation permits live application."""
+
+    @property
+    def fidelity(self) -> FidelityOutcome:
+        """Return the local fidelity result retained with the plan."""
+
+    @property
+    def expires_at(self) -> str:
+        """Return the immutable approval expiry timestamp."""
+
+    @property
+    def contract_manifest(self) -> ContractManifestV1:
+        """Return contract versions under which the plan was made."""
 
 
 @dataclass(frozen=True)

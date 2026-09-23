@@ -35,3 +35,32 @@ py_test(
         "//src/pmc_client:pmc_client",
     ],
 )
+
+py_test(
+    name = "rollback",
+    size = "small",
+    srcs = ["test_rollback.py"],
+    main = "test_rollback.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "apply_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_apply_real_pymol.py"],
+    main = "test_apply_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+        "//tools/winstage:winstage",
+    ],
+)

@@ -1,12 +1,10 @@
 # `pmc_agent`
 
-The LangGraph request graph: `received` through `pending_approval`, and
-every terminal SPECIFICATION.md:417-426 assigns to that span --
-`rejected`, `expired`, `superseded`, `failed`, `cancelled`, `ask`
-(docs/master_plan.md item 8). `applying`, `applied`, `restoring`,
-`apply_failed_restored`, and `rolled_back` are not this package's: they are
-item 10's own states, reached only after a plan already sits at
-`pending_approval`, and nothing here decides what happens to one.
+The LangGraph request graph: `received` through `pending_approval`, then
+`applying`, and every terminal SPECIFICATION.md:417-426 assigns to that
+span -- `rejected`, `expired`, `superseded`, `failed`, `cancelled`, `ask`,
+`applied`, `apply_failed_restored`, and `rolled_back`. `restoring` remains a
+client-side transient: recovery must finish even if the local server is down.
 
 ## What owns what
 
@@ -24,8 +22,9 @@ item 10's own states, reached only after a plan already sits at
   than a separately enforced rule -- and why the lock exists at all:
   `pmc_server.transport.LoopbackPlanServer` is threaded, so two requests
   for the same session can genuinely race to touch one thread at once.
-  `submit`, `reject`, and `cancel` are this package's only public entry
-  points; `pmc_server.lifecycle.RequestGraphLifecycle` is the one caller.
+  `submit`, `reject`, `cancel`, `approve`, and `report_apply_outcome` are its
+  public entry points; `pmc_server.lifecycle.RequestGraphLifecycle` is the
+  one caller.
 - `inference/` is the local-model boundary: `base.py`'s `InferenceEngine`
   Protocol accepts only a prompt, optional grammar, token and time bounds,
   cancellation, and a model identity; it returns a completion or typed

@@ -374,6 +374,33 @@ def test_apply_outcome_reaches_its_matching_terminal(
     assert result["status"] == expected
 
 
+def test_applied_plan_can_be_explicitly_rolled_back_once() -> None:
+    """The retained applied thread accepts only its later rollback terminal."""
+    session = _one_shot_session()
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    plan_id = cast(str, pending["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=plan_id) is not None
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=plan_id, outcome="applied"
+        )
+        is not None
+    )
+
+    rolled_back = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=plan_id, outcome="rolled_back"
+    )
+
+    assert rolled_back is not None
+    assert rolled_back["status"] == TERMINAL_ROLLED_BACK
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=plan_id, outcome="rolled_back"
+        )
+        is None
+    )
+
+
 def test_cancel_reaches_cancelled() -> None:
     """Cancelling the pending plan reaches `cancelled`."""
     session = _one_shot_session()
