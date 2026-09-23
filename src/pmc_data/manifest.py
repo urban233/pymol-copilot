@@ -378,7 +378,7 @@ selection or model selection.
 
 - Code: {license_record["code"]}
 - Structures: {license_record["structures"]}
-- PyMOL: {license_record["pymol"]}
+- PyMOL: {_first_line(license_record["pymol"])}
 - Gold intents: {license_record["gold_intents"]}
 - Teacher outputs: {license_record["teacher_outputs"]}
 - Publication: {license_record["publication"]}
@@ -425,3 +425,23 @@ def _authors(counts: Mapping[str, int]) -> str:
     if not counts:
         return "nobody"
     return ", ".join(f"`{who}` ({n})" for who, n in sorted(counts.items()))
+
+
+def _first_line(text: str) -> str:
+    """Shorten a multi-line record to its first line for the datasheet.
+
+    PyMOL's wheel states its license as the whole multi-line notice. The
+    manifest keeps all of it; the datasheet's list item shows the first
+    line and says where the rest is.
+
+    Args:
+        text: The recorded text.
+
+    Returns:
+        The text itself if it is one line, else its first line and a
+        pointer to the full text.
+    """
+    lines = text.splitlines()
+    if len(lines) <= 1:
+        return text
+    return f"{lines[0].strip()} (full text recorded in manifest.json)"

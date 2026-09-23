@@ -148,6 +148,7 @@ def sheet_rows(drawn: Iterable[Sample]) -> list[dict[str, Any]]:
             "selection_counts": [
                 list(pair) for pair in sample.verification.selection_counts
             ],
+            "not_checked": list(sample.unsupported_assertions),
             "verdict": None,
             "note": None,
         }
@@ -188,6 +189,9 @@ def write_sheet(directory: Path, rows: Sequence[Mapping[str, Any]]) -> None:
             row["plan_pml"].rstrip("\n"),
             "```\n",
             f"Selection counts: {row['selection_counts'] or 'none'}\n",
+            "Not checked by the oracle: "
+            + (", ".join(row["not_checked"]) or "nothing")
+            + "\n",
         ]
     (directory / "sheet.md").write_text(
         "\n".join(parts), encoding="utf-8", newline="\n"

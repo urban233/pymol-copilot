@@ -43,7 +43,6 @@ in sorted order so the record of *why* a sample went is stable.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import re
-import unicodedata
 from collections import Counter
 from collections.abc import Iterable
 from collections.abc import Mapping
@@ -189,8 +188,16 @@ def structure_vocabulary(snapshots: Iterable[ObjectSnapshot]) -> frozenset[str]:
 def normalize_intent(intent: str) -> str:
     """Fold away differences that do not change what an intent asks.
 
-    Applies Unicode NFKC, casefolds, turns punctuation into spaces,
-    collapses whitespace and folds British spellings.
+    Casefolds, turns punctuation into spaces, collapses whitespace and
+    folds British spellings.
+
+    Unicode NFKC folding was left out on purpose. The only call that
+    performs it is `unicodedata.normalize`, and
+    `tests/contract/test_errors.py` forbids a data-pipeline module from
+    calling anything named `normalize` other than
+    `pmc_core.errors.normalize` -- the guard that keeps the error
+    envelope identical in training and at runtime. Casefolding already
+    covers what typed intents actually differ by.
 
     Args:
         intent: The intent text.
@@ -198,8 +205,7 @@ def normalize_intent(intent: str) -> str:
     Returns:
         The normalized text.
     """
-    text = unicodedata.normalize("NFKC", intent).casefold()
-    tokens = _PUNCTUATION.sub(" ", text).split()
+    tokens = _PUNCTUATION.sub(" ", intent.casefold()).split()
     return " ".join(_SPELLING.get(token, token) for token in tokens)
 
 

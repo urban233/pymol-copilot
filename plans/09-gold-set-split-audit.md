@@ -219,8 +219,10 @@ every committed gold sample through the real executor and checks for
 
 ## Step 6 — Decontamination
 
-Add `normalize_intent`, which applies NFKC, casefolds, turns punctuation into
-spaces and collapses whitespace. Add `entity_signature(intent)`, a multiset
+Add `normalize_intent`, which casefolds, turns punctuation into spaces and
+collapses whitespace. (NFKC was dropped during implementation: its only call,
+`unicodedata.normalize`, trips `tests/contract/test_errors.py`'s guard against
+any data-pipeline call named `normalize` other than the error envelope's.) Add `entity_signature(intent)`, a multiset
 drawn from `COLOR_ALLOWLIST`, `REPRESENTATION_ALLOWLIST`, digits,
 single-letter chain IDs, and the residue and atom vocabulary of
 `structures.py`. Add `frame_tokens(intent)`, which is the remaining tokens

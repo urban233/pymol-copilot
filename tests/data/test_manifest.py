@@ -15,6 +15,7 @@ import pytest
 
 from split_fixture import GIT_CLEAN
 from split_fixture import make_repo
+from pmc_data import manifest as manifest_module
 from pmc_data import split_cli
 from pmc_data.manifest import REQUIRED_FIELDS
 from pmc_data.manifest import REQUIRED_PROVENANCE
@@ -119,6 +120,14 @@ def test_a_missing_field_is_refused(split: Path, field: str) -> None:
 
     with pytest.raises(InvalidManifestError, match=field):
         read_manifest(path)
+
+
+def test_a_multi_line_license_stays_one_list_item() -> None:
+    """A license notice spanning lines is shortened, never spliced in raw."""
+    assert manifest_module._first_line("Notice\n  line two\n") == (
+        "Notice (full text recorded in manifest.json)"
+    )
+    assert manifest_module._first_line("BSD") == "BSD"
 
 
 def test_datasheet_states_the_limits(split: Path) -> None:

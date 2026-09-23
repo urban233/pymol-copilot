@@ -114,6 +114,7 @@ def test_the_cli_draws_what_the_manifest_records(
     assert [row["sample_id"] for row in rows] == [s.sample_id for s in expected]
     assert all(row["verdict"] is None for row in rows)
     assert "chain" in rows[0]["structure"]
+    assert all(isinstance(row["not_checked"], list) for row in rows)
     assert (split / "audit" / "sheet.md").is_file()
 
 
