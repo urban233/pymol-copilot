@@ -69,18 +69,62 @@ def test_save_enforces_private_directory_and_file_modes(
         assert stat.S_IMODE(path.stat().st_mode) == FILE_MODE
 
 
-def test_second_save_replaces_the_previous_retained_point(
+def test_second_save_keeps_the_previous_point_until_commit(
     tmp_path: Path,
 ) -> None:
-    """A session retains only the most recent successful apply point."""
+    """A new save alone cannot remove a still-live plan's rollback point."""
     store = RecoveryStore(tmp_path)
     cmd = _FakeCmd()
     first = store.save(cmd, "first")
     second = store.save(cmd, "second")
 
+    assert first.exists()
+    assert second.exists()
+    assert store.retained == second
+
+    store.commit()
+
     assert not first.exists()
     assert second.exists()
     assert store.retained == second
+
+
+def test_failed_second_apply_restores_the_previous_point(
+    tmp_path: Path,
+) -> None:
+    """A clean restore of B leaves A available for an explicit rollback."""
+    store = RecoveryStore(tmp_path)
+    first = store.save(_FakeCmd(), "first")
+    second = store.save(_FakeCmd(), "second")
+
+    store.discard()
+
+    assert first.exists()
+    assert not second.exists()
+    assert store.retained == first
+
+
+def test_failed_second_apply_keeps_previous_even_if_cleanup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A locked B file cannot redirect A's rollback to B's point."""
+    store = RecoveryStore(tmp_path)
+    first = store.save(_FakeCmd(), "first")
+    second = store.save(_FakeCmd(), "second")
+    real_unlink = Path.unlink
+
+    def fail_second(self: Path, *, missing_ok: bool = False) -> None:
+        if self == second:
+            raise OSError("locked")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", fail_second)
+    with pytest.raises(RecoveryPointError, match="could not discard"):
+        store.discard()
+
+    assert store.retained == first
+    assert first.exists()
+    assert second.exists()
 
 
 def test_failed_replacement_preserves_the_previous_retained_point(

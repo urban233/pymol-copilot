@@ -681,6 +681,13 @@ class CopilotCommandClient:
         if outcome.status == APPLY_APPLIED:
             assert outcome.before is not None
             assert outcome.post_apply_digest is not None
+            try:
+                store.commit()
+            except RecoveryPointError as error:
+                self._output(
+                    f"copilot_apply: previous recovery point could not be "
+                    f"removed: {error}."
+                )
             self._applied_plan = AppliedPlan(
                 plan_id=pending.plan_id,
                 object_name=object_name,
@@ -793,12 +800,19 @@ class CopilotCommandClient:
                 f"preserved at {preserved}. Restart PyMOL and load it manually."
             )
             return
-        store.consume()
+        try:
+            store.consume()
+        except RecoveryPointError as error:
+            self._output(
+                "copilot_rollback: session restored, but recovery point "
+                f"could not be removed: {error}."
+            )
+        else:
+            self._output(
+                f"copilot_rollback: plan {_display_plan_id(applied.plan_id)} "
+                "rolled back and its recovery point was removed."
+            )
         self._applied_plan = None
-        self._output(
-            f"copilot_rollback: plan {_display_plan_id(applied.plan_id)} rolled "
-            "back and its recovery point was removed."
-        )
         self._report_outcome(applied.plan_id, APPLY_OUTCOME_ROLLED_BACK)
 
     def copilot_reject(self, plan_id: str) -> None:

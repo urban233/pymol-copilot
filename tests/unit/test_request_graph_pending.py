@@ -401,6 +401,44 @@ def test_applied_plan_can_be_explicitly_rolled_back_once() -> None:
     )
 
 
+def test_applied_plan_can_be_rolled_back_after_a_new_preview() -> None:
+    """A new pending graph request does not erase the prior rollback receipt."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="applied"
+        )
+        is not None
+    )
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    assert second["status"] == STATE_PENDING_APPROVAL
+
+    rolled_back = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="rolled_back"
+    )
+
+    assert rolled_back is not None
+    assert rolled_back["status"] == TERMINAL_ROLLED_BACK
+    history = rolled_back["history"]
+    assert isinstance(history, tuple)
+    assert history[-1] == TERMINAL_ROLLED_BACK
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_PENDING_APPROVAL,)
+    assert (
+        session.approve(
+            session_id=_SESSION_ID, plan_id=cast(str, second["plan_id"])
+        )
+        is not None
+    )
+
+
 def test_cancel_reaches_cancelled() -> None:
     """Cancelling the pending plan reaches `cancelled`."""
     session = _one_shot_session()

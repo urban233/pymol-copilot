@@ -38,7 +38,7 @@ class RecoveryPointError(RuntimeError):
 
 
 class RecoveryStore:
-    """Own at most one private recovery point for one PyMOL session.
+    """Own one active point, retaining its predecessor during a new apply.
 
     Args:
         root: Home-directory root under which the private recovery directory
@@ -50,6 +50,7 @@ class RecoveryStore:
         """Create a store rooted at the user's home directory or ``root``."""
         self._root = (Path.home() if root is None else root).resolve()
         self._retained: Path | None = None
+        self._previous: Path | None = None
 
     @property
     def retained(self) -> Path | None:
@@ -64,9 +65,8 @@ class RecoveryStore:
     def save(self, cmd: RecoveryCmd, plan_id: str) -> Path:
         """Save a replacement-session recovery point before live mutation.
 
-        A new point is staged and verified before it replaces any existing
-        retained point. The saved file is not considered retained until it
-        exists and its POSIX mode has been verified.
+        A new point is staged and verified before it becomes active. The
+        previous point remains available until the new apply succeeds.
 
         Args:
             cmd: Live PyMOL command module.
@@ -83,10 +83,14 @@ class RecoveryStore:
         path: Path | None = None
         staged: Path | None = None
         previous = self._retained
+        if self._previous is not None:
+            raise RecoveryPointError("prior apply has not been resolved")
         try:
             directory.mkdir(mode=DIRECTORY_MODE, parents=True, exist_ok=True)
             os.chmod(directory, DIRECTORY_MODE)
             path = directory / f"plan-{plan_id}.pse"
+            if path == previous:
+                raise RecoveryPointError("plan already has a recovery point")
             staged = directory / f".plan-{plan_id}-{uuid.uuid4().hex}.pse"
             cmd.save(str(staged))
             if not staged.is_file():
@@ -108,11 +112,21 @@ class RecoveryStore:
             raise RecoveryPointError("could not save recovery point") from error
         assert path is not None
         self._retained = path
-        if previous is not None and previous != path:
-            # The new verified point is already retained. A stale prior file
-            # is private debris, not a reason to pretend the new save failed.
-            self._remove_unretained(previous)
+        self._previous = previous
         return path
+
+    def commit(self) -> None:
+        """Finish a successful apply and remove its older rollback point."""
+        previous = self._previous
+        self._previous = None
+        if previous is None:
+            return
+        try:
+            previous.unlink(missing_ok=True)
+        except OSError as error:
+            raise RecoveryPointError(
+                "could not discard previous recovery point"
+            ) from error
 
     def restore(self, cmd: RecoveryCmd, path: Path) -> None:
         """Replace the complete live session from one recovery point.
@@ -132,17 +146,25 @@ class RecoveryStore:
             ) from error
 
     def discard(self) -> None:
-        """Delete and forget this store's retained recovery point."""
+        """Discard the active point, restoring the older handle if present."""
         path = self._retained
         if path is None:
             return
+        previous = self._previous
+        if previous is not None:
+            # A failed second apply restored the post-first-apply session.
+            # Keep the first plan's rollback point even if unlinking the
+            # temporary second point fails.
+            self._retained = previous
+            self._previous = None
         try:
             path.unlink(missing_ok=True)
         except OSError as error:
             raise RecoveryPointError(
                 "could not discard recovery point"
             ) from error
-        self._retained = None
+        if previous is None:
+            self._retained = None
 
     def consume(self) -> None:
         """Consume the retained point after a successful rollback."""
@@ -160,11 +182,15 @@ class RecoveryStore:
         path = self._retained
         if path is None:
             raise RecoveryPointError("no recovery point to preserve")
-        self._retained = None
+        # A failed restore requires the new point for manual recovery; the
+        # previous point can still be cleaned up when this session closes.
+        self._retained = self._previous
+        self._previous = None
         return path
 
     def close(self) -> None:
         """Discard a retained point when its owning PyMOL session ends."""
+        self.discard()
         self.discard()
 
     @staticmethod

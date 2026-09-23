@@ -1143,6 +1143,84 @@ def test_copilot_apply_applies_the_approved_canonical_plan(
     assert transport.outcome_requests[0].outcome == "applied"
 
 
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_failed_second_apply_keeps_first_plan_rollback_available(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cleanup_fails: bool
+) -> None:
+    """A remains rollbackable after B restores, even with a locked B file."""
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = first_id if previews == 1 else second_id
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    dispatches = 0
+
+    def dispatch(cmd: object, plan: ActionPlan) -> PlanRunResult:
+        nonlocal dispatches
+        dispatches += 1
+        if dispatches == 1:
+            return run_plan(cmd, plan)
+        return PlanRunResult("failed", "test", ())
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        dispatcher=dispatch,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    client.copilot_apply(f"p-{first_id}")
+    first_path = store.retained
+    assert first_path is not None and first_path.exists()
+
+    client.copilot(INTENT)
+    second_path = store.directory / f"plan-{second_id}.pse"
+    if cleanup_fails:
+        real_unlink = Path.unlink
+
+        def locked_second(self: Path, *, missing_ok: bool = False) -> None:
+            if self == second_path:
+                raise OSError("locked")
+            real_unlink(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", locked_second)
+    client.copilot_apply(f"p-{second_id}")
+
+    assert store.retained == first_path
+    assert first_path.exists()
+    assert second_path.exists() is cleanup_fails
+    assert client._applied_plan is not None
+    assert client._applied_plan.plan_id == first_id
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied",
+        "restored",
+    ]
+
+    client.copilot_rollback(f"p-{first_id}")
+
+    assert client._applied_plan is None
+    assert store.retained is None
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied",
+        "restored",
+        "rolled_back",
+    ]
+
+
 def test_copilot_apply_refuses_changed_server_identity_before_save(
     tmp_path: Path,
 ) -> None:

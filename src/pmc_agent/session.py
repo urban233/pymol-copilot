@@ -18,7 +18,8 @@ rather than nearly true, while sessions with different ids stay fully
 concurrent. The registry reference-counts waiting operations, so a lock is
 removed only after its final user leaves; retaining neither locks nor
 checkpointed snapshots after a terminal request bounds a long-lived server's
-memory to its currently pending plans and in-flight requests.
+memory to its currently pending plans, in-flight requests, and one small
+rollback receipt per session with a still-applied plan.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -172,6 +173,10 @@ class RequestGraphSession:
         self._sessions: dict[str, _SessionSlot] = {}
         self._active_cancellations: dict[str, CancelToken] = {}
         self._pending_details: dict[str, dict[str, object]] = {}
+        # Only the latest successfully applied plan can still be rolled back.
+        # Keep its tiny receipt apart from the graph thread: a later preview
+        # must be free to use that same session thread without losing it.
+        self._applied_details: dict[str, tuple[str, tuple[str, ...]]] = {}
         self._checkpointer = InMemorySaver()
         self._graph = build_request_graph(
             engine=engine,
@@ -465,25 +470,26 @@ class RequestGraphSession:
         slot = self._acquire_session(session_id)
         try:
             snapshot = self._graph.get_state(config)
+            applied = self._applied_details.get(session_id)
             if (
-                snapshot.values.get("status") == TERMINAL_APPLIED
+                applied is not None
                 and outcome == "rolled_back"
-                and snapshot.values.get("plan_id") == plan_id
+                and applied[0] == plan_id
             ):
-                # ``applied`` is intentionally retained so an explicit
-                # rollback can be recorded later. It is otherwise terminal,
-                # so no second LangGraph interrupt exists to resume; perform
-                # this one final state transition under the same session lock
-                # and prune the thread immediately afterwards.
+                # A later preview may have reused this graph thread. Its
+                # current pending plan must remain untouched by the rollback
+                # of an earlier successfully applied plan.
                 result: dict[str, object] = {
                     "status": TERMINAL_ROLLED_BACK,
-                    "history": (
-                        *snapshot.values.get("history", ()),
-                        TERMINAL_ROLLED_BACK,
-                    ),
+                    "history": (*applied[1], TERMINAL_ROLLED_BACK),
                 }
-                self._delete_thread(session_id)
-                self._pending_details.pop(session_id, None)
+                del self._applied_details[session_id]
+                if (
+                    snapshot.values.get("status") == TERMINAL_APPLIED
+                    and snapshot.values.get("plan_id") == plan_id
+                ):
+                    self._delete_thread(session_id)
+                    self._pending_details.pop(session_id, None)
                 return result
             if not self._is_applying(session_id):
                 return None
@@ -492,6 +498,10 @@ class RequestGraphSession:
             result = self._graph.invoke(
                 Command(resume={"outcome": outcome}), config
             )
+            if result.get("status") == TERMINAL_APPLIED:
+                history = result.get("history")
+                assert isinstance(history, tuple)
+                self._applied_details[session_id] = (plan_id, history)
             if result.get("status") in {
                 TERMINAL_APPLY_FAILED_RESTORED,
                 TERMINAL_ROLLED_BACK,

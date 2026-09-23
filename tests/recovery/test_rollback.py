@@ -14,6 +14,7 @@ from pmc_client.command import AppliedPlan
 from pmc_client.command import CopilotCommandClient
 from pmc_client.command import PlanTransport
 from pmc_client.recovery import RecoveryStore
+from pmc_client.recovery import RecoveryPointError
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
@@ -138,6 +139,35 @@ def test_rollback_refusals_do_not_load_or_consume(tmp_path: Path) -> None:
     assert cmd.events == ["save"]
     assert store.retained is not None
     assert transport.outcomes == []
+
+
+def test_verified_rollback_reports_even_when_consuming_point_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unlink failure cannot hide the completed local rollback."""
+    client, cmd, store, output, transport = _client_with_recovery(tmp_path)
+    monkeypatch.setattr(
+        "pmc_client.command.extract_live_snapshot",
+        lambda *_args: (_snapshot(), "sha256:after"),
+    )
+    monkeypatch.setattr(
+        "pmc_client.command.compare_recovery", lambda *_a, **_k: ()
+    )
+
+    def fail_consume() -> None:
+        raise RecoveryPointError("locked")
+
+    monkeypatch.setattr(store, "consume", fail_consume)
+    client.copilot_rollback(f"p-{_PLAN_ID}")
+
+    assert cmd.events == ["save", "load"]
+    assert client._applied_plan is None
+    assert store.retained is not None
+    assert transport.outcomes[0].outcome == "rolled_back"
+    assert (
+        "session restored, but recovery point could not be removed"
+        in output[-1]
+    )
 
 
 def test_unclean_rollback_preserves_the_point_and_latches_client(
