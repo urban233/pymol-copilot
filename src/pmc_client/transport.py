@@ -10,6 +10,8 @@ from http.client import HTTPResponse
 
 from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
 from pmc_core.protocol import CancelRequestV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
@@ -28,6 +30,8 @@ PLAN_PATH = "/v1/plan"
 #: as `PLAN_PATH` already is.
 REJECT_PATH = "/v1/reject"
 CANCEL_PATH = "/v1/cancel"
+APPLY_PATH = "/v1/apply"
+APPLY_OUTCOME_PATH = "/v1/apply-outcome"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 #: `PlanRequestV1` now carries the full canonical snapshot JSON, not
@@ -179,9 +183,27 @@ class LoopbackPlanClient:
                     "server response has an unsupported V1 shape for /v1/cancel"
                 )
 
+    def apply(self, request: ApplyRequestV1) -> PLAN_RESPONSE:
+        """Submit one approval request and receive the canonical plan."""
+        decoded = self._send(request, APPLY_PATH)
+        self._validate_correlation(request, decoded)
+        return decoded
+
+    def report_apply_outcome(
+        self, request: ApplyOutcomeRequestV1
+    ) -> FailedPlanResponseV1:
+        """Report a terminal live-apply outcome after recovery is complete."""
+        decoded = self._send(request, APPLY_OUTCOME_PATH)
+        if not isinstance(decoded, FailedPlanResponseV1):
+            raise TransportError(
+                "server response has an unsupported V1 shape for /v1/apply-outcome"
+            )
+        self._validate_correlation(request, decoded)
+        return decoded
+
     def _send(
         self,
-        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1,
+        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1 | ApplyRequestV1 | ApplyOutcomeRequestV1,
         path: str,
     ) -> PLAN_RESPONSE:
         """POST one typed request and decode its typed response.
@@ -250,7 +272,7 @@ class LoopbackPlanClient:
 
     def _validate_correlation(
         self,
-        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1,
+        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1 | ApplyRequestV1 | ApplyOutcomeRequestV1,
         response: PLAN_RESPONSE,
     ) -> None:
         """Verify that a response belongs to the submitted request.

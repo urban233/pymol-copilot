@@ -30,6 +30,8 @@ from pmc_agent.session import RequestGraphSession
 from pmc_core.plan import ActionPlan
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import CancelRequestV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import PlanRequestV1
@@ -41,6 +43,7 @@ type TIMESTAMP_SOURCE = Callable[[], str]
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
 type REJECT_RESPONSE = FailedPlanResponseV1
 type CANCEL_RESPONSE = FailedPlanResponseV1
+type APPLY_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
 
 #: Terminals this lifecycle reports as retryable: the plan itself is gone,
 #: but nothing about the request that produced it was wrong. `rejected`,
@@ -156,6 +159,42 @@ class RequestGraphLifecycle:
         return self._to_terminal_response(
             request.request_id, request.session_id, result
         )
+
+    def apply(self, request: ApplyRequestV1) -> APPLY_RESPONSE:
+        """Record approval and return the server's canonical plan."""
+        result = self._session.approve(
+            session_id=request.session_id, plan_id=request.plan_id
+        )
+        if result is None:
+            return self._no_pending_plan(request.request_id, request.session_id)
+        plan = result["plan"]
+        assert isinstance(plan, ActionPlan)
+        expires_at = result["expires_at"]
+        model_identity = result["model_identity"]
+        snapshot_digest = result["snapshot_digest"]
+        applicable = result["validation_applicable"]
+        assert isinstance(expires_at, str) and isinstance(model_identity, str)
+        assert isinstance(snapshot_digest, str) and isinstance(applicable, bool)
+        return ValidatedPlanResponseV1(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            received_at=self._timestamp_source(),
+            validated_at=self._timestamp_source(),
+            action_plan=plan,
+            validation=ValidationReportV1("passed", snapshot_digest, applicable, ()),
+            plan_id=request.plan_id,
+            snapshot_digest=snapshot_digest,
+            expires_at=expires_at, model_identity=model_identity,
+        )
+
+    def report_apply_outcome(self, request: ApplyOutcomeRequestV1) -> FailedPlanResponseV1:
+        """Record a terminal client apply outcome."""
+        result = self._session.report_apply_outcome(
+            session_id=request.session_id, plan_id=request.plan_id, outcome=request.outcome
+        )
+        if result is None:
+            return self._no_pending_plan(request.request_id, request.session_id)
+        return self._to_terminal_response(request.request_id, request.session_id, result)
 
     def _to_plan_response(
         self,

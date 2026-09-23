@@ -365,6 +365,13 @@ class RequestGraphSession:
             if result.get("status") != STATE_PENDING_APPROVAL:
                 self._delete_thread(session_id)
             else:
+                # LangGraph's interrupted checkpoint retains its control
+                # fields but not every opaque domain value. Keep the exact
+                # response facts server-side for the later approval reply.
+                result["snapshot_digest"] = snapshot_identity.digest
+                result["validation_applicable"] = (
+                    fidelity.status == "exact"
+                )
                 self._pending_details[session_id] = dict(result)
             return result
         finally:
@@ -428,7 +435,14 @@ class RequestGraphSession:
             # partial update. Read the checkpoint so the apply handshake
             # returns the immutable plan facts committed before parking.
             applying = dict(self._graph.get_state(config).values)
-            for name in ("plan", "plan_id", "expires_at", "model_identity"):
+            for name in (
+                "plan",
+                "plan_id",
+                "expires_at",
+                "model_identity",
+                "snapshot_digest",
+                "validation_applicable",
+            ):
                 applying[name] = approved_values[name]
             return applying
         finally:
