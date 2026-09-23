@@ -31,6 +31,8 @@ from datetime import datetime
 from dataclasses import dataclass
 from typing import Protocol
 
+from pmc_client.approval import PLAN_ID_DISPLAY_PREFIX
+from pmc_client.approval import normalize_plan_id
 from pmc_client.fidelity import FidelityOutcome
 from pmc_client.fidelity import check_fidelity
 from pmc_client.fidelity import to_wire
@@ -43,7 +45,9 @@ from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
 from pmc_core.executor import probe_fidelity
+from pmc_core.plan import ActionPlan
 from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
+from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import FailedPlanResponseV1
@@ -60,11 +64,6 @@ from pmc_core.snapshot import to_json
 #: silently drift from it.
 CONTRACT_MANIFEST = CURRENT_CONTRACT_MANIFEST
 
-#: The literal a plan id is displayed and re-entered with, so a console
-#: user can copy the exact `copilot_apply <id>` line `copilot` prints.
-PLAN_ID_DISPLAY_PREFIX = "p-"
-
-
 def _display_plan_id(raw_plan_id: str) -> str:
     """Render a raw plan identifier for console display and re-entry.
 
@@ -76,21 +75,6 @@ def _display_plan_id(raw_plan_id: str) -> str:
         should type.
     """
     return f"{PLAN_ID_DISPLAY_PREFIX}{raw_plan_id}"
-
-
-def _normalize_plan_id(entered_plan_id: str) -> str:
-    """Strip the console display prefix from a user-entered plan id.
-
-    Args:
-        entered_plan_id: The argument a user passed to `copilot_apply`,
-            with or without the display prefix.
-
-    Returns:
-        The bare plan id, comparable against a stored `PendingPlan.plan_id`.
-    """
-    if entered_plan_id.startswith(PLAN_ID_DISPLAY_PREFIX):
-        return entered_plan_id[len(PLAN_ID_DISPLAY_PREFIX) :]
-    return entered_plan_id
 
 
 class CmdExtension(Protocol):
@@ -160,8 +144,12 @@ class PendingPlan:
     plan_id: str
     session_id: str
     snapshot_digest: str
+    action_plan: ActionPlan
     applicable: bool
     fidelity: FidelityOutcome
+    expires_at: str
+    model_identity: str
+    contract_manifest: ContractManifestV1
 
 
 def _utc_timestamp() -> str:
@@ -413,7 +401,7 @@ class CopilotCommandClient:
         if pending is None:
             self._output("copilot_apply: no pending plan for this session")
             return
-        if _normalize_plan_id(plan_id) != pending.plan_id:
+        if normalize_plan_id(plan_id) != pending.plan_id:
             self._output(
                 f"copilot_apply: plan {plan_id} is not the pending plan"
             )
@@ -450,7 +438,7 @@ class CopilotCommandClient:
         if pending is None:
             self._output("copilot_reject: no pending plan for this session")
             return
-        normalized = _normalize_plan_id(plan_id)
+        normalized = normalize_plan_id(plan_id)
         if normalized != pending.plan_id:
             self._output(
                 f"copilot_reject: plan {plan_id} is not the pending plan"
@@ -523,8 +511,12 @@ class CopilotCommandClient:
             plan_id=response.plan_id,
             session_id=response.session_id,
             snapshot_digest=response.snapshot_digest,
+            action_plan=response.action_plan,
             applicable=applicable,
             fidelity=outcome,
+            expires_at=response.expires_at,
+            model_identity=response.model_identity,
+            contract_manifest=CONTRACT_MANIFEST,
         )
 
         self._output(

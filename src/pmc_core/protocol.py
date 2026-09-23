@@ -160,6 +160,22 @@ def _timestamp(value: object, *, name: str) -> str:
     return text
 
 
+def parse_utc_timestamp(value: str) -> datetime:
+    """Parse one strict V1 RFC3339 UTC timestamp.
+
+    Args:
+        value: Timestamp in the protocol's UTC wire form.
+
+    Returns:
+        The corresponding timezone-aware UTC moment.
+
+    Raises:
+        ProtocolDecodeError: If ``value`` is not a protocol timestamp.
+    """
+    text = _timestamp(value, name="timestamp")
+    return datetime.fromisoformat(text[:-1] + "+00:00")
+
+
 def _int(value: object, *, name: str) -> int:
     """Require a protocol value to be an integer, not a bool.
 
