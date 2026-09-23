@@ -8,12 +8,13 @@ node names:
 
 ```text
 received -> preparing -> generating -> validating -> pending_approval
-pending_approval -> rejected | expired | superseded
+pending_approval -> applying | rejected | expired | superseded
+applying -> applied | apply_failed_restored | rolled_back
 any pre-apply state -> ask | failed | cancelled
 ```
 
-`applying`, `applied`, `restoring`, `apply_failed_restored`, and
-`rolled_back` are item 10's own states, deliberately absent here.
+`restoring` remains a client-side transient: recovery must not depend on a
+network round trip. The server records the three terminal apply outcomes.
 
 `received` is not a graph node: it is the status a request carries before
 the graph is ever invoked, recorded by the caller
@@ -89,6 +90,7 @@ STATE_PREPARING = "preparing"
 STATE_GENERATING = "generating"
 STATE_VALIDATING = "validating"
 STATE_PENDING_APPROVAL = "pending_approval"
+STATE_APPLYING = "applying"
 
 #: Terminal states. Once a request carries one of these, the graph run
 #: that produced it has ended -- see `route_by_status` below.
@@ -98,6 +100,9 @@ TERMINAL_SUPERSEDED = "superseded"
 TERMINAL_FAILED = "failed"
 TERMINAL_CANCELLED = "cancelled"
 TERMINAL_ASK = "ask"
+TERMINAL_APPLIED = "applied"
+TERMINAL_APPLY_FAILED_RESTORED = "apply_failed_restored"
+TERMINAL_ROLLED_BACK = "rolled_back"
 
 #: Every terminal status this graph can produce, for `route_by_status` and
 #: for a test to assert against by identity rather than by re-listing them.
@@ -109,6 +114,9 @@ TERMINAL_STATES: frozenset[str] = frozenset(
         TERMINAL_FAILED,
         TERMINAL_CANCELLED,
         TERMINAL_ASK,
+        TERMINAL_APPLIED,
+        TERMINAL_APPLY_FAILED_RESTORED,
+        TERMINAL_ROLLED_BACK,
     }
 )
 
@@ -121,6 +129,7 @@ NON_TERMINAL_STATES: frozenset[str] = frozenset(
         STATE_GENERATING,
         STATE_VALIDATING,
         STATE_PENDING_APPROVAL,
+        STATE_APPLYING,
     }
 )
 
@@ -963,11 +972,18 @@ def _build_validating(
 RESUME_ACTION_REJECT = "reject"
 RESUME_ACTION_CANCEL = "cancel"
 RESUME_ACTION_SUPERSEDE = "supersede"
+RESUME_ACTION_APPROVE = "approve"
 
 _RESUME_ACTION_TERMINALS: dict[str, str] = {
     RESUME_ACTION_REJECT: TERMINAL_REJECTED,
     RESUME_ACTION_CANCEL: TERMINAL_CANCELLED,
     RESUME_ACTION_SUPERSEDE: TERMINAL_SUPERSEDED,
+}
+
+_APPLY_OUTCOME_TERMINALS: dict[str, str] = {
+    "applied": TERMINAL_APPLIED,
+    "restored": TERMINAL_APPLY_FAILED_RESTORED,
+    "rolled_back": TERMINAL_ROLLED_BACK,
 }
 
 
@@ -1046,6 +1062,18 @@ def _build_pending_approval(
             else None
         )
         if terminal is None:
+            if action == RESUME_ACTION_APPROVE:
+                return {
+                    "status": STATE_APPLYING,
+                    "history": (*state["history"], STATE_APPLYING),
+                    # Carry every approval fact explicitly across the second
+                    # interrupt. LangGraph otherwise serializes this node's
+                    # partial update without the immutable pending payload.
+                    "plan": state["plan"],
+                    "plan_id": state["plan_id"],
+                    "expires_at": state["expires_at"],
+                    "model_identity": state["model_identity"],
+                }
             return _failed(
                 state,
                 category="unrecognized_resume",
@@ -1059,6 +1087,21 @@ def _build_pending_approval(
         }
 
     return _pending_approval
+
+
+def _applying(state: RequestState) -> dict[str, object]:
+    """Park until the client reports the sole terminal apply outcome."""
+    resume_value = interrupt({"plan_id": state["plan_id"]})
+    outcome = resume_value.get("outcome") if isinstance(resume_value, dict) else None
+    terminal = _APPLY_OUTCOME_TERMINALS.get(outcome) if isinstance(outcome, str) else None
+    if terminal is None:
+        return _failed(
+            state,
+            category="unrecognized_apply_outcome",
+            message="applying was resumed with an unrecognized outcome",
+            retryable=True,
+        )
+    return {"status": terminal, "history": (*state["history"], terminal)}
 
 
 def build_request_graph(
@@ -1146,6 +1189,7 @@ def build_request_graph(
     graph.add_node(STATE_GENERATING, generating)  # pyrefly: ignore[bad-argument-type]
     graph.add_node(STATE_VALIDATING, validating)  # pyrefly: ignore[bad-argument-type]
     graph.add_node(STATE_PENDING_APPROVAL, pending_approval)  # pyrefly: ignore[bad-argument-type]
+    graph.add_node(STATE_APPLYING, _applying)
 
     graph.set_entry_point(STATE_PREPARING)
     for name in (
@@ -1153,6 +1197,7 @@ def build_request_graph(
         STATE_GENERATING,
         STATE_VALIDATING,
         STATE_PENDING_APPROVAL,
+        STATE_APPLYING,
     ):
         graph.add_conditional_edges(name, route_by_status)
 

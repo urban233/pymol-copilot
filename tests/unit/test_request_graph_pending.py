@@ -22,6 +22,10 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_agent.graph import ACCEPTED_CONTRACT_MANIFEST
 from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import STATE_APPLYING
+from pmc_agent.graph import TERMINAL_APPLIED
+from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
+from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
 from pmc_agent.graph import TERMINAL_REJECTED
@@ -321,6 +325,50 @@ def test_reject_reaches_rejected() -> None:
 
     assert result is not None
     assert result["status"] == TERMINAL_REJECTED
+
+
+def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
+    """Approval does not execute; it advances once to the applying park."""
+    session = _one_shot_session()
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+
+    applying = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    )
+
+    assert applying is not None
+    assert applying["status"] == STATE_APPLYING
+    assert applying["plan"] == pending["plan"]
+    assert applying["expires_at"] == pending["expires_at"]
+    assert applying["model_identity"] == pending["model_identity"]
+    assert session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    ) is None
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected"),
+    [
+        ("applied", TERMINAL_APPLIED),
+        ("restored", TERMINAL_APPLY_FAILED_RESTORED),
+        ("rolled_back", TERMINAL_ROLLED_BACK),
+    ],
+)
+def test_apply_outcome_reaches_its_matching_terminal(
+    outcome: str, expected: str
+) -> None:
+    """The three typed outcomes are the only terminal apply transitions."""
+    session = _one_shot_session()
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    plan_id = cast(str, pending["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=plan_id) is not None
+
+    result = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=plan_id, outcome=outcome
+    )
+
+    assert result is not None
+    assert result["status"] == expected
 
 
 def test_cancel_reaches_cancelled() -> None:

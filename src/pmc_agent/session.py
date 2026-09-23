@@ -35,9 +35,14 @@ from langgraph.types import Command
 from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
 from pmc_agent.graph import PLAN_TTL_SECONDS
 from pmc_agent.graph import RESUME_ACTION_CANCEL
+from pmc_agent.graph import RESUME_ACTION_APPROVE
 from pmc_agent.graph import RESUME_ACTION_REJECT
 from pmc_agent.graph import RESUME_ACTION_SUPERSEDE
 from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import STATE_APPLYING
+from pmc_agent.graph import TERMINAL_APPLIED
+from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
+from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import RequestState
@@ -166,6 +171,7 @@ class RequestGraphSession:
         self._sessions_guard = threading.Lock()
         self._sessions: dict[str, _SessionSlot] = {}
         self._active_cancellations: dict[str, CancelToken] = {}
+        self._pending_details: dict[str, dict[str, object]] = {}
         self._checkpointer = InMemorySaver()
         self._graph = build_request_graph(
             engine=engine,
@@ -262,6 +268,12 @@ class RequestGraphSession:
         snapshot = self._graph.get_state(_thread_config(session_id))
         return snapshot.next == (STATE_PENDING_APPROVAL,)
 
+    def _is_applying(self, session_id: str) -> bool:
+        """Return whether a session is waiting for its apply outcome."""
+        return self._graph.get_state(_thread_config(session_id)).next == (
+            STATE_APPLYING,
+        )
+
     def submit(
         self,
         *,
@@ -308,6 +320,11 @@ class RequestGraphSession:
                     config,
                 )
                 self._delete_thread(session_id)
+            elif (
+                self._graph.get_state(config).values.get("status")
+                == TERMINAL_APPLIED
+            ):
+                self._delete_thread(session_id)
             initial_state: RequestState = {
                 "request_id": request_id,
                 "session_id": session_id,
@@ -347,6 +364,8 @@ class RequestGraphSession:
                         del self._active_cancellations[session_id]
             if result.get("status") != STATE_PENDING_APPROVAL:
                 self._delete_thread(session_id)
+            else:
+                self._pending_details[session_id] = dict(result)
             return result
         finally:
             self._release_session(session_id, slot)
@@ -382,6 +401,58 @@ class RequestGraphSession:
                 Command(resume={"action": RESUME_ACTION_REJECT}), config
             )
             self._delete_thread(session_id)
+            self._pending_details.pop(session_id, None)
+            return result
+        finally:
+            self._release_session(session_id, slot)
+
+    def approve(
+        self, *, session_id: str, plan_id: str
+    ) -> dict[str, object] | None:
+        """Record an approval and park awaiting exactly one outcome."""
+        config = _thread_config(session_id)
+        slot = self._acquire_session(session_id)
+        try:
+            if not self._is_pending(session_id):
+                return None
+            snapshot = self._graph.get_state(config)
+            if snapshot.values.get("plan_id") != plan_id:
+                return None
+            approved_values = self._pending_details.get(session_id)
+            if approved_values is None:
+                return None
+            self._graph.invoke(
+                Command(resume={"action": RESUME_ACTION_APPROVE}), config
+            )
+            # LangGraph's interrupt return contains only the resumed node's
+            # partial update. Read the checkpoint so the apply handshake
+            # returns the immutable plan facts committed before parking.
+            applying = dict(self._graph.get_state(config).values)
+            for name in ("plan", "plan_id", "expires_at", "model_identity"):
+                applying[name] = approved_values[name]
+            return applying
+        finally:
+            self._release_session(session_id, slot)
+
+    def report_apply_outcome(
+        self, *, session_id: str, plan_id: str, outcome: str
+    ) -> dict[str, object] | None:
+        """Resume an approved plan with its client-observed terminal outcome."""
+        config = _thread_config(session_id)
+        slot = self._acquire_session(session_id)
+        try:
+            if not self._is_applying(session_id):
+                return None
+            snapshot = self._graph.get_state(config)
+            if snapshot.values.get("plan_id") != plan_id:
+                return None
+            result = self._graph.invoke(Command(resume={"outcome": outcome}), config)
+            if result.get("status") in {
+                TERMINAL_APPLY_FAILED_RESTORED,
+                TERMINAL_ROLLED_BACK,
+            }:
+                self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
             return result
         finally:
             self._release_session(session_id, slot)

@@ -19,15 +19,19 @@ from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.graph import NON_TERMINAL_STATES
 from pmc_agent.graph import REQUEST_STATES
 from pmc_agent.graph import STATE_GENERATING
+from pmc_agent.graph import STATE_APPLYING
 from pmc_agent.graph import STATE_PENDING_APPROVAL
 from pmc_agent.graph import STATE_PREPARING
 from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import STATE_VALIDATING
 from pmc_agent.graph import TERMINAL_ASK
+from pmc_agent.graph import TERMINAL_APPLIED
+from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
 from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_REJECTED
+from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_STATES
 from pmc_agent.graph import TERMINAL_SUPERSEDED
 from pmc_agent.graph import RequestState
@@ -72,10 +76,10 @@ def _state(status: str) -> RequestState:
     )
 
 
-def test_request_states_are_exactly_the_eleven_names_in_the_brief() -> None:
+def test_request_states_are_exactly_the_apply_ready_names_in_the_brief() -> None:
     """No status exists that docs/master_plan.md item 8 did not name.
 
-    A set-equality assertion, not a subset check: adding a twelfth status
+    A set-equality assertion, not a subset check: adding another status
     anywhere in this graph without deciding to widen this set is a defect,
     not a detail, and this is what catches it.
     """
@@ -85,15 +89,19 @@ def test_request_states_are_exactly_the_eleven_names_in_the_brief() -> None:
         STATE_GENERATING,
         STATE_VALIDATING,
         STATE_PENDING_APPROVAL,
+        STATE_APPLYING,
         TERMINAL_REJECTED,
         TERMINAL_EXPIRED,
         TERMINAL_SUPERSEDED,
         TERMINAL_FAILED,
         TERMINAL_CANCELLED,
         TERMINAL_ASK,
+        TERMINAL_APPLIED,
+        TERMINAL_APPLY_FAILED_RESTORED,
+        TERMINAL_ROLLED_BACK,
     }
     assert expected == REQUEST_STATES
-    assert len(REQUEST_STATES) == 11
+    assert len(REQUEST_STATES) == 15
 
 
 def test_non_terminal_and_terminal_states_partition_request_states() -> None:
@@ -109,6 +117,7 @@ def test_non_terminal_and_terminal_states_partition_request_states() -> None:
         STATE_GENERATING,
         STATE_VALIDATING,
         STATE_PENDING_APPROVAL,
+        STATE_APPLYING,
     ],
 )
 def test_a_non_terminal_status_routes_to_the_node_of_the_same_name(
@@ -131,6 +140,9 @@ def test_a_non_terminal_status_routes_to_the_node_of_the_same_name(
         TERMINAL_FAILED,
         TERMINAL_CANCELLED,
         TERMINAL_ASK,
+        TERMINAL_APPLIED,
+        TERMINAL_APPLY_FAILED_RESTORED,
+        TERMINAL_ROLLED_BACK,
     ],
 )
 def test_every_terminal_status_ends_the_run(status: str) -> None:
