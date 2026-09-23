@@ -5,6 +5,7 @@ py_library(
     srcs = [
         "__init__.py",
         "approval.py",
+        "apply.py",
         "command.py",
         "fidelity.py",
         "recovery.py",

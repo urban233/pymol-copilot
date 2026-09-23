@@ -1,6 +1,19 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "apply_engine",
+    size = "small",
+    srcs = ["test_apply_engine.py"],
+    main = "test_apply_engine.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+py_test(
     name = "approval_verification",
     size = "small",
     srcs = ["test_approval_verification.py"],
