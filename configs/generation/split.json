@@ -1,0 +1,12 @@
+{
+  "seed": 20260921,
+  "decontam": {
+    "method": "entity-gated-token-jaccard",
+    "threshold": 0.5,
+    "sensitivity": [0.3, 0.5, 0.7]
+  },
+  "audit": {
+    "sample_size": 50,
+    "seed": 20260923
+  }
+}

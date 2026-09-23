@@ -1,0 +1,22 @@
+{"duplicate": true, "left": "Color chain A red.", "right": "color chain a red", "why": "case and punctuation only"}
+{"duplicate": true, "left": "Color chain A red.", "right": "  Color   chain A red  ", "why": "whitespace only"}
+{"duplicate": true, "left": "Colour chain B salmon", "right": "color chain B salmon", "why": "British spelling folded to the template's"}
+{"duplicate": true, "left": "Show chain A as cartoon.", "right": "Show chain A as cartoon, please", "why": "filler word added"}
+{"duplicate": true, "left": "Show chain A as cartoon.", "right": "Please show chain A as the cartoon now.", "why": "several filler words added"}
+{"duplicate": true, "left": "Select chain A and color it red.", "right": "Color chain A red.", "why": "same entities, frame differs by one word (select), Jaccard 0.5"}
+{"duplicate": true, "left": "Hide the lines representation for chain A.", "right": "hide the lines on chain A", "why": "same entities, frame differs by one word, Jaccard 0.5"}
+{"duplicate": true, "left": "Show residues 1 to 4 as sticks.", "right": "show residues 1-4 as sticks", "why": "range written with a hyphen instead of 'to'"}
+{"duplicate": false, "left": "Color chain A red.", "right": "Color chain B red.", "why": "chain differs: a different request"}
+{"duplicate": false, "left": "Color chain A red.", "right": "Color chain A blue.", "why": "colour differs"}
+{"duplicate": false, "left": "Show residue 4 as sticks.", "right": "Show residue 5 as sticks.", "why": "residue number differs"}
+{"duplicate": false, "left": "Hide the lines representation for chain A.", "right": "Hide the lines representation for chain B.", "why": "chain differs in a long intent; character shingles scored this 0.95"}
+{"duplicate": false, "left": "color the waters blue", "right": "Color HOH residues blue.", "why": "domain word vs residue name: different entities"}
+{"duplicate": false, "left": "show chain A as sticks", "right": "hide the sticks for chain A", "why": "same entities, opposite verb"}
+{"duplicate": true, "left": "colour everything except chain A grey", "right": "Color not chain A grey.", "why": "'except' folds to 'not', leaving the frames one word ('everything') apart"}
+{"duplicate": false, "left": "Color chain A grey.", "right": "Color chain A gray.", "why": "grey and gray are distinct PyMOL colours with different indices"}
+{"duplicate": false, "left": "make the zinc ions magenta", "right": "Color ZN residues magenta.", "why": "'zinc' is a word, ZN a residue name"}
+{"duplicate": false, "left": "Select chain A and color it red, then select chain B and show it as sticks.", "right": "Select chain A and color it red.", "why": "the second request drops a whole clause and its entities"}
+{"duplicate": false, "left": "select the het atoms and orient the view on them", "right": "Select polymer atoms and orient the view on it.", "why": "het and polymer select disjoint sets; this pair was a false duplicate before selection-kind words became entities"}
+{"duplicate": false, "left": "colour everything except chain A grey", "right": "Color chain A grey.", "why": "a negation inverts the request; this pair was a false duplicate before negations became entities"}
+{"duplicate": true, "left": "show the waters as sticks", "right": "Show water as sticks.", "why": "plural folded to the singular"}
+{"duplicate": false, "left": "paint chain A grey", "right": "Color chain A grey.", "why": "a rewording of the same request is what the gold set tests, not a duplicate"}

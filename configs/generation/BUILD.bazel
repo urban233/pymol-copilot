@@ -1,1 +1,5 @@
-exports_files(["chain_a_red_structures.json", "corpus.json"])
+exports_files([
+    "chain_a_red_structures.json",
+    "corpus.json",
+    "split.json",
+])

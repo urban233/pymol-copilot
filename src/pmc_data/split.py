@@ -25,8 +25,14 @@ silent edit fails CI.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import json
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 from typing import Literal
 
+from pmc_data.decontam import METHOD
 from pmc_data.structures import StructureSpec
 
 #: The split's own version. Bump it whenever HELD_OUT_SPEC_IDS changes.
@@ -113,3 +119,135 @@ def side_of(spec_id: str) -> SIDE:
         SIDE_TEST for a held-out spec, SIDE_TRAIN otherwise.
     """
     return SIDE_TEST if spec_id in HELD_OUT_SPEC_IDS else SIDE_TRAIN
+
+
+class InvalidSplitConfigError(ValueError):
+    """Raised when the split configuration is incomplete or unknown."""
+
+
+@dataclass(frozen=True)
+class SplitConfig:
+    """The frozen settings a split is built with.
+
+    Attributes:
+        seed: The corpus seed the structure matrix derives from.
+        decontam_method: The near-duplicate rule, by name.
+        decontam_threshold: The frame similarity at which two intents
+            with equal entities are duplicates.
+        decontam_sensitivity: Further thresholds to report drop counts
+            for, so the dependence on the frozen one is visible.
+        audit_sample_size: How many training labels the audit draws.
+        audit_seed: The seed the audit draw derives from.
+    """
+
+    seed: int
+    decontam_method: str
+    decontam_threshold: float
+    decontam_sensitivity: tuple[float, ...]
+    audit_sample_size: int
+    audit_seed: int
+
+
+def _section(data: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    """Read a required nested section.
+
+    Args:
+        data: The raw configuration.
+        key: The section name.
+
+    Returns:
+        The section.
+
+    Raises:
+        InvalidSplitConfigError: If the section is missing.
+    """
+    value = data.get(key)
+    if not isinstance(value, Mapping):
+        raise InvalidSplitConfigError(f"missing section: {key!r}")
+    return value
+
+
+def _number(data: Mapping[str, Any], key: str) -> float:
+    """Read a required number, refusing booleans.
+
+    Args:
+        data: The mapping to read from.
+        key: The field name.
+
+    Returns:
+        The number.
+
+    Raises:
+        InvalidSplitConfigError: If the field is missing or not a number.
+    """
+    value = data.get(key)
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise InvalidSplitConfigError(f"field {key!r} must be a number")
+    return value
+
+
+def _integer(data: Mapping[str, Any], key: str) -> int:
+    """Read a required integer, refusing booleans.
+
+    Args:
+        data: The mapping to read from.
+        key: The field name.
+
+    Returns:
+        The integer.
+
+    Raises:
+        InvalidSplitConfigError: If the field is missing or not an int.
+    """
+    value = data.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise InvalidSplitConfigError(f"field {key!r} must be an integer")
+    return value
+
+
+def load_split_config(path: Path) -> SplitConfig:
+    """Read and validate `configs/generation/split.json`.
+
+    Args:
+        path: The configuration file.
+
+    Returns:
+        The validated settings.
+
+    Raises:
+        InvalidSplitConfigError: If a field is missing or malformed, or
+            the file names a decontamination method this code does not
+            implement.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    decontam = _section(data, "decontam")
+    audit = _section(data, "audit")
+    method = decontam.get("method")
+    if method != METHOD:
+        raise InvalidSplitConfigError(
+            f"unknown decontamination method {method!r}; this code "
+            f"implements {METHOD!r}"
+        )
+    raw_sensitivity = decontam.get("sensitivity")
+    if not isinstance(raw_sensitivity, list):
+        raise InvalidSplitConfigError("'sensitivity' must be a list")
+    threshold = _number(decontam, "threshold")
+    if not 0.0 < threshold <= 1.0:
+        raise InvalidSplitConfigError(
+            f"threshold must be in (0, 1], not {threshold}"
+        )
+    size = _integer(audit, "sample_size")
+    if size < 1:
+        raise InvalidSplitConfigError(
+            f"audit sample_size must be at least 1, not {size}"
+        )
+    return SplitConfig(
+        seed=_integer(data, "seed"),
+        decontam_method=method,
+        decontam_threshold=float(threshold),
+        decontam_sensitivity=tuple(
+            float(_number({"t": t}, "t")) for t in raw_sensitivity
+        ),
+        audit_sample_size=size,
+        audit_seed=_integer(audit, "seed"),
+    )
