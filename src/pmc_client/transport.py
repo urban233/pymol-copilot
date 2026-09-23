@@ -203,7 +203,11 @@ class LoopbackPlanClient:
 
     def _send(
         self,
-        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1 | ApplyRequestV1 | ApplyOutcomeRequestV1,
+        request: PlanRequestV1
+        | RejectRequestV1
+        | CancelRequestV1
+        | ApplyRequestV1
+        | ApplyOutcomeRequestV1,
         path: str,
     ) -> PLAN_RESPONSE:
         """POST one typed request and decode its typed response.
@@ -272,7 +276,11 @@ class LoopbackPlanClient:
 
     def _validate_correlation(
         self,
-        request: PlanRequestV1 | RejectRequestV1 | CancelRequestV1 | ApplyRequestV1 | ApplyOutcomeRequestV1,
+        request: PlanRequestV1
+        | RejectRequestV1
+        | CancelRequestV1
+        | ApplyRequestV1
+        | ApplyOutcomeRequestV1,
         response: PLAN_RESPONSE,
     ) -> None:
         """Verify that a response belongs to the submitted request.

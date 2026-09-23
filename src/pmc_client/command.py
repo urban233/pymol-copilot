@@ -64,6 +64,7 @@ from pmc_core.snapshot import to_json
 #: silently drift from it.
 CONTRACT_MANIFEST = CURRENT_CONTRACT_MANIFEST
 
+
 def _display_plan_id(raw_plan_id: str) -> str:
     """Render a raw plan identifier for console display and re-entry.
 

@@ -369,9 +369,7 @@ class RequestGraphSession:
                 # fields but not every opaque domain value. Keep the exact
                 # response facts server-side for the later approval reply.
                 result["snapshot_digest"] = snapshot_identity.digest
-                result["validation_applicable"] = (
-                    fidelity.status == "exact"
-                )
+                result["validation_applicable"] = fidelity.status == "exact"
                 self._pending_details[session_id] = dict(result)
             return result
         finally:
@@ -460,7 +458,9 @@ class RequestGraphSession:
             snapshot = self._graph.get_state(config)
             if snapshot.values.get("plan_id") != plan_id:
                 return None
-            result = self._graph.invoke(Command(resume={"outcome": outcome}), config)
+            result = self._graph.invoke(
+                Command(resume={"outcome": outcome}), config
+            )
             if result.get("status") in {
                 TERMINAL_APPLY_FAILED_RESTORED,
                 TERMINAL_ROLLED_BACK,

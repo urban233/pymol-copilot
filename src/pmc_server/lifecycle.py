@@ -181,20 +181,29 @@ class RequestGraphLifecycle:
             received_at=self._timestamp_source(),
             validated_at=self._timestamp_source(),
             action_plan=plan,
-            validation=ValidationReportV1("passed", snapshot_digest, applicable, ()),
+            validation=ValidationReportV1(
+                "passed", snapshot_digest, applicable, ()
+            ),
             plan_id=request.plan_id,
             snapshot_digest=snapshot_digest,
-            expires_at=expires_at, model_identity=model_identity,
+            expires_at=expires_at,
+            model_identity=model_identity,
         )
 
-    def report_apply_outcome(self, request: ApplyOutcomeRequestV1) -> FailedPlanResponseV1:
+    def report_apply_outcome(
+        self, request: ApplyOutcomeRequestV1
+    ) -> FailedPlanResponseV1:
         """Record a terminal client apply outcome."""
         result = self._session.report_apply_outcome(
-            session_id=request.session_id, plan_id=request.plan_id, outcome=request.outcome
+            session_id=request.session_id,
+            plan_id=request.plan_id,
+            outcome=request.outcome,
         )
         if result is None:
             return self._no_pending_plan(request.request_id, request.session_id)
-        return self._to_terminal_response(request.request_id, request.session_id, result)
+        return self._to_terminal_response(
+            request.request_id, request.session_id, result
+        )
 
     def _to_plan_response(
         self,

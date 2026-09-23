@@ -50,14 +50,18 @@ def test_save_enforces_private_directory_and_file_modes(
     finally:
         os.umask(original_umask)
 
-    assert path == tmp_path / ".pymol-copilot" / "recovery" / "plan-plan-one.pse"
+    assert (
+        path == tmp_path / ".pymol-copilot" / "recovery" / "plan-plan-one.pse"
+    )
     assert cmd.calls == [("save", str(path), None)]
     if os.name != "nt":
         assert stat.S_IMODE(store.directory.stat().st_mode) == DIRECTORY_MODE
         assert stat.S_IMODE(path.stat().st_mode) == FILE_MODE
 
 
-def test_second_save_replaces_the_previous_retained_point(tmp_path: Path) -> None:
+def test_second_save_replaces_the_previous_retained_point(
+    tmp_path: Path,
+) -> None:
     """A session retains only the most recent successful apply point."""
     store = RecoveryStore(tmp_path)
     cmd = _FakeCmd()

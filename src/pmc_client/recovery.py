@@ -89,8 +89,13 @@ class RecoveryStore:
             if not path.is_file():
                 raise RecoveryPointError("PyMOL did not create recovery point")
             os.chmod(path, FILE_MODE)
-            if os.name != "nt" and stat.S_IMODE(path.stat().st_mode) != FILE_MODE:
-                raise RecoveryPointError("recovery point does not have mode 0600")
+            if (
+                os.name != "nt"
+                and stat.S_IMODE(path.stat().st_mode) != FILE_MODE
+            ):
+                raise RecoveryPointError(
+                    "recovery point does not have mode 0600"
+                )
         except RecoveryPointError:
             self._remove_unretained(path)
             raise
@@ -114,7 +119,9 @@ class RecoveryStore:
         try:
             cmd.load(str(path), partial=0)
         except (OSError, RuntimeError) as error:
-            raise RecoveryPointError("could not restore recovery point") from error
+            raise RecoveryPointError(
+                "could not restore recovery point"
+            ) from error
 
     def discard(self) -> None:
         """Delete and forget this store's retained recovery point."""
@@ -125,7 +132,9 @@ class RecoveryStore:
         try:
             path.unlink(missing_ok=True)
         except OSError as error:
-            raise RecoveryPointError("could not discard recovery point") from error
+            raise RecoveryPointError(
+                "could not discard recovery point"
+            ) from error
 
     def consume(self) -> None:
         """Consume the retained point after a successful rollback."""

@@ -341,9 +341,12 @@ def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
     assert applying["plan"] == pending["plan"]
     assert applying["expires_at"] == pending["expires_at"]
     assert applying["model_identity"] == pending["model_identity"]
-    assert session.approve(
-        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
-    ) is None
+    assert (
+        session.approve(
+            session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize(

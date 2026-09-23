@@ -76,7 +76,9 @@ def _state(status: str) -> RequestState:
     )
 
 
-def test_request_states_are_exactly_the_apply_ready_names_in_the_brief() -> None:
+def test_request_states_are_exactly_the_apply_ready_names_in_the_brief() -> (
+    None
+):
     """No status exists that docs/master_plan.md item 8 did not name.
 
     A set-equality assertion, not a subset check: adding another status

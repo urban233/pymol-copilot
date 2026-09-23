@@ -64,7 +64,9 @@ type EXECUTION_HANDLER = Callable[[ExecutionRequestV1], ExecutionReportV1]
 type REJECT_HANDLER = Callable[[RejectRequestV1], FailedPlanResponseV1]
 type CANCEL_HANDLER = Callable[[CancelRequestV1], FailedPlanResponseV1]
 type APPLY_HANDLER = Callable[[ApplyRequestV1], PLAN_RESPONSE]
-type APPLY_OUTCOME_HANDLER = Callable[[ApplyOutcomeRequestV1], FailedPlanResponseV1]
+type APPLY_OUTCOME_HANDLER = Callable[
+    [ApplyOutcomeRequestV1], FailedPlanResponseV1
+]
 
 # Preserve the original public type-alias names.
 globals()["PlanResponse"] = PLAN_RESPONSE
@@ -237,7 +239,10 @@ class LoopbackPlanServer:
                 ):
                     self._handle_cancel()
                     return
-                if self.path == APPLY_PATH and server._apply_handler is not None:
+                if (
+                    self.path == APPLY_PATH
+                    and server._apply_handler is not None
+                ):
                     self._handle_apply()
                     return
                 if (
@@ -354,7 +359,9 @@ class LoopbackPlanServer:
                     request = decode_apply_request_json(payload.decode("utf-8"))
                     handler = server._apply_handler
                     assert handler is not None
-                    response_payload = encode_json(handler(request)).encode("utf-8")
+                    response_payload = encode_json(handler(request)).encode(
+                        "utf-8"
+                    )
                 except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
                     self._send_empty(HTTPStatus.BAD_REQUEST)
                     return
@@ -366,10 +373,14 @@ class LoopbackPlanServer:
                 if payload is None:
                     return
                 try:
-                    request = decode_apply_outcome_request_json(payload.decode("utf-8"))
+                    request = decode_apply_outcome_request_json(
+                        payload.decode("utf-8")
+                    )
                     handler = server._apply_outcome_handler
                     assert handler is not None
-                    response_payload = encode_json(handler(request)).encode("utf-8")
+                    response_payload = encode_json(handler(request)).encode(
+                        "utf-8"
+                    )
                 except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
                     self._send_empty(HTTPStatus.BAD_REQUEST)
                     return

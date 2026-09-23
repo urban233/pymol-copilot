@@ -154,7 +154,9 @@ def apply_request() -> ApplyRequestV1:
     )
 
 
-def apply_outcome_request(outcome: str = APPLY_OUTCOME_APPLIED) -> ApplyOutcomeRequestV1:
+def apply_outcome_request(
+    outcome: str = APPLY_OUTCOME_APPLIED,
+) -> ApplyOutcomeRequestV1:
     """Build the accepted apply-outcome fixture."""
     return ApplyOutcomeRequestV1(
         request_id=REQUEST_IDS["requestId"],
@@ -1194,7 +1196,10 @@ def test_cancel_request_json_rejects_invalid_json() -> None:
 
 def test_apply_request_round_trips_and_requires_v4_identifiers() -> None:
     """Approval requests use the same strict correlation boundary as reject."""
-    assert decode_apply_request_json(encode_json(apply_request())) == apply_request()
+    assert (
+        decode_apply_request_json(encode_json(apply_request()))
+        == apply_request()
+    )
     payload = apply_request().to_dict()
     payload["planId"] = "11111111-1111-3111-8111-111111111111"
     with pytest.raises(ProtocolDecodeError, match="UUIDv4"):

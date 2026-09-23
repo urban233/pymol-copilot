@@ -1092,8 +1092,14 @@ def _build_pending_approval(
 def _applying(state: RequestState) -> dict[str, object]:
     """Park until the client reports the sole terminal apply outcome."""
     resume_value = interrupt({"plan_id": state["plan_id"]})
-    outcome = resume_value.get("outcome") if isinstance(resume_value, dict) else None
-    terminal = _APPLY_OUTCOME_TERMINALS.get(outcome) if isinstance(outcome, str) else None
+    outcome = (
+        resume_value.get("outcome") if isinstance(resume_value, dict) else None
+    )
+    terminal = (
+        _APPLY_OUTCOME_TERMINALS.get(outcome)
+        if isinstance(outcome, str)
+        else None
+    )
     if terminal is None:
         return _failed(
             state,

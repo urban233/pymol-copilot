@@ -1175,7 +1175,9 @@ class ValidatedPlanResponseV1:
             validation=validation,
             plan_id=_uuid4(action_plan_data["planId"], name="planId"),
             snapshot_digest=snapshot_digest,
-            expires_at=_timestamp(action_plan_data["expiresAt"], name="expiresAt"),
+            expires_at=_timestamp(
+                action_plan_data["expiresAt"], name="expiresAt"
+            ),
             model_identity=_string(
                 action_plan_data["modelIdentity"], name="modelIdentity"
             ),

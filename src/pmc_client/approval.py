@@ -94,7 +94,9 @@ def verify_approval(
     except ProtocolDecodeError:
         return ApprovalVerdict(f"plan {entered_plan_id} has an invalid expiry")
     if now >= expires_at:
-        return ApprovalVerdict(f"plan {entered_plan_id} expired at {pending.expires_at}")
+        return ApprovalVerdict(
+            f"plan {entered_plan_id} expired at {pending.expires_at}"
+        )
     if live_digest != pending.snapshot_digest:
         return ApprovalVerdict(
             f"the session changed since plan {entered_plan_id} was made"
