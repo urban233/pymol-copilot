@@ -262,6 +262,36 @@ def test_a_sample_that_only_ran_commands_is_rejected() -> None:
         )
 
 
+def test_an_empty_selection_count_assertion_is_not_evidence() -> None:
+    """Naming an independent kind is not the same as having evidence.
+
+    This is the same ungradable direct-expression `orient` as above,
+    relabelled: nothing was predicted and nothing was counted, but the
+    record asserts `selection_counts` of `[]` rather than only that
+    commands ran. The kind is one of `INDEPENDENT_ASSERTION_KINDS` and
+    the detail agrees with the verification beside it -- an empty list
+    does equal an empty list -- so a check reading only the assertion
+    kinds admitted it. The evidence has to be in the verification.
+    """
+    with pytest.raises(InvalidSampleError, match="rests on nothing"):
+        _sample(
+            assertions=(
+                Assertion(kind=ASSERTION_SELECTION_COUNTS, detail="[]"),
+                Assertion(
+                    kind=ASSERTION_COMMANDS_SUCCEEDED, detail="1 commands"
+                ),
+            ),
+            verification=VerificationRecord(
+                status="ok",
+                reason="ok",
+                expected_fingerprint=None,
+                resulting_fingerprint=None,
+                selection_counts=(),
+                command_verbs=("orient",),
+            ),
+        )
+
+
 def test_evidence_the_verification_holds_must_be_asserted() -> None:
     """A sample must claim every kind of evidence it actually has.
 

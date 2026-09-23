@@ -575,20 +575,32 @@ class Sample:
         PyMOL raised nothing, which is exactly the claim
         `pmc_data.generate` refuses to grade when it turns away a
         direct `orient`. Such a record decoded cleanly and counted as
-        kept. So a sample must carry an assertion from
-        `INDEPENDENT_ASSERTION_KINDS`, and must carry each one whose
-        evidence its own verification holds -- otherwise dropping an
-        assertion while keeping the evidence turns a graded sample into
-        an ungraded one that still reads like a graded one.
+        kept.
+
+        The independence is read off the *verification*, not off the
+        assertion list, because an assertion is a claim and a claim is
+        not its own evidence. Requiring only that some assertion carry
+        a kind from `INDEPENDENT_ASSERTION_KINDS` let the same direct
+        `orient` back in wearing a different label: a record graded
+        against no fingerprint, counting no selection, and asserting
+        `selection_counts` of `[]` satisfied the kind check and agreed
+        with its own verification, because an empty list does equal an
+        empty list. So the verification must hold evidence about the
+        result -- a fingerprint it was graded against, or a selection
+        it counted -- and the sample must then carry the assertion for
+        each kind of evidence it holds. That second half matters on its
+        own: dropping an assertion while keeping the evidence turns a
+        graded sample into an ungraded one that still reads like a
+        graded one.
 
         Raises:
-            InvalidSampleError: If the sample carries no assertion or
-                no independently evaluated one, if its verification did
-                not succeed, if a recorded fingerprint disagrees with
-                the one it was graded against, if evidence the
-                verification holds is claimed by no assertion, or if an
-                assertion's detail disagrees with the verification
-                beside it.
+            InvalidSampleError: If the sample carries no assertion, if
+                its verification did not succeed, if a recorded
+                fingerprint disagrees with the one it was graded
+                against, if the verification holds no independent
+                evidence at all, if evidence the verification holds is
+                claimed by no assertion, or if an assertion's detail
+                disagrees with the verification beside it.
         """
         if not self.assertions:
             raise InvalidSampleError(
@@ -611,22 +623,32 @@ class Sample:
                 f"recorded {verification.resulting_fingerprint!r}"
             )
         kinds = {assertion.kind for assertion in self.assertions}
-        if not kinds & INDEPENDENT_ASSERTION_KINDS:
+        # The evidence the verification itself holds, which is what the
+        # assertions are then required to account for. An assertion is
+        # not counted here: `selection_counts` of `[]` names an
+        # independent kind while establishing nothing, and that is
+        # exactly the shape `pmc_data.generate` turns away.
+        evidenced: set[str] = set()
+        if expected is not None:
+            evidenced.add(ASSERTION_RESULTING_SNAPSHOT)
+        if verification.selection_counts:
+            evidenced.add(ASSERTION_SELECTION_COUNTS)
+        if not evidenced:
             raise InvalidSampleError(
                 f"{self.sample_id!r}: a sample must carry an independently "
                 f"evaluated assertion, one of "
-                f"{sorted(INDEPENDENT_ASSERTION_KINDS)}, not only "
-                f"{sorted(kinds)}"
+                f"{sorted(INDEPENDENT_ASSERTION_KINDS)}, with evidence in "
+                f"its own verification -- this one was graded against no "
+                f"fingerprint and counted no selection, so {sorted(kinds)} "
+                f"rests on nothing but "
+                f"{list(verification.command_verbs)!r} having run"
             )
-        if expected is not None and ASSERTION_RESULTING_SNAPSHOT not in kinds:
+        if ASSERTION_RESULTING_SNAPSHOT in evidenced - kinds:
             raise InvalidSampleError(
                 f"{self.sample_id!r}: graded against {expected!r} but "
                 f"carries no {ASSERTION_RESULTING_SNAPSHOT} assertion"
             )
-        if (
-            verification.selection_counts
-            and ASSERTION_SELECTION_COUNTS not in kinds
-        ):
+        if ASSERTION_SELECTION_COUNTS in evidenced - kinds:
             raise InvalidSampleError(
                 f"{self.sample_id!r}: the verification recorded "
                 f"{list(verification.selection_counts)!r} but the sample "
