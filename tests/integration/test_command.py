@@ -1116,11 +1116,12 @@ def test_copilot_apply_applies_the_approved_canonical_plan(
     output: list[str] = []
     session = _RecordingSession()
     transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
     client, applied_session = _client(
         transport,
         output.append,
         probe=_exact_probe(session),
-        recovery_store=RecoveryStore(tmp_path),
+        recovery_store=store,
     )
     client.copilot(INTENT)
     output.clear()
@@ -1133,8 +1134,7 @@ def test_copilot_apply_applies_the_approved_canonical_plan(
         "copilot_apply: plan "
         f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555 "
         "applied. Recovery point retained at "
-        f"{tmp_path}/.pymol-copilot/recovery/plan-"
-        "55555555-5555-4555-8555-555555555555.pse."
+        f"{store.directory / 'plan-55555555-5555-4555-8555-555555555555.pse'}."
     ]
     assert applied_session.events == ["save", "select", "sync", "color", "sync"]
     assert len(transport.apply_requests) == 1
