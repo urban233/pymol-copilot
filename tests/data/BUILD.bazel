@@ -138,6 +138,30 @@ py_test(
 )
 
 py_test(
+    name = "gold_set",
+    size = "small",
+    srcs = ["test_gold_set.py"],
+    main = "test_gold_set.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "split",
+    size = "small",
+    srcs = ["test_split.py"],
+    main = "test_split.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
     name = "structures",
     size = "small",
     srcs = ["test_structures.py"],
