@@ -7,6 +7,7 @@ import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -62,6 +63,7 @@ class _Transport:
         [ApplyRequestV1], ValidatedPlanResponseV1 | FailedPlanResponseV1
     ]
     reject_factory: Callable[[RejectRequestV1], FailedPlanResponseV1]
+    outcomes: list[ApplyOutcomeRequestV1] = field(default_factory=list)
 
     def submit(
         self, request: PlanRequestV1
@@ -84,8 +86,14 @@ class _Transport:
     def report_apply_outcome(
         self, request: ApplyOutcomeRequestV1
     ) -> FailedPlanResponseV1:
-        """Fail if a refusal reaches a terminal mutation outcome."""
-        raise AssertionError(f"unexpected apply outcome: {request.outcome}")
+        """Record a no-mutation outcome after the server approved."""
+        assert request.outcome == "restored"
+        self.outcomes.append(request)
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1("apply_failed_restored", "restored", False),
+        )
 
 
 def _plan() -> ActionPlan:
@@ -333,7 +341,8 @@ def test_every_refusal_path_has_zero_live_or_recovery_mutation(
     client, store = _client(real_pymol, tmp_path / "policy")
     pending = _pending(client, real_pymol)
     client._pending_plan = pending
-    client._transport = _Transport(_validated_for(pending), _rejected)
+    transport = _Transport(_validated_for(pending), _rejected)
+    client._transport = transport
     monkeypatch.setattr(
         "pmc_client.command.evaluate_plan",
         lambda _plan: PlanDecision((), False),
@@ -341,6 +350,7 @@ def test_every_refusal_path_has_zero_live_or_recovery_mutation(
     _assert_read_only(
         real_pymol, store, lambda: client.copilot_apply(f"p-{_PLAN_ID}")
     )
+    assert [outcome.outcome for outcome in transport.outcomes] == ["restored"]
     monkeypatch.undo()
     cases += 1
 
@@ -365,10 +375,12 @@ def test_every_refusal_path_has_zero_live_or_recovery_mutation(
             model_identity="different-model@checkpoint",
         )
 
-    client._transport = _Transport(changed_model, _rejected)
+    transport = _Transport(changed_model, _rejected)
+    client._transport = transport
     _assert_read_only(
         real_pymol, store, lambda: client.copilot_apply(f"p-{_PLAN_ID}")
     )
+    assert [outcome.outcome for outcome in transport.outcomes] == ["restored"]
     cases += 1
 
     _reset(real_pymol)
@@ -393,10 +405,12 @@ def test_every_refusal_path_has_zero_live_or_recovery_mutation(
             model_identity=response.model_identity,
         )
 
-    client._transport = _Transport(changed_text, _rejected)
+    transport = _Transport(changed_text, _rejected)
+    client._transport = transport
     _assert_read_only(
         real_pymol, store, lambda: client.copilot_apply(f"p-{_PLAN_ID}")
     )
+    assert [outcome.outcome for outcome in transport.outcomes] == ["restored"]
     cases += 1
 
     _reset(real_pymol)

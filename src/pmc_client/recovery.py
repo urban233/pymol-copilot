@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import stat
+import uuid
 from contextlib import suppress
 from pathlib import Path
 from typing import Protocol
@@ -63,9 +64,9 @@ class RecoveryStore:
     def save(self, cmd: RecoveryCmd, plan_id: str) -> Path:
         """Save a replacement-session recovery point before live mutation.
 
-        Any existing point owned by this store is discarded first. The saved
-        file is not considered retained until it exists and its POSIX mode
-        has been verified.
+        A new point is staged and verified before it replaces any existing
+        retained point. The saved file is not considered retained until it
+        exists and its POSIX mode has been verified.
 
         Args:
             cmd: Live PyMOL command module.
@@ -78,32 +79,39 @@ class RecoveryStore:
             RecoveryPointError: If PyMOL cannot save the point or its file
                 permissions cannot be established and verified.
         """
-        self.discard()
         directory = self.directory
         path: Path | None = None
+        staged: Path | None = None
+        previous = self._retained
         try:
             directory.mkdir(mode=DIRECTORY_MODE, parents=True, exist_ok=True)
             os.chmod(directory, DIRECTORY_MODE)
             path = directory / f"plan-{plan_id}.pse"
-            cmd.save(str(path))
-            if not path.is_file():
+            staged = directory / f".plan-{plan_id}-{uuid.uuid4().hex}.pse"
+            cmd.save(str(staged))
+            if not staged.is_file():
                 raise RecoveryPointError("PyMOL did not create recovery point")
-            os.chmod(path, FILE_MODE)
+            os.chmod(staged, FILE_MODE)
             if (
                 os.name != "nt"
-                and stat.S_IMODE(path.stat().st_mode) != FILE_MODE
+                and stat.S_IMODE(staged.stat().st_mode) != FILE_MODE
             ):
                 raise RecoveryPointError(
                     "recovery point does not have mode 0600"
                 )
+            os.replace(staged, path)
         except RecoveryPointError:
-            self._remove_unretained(path)
+            self._remove_unretained(staged)
             raise
-        except (OSError, RuntimeError) as error:
-            self._remove_unretained(path)
+        except Exception as error:
+            self._remove_unretained(staged)
             raise RecoveryPointError("could not save recovery point") from error
         assert path is not None
         self._retained = path
+        if previous is not None and previous != path:
+            # The new verified point is already retained. A stale prior file
+            # is private debris, not a reason to pretend the new save failed.
+            self._remove_unretained(previous)
         return path
 
     def restore(self, cmd: RecoveryCmd, path: Path) -> None:
@@ -118,7 +126,7 @@ class RecoveryStore:
         """
         try:
             cmd.load(str(path), partial=0)
-        except (OSError, RuntimeError) as error:
+        except Exception as error:
             raise RecoveryPointError(
                 "could not restore recovery point"
             ) from error
@@ -126,7 +134,6 @@ class RecoveryStore:
     def discard(self) -> None:
         """Delete and forget this store's retained recovery point."""
         path = self._retained
-        self._retained = None
         if path is None:
             return
         try:
@@ -135,6 +142,7 @@ class RecoveryStore:
             raise RecoveryPointError(
                 "could not discard recovery point"
             ) from error
+        self._retained = None
 
     def consume(self) -> None:
         """Consume the retained point after a successful rollback."""

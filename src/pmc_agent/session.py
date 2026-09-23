@@ -429,9 +429,17 @@ class RequestGraphSession:
             approved_values = self._pending_details.get(session_id)
             if approved_values is None:
                 return None
-            self._graph.invoke(
+            result = self._graph.invoke(
                 Command(resume={"action": RESUME_ACTION_APPROVE}), config
             )
+            # Approval can race the graph's own TTL check.  Only an actual
+            # ``applying`` interrupt may receive the committed preview facts;
+            # an expired or otherwise terminal result must be returned to the
+            # lifecycle and pruned just like reject/cancel terminals.
+            if result.get("status") != STATE_APPLYING:
+                self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
+                return result
             # LangGraph's interrupt return contains only the resumed node's
             # partial update. Read the checkpoint so the apply handshake
             # returns the immutable plan facts committed before parking.

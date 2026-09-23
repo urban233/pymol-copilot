@@ -13,6 +13,9 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 import dataclasses
 import itertools
 from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
@@ -367,6 +370,37 @@ def test_apply_returns_the_canonical_approved_plan_then_records_outcome() -> (
     )
 
     assert terminal.failure.category == "applied"
+
+
+def test_apply_after_expiry_returns_a_typed_terminal_not_a_plan() -> None:
+    """The lifecycle must not turn an expired approval into executable text."""
+    moment = [datetime(2026, 9, 21, tzinfo=UTC)]
+    session = RequestGraphSession(
+        engine=FakeEngine(
+            [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)]
+        ),
+        executor=_always_ok_executor,
+        clock=lambda: moment[0],
+        ttl_seconds=60.0,
+    )
+    lifecycle = RequestGraphLifecycle(
+        session=session, timestamp_source=lambda: "2026-09-21T00:00:00Z"
+    )
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+    moment[0] += timedelta(seconds=61)
+
+    response = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.failure.category == "expired"
+    assert response.failure.retryable is True
 
 
 def test_apply_without_a_matching_pending_plan_is_refused() -> None:

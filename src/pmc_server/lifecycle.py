@@ -21,6 +21,7 @@ from datetime import UTC
 from datetime import datetime
 
 from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import STATE_APPLYING
 from pmc_agent.graph import TERMINAL_ASK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
@@ -167,6 +168,10 @@ class RequestGraphLifecycle:
         )
         if result is None:
             return self._no_pending_plan(request.request_id, request.session_id)
+        if result.get("status") != STATE_APPLYING:
+            return self._to_terminal_response(
+                request.request_id, request.session_id, result
+            )
         plan = result["plan"]
         assert isinstance(plan, ActionPlan)
         expires_at = result["expires_at"]

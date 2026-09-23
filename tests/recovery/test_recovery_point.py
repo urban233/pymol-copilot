@@ -19,15 +19,22 @@ class _FakeCmd:
     """Record session save/load calls and optionally fail either operation."""
 
     def __init__(
-        self, *, create_file: bool = True, fail_load: bool = False
+        self,
+        *,
+        create_file: bool = True,
+        fail_load: bool = False,
+        save_error: Exception | None = None,
     ) -> None:
         self.create_file = create_file
         self.fail_load = fail_load
+        self.save_error = save_error
         self.calls: list[tuple[str, str, int | None]] = []
 
     def save(self, filename: str) -> None:
         """Record and optionally materialize a synthetic session file."""
         self.calls.append(("save", filename, None))
+        if self.save_error is not None:
+            raise self.save_error
         if self.create_file:
             Path(filename).write_bytes(b"recovery")
 
@@ -53,7 +60,10 @@ def test_save_enforces_private_directory_and_file_modes(
     assert (
         path == tmp_path / ".pymol-copilot" / "recovery" / "plan-plan-one.pse"
     )
-    assert cmd.calls == [("save", str(path), None)]
+    assert len(cmd.calls) == 1
+    assert cmd.calls[0][0] == "save"
+    assert cmd.calls[0][1] != str(path)
+    assert cmd.calls[0][1].endswith(".pse")
     if os.name != "nt":
         assert stat.S_IMODE(store.directory.stat().st_mode) == DIRECTORY_MODE
         assert stat.S_IMODE(path.stat().st_mode) == FILE_MODE
@@ -71,6 +81,37 @@ def test_second_save_replaces_the_previous_retained_point(
     assert not first.exists()
     assert second.exists()
     assert store.retained == second
+
+
+def test_failed_replacement_preserves_the_previous_retained_point(
+    tmp_path: Path,
+) -> None:
+    """A failed new save cannot erase the last known rollback point."""
+    store = RecoveryStore(tmp_path)
+    first = store.save(_FakeCmd(), "first")
+
+    with pytest.raises(RecoveryPointError, match="could not save"):
+        store.save(
+            _FakeCmd(save_error=Exception("PyMOL save failed")), "second"
+        )
+
+    assert first.exists()
+    assert store.retained == first
+    assert not (store.directory / "plan-second.pse").exists()
+
+
+def test_save_wraps_a_non_runtime_pymol_exception(tmp_path: Path) -> None:
+    """PyMOL-specific save exceptions use the public recovery error type."""
+
+    class _CmdException(Exception):
+        pass
+
+    store = RecoveryStore(tmp_path)
+    with pytest.raises(RecoveryPointError, match="could not save"):
+        store.save(_FakeCmd(save_error=_CmdException("save failed")), "one")
+
+    assert store.retained is None
+    assert not any(store.directory.glob("*.pse"))
 
 
 @pytest.mark.parametrize("method", ["consume", "close"])
@@ -140,6 +181,43 @@ def test_restore_wraps_a_pymol_load_failure(tmp_path: Path) -> None:
         store.restore(cmd, path)
 
     assert cmd.calls == [("load", str(path), 0)]
+
+
+def test_restore_wraps_a_non_runtime_pymol_exception(tmp_path: Path) -> None:
+    """PyMOL-specific load exceptions use the public recovery error type."""
+
+    class _CmdException(Exception):
+        pass
+
+    store = RecoveryStore(tmp_path)
+    path = store.save(_FakeCmd(), "one")
+    cmd = _FakeCmd()
+
+    def fail_load(_filename: str, *, partial: int) -> None:
+        assert partial == 0
+        raise _CmdException("load failed")
+
+    cmd.load = fail_load  # type: ignore[method-assign]
+    with pytest.raises(RecoveryPointError, match="could not restore"):
+        store.restore(cmd, path)
+
+
+def test_discard_keeps_the_handle_when_file_removal_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A transient removal failure remains retriable instead of being lost."""
+    store = RecoveryStore(tmp_path)
+    path = store.save(_FakeCmd(), "one")
+
+    def fail_unlink(self: Path, *, missing_ok: bool = False) -> None:
+        del self, missing_ok
+        raise OSError("locked")
+
+    monkeypatch.setattr(Path, "unlink", fail_unlink)
+    with pytest.raises(RecoveryPointError, match="could not discard"):
+        store.discard()
+
+    assert store.retained == path
 
 
 if __name__ == "__main__":

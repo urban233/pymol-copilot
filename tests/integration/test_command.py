@@ -27,6 +27,7 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_client.command import PLAN_ID_DISPLAY_PREFIX
 from pmc_client.command import CopilotCommandClient
+from pmc_client.recovery import RecoveryPointError
 from pmc_client.command import PlanTransport
 from pmc_client.recovery import RecoveryStore
 from pmc_client.session import extract_live_snapshot
@@ -1181,8 +1182,83 @@ def test_copilot_apply_refuses_changed_server_identity_before_save(
         "Nothing was applied."
     ]
     assert live.events == []
-    assert transport.outcome_requests == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
     assert not RecoveryStore(tmp_path).directory.exists()
+
+
+def test_copilot_apply_reports_restored_when_recovery_save_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A post-approval save failure still closes the server apply state."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+
+    def fail_save(_cmd: object, _plan_id: str) -> Path:
+        raise RecoveryPointError("save failed")
+
+    monkeypatch.setattr(store, "save", fail_save)
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=store,
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: could not create a private recovery point for plan "
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555. "
+        "Nothing was applied."
+    ]
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+
+
+def test_copilot_apply_reports_restored_when_recovery_cleanup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cleanup trouble after a verified restore cannot strand the server."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+
+    def fail_discard() -> None:
+        raise RecoveryPointError("locked")
+
+    monkeypatch.setattr(store, "discard", fail_discard)
+    client, _live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=store,
+        dispatcher=lambda _cmd, _plan: PlanRunResult("failed", "test", ()),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert (
+        "session was restored cleanly, but recovery point could not be removed"
+        in output[0]
+    )
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
 
 
 def test_copilot_apply_refuses_changed_server_text_before_save(
@@ -1222,7 +1298,51 @@ def test_copilot_apply_refuses_changed_server_text_before_save(
         "Nothing was applied."
     ]
     assert live.events == []
-    assert transport.outcome_requests == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert not RecoveryStore(tmp_path).directory.exists()
+
+
+def test_copilot_apply_reports_restored_for_changed_approval_facts(
+    tmp_path: Path,
+) -> None:
+    """Changed server facts refuse mutation and close the approved request."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def changed_facts(request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        assert transport._last_validated is not None
+        return dataclasses.replace(
+            transport._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+            snapshot_digest="sha256:changed",
+        )
+
+    transport.apply_response_factory = changed_facts
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: server approval facts differ from the preview. "
+        "Nothing was applied."
+    ]
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
     assert not RecoveryStore(tmp_path).directory.exists()
 
 

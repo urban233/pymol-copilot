@@ -493,6 +493,30 @@ def test_a_reject_one_tick_past_the_ttl_reaches_expired_not_rejected() -> None:
     assert result["status"] == TERMINAL_EXPIRED
 
 
+def test_an_approve_one_tick_past_the_ttl_reaches_expired_not_applying() -> (
+    None
+):
+    """An expired approval never exposes the pending plan as applicable."""
+    clock = _FakeClock(datetime(2026, 9, 21, tzinfo=UTC))
+    session = _one_shot_session(clock=clock, ttl_seconds=60.0)
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    clock.moment += timedelta(seconds=61)
+
+    result = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    )
+
+    assert result is not None
+    assert result["status"] == TERMINAL_EXPIRED
+    assert session._pending_details == {}
+    assert (
+        session._graph.get_state(
+            {"configurable": {"thread_id": _SESSION_ID}}
+        ).values
+        == {}
+    )
+
+
 def test_a_reject_with_a_wrong_plan_id_changes_nothing() -> None:
     """A reject naming the wrong plan id is refused, thread untouched."""
     session = _one_shot_session()

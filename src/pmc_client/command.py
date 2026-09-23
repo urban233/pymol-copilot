@@ -75,6 +75,7 @@ from pmc_core.snapshot import to_json
 from pmc_sidecar.child import PlanRunResult
 from pmc_sidecar.child import run_plan
 from pmc_client.recovery import RecoveryStore
+from pmc_client.recovery import RecoveryPointError
 from pmc_core.snapshot import ObjectSnapshot
 
 #: The contract versions this client declares on every request --
@@ -461,6 +462,12 @@ class CopilotCommandClient:
                 "approved plan on the server"
             )
 
+    def _refuse_approved_plan(self, pending: PendingPlan, message: str) -> None:
+        """Close an approved server request when local checks refuse it."""
+        self._output(f"copilot_apply: {message}. Nothing was applied.")
+        self._pending_plan = None
+        self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
+
     def copilot(self, intent: str) -> None:
         """Extract the live session, gate it on fidelity, and submit a plan.
 
@@ -621,18 +628,16 @@ class CopilotCommandClient:
             )
             return
         if response.model_identity != pending.model_identity:
-            self._output(
-                "copilot_apply: server model identity changed since preview. "
-                "Nothing was applied."
+            self._refuse_approved_plan(
+                pending, "server model identity changed since preview"
             )
             return
         if (
             response.action_plan.render_pml()
             != pending.action_plan.render_pml()
         ):
-            self._output(
-                "copilot_apply: server plan differs from the approved preview. "
-                "Nothing was applied."
+            self._refuse_approved_plan(
+                pending, "server plan differs from the approved preview"
             )
             return
         if (
@@ -642,16 +647,15 @@ class CopilotCommandClient:
             or response.expires_at != pending.expires_at
             or not response.validation.applicable
         ):
-            self._output(
-                "copilot_apply: server approval facts differ from the preview. "
-                "Nothing was applied."
+            self._refuse_approved_plan(
+                pending, "server approval facts differ from the preview"
             )
             return
         policy = evaluate_plan(response.action_plan)
         if not policy.allowed:
-            self._output(
-                "copilot_apply: the canonical plan is no longer allowed by "
-                "local policy. Nothing was applied."
+            self._refuse_approved_plan(
+                pending,
+                "the canonical plan is no longer allowed by local policy",
             )
             return
         outcome = apply_plan(
@@ -691,11 +695,19 @@ class CopilotCommandClient:
             self._report_outcome(pending.plan_id, APPLY_OUTCOME_APPLIED)
             return
         if outcome.status == APPLY_RESTORED:
-            store.discard()
-            self._output(
-                f"copilot_apply: plan {display_id} failed and the complete "
-                "session was restored cleanly."
-            )
+            try:
+                store.discard()
+            except RecoveryPointError as error:
+                self._output(
+                    f"copilot_apply: plan {display_id} failed and the complete "
+                    "session was restored cleanly, but recovery point could not "
+                    f"be removed: {error}."
+                )
+            else:
+                self._output(
+                    f"copilot_apply: plan {display_id} failed and the complete "
+                    "session was restored cleanly."
+                )
             self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
             return
         if outcome.status == APPLY_RESTORE_FAILED:
@@ -719,6 +731,7 @@ class CopilotCommandClient:
             f"copilot_apply: could not create a private recovery point for "
             f"plan {display_id}. Nothing was applied."
         )
+        self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
 
     def copilot_rollback(self, plan_id: str) -> None:
         """Replace the live session with the one retained pre-apply image."""
