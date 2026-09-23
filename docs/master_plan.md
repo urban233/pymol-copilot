@@ -100,8 +100,8 @@ Every item carries a **State**. The values are:
 | 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
-| 14 | Dataset generation | Martin | **ready** | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
-| 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
+| 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
+| 15 | Gold set, split, audit | Martin | **in progress** | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13 ✓, 14, 15, 9 | 17, 18 |
 | 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
@@ -131,8 +131,8 @@ flowchart LR
   I11["11 · output"]:::blocked
   I12["12 · end-to-end suite"]:::blocked
   I13["13 · prompt builder"]:::done
-  I14["14 · dataset"]:::ready
-  I15["15 · gold set"]:::blocked
+  I14["14 · dataset"]:::done
+  I15["15 · gold set"]:::progress
   I16["16 · eval and baseline"]:::blocked
   I17["17 · fine-tuning"]:::blocked
   I18["18 · notebook"]:::blocked
@@ -511,7 +511,7 @@ they ever diverge.
 
 ### 14. Dataset generation
 
-**Size:** ~5 days · **State:** ready — blocks 15, 16
+**Size:** ~5 days · **State:** done (PR #45)
 
 ```
 Generalize src/pmc_data/ from the one chain-A/red fixture to the full
@@ -529,7 +529,7 @@ guessed.
 
 ### 15. Gold set, split, audit
 
-**Size:** ~3 days · **State:** blocked on 14
+**Size:** ~3 days · **State:** in progress — plan in [plans/09-gold-set-split-audit.md](../plans/09-gold-set-split-audit.md)
 
 ```
 Hand-author a gold set spanning every supported category, with

@@ -62,3 +62,26 @@ A small fixed slice of this corpus is committed under
 attempts, but no report, which would only restate them -- and replayed
 by `bazel test`. The full run is deliberately not committed, since a
 few thousand samples is a few thousand spawned PyMOL processes.
+
+## `splits/split-<id>/`
+
+The held-out split (master plan item 15), written by
+
+    bazel run //src/pmc_data:split_cli -- build \
+        --corpus data/samples/seed-<seed>-<identity>
+
+- `train.jsonl` -- corpus samples on training structures, after
+  decontamination.
+- `test_gold.jsonl` -- the reviewed gold set: the test split.
+- `heldout_synthetic.jsonl` -- corpus samples on held-out structures,
+  a secondary evaluation set with templated intents.
+- `decontam_dropped.jsonl` -- training samples dropped as
+  near-duplicates of a gold intent, each with the gold item it matched.
+- `manifest.json` and `DATASHEET.md` -- content hashes, provenance,
+  license record, regeneration commands, and the rendered datasheet.
+- `audit/` -- after the label audit: the sheet, and its scored result.
+
+The id is a digest of the four data files, so the same inputs always
+land in the same directory, and an existing split is never
+overwritten. The manifest, datasheet and filled audit are copied to
+`docs/dataset/`, which is tracked; the split itself is not.

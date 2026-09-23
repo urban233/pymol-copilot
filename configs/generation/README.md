@@ -55,3 +55,24 @@ conformance evidence.
 It is kept as it was. The generalized pipeline adds a `Sample` record
 beside `GoldCase` rather than replacing it, so the two hand-authored
 gold records keep their fixed-plan drift guard.
+
+## `split.json`
+
+Declares how `pmc_data.split_cli` builds the held-out split (master
+plan item 15):
+
+- `seed` -- the corpus seed the structure matrix is rebuilt at. It must
+  equal the corpus run's own seed, or the build is refused.
+- `decontam.method` -- the near-duplicate rule, by name. Only
+  `entity-gated-token-jaccard` (`pmc_data.decontam`) is implemented; any
+  other name is refused rather than read as that one.
+- `decontam.threshold` -- the similarity at which two intents with equal
+  entities are near-duplicates. `decontam.sensitivity` lists further
+  thresholds whose drop counts the manifest records beside it.
+- `audit.sample_size` and `audit.seed` -- how many training labels the
+  label audit draws, and the seed the draw derives from.
+
+The held-out structures themselves are not configuration: they are
+`pmc_data.split.HELD_OUT_SPEC_IDS`, frozen in code together with
+`SPLIT_VERSION`.
+
