@@ -25,15 +25,29 @@ silent edit fails CI.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import hashlib
 import json
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from typing import Literal
 
+from pmc_core.snapshot import structure_digest
+from pmc_core.snapshot import to_json
 from pmc_data.decontam import METHOD
+from pmc_data.decontam import NearDuplicate
+from pmc_data.decontam import find_near_duplicates
+from pmc_data.decontam import normalize_intent
+from pmc_data.decontam import sensitivity
+from pmc_data.decontam import structure_vocabulary
+from pmc_data.gold_set import GoldItem
+from pmc_data.gold_set import reference_plan
+from pmc_data.sample import Sample
 from pmc_data.structures import StructureSpec
+from pmc_data.structures import build_structure
+from pmc_data.structures import enumerate_structures
 
 #: The split's own version. Bump it whenever HELD_OUT_SPEC_IDS changes.
 SPLIT_VERSION = 1
@@ -250,4 +264,205 @@ def load_split_config(path: Path) -> SplitConfig:
         ),
         audit_sample_size=size,
         audit_seed=_integer(audit, "seed"),
+    )
+
+
+class InvalidSplitError(ValueError):
+    """Raised when the inputs to a split cannot be trusted.
+
+    Every refusal names what is wrong. A split is the evidence every
+    later result rests on, so it is built from checked inputs or not
+    at all.
+    """
+
+
+@dataclass(frozen=True)
+class SplitResult:
+    """The four parts a split divides its inputs into.
+
+    Attributes:
+        train: Corpus samples on training structures that survived
+            decontamination.
+        test_gold: The verified gold samples: the test split.
+        heldout_synthetic: Corpus samples on held-out structures, kept
+            as a secondary evaluation set with templated intents.
+        dropped: Corpus samples on training structures whose intent
+            near-duplicated a gold intent, each with the match.
+        sensitivity: How many training samples each configured
+            threshold would drop.
+        template_overlap: How many training samples would be dropped by
+            exact normalized-intent match alone if the templated
+            held-out intents were counted as test intents too. The
+            datasheet reports it as the reason they are not.
+    """
+
+    train: tuple[Sample, ...]
+    test_gold: tuple[Sample, ...]
+    heldout_synthetic: tuple[Sample, ...]
+    dropped: tuple[tuple[Sample, NearDuplicate], ...]
+    sensitivity: Mapping[str, int]
+    template_overlap: int
+
+
+def _check_gold(items: Sequence[GoldItem], samples: Sequence[Sample]) -> None:
+    """Refuse a gold set that is unreviewed, stale or on training structures.
+
+    Args:
+        items: The authored gold records.
+        samples: The committed verified gold samples.
+
+    Raises:
+        InvalidSplitError: If any record is unreviewed, the samples do
+            not correspond one-to-one and in order to the records, or a
+            gold item sits on a training structure.
+    """
+    unreviewed = [item.gold_id for item in items if not item.reviewed]
+    if unreviewed:
+        raise InvalidSplitError(
+            f"{len(unreviewed)} gold items are not reviewed: "
+            f"{', '.join(unreviewed)}"
+        )
+    if [s.sample_id for s in samples] != [i.gold_id for i in items]:
+        raise InvalidSplitError(
+            "gold samples do not match the gold items one-to-one; rerun "
+            "`bazel run //src/pmc_data:gold_cli`"
+        )
+    for item, sample in zip(items, samples, strict=True):
+        if (
+            sample.intent != item.intent
+            or sample.plan_pml != reference_plan(item).render_pml()
+            or sample.structure.spec_id != item.spec_id
+        ):
+            raise InvalidSplitError(
+                f"gold sample {item.gold_id!r} is stale against its item; "
+                "rerun `bazel run //src/pmc_data:gold_cli`"
+            )
+        if side_of(item.spec_id) != SIDE_TEST:
+            raise InvalidSplitError(
+                f"gold item {item.gold_id!r} is on training structure "
+                f"{item.spec_id!r}"
+            )
+
+
+def _check_lineage(samples: Sequence[Sample], seed: int) -> None:
+    """Refuse any sample whose structure is not the one its spec builds.
+
+    A sample records its spec and the hash of the structure it ran
+    against. Both have to agree with the matrix at the configured seed,
+    or the sample was generated against something this split does not
+    know about -- and a structure it does not know cannot be assigned
+    to a side.
+
+    Args:
+        samples: Every sample the split is built from.
+        seed: The corpus seed.
+
+    Raises:
+        InvalidSplitError: If a sample names an unknown spec, records a
+            spec that differs from the matrix's, or records a structure
+            hash or digest that the rebuilt spec does not produce.
+    """
+    specs = {spec.spec_id: spec for spec in enumerate_structures(seed)}
+    expected: dict[str, tuple[str, str]] = {}
+    for spec_id, spec in specs.items():
+        snapshot = build_structure(spec)
+        expected[spec_id] = (
+            hashlib.sha256(to_json(snapshot).encode("utf-8")).hexdigest(),
+            structure_digest(snapshot),
+        )
+    for sample in samples:
+        identity = sample.structure
+        spec = specs.get(identity.spec_id)
+        if spec is None:
+            raise InvalidSplitError(
+                f"{sample.sample_id!r}: unknown structure spec "
+                f"{identity.spec_id!r}"
+            )
+        if dict(identity.spec) != spec.to_dict():
+            raise InvalidSplitError(
+                f"{sample.sample_id!r}: recorded spec differs from the "
+                f"matrix at seed {seed}"
+            )
+        if (identity.snapshot_sha256, identity.structure_digest) != expected[
+            identity.spec_id
+        ]:
+            raise InvalidSplitError(
+                f"{sample.sample_id!r}: recorded structure does not match "
+                f"what spec {identity.spec_id!r} builds"
+            )
+
+
+def build_split(
+    *,
+    corpus: Sequence[Sample],
+    corpus_complete: bool,
+    gold_items: Sequence[GoldItem],
+    gold_samples: Sequence[Sample],
+    config: SplitConfig,
+) -> SplitResult:
+    """Divide a corpus and the gold set into train, test and held-out.
+
+    Args:
+        corpus: The generated corpus's verified samples.
+        corpus_complete: Whether the corpus run made every attempt.
+        gold_items: The authored gold records.
+        gold_samples: The committed verified gold samples.
+        config: The frozen split settings.
+
+    Returns:
+        The split. Every corpus sample lands in exactly one of train,
+        heldout_synthetic and dropped.
+
+    Raises:
+        InvalidSplitError: If the corpus is incomplete, the gold set is
+            unreviewed, stale or misplaced, any sample's lineage is
+            broken, or sample ids collide.
+    """
+    if not corpus_complete:
+        raise InvalidSplitError(
+            "the corpus report says the run was incomplete; a partial "
+            "corpus is not split"
+        )
+    _check_gold(gold_items, gold_samples)
+    _check_lineage((*corpus, *gold_samples), config.seed)
+    ids = [s.sample_id for s in (*corpus, *gold_samples)]
+    if len(ids) != len(set(ids)):
+        raise InvalidSplitError("sample ids are not unique across the inputs")
+
+    heldout = tuple(
+        s for s in corpus if side_of(s.structure.spec_id) == SIDE_TEST
+    )
+    candidates = tuple(
+        s for s in corpus if side_of(s.structure.spec_id) == SIDE_TRAIN
+    )
+    vocabulary = structure_vocabulary(
+        build_structure(spec) for spec in enumerate_structures(config.seed)
+    )
+    train_pairs = [(s.sample_id, s.intent) for s in candidates]
+    gold_pairs = [(s.sample_id, s.intent) for s in gold_samples]
+    duplicates = find_near_duplicates(
+        train_pairs,
+        gold_pairs,
+        threshold=config.decontam_threshold,
+        vocabulary=vocabulary,
+    )
+    held_intents = {normalize_intent(s.intent) for s in heldout}
+    return SplitResult(
+        train=tuple(s for s in candidates if s.sample_id not in duplicates),
+        test_gold=tuple(gold_samples),
+        heldout_synthetic=heldout,
+        dropped=tuple(
+            (s, duplicates[s.sample_id])
+            for s in candidates
+            if s.sample_id in duplicates
+        ),
+        sensitivity=sensitivity(
+            train_pairs,
+            gold_pairs,
+            thresholds=config.decontam_sensitivity,
+            vocabulary=vocabulary,
+        ),
+        template_overlap=sum(
+            normalize_intent(s.intent) in held_intents for s in candidates
+        ),
     )

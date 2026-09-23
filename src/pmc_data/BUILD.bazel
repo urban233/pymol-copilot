@@ -5,11 +5,13 @@ py_library(
     name = "pmc_data",
     srcs = [
         "__init__.py",
+        "audit.py",
         "colors.py",
         "decontam.py",
         "generate.py",
         "gold_case.py",
         "gold_set.py",
+        "manifest.py",
         "oracle.py",
         "pdb.py",
         "report.py",
@@ -96,6 +98,28 @@ py_binary(
     ],
     # Visible to tests so //tests/data:gold_set can prove the binary
     # refuses an unreviewed gold set without spawning any child.
+    visibility = ["//src:tests"],
+)
+
+# Builds the held-out split, its manifest and datasheet, and the label
+# audit. Spawns no PyMOL child: every sample it reads was verified
+# already. It depends on the PyMOL wheel only to read that wheel's own
+# license metadata into the manifest.
+py_binary(
+    name = "split_cli",
+    srcs = ["split_cli.py"],
+    main = "split_cli.py",
+    data = [
+        "//configs/generation:corpus.json",
+        "//configs/generation:split.json",
+    ],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+    # Visible to tests so //tests/data:split_cli, :manifest and :audit
+    # can drive the binary on synthetic samples.
     visibility = ["//src:tests"],
 )
 

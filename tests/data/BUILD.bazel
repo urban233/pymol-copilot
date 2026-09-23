@@ -1,3 +1,4 @@
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
@@ -137,12 +138,29 @@ py_test(
     ],
 )
 
+# Fake execution seams shared by the gold-set and split tests -- a child
+# that agrees with the oracle, and one that does not -- and the synthetic
+# repository the split, manifest and audit tests build from.
+py_library(
+    name = "oracle_executor",
+    srcs = [
+        "oracle_executor.py",
+        "split_fixture.py",
+    ],
+    imports = ["."],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
 py_test(
     name = "gold_set",
     size = "small",
     srcs = ["test_gold_set.py"],
     main = "test_gold_set.py",
     deps = [
+        ":oracle_executor",
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:gold_cli",
@@ -175,6 +193,48 @@ py_test(
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "split_cli",
+    size = "medium",
+    srcs = ["test_split_cli.py"],
+    main = "test_split_cli.py",
+    deps = [
+        ":oracle_executor",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_data:split_cli",
+    ],
+)
+
+py_test(
+    name = "manifest",
+    size = "medium",
+    srcs = ["test_manifest.py"],
+    main = "test_manifest.py",
+    deps = [
+        ":oracle_executor",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_data:split_cli",
+    ],
+)
+
+py_test(
+    name = "audit",
+    size = "medium",
+    srcs = ["test_audit.py"],
+    main = "test_audit.py",
+    deps = [
+        ":oracle_executor",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_data:split_cli",
     ],
 )
 

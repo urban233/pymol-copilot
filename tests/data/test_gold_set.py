@@ -11,29 +11,19 @@ selection that matches nothing.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
-import hashlib
 import json
 from pathlib import Path
 
 import pytest
-from pmc_core.executor import EXECUTOR_VERSION
-from pmc_core.executor import OUTCOME_OK
+
+from oracle_executor import mismatch_report
+from oracle_executor import oracle_report
 from pmc_core.executor import REASON_FIDELITY_MISMATCH
-from pmc_core.executor import REASON_OK
-from pmc_core.executor import STATUS_FAILED
-from pmc_core.executor import STATUS_OK
-from pmc_core.executor import CommandOutcome
-from pmc_core.executor import ExecutionReport
-from pmc_core.executor import ExecutionRequest
-from pmc_core.executor import SelectionCount
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import SelectionExpression
 from pmc_core.plan import SelectOperation
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import PolicyDecision
-from pmc_core.snapshot import from_json
-from pmc_core.snapshot import structure_digest
-from pmc_core.snapshot import to_json
 from pmc_data import gold_cli
 from pmc_data import gold_set
 from pmc_data.gold_set import DEFAULT_GOLD_ITEMS_PATH
@@ -300,71 +290,6 @@ def test_every_reference_resolves(item: GoldItem) -> None:
         assert expected.snapshot != snapshot
 
 
-def _oracle_report(request: ExecutionRequest) -> ExecutionReport:
-    """Answer a request with exactly what the oracle predicts.
-
-    Stands in for a real PyMOL child that agrees with the oracle, so the
-    gold path's own decisions are tested without spawning anything.
-
-    Args:
-        request: The execution request.
-
-    Returns:
-        A clean report carrying the oracle's prediction.
-    """
-    snapshot = from_json(request.snapshot_json)
-    expected = apply_plan(snapshot, request.plan)
-    resulting = expected.snapshot or snapshot
-    return ExecutionReport(
-        executor_version=EXECUTOR_VERSION,
-        status=STATUS_OK,
-        reason=REASON_OK,
-        input_digest=structure_digest(snapshot),
-        resulting_fingerprint="sha256:"
-        + hashlib.sha256(to_json(resulting).encode("utf-8")).hexdigest(),
-        selection_counts=tuple(
-            SelectionCount(name=name, atom_count=count)
-            for name, count in expected.selection_counts
-        ),
-        command_outcomes=tuple(
-            CommandOutcome(
-                index=index,
-                verb=line.split(" ", 1)[0],
-                status=OUTCOME_OK,
-                error=None,
-            )
-            for index, line in enumerate(request.plan.render_pml().splitlines())
-        ),
-        child_pid=4242,
-        child_terminated=True,
-        elapsed_seconds=0.1,
-    )
-
-
-def _mismatch_report(request: ExecutionRequest) -> ExecutionReport:
-    """Answer a request as a child that disagreed with the oracle.
-
-    Args:
-        request: The execution request.
-
-    Returns:
-        A fidelity-mismatch report.
-    """
-    clean = _oracle_report(request)
-    return ExecutionReport(
-        executor_version=clean.executor_version,
-        status=STATUS_FAILED,
-        reason=REASON_FIDELITY_MISMATCH,
-        input_digest=clean.input_digest,
-        resulting_fingerprint="sha256:" + "0" * 64,
-        selection_counts=clean.selection_counts,
-        command_outcomes=clean.command_outcomes,
-        child_pid=clean.child_pid,
-        child_terminated=True,
-        elapsed_seconds=0.1,
-    )
-
-
 def test_a_verified_gold_item_keeps_its_gold_id() -> None:
     """A clean run becomes a sample named for the gold item."""
     items = (
@@ -376,7 +301,7 @@ def test_a_verified_gold_item_keeps_its_gold_id() -> None:
         ),
     )
 
-    samples = verify_gold(items, seed=SEED, executor=_oracle_report)
+    samples = verify_gold(items, seed=SEED, executor=oracle_report)
 
     assert [s.sample_id for s in samples] == ["gold_probe", "gold_second"]
     assert samples[0].intent == "make the zinc ions magenta"
@@ -386,7 +311,7 @@ def test_a_verified_gold_item_keeps_its_gold_id() -> None:
 def test_a_rejected_gold_item_is_an_error() -> None:
     """A gold label real PyMOL disagrees with stops the run; it is not dropped."""
     with pytest.raises(GoldVerificationError, match="gold_probe") as raised:
-        verify_gold((_item(),), seed=SEED, executor=_mismatch_report)
+        verify_gold((_item(),), seed=SEED, executor=mismatch_report)
 
     assert [r.reason for r in raised.value.rejections] == [
         REASON_FIDELITY_MISMATCH
@@ -399,7 +324,7 @@ def test_an_unknown_spec_is_an_error() -> None:
         verify_gold(
             (_item(spec_id="no_such_spec"),),
             seed=SEED,
-            executor=_oracle_report,
+            executor=oracle_report,
         )
 
 
@@ -432,7 +357,7 @@ def test_gold_cli_writes_a_reviewed_set(
         gold_cli,
         "verify_gold",
         lambda found, **kwargs: real_verify(
-            found, seed=kwargs["seed"], executor=_oracle_report
+            found, seed=kwargs["seed"], executor=oracle_report
         ),
     )
 
