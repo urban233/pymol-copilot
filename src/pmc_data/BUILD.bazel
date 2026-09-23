@@ -6,6 +6,7 @@ py_library(
     srcs = [
         "__init__.py",
         "colors.py",
+        "decontam.py",
         "generate.py",
         "gold_case.py",
         "gold_set.py",
@@ -77,6 +78,24 @@ py_binary(
     # nothing ships from here, and this target already depends on
     # pmc_data, which tools/bazel/check_dependency_boundaries.py
     # forbids every runtime root anyway.
+    visibility = ["//src:tests"],
+)
+
+# Verifies the reviewed gold set through the production execution
+# boundary and writes the committed gold samples. Like corpus_cli it
+# never imports PyMOL itself: pmc_core.executor spawns pmc_sidecar.child.
+py_binary(
+    name = "gold_cli",
+    srcs = ["gold_cli.py"],
+    main = "gold_cli.py",
+    data = ["//configs/generation:corpus.json"],
+    deps = [
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+    # Visible to tests so //tests/data:gold_set can prove the binary
+    # refuses an unreviewed gold set without spawning any child.
     visibility = ["//src:tests"],
 )
 

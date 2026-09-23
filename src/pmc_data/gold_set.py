@@ -34,18 +34,29 @@ Three properties are enforced here rather than trusted:
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import json
+from collections.abc import Callable
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
+from pmc_core.executor import ExecutionReport
+from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import execute
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import evaluate_plan
 from pmc_core.prompt import MAX_INTENT_CHARACTERS
 from pmc_core.prompt import MIN_INTENT_CHARACTERS
+from pmc_data.generate import verify_sample
+from pmc_data.sample import Rejection
+from pmc_data.sample import Sample
+from pmc_data.structures import build_structure
+from pmc_data.structures import enumerate_structures
 from pmc_data.taxonomy import PlanCandidate
 from pmc_data.taxonomy import categorize
 from pmc_data.taxonomy import difficulty_of
@@ -91,6 +102,34 @@ REQUIRED_SHAPES = frozenset(
 
 class InvalidGoldItemError(ValueError):
     """Raised when a gold record is incomplete, illegal or contradictory."""
+
+
+class GoldVerificationError(ValueError):
+    """Raised when any gold item fails verification.
+
+    A gold label that the oracle or real PyMOL disagrees with is fixed
+    by hand. It is never dropped, because a gold set that quietly lost
+    its hardest items would overstate every result measured on it.
+
+    Attributes:
+        rejections: Every rejected item, in gold-set order.
+    """
+
+    def __init__(self, rejections: tuple[Rejection, ...]) -> None:
+        """Record the rejections and name them in the message.
+
+        Args:
+            rejections: Every rejected item.
+        """
+        self.rejections = rejections
+        lines = [
+            f"{rejection.sample_id}: {rejection.reason}: {rejection.detail}"
+            for rejection in rejections
+        ]
+        super().__init__(
+            f"{len(rejections)} gold item(s) failed verification:\n"
+            + "\n".join(lines)
+        )
 
 
 def _required_string(data: Mapping[str, Any], key: str) -> str:
@@ -415,3 +454,80 @@ def coverage_gaps(categories: Iterable[str]) -> dict[str, tuple[str, ...]]:
         "pairs": tuple(sorted(required_pairs - pairs)),
         "shapes": tuple(sorted(REQUIRED_SHAPES - shapes)),
     }
+
+
+#: The execution seam `verify_gold` drives, injectable for tests.
+type EXECUTOR = Callable[[ExecutionRequest], ExecutionReport]
+
+
+def verify_gold(
+    items: Iterable[GoldItem],
+    *,
+    seed: int,
+    executor: EXECUTOR = execute,
+    deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
+    workers: int = 1,
+) -> tuple[Sample, ...]:
+    """Verify every gold item through the same pipeline as the corpus.
+
+    Each item's structure is built from the corpus's own structure
+    matrix at `seed`, so a gold sample and a generated sample on the
+    same spec are graded against the same bytes.
+
+    Args:
+        items: The gold records, in order.
+        seed: The corpus seed the structure matrix derives from.
+        executor: The execution seam to drive.
+        deadline_seconds: Wall-clock deadline for each child process.
+        workers: How many items to verify at once. Each run is its own
+            sandboxed child, so concurrency is safe.
+
+    Returns:
+        One verified sample per item, in item order, each carrying the
+        item's gold_id as its sample_id.
+
+    Raises:
+        InvalidGoldItemError: If an item names an unknown spec or
+            carries an illegal reference plan.
+        GoldVerificationError: If any item failed verification. Every
+            failure is collected before this is raised, so one run
+            names them all.
+    """
+    specs = {spec.spec_id: spec for spec in enumerate_structures(seed)}
+    ordered = tuple(items)
+    for item in ordered:
+        if item.spec_id not in specs:
+            raise InvalidGoldItemError(
+                f"{item.gold_id!r}: unknown structure spec {item.spec_id!r}"
+            )
+    candidates = [to_candidate(item) for item in ordered]
+    snapshots = {
+        spec_id: build_structure(specs[spec_id])
+        for spec_id in sorted({item.spec_id for item in ordered})
+    }
+
+    def verify(index: int) -> Sample | Rejection:
+        """Verify one item.
+
+        Args:
+            index: The item's position.
+
+        Returns:
+            The sample, or the rejection explaining why not.
+        """
+        item = ordered[index]
+        return verify_sample(
+            snapshots[item.spec_id],
+            specs[item.spec_id],
+            candidates[index],
+            sample_id=item.gold_id,
+            executor=executor,
+            deadline_seconds=deadline_seconds,
+        )
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        results = tuple(pool.map(verify, range(len(ordered))))
+    rejections = tuple(r for r in results if isinstance(r, Rejection))
+    if rejections:
+        raise GoldVerificationError(rejections)
+    return tuple(r for r in results if isinstance(r, Sample))

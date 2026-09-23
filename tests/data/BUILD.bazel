@@ -145,6 +145,7 @@ py_test(
     deps = [
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
+        "//src/pmc_data:gold_cli",
         "//src/pmc_data:pmc_data",
     ],
 )
@@ -154,6 +155,22 @@ py_test(
     size = "small",
     srcs = ["test_split.py"],
     main = "test_split.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "decontam",
+    size = "small",
+    srcs = ["test_decontam.py"],
+    main = "test_decontam.py",
+    data = [
+        "testdata/near_duplicate_pairs.jsonl",
+        "//configs/generation:split.json",
+    ],
     deps = [
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
