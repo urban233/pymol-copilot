@@ -1,6 +1,18 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "colors",
+    size = "small",
+    srcs = ["test_colors.py"],
+    main = "test_colors.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
     name = "gold_case",
     size = "small",
     srcs = ["test_gold_case.py"],
@@ -32,6 +44,7 @@ py_test(
     data = ["testdata/chain_a_gold_fixture.pdb"],
     deps = [
         "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
     ],
 )
@@ -49,6 +62,7 @@ py_test(
     tags = ["exclusive"],
     deps = [
         "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
     ],
 )
@@ -120,5 +134,163 @@ py_test(
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
         "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "structures",
+    size = "small",
+    srcs = ["test_structures.py"],
+    main = "test_structures.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# The admission gate for the controlled structure matrix. Spawns a real
+# pmc_sidecar.fidelity child per structure through
+# pmc_core.executor.probe_fidelity(), so it is excluded from concurrent
+# scheduling for the same reason as every other real-PyMOL target here.
+py_test(
+    name = "structures_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_structures_real_pymol.py"],
+    main = "test_structures_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# The differential that settles whether the oracle reads Open-Source
+# PyMOL's own selection semantics correctly: it reconstructs a
+# controlled structure in real headless PyMOL and compares cmd.iterate
+# against the oracle's prediction for the same expression. Excluded from
+# concurrent scheduling like every other in-process real-PyMOL target.
+py_test(
+    name = "oracle_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_oracle_real_pymol.py"],
+    main = "test_oracle_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "sample",
+    size = "small",
+    srcs = ["test_sample.py"],
+    main = "test_sample.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "taxonomy",
+    size = "medium",
+    timeout = "short",
+    srcs = ["test_taxonomy.py"],
+    main = "test_taxonomy.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "generate_sample",
+    size = "small",
+    srcs = ["test_generate_sample.py"],
+    main = "test_generate_sample.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# End-to-end generation through the production execution boundary: each
+# sample spawns a real pmc_sidecar.child process running real headless
+# PyMOL, so this is excluded from concurrent scheduling like every other
+# real-PyMOL target here.
+py_test(
+    name = "generate_sample_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_generate_sample_real_pymol.py"],
+    main = "test_generate_sample_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+py_test(
+    name = "report",
+    size = "small",
+    srcs = ["test_report.py"],
+    main = "test_report.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# The corpus generator's own naming and promotion, which decide whether
+# a run can destroy a corpus it did not produce. Depends on the binary
+# rather than the library because that is where corpus_cli.py lives; it
+# imports the module and never calls run(), so no PyMOL child is
+# spawned and this stays a small test.
+py_test(
+    name = "corpus_cli",
+    size = "small",
+    srcs = ["test_corpus_cli.py"],
+    main = "test_corpus_cli.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:corpus_cli",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+# Replays the committed conformance slice through the production
+# execution boundary, one spawned pmc_sidecar.child per sample. This is
+# the CI-sized stand-in for the corpus run, which is a bazel run.
+py_test(
+    name = "conformance_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_conformance_real_pymol.py"],
+    main = "test_conformance_real_pymol.py",
+    data = ["//src/pmc_data:conformance_slice"],
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
     ],
 )

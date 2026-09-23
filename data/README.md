@@ -1,5 +1,64 @@
 # Generated data
 
 Generated artifacts belong here only when content-addressed and intentionally
-produced by a later data task. Generated contents are ignored; this README is
+produced by a data task. Generated contents are ignored; this README is
 tracked.
+
+## `samples/seed-<seed>-<identity>/`
+
+The verified dataset corpus, written by
+
+    bazel run //src/pmc_data:corpus_cli -- --workers 8
+
+Three files, because a summary alone would let an individual rejection
+disappear:
+
+- `samples.jsonl` -- verified samples only, one JSON object per line.
+  A sample is written only when the real execution boundary agreed
+  with an expectation the oracle computed without PyMOL.
+- `rejections.jsonl` -- every attempt that did not become a sample,
+  with the reason the executor actually gave.
+- `report.json` -- the rejection rate per category, with unsupported
+  categories counted separately from failures, and with the kept
+  samples that could not have failed counted separately again. A plan
+  predicting no observable change, or grading a selection that matches
+  no atom, agrees with any oracle at all, so `no_op`,
+  `empty_selection`, `vacuous` and `substantive` say how much weight
+  the rate beside them carries. `complete` says whether every planned
+  attempt was actually made: a run that fails partway still writes
+  what it measured rather than discarding hours of verified work, and
+  says so here rather than passing for a whole corpus.
+
+The directory is named for the run's inputs rather than a timestamp:
+the run is deterministic in them, and nothing nondeterministic is
+recorded in a sample, so regenerating with the same inputs reproduces
+these files byte for byte. That is what makes the seed each sample
+carries worth anything.
+
+The seed is not the whole of those inputs, so it is not the whole of
+the name. The attempt budget decides how much of the enumeration is
+run, the contract versions decide what a sample even looks like, and
+the generator decides what there is to attempt at all; `<identity>` is
+a digest over all of them, the generator included as the structures it
+built and the plans it enumerated rather than as a version someone has
+to remember to bump. Naming the directory for the seed alone made two
+different corpora share it, and the second replaced the first with no
+warning -- a 3,695-sample run was cut to 53 that way.
+
+A run writes beside its destination, under a staging name of its own,
+and is moved into place in one step once it is complete. The move
+never deletes what is already there: an identity whose corpus already
+exists keeps it, a rerun that reproduces it is simply discarded, and a
+rerun that does *not* reproduce it is kept as
+`seed-<seed>-<identity>.<token>.rerun/` and reported as a failure --
+the identity promised those bytes, so a disagreement is a finding
+about the generator and not something to overwrite. A run that fails
+partway is left as `seed-<seed>-<identity>.<token>.partial/`, with its
+`report.json` saying `complete: false`, and the complete corpus it
+would have replaced is untouched.
+
+A small fixed slice of this corpus is committed under
+`src/pmc_data/conformance/` -- its samples and its ungradable
+attempts, but no report, which would only restate them -- and replayed
+by `bazel test`. The full run is deliberately not committed, since a
+few thousand samples is a few thousand spawned PyMOL processes.

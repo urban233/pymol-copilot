@@ -1,1 +1,1 @@
-exports_files(["chain_a_red_structures.json"])
+exports_files(["chain_a_red_structures.json", "corpus.json"])

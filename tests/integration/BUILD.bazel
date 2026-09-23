@@ -146,6 +146,7 @@ py_test(
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
         "//tools/winstage:winstage",
     ],
 )
@@ -412,6 +413,24 @@ py_test(
         ":pymol_error_cases",
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//tools/winstage:winstage",
+    ],
+)
+
+# Developer data-generation binary, deliberately not a test: it writes
+# src/pmc_data/colors.py into the source tree via
+# BUILD_WORKSPACE_DIRECTORY and is run by hand when PyMOL changes, the
+# same shape as :capture_pymol_errors above. The frozen table it writes
+# is what the dataset oracle predicts colors with; the
+# :real_pymol_allowlist test below is the target that fails when that
+# table stops matching live PyMOL.
+py_binary(
+    name = "capture_color_indices",
+    srcs = ["capture_color_indices.py"],
+    main = "capture_color_indices.py",
+    deps = [
+        "@pypi//pymol_open_source_whl",
         "//src/pmc_core:pmc_core",
         "//tools/winstage:winstage",
     ],
