@@ -315,11 +315,22 @@ def run_identity(
 
     What is digested is what those two modules actually produced --
     every structure this run built, by its spec and the bytes of the
-    structure itself, and every plan, by its canonical .pml. That is
-    stronger than a hand-maintained schema version, which records that
-    someone remembered to bump it: a structure whose atoms change while
-    its spec stays put moves this digest, and a version constant would
-    not have noticed.
+    structure itself, and every plan, by its canonical .pml together
+    with the labels its sample will carry. That is stronger than a
+    hand-maintained schema version, which records that someone
+    remembered to bump it: a structure whose atoms change while its
+    spec stays put moves this digest, and a version constant would not
+    have noticed.
+
+    The labels are digested because they are output bytes, not
+    commentary on them. A `Sample` records `intent`, `category` and
+    `difficulty` verbatim, and `prompt_text` is built from the intent,
+    so rewording one intent template rewrites `samples.jsonl` while
+    leaving every plan, structure and contract version where it was --
+    two different corpora in one directory again, by the same route
+    the enumeration change took. The plan alone is not a proxy for
+    them: a candidate is a plan *plus* the labels, and only the plan
+    was ever hashed.
 
     Args:
         seed: The run's seed.
@@ -328,8 +339,8 @@ def run_identity(
 
     Returns:
         A short hex digest over the seed, the budget, every contract
-        version a sample records, and the structures and plans the
-        enumeration produced.
+        version a sample records, and the structures, plans and
+        sample labels the enumeration produced.
     """
     structures: dict[str, dict[str, str]] = {}
     plans: list[list[str]] = []
@@ -346,7 +357,16 @@ def run_identity(
                     to_json(attempt.snapshot).encode("utf-8")
                 ).hexdigest(),
             }
-        plans.append([spec_id, attempt.candidate.plan.render_pml()])
+        candidate = attempt.candidate
+        plans.append(
+            [
+                spec_id,
+                candidate.plan.render_pml(),
+                candidate.intent,
+                candidate.category,
+                candidate.difficulty,
+            ]
+        )
     material = json.dumps(
         {
             "seed": seed,

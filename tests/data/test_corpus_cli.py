@@ -185,6 +185,41 @@ def test_a_changed_structure_changes_the_identity() -> None:
     )
 
 
+def test_changed_sample_labels_change_the_identity() -> None:
+    """A label is output, not commentary on it.
+
+    The plan, the structure and every contract version are identical in
+    each case here; one label differs. `Sample` records `intent`,
+    `category` and `difficulty` verbatim and builds `prompt_text` from
+    the intent, so `samples.jsonl` comes out with different bytes --
+    which is exactly the collision the identity exists to prevent. A
+    digest over the plans alone missed it, because a candidate is a
+    plan plus its labels and only the plan was hashed.
+    """
+    attempts = plan_attempts(SEED, BUDGET)
+    candidate = attempts[0].candidate
+    # Each label is prefixed rather than given a written-out value, so
+    # no case can quietly become a no-op by naming the label this
+    # candidate already carries -- `difficulty` is already "advanced".
+    relabeled = (
+        dataclasses.replace(candidate, intent=f"reworded {candidate.intent}"),
+        dataclasses.replace(
+            candidate, category=f"reworded {candidate.category}"
+        ),
+        dataclasses.replace(
+            candidate, difficulty=f"reworded {candidate.difficulty}"
+        ),
+    )
+    baseline = run_identity(SEED, BUDGET, attempts)
+
+    for relabeled_candidate in relabeled:
+        altered = dataclasses.replace(
+            attempts[0], candidate=relabeled_candidate
+        )
+
+        assert run_identity(SEED, BUDGET, (altered, *attempts[1:])) != baseline
+
+
 def test_a_free_destination_is_taken(tmp_path: Path) -> None:
     """The ordinary promotion: a rename onto a name nothing holds.
 
