@@ -370,6 +370,54 @@ def test_apply_returns_the_canonical_approved_plan_then_records_outcome() -> (
     )
 
     assert terminal.failure.category == "applied"
+    repeated = lifecycle.report_apply_outcome(
+        ApplyOutcomeRequestV1(
+            request_id="55555555-5555-4555-8555-555555555555",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+            outcome="applied",
+        )
+    )
+    assert repeated.failure.category == "applied"
+
+
+def test_apply_refuses_a_non_applicable_preview_without_advancing() -> None:
+    """The server never approves a plan built from non-exact fidelity."""
+    non_exact = dataclasses.replace(
+        request(),
+        fidelity=FidelityOutcomeV1(
+            status=FIDELITY_NOT_EXACT,
+            reason=REASON_FIDELITY_MISMATCH,
+            mismatch_count=1,
+            mismatches=("test",),
+        ),
+    )
+    lifecycle = _lifecycle(
+        FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    )
+    pending = lifecycle(non_exact)
+    assert isinstance(pending, ValidatedPlanResponseV1)
+    assert not pending.validation.applicable
+
+    refused = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+
+    assert isinstance(refused, FailedPlanResponseV1)
+    assert refused.failure.category == "not_applicable"
+    assert not refused.failure.retryable
+    rejected = lifecycle.reject(
+        RejectRequestV1(
+            request_id="44444444-4444-4444-8444-444444444444",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+    assert rejected.failure.category == "rejected"
 
 
 def test_submit_while_apply_outcome_is_missing_returns_typed_retryable_failure() -> (

@@ -26,6 +26,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import threading
 import uuid
+from collections import OrderedDict
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
@@ -67,6 +68,7 @@ from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
+MAX_OUTCOME_RECEIPTS = 512
 DEFAULT_GENERATION_DEADLINE_SECONDS = 30.0
 
 
@@ -179,6 +181,12 @@ class RequestGraphSession:
         # Keep its tiny receipt apart from the graph thread: a later preview
         # must be free to use that same session thread without losing it.
         self._applied_details: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # A response can be lost after a terminal was recorded. Keep a
+        # bounded replay window independent of the graph thread, which a
+        # later preview is free to reuse.
+        self._outcome_receipts: OrderedDict[
+            tuple[str, str, str], dict[str, object]
+        ] = OrderedDict()
         self._checkpointer = InMemorySaver()
         self._graph = build_request_graph(
             engine=engine,
@@ -454,6 +462,15 @@ class RequestGraphSession:
             approved_values = self._pending_details.get(session_id)
             if approved_values is None:
                 return None
+            if approved_values.get("validation_applicable") is not True:
+                return {
+                    "status": TERMINAL_FAILED,
+                    "failure": FailureEnvelopeV1(
+                        category="not_applicable",
+                        message="a non-exact fidelity preview cannot be approved",
+                        retryable=False,
+                    ),
+                }
             if snapshot.next == (STATE_PENDING_APPROVAL,):
                 result = self._graph.invoke(
                     Command(resume={"action": RESUME_ACTION_APPROVE}), config
@@ -488,6 +505,11 @@ class RequestGraphSession:
         config = _thread_config(session_id)
         slot = self._acquire_session(session_id)
         try:
+            receipt_key = (session_id, plan_id, outcome)
+            receipt = self._outcome_receipts.get(receipt_key)
+            if receipt is not None:
+                self._outcome_receipts.move_to_end(receipt_key)
+                return dict(receipt)
             snapshot = self._graph.get_state(config)
             applied = self._applied_details.get(session_id)
             if (
@@ -509,6 +531,7 @@ class RequestGraphSession:
                 ):
                     self._delete_thread(session_id)
                     self._pending_details.pop(session_id, None)
+                self._remember_outcome(receipt_key, result)
                 return result
             if not self._is_applying(session_id):
                 return None
@@ -527,9 +550,19 @@ class RequestGraphSession:
             }:
                 self._delete_thread(session_id)
                 self._pending_details.pop(session_id, None)
+            self._remember_outcome(receipt_key, result)
             return result
         finally:
             self._release_session(session_id, slot)
+
+    def _remember_outcome(
+        self, key: tuple[str, str, str], result: dict[str, object]
+    ) -> None:
+        """Retain a bounded exact-terminal receipt for a lost HTTP reply."""
+        self._outcome_receipts[key] = dict(result)
+        self._outcome_receipts.move_to_end(key)
+        if len(self._outcome_receipts) > MAX_OUTCOME_RECEIPTS:
+            self._outcome_receipts.popitem(last=False)
 
     def cancel(self, *, session_id: str) -> dict[str, object] | None:
         """Resume `session_id`'s pending plan as cancelled.

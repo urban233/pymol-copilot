@@ -1341,10 +1341,9 @@ def test_new_preview_waits_and_retries_when_lost_approval_cannot_be_settled(
 
     assert len(transport.requests) == 1
     assert live.events == []
-    assert client._unreported_outcome == (
-        "55555555-5555-4555-8555-555555555555",
-        "restored",
-    )
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
     assert any(
         "previous approval is still unconfirmed" in line for line in output
     )
@@ -1356,7 +1355,7 @@ def test_new_preview_waits_and_retries_when_lost_approval_cannot_be_settled(
         "restored"
     ]
     assert client._uncertain_approval is None
-    assert client._unreported_outcome is None
+    assert client._unreported_outcomes == []
 
 
 def test_new_preview_retries_lost_applied_outcome_before_submitting(
@@ -1391,10 +1390,9 @@ def test_new_preview_retries_lost_applied_outcome_before_submitting(
     )
 
     assert live.events == ["save", "select", "sync", "color", "sync"]
-    assert client._unreported_outcome == (
-        "55555555-5555-4555-8555-555555555555",
-        "applied",
-    )
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "applied")
+    ]
     assert transport.outcome_requests == []
 
     client.copilot("Another preview")
@@ -1403,7 +1401,7 @@ def test_new_preview_retries_lost_applied_outcome_before_submitting(
     assert [request.outcome for request in transport.outcome_requests] == [
         "applied"
     ]
-    assert client._unreported_outcome is None
+    assert client._unreported_outcomes == []
 
 
 @pytest.mark.parametrize("cleanup_fails", [False, True])
@@ -1482,6 +1480,97 @@ def test_failed_second_apply_keeps_first_plan_rollback_available(
         "restored",
         "rolled_back",
     ]
+
+
+@pytest.mark.parametrize("lose_rollback", [False, True])
+def test_rollback_report_does_not_erase_another_plans_unreported_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lose_rollback: bool
+) -> None:
+    """A's rollback cannot discard B's failed restored-outcome report."""
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    third_id = "77777777-7777-4777-8777-777777777777"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = (first_id, second_id, third_id)[previews - 1]
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    dispatches = 0
+
+    def dispatch(cmd: object, plan: ActionPlan) -> PlanRunResult:
+        nonlocal dispatches
+        dispatches += 1
+        if dispatches == 1:
+            return run_plan(cmd, plan)
+        return PlanRunResult("failed", "test", ())
+
+    live = _RecordingSession()
+    transport = RecordingTransport(preview, [])
+    client = CopilotCommandClient(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(live),
+        recovery_store=RecoveryStore(tmp_path),
+        dispatcher=dispatch,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+    client.copilot(INTENT)
+    client.copilot_apply(f"p-{first_id}")
+    client.copilot(INTENT)
+
+    original_report = transport.report_apply_outcome
+    restored_attempts = 0
+    rollback_attempts = 0
+
+    def lose_two_restored_reports(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal restored_attempts, rollback_attempts
+        if request.plan_id == second_id and request.outcome == "restored":
+            restored_attempts += 1
+            if restored_attempts <= 2:
+                raise TransportError("B outcome response lost")
+        if request.plan_id == first_id and request.outcome == "rolled_back":
+            rollback_attempts += 1
+            if lose_rollback and rollback_attempts == 1:
+                raise TransportError("A rollback response lost")
+        return original_report(request)
+
+    monkeypatch.setattr(
+        transport, "report_apply_outcome", lose_two_restored_reports
+    )
+    client.copilot_apply(f"p-{second_id}")
+    assert client._unreported_outcomes == [(second_id, "restored")]
+
+    client.copilot_rollback(f"p-{first_id}")
+
+    assert restored_attempts == 2
+    expected_pending = [(second_id, "restored")]
+    if lose_rollback:
+        expected_pending.append((first_id, "rolled_back"))
+    assert client._unreported_outcomes == expected_pending
+    assert [request.outcome for request in transport.outcome_requests] == (
+        ["applied"] if lose_rollback else ["applied", "rolled_back"]
+    )
+
+    client.copilot("Preview C")
+
+    assert restored_attempts == 3
+    assert client._unreported_outcomes == []
+    assert len(transport.requests) == 3
+    expected_reports = ["applied"]
+    if not lose_rollback:
+        expected_reports.append("rolled_back")
+    expected_reports.append("restored")
+    if lose_rollback:
+        expected_reports.append("rolled_back")
+    assert [request.outcome for request in transport.outcome_requests] == (
+        expected_reports
+    )
 
 
 def test_copilot_apply_refuses_changed_server_identity_before_save(

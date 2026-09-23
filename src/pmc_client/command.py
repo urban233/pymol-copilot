@@ -379,7 +379,7 @@ class CopilotCommandClient:
         self._applied_plan: AppliedPlan | None = None
         self._halted_recovery: str | None = None
         self._uncertain_approval: str | None = None
-        self._unreported_outcome: tuple[str, str] | None = None
+        self._unreported_outcomes: list[tuple[str, str]] = []
 
     @property
     def session_id(self) -> str:
@@ -445,7 +445,16 @@ class CopilotCommandClient:
         self._halted_recovery = recovery_path or "an unavailable recovery path"
 
     def _report_outcome(self, plan_id: str, outcome: str) -> bool:
-        """Report a local outcome, retaining it for retry if transport fails."""
+        """Retry older reports before sending a new local outcome."""
+        current = (plan_id, outcome)
+        for unresolved in tuple(self._unreported_outcomes):
+            if unresolved != current:
+                self._send_outcome(*unresolved)
+        return self._send_outcome(plan_id, outcome)
+
+    def _send_outcome(self, plan_id: str, outcome: str) -> bool:
+        """Send one outcome, retaining only that exact report on failure."""
+        current = (plan_id, outcome)
         try:
             response = self._transport.report_apply_outcome(
                 ApplyOutcomeRequestV1(
@@ -456,10 +465,12 @@ class CopilotCommandClient:
                 )
             )
         except TransportError as error:
-            self._unreported_outcome = (plan_id, outcome)
+            if current not in self._unreported_outcomes:
+                self._unreported_outcomes.append(current)
             self._output(f"copilot recovery status unavailable: {error}")
             return False
-        self._unreported_outcome = None
+        if current in self._unreported_outcomes:
+            self._unreported_outcomes.remove(current)
         if (
             outcome == APPLY_OUTCOME_RESTORED
             and self._uncertain_approval == plan_id
@@ -496,14 +507,13 @@ class CopilotCommandClient:
         if self._cmd is None:
             raise RuntimeError("copilot invoked before register()")
 
-        if self._unreported_outcome is not None and not self._report_outcome(
-            *self._unreported_outcome
-        ):
-            self._output(
-                "copilot: previous apply outcome is still unconfirmed; "
-                "retry after the server is available."
-            )
-            return
+        for unresolved in tuple(self._unreported_outcomes):
+            if not self._send_outcome(*unresolved):
+                self._output(
+                    "copilot: previous apply outcome is still unconfirmed; "
+                    "retry after the server is available."
+                )
+                return
         if (
             self._uncertain_approval is not None
             and not self._settle_uncertain_approval(self._uncertain_approval)

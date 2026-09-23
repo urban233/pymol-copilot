@@ -42,6 +42,7 @@ from pmc_core.executor import STATUS_OK
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
 from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import FailureEnvelopeV1
@@ -352,6 +353,32 @@ def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
     assert session.approve(session_id=_SESSION_ID, plan_id="wrong") is None
 
 
+def test_non_applicable_preview_cannot_be_approved() -> None:
+    """Non-exact fidelity stays inspectable but never reaches applying."""
+    session = _one_shot_session()
+    request = _submit_kwargs(request_id="r-1")
+    request["fidelity"] = FidelityOutcomeV1(
+        status=FIDELITY_NOT_EXACT,
+        reason="fidelity_mismatch",
+        mismatch_count=1,
+        mismatches=("test",),
+    )
+    pending = session.submit(**request)
+    plan_id = cast(str, pending["plan_id"])
+
+    refused = session.approve(session_id=_SESSION_ID, plan_id=plan_id)
+
+    assert refused is not None
+    assert refused["status"] == TERMINAL_FAILED
+    failure = refused["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert failure.category == "not_applicable"
+    assert not failure.retryable
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_PENDING_APPROVAL,)
+
+
 @pytest.mark.parametrize(
     ("outcome", "expected"),
     [
@@ -409,8 +436,8 @@ def test_new_submit_cannot_replace_an_unreported_approved_plan() -> None:
     assert second["status"] == STATE_PENDING_APPROVAL
 
 
-def test_applied_plan_can_be_explicitly_rolled_back_once() -> None:
-    """The retained applied thread accepts only its later rollback terminal."""
+def test_applied_plan_can_be_rolled_back_and_replayed() -> None:
+    """A lost rollback response replays its terminal without running again."""
     session = _one_shot_session()
     pending = session.submit(**_submit_kwargs(request_id="r-1"))
     plan_id = cast(str, pending["plan_id"])
@@ -432,7 +459,84 @@ def test_applied_plan_can_be_explicitly_rolled_back_once() -> None:
         session.report_apply_outcome(
             session_id=_SESSION_ID, plan_id=plan_id, outcome="rolled_back"
         )
-        is None
+        == rolled_back
+    )
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=plan_id, outcome="applied"
+        )
+        is not None
+    )
+
+
+def test_restored_outcome_replays_after_graph_thread_is_reused() -> None:
+    """A successful terminal response can be retried after a new preview."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+    terminal = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="restored"
+    )
+    assert terminal is not None
+    assert terminal["status"] == TERMINAL_APPLY_FAILED_RESTORED
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    assert second["status"] == STATE_PENDING_APPROVAL
+
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="restored"
+        )
+        == terminal
+    )
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_PENDING_APPROVAL,)
+
+
+def test_restored_and_rollback_receipts_replay_independently() -> None:
+    """B's lost restore reply survives a later rollback of applied plan A."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="applied"
+        )
+        is not None
+    )
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    second_id = cast(str, second["plan_id"])
+    assert (
+        session.approve(session_id=_SESSION_ID, plan_id=second_id) is not None
+    )
+    restored = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=second_id, outcome="restored"
+    )
+    assert restored is not None
+    rolled_back = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="rolled_back"
+    )
+    assert rolled_back is not None
+
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=second_id, outcome="restored"
+        )
+        == restored
+    )
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="rolled_back"
+        )
+        == rolled_back
     )
 
 
