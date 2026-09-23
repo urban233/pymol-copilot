@@ -328,7 +328,7 @@ def test_reject_reaches_rejected() -> None:
 
 
 def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
-    """Approval does not execute; it advances once to the applying park."""
+    """A lost approval response can be replayed without advancing twice."""
     session = _one_shot_session()
     pending = session.submit(**_submit_kwargs(request_id="r-1"))
 
@@ -341,12 +341,13 @@ def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
     assert applying["plan"] == pending["plan"]
     assert applying["expires_at"] == pending["expires_at"]
     assert applying["model_identity"] == pending["model_identity"]
-    assert (
-        session.approve(
-            session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
-        )
-        is None
+    replay = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
     )
+    assert replay is not None
+    assert replay["status"] == STATE_APPLYING
+    assert replay["plan"] == applying["plan"]
+    assert session.approve(session_id=_SESSION_ID, plan_id="wrong") is None
 
 
 @pytest.mark.parametrize(

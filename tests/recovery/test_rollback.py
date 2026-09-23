@@ -127,6 +127,33 @@ def test_rollback_warns_then_restores_consumes_and_reports(
     )
 
 
+def test_rollback_restores_even_if_the_applied_object_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A deleted or renamed object must not prevent whole-session rollback."""
+    client, cmd, store, output, transport = _client_with_recovery(tmp_path)
+
+    def missing_object(*_args: object) -> tuple[ObjectSnapshot, str]:
+        raise RuntimeError("object no longer exists")
+
+    monkeypatch.setattr(
+        "pmc_client.command.extract_live_snapshot", missing_object
+    )
+    monkeypatch.setattr(
+        "pmc_client.command.compare_recovery", lambda *_a, **_k: ()
+    )
+
+    client.copilot_rollback(f"p-{_PLAN_ID}")
+
+    assert cmd.events == ["save", "load"]
+    assert store.retained is None
+    assert client._applied_plan is None
+    assert [request.outcome for request in transport.outcomes] == [
+        "rolled_back"
+    ]
+    assert "entire session will still be restored" in output[0]
+
+
 def test_rollback_refusals_do_not_load_or_consume(tmp_path: Path) -> None:
     """Absent and mismatched identifiers leave the whole session untouched."""
     client, cmd, store, output, transport = _client_with_recovery(tmp_path)

@@ -1143,6 +1143,54 @@ def test_copilot_apply_applies_the_approved_canonical_plan(
     assert transport.outcome_requests[0].outcome == "applied"
 
 
+def test_copilot_apply_can_retry_after_lost_approval_response(
+    tmp_path: Path,
+) -> None:
+    """A transport loss before any local mutation leaves a usable pending plan."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    attempts = 0
+
+    def lost_once(request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("approval response lost")
+        assert transport._last_validated is not None
+        return dataclasses.replace(
+            transport._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+        )
+
+    transport.apply_response_factory = lost_once
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    client.copilot_apply(plan_id)
+
+    assert output == ["copilot_apply unavailable: approval response lost"]
+    assert live.events == []
+    assert transport.outcome_requests == []
+    assert client._pending_plan is not None
+
+    client.copilot_apply(plan_id)
+
+    assert len(transport.apply_requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied"
+    ]
+    assert live.events == ["save", "select", "sync", "color", "sync"]
+
+
 @pytest.mark.parametrize("cleanup_fails", [False, True])
 def test_failed_second_apply_keeps_first_plan_rollback_available(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cleanup_fails: bool

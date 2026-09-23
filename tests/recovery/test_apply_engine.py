@@ -9,6 +9,7 @@ from typing import cast
 import pytest
 
 from pmc_client.apply import APPLY_APPLIED
+from pmc_client.apply import APPLY_REFUSED
 from pmc_client.apply import APPLY_RESTORE_FAILED
 from pmc_client.apply import APPLY_RESTORED
 from pmc_client.apply import apply_plan
@@ -96,6 +97,34 @@ def test_save_precedes_successful_dispatch(
     assert outcome.recovery_path is not None and outcome.recovery_path.exists()
 
 
+def test_failed_pre_apply_inspection_refuses_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A read failure before saving cannot leave a server apply stranded."""
+    events: list[str] = []
+    cmd = _Cmd(events)
+
+    def fail_extract(*_args: object) -> ObjectSnapshot:
+        raise RuntimeError("object unavailable")
+
+    monkeypatch.setattr("pmc_client.apply.extract", fail_extract)
+    store = RecoveryStore(tmp_path)
+    outcome = apply_plan(
+        cmd,
+        object_name="molecule",
+        plan_id="one",
+        plan=_plan(),
+        store=store,
+        dispatcher=lambda *_args: PlanRunResult(STATUS_OK, REASON_OK, ()),
+    )
+
+    assert outcome.status == APPLY_REFUSED
+    assert outcome.failure_message is not None
+    assert "pre-apply session" in outcome.failure_message
+    assert events == []
+    assert store.retained is None
+
+
 def test_failed_dispatch_restores_before_reporting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -120,6 +149,46 @@ def test_failed_dispatch_restores_before_reporting(
 
     assert outcome.status == APPLY_RESTORED
     assert events == ["save", "dispatch", "load"]
+
+
+def test_failed_post_apply_inspection_restores_instead_of_escaping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A successful dispatch still needs verified post-apply evidence."""
+    events: list[str] = []
+    cmd = _Cmd(events)
+    inspections = 0
+
+    def flaky_extract(*_args: object) -> ObjectSnapshot:
+        nonlocal inspections
+        inspections += 1
+        if inspections == 2:
+            raise RuntimeError("post-apply object unavailable")
+        return _snapshot()
+
+    monkeypatch.setattr("pmc_client.apply.extract", flaky_extract)
+    monkeypatch.setattr("pmc_client.apply.diff", lambda *_args: [])
+
+    def dispatch(_cmd: object, _plan: ActionPlan) -> PlanRunResult:
+        events.append("dispatch")
+        return PlanRunResult(STATUS_OK, REASON_OK, ())
+
+    store = RecoveryStore(tmp_path)
+    outcome = apply_plan(
+        cmd,
+        object_name="molecule",
+        plan_id="one",
+        plan=_plan(),
+        store=store,
+        dispatcher=dispatch,
+    )
+
+    assert outcome.status == APPLY_RESTORED
+    assert outcome.failure_message is not None
+    assert "post-apply inspection failed" in outcome.failure_message
+    assert events == ["save", "dispatch", "load"]
+    store.discard()
+    assert store.retained is None
 
 
 def test_failed_restore_preserves_the_manual_recovery_file(

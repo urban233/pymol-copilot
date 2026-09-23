@@ -73,8 +73,18 @@ def apply_plan(
     dispatcher: Callable[[Any, ActionPlan], PlanRunResult] = run_plan,
 ) -> ApplyOutcome:
     """Save, run the closed dispatcher, and restore on its first failure."""
-    before = extract(cmd, object_name)
-    names_before = tuple(sorted(cmd.get_names("all")))
+    try:
+        before = extract(cmd, object_name)
+        names_before = tuple(sorted(cmd.get_names("all")))
+    except Exception as error:
+        return ApplyOutcome(
+            APPLY_REFUSED,
+            None,
+            (),
+            None,
+            None,
+            failure_message=f"could not inspect the pre-apply session: {error}",
+        )
     try:
         path = store.save(cmd, plan_id)
     except RecoveryPointError:
@@ -87,13 +97,22 @@ def apply_plan(
     else:
         dispatcher_error = None
     if result.status == STATUS_OK:
-        return ApplyOutcome(
-            APPLY_APPLIED,
-            before,
-            names_before,
-            structure_digest(extract(cmd, object_name)),
-            path,
-        )
+        try:
+            post_apply_digest = structure_digest(extract(cmd, object_name))
+        except Exception as error:
+            # Dispatch has already mutated the live session. Treat failed
+            # post-apply inspection exactly like a command failure: restore
+            # and verify the saved whole-session point before reporting.
+            result = PlanRunResult(STATUS_FAILED, "post_apply_inspection", ())
+            dispatcher_error = f"post-apply inspection failed: {error}"
+        else:
+            return ApplyOutcome(
+                APPLY_APPLIED,
+                before,
+                names_before,
+                post_apply_digest,
+                path,
+            )
     failed = next(
         (
             outcome

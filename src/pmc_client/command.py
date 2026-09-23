@@ -734,10 +734,16 @@ class CopilotCommandClient:
             self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
             return
         assert outcome.status == APPLY_REFUSED
-        self._output(
-            f"copilot_apply: could not create a private recovery point for "
-            f"plan {display_id}. Nothing was applied."
-        )
+        if outcome.failure_message is not None:
+            self._output(
+                f"copilot_apply: {outcome.failure_message}. "
+                "Nothing was applied."
+            )
+        else:
+            self._output(
+                f"copilot_apply: could not create a private recovery point "
+                f"for plan {display_id}. Nothing was applied."
+            )
         self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
 
     def copilot_rollback(self, plan_id: str) -> None:
@@ -762,14 +768,18 @@ class CopilotCommandClient:
             )
         except Exception as error:
             self._output(
-                f"copilot_rollback: could not inspect the live session: {error}"
+                "copilot_rollback: could not inspect the live session: "
+                f"{error}. The entire session will still be restored."
             )
-            return
+            current_digest = None
         self._output(
             "copilot_rollback: replacing the entire session with the "
             "pre-apply recovery point; later changes will be discarded."
         )
-        if current_digest != applied.post_apply_digest:
+        if (
+            current_digest is not None
+            and current_digest != applied.post_apply_digest
+        ):
             self._output(
                 "copilot_rollback: the session changed after apply; those "
                 "later changes will be discarded."

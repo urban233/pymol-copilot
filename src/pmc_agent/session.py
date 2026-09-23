@@ -422,32 +422,34 @@ class RequestGraphSession:
     def approve(
         self, *, session_id: str, plan_id: str
     ) -> dict[str, object] | None:
-        """Record an approval and park awaiting exactly one outcome."""
+        """Approve once, or replay the same handshake while awaiting outcome."""
         config = _thread_config(session_id)
         slot = self._acquire_session(session_id)
         try:
-            if not self._is_pending(session_id):
-                return None
             snapshot = self._graph.get_state(config)
+            if snapshot.next not in {
+                (STATE_PENDING_APPROVAL,),
+                (STATE_APPLYING,),
+            }:
+                return None
             if snapshot.values.get("plan_id") != plan_id:
                 return None
             approved_values = self._pending_details.get(session_id)
             if approved_values is None:
                 return None
-            result = self._graph.invoke(
-                Command(resume={"action": RESUME_ACTION_APPROVE}), config
-            )
-            # Approval can race the graph's own TTL check.  Only an actual
-            # ``applying`` interrupt may receive the committed preview facts;
-            # an expired or otherwise terminal result must be returned to the
-            # lifecycle and pruned just like reject/cancel terminals.
-            if result.get("status") != STATE_APPLYING:
-                self._delete_thread(session_id)
-                self._pending_details.pop(session_id, None)
-                return result
+            if snapshot.next == (STATE_PENDING_APPROVAL,):
+                result = self._graph.invoke(
+                    Command(resume={"action": RESUME_ACTION_APPROVE}), config
+                )
+                # Approval can race the graph's own TTL check. Only an actual
+                # ``applying`` interrupt may receive the committed preview.
+                if result.get("status") != STATE_APPLYING:
+                    self._delete_thread(session_id)
+                    self._pending_details.pop(session_id, None)
+                    return result
             # LangGraph's interrupt return contains only the resumed node's
-            # partial update. Read the checkpoint so the apply handshake
-            # returns the immutable plan facts committed before parking.
+            # partial update. Read the checkpoint for both first approval
+            # and a retry after its response was lost.
             applying = dict(self._graph.get_state(config).values)
             for name in (
                 "plan",
