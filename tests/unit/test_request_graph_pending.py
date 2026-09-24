@@ -12,6 +12,8 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import threading
 import time
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -22,8 +24,13 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_agent.graph import ACCEPTED_CONTRACT_MANIFEST
 from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import STATE_APPLYING
+from pmc_agent.graph import TERMINAL_APPLIED
+from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
+from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
+from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_REJECTED
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CancelToken
@@ -32,13 +39,16 @@ from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
+from pmc_agent.session import MAX_OUTCOME_RECEIPTS
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
 from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
@@ -48,6 +58,33 @@ from pmc_core.snapshot import to_json
 _OBJECT_NAME = "fx"
 _SESSION_ID = "22222222-2222-4222-8222-222222222222"
 _VALID_COMPLETION = "orient chain A\n"
+
+
+class _PausingReceipts(OrderedDict[tuple[str, str, str], dict[str, object]]):
+    """Hold one replay touch so another session can try to evict it."""
+
+    def __init__(
+        self,
+        contents: OrderedDict[tuple[str, str, str], dict[str, object]],
+        *,
+        paused_key: tuple[str, str, str],
+        entered: threading.Event,
+        release: threading.Event,
+    ) -> None:
+        """Copy receipts and arm a single paused move of `paused_key`."""
+        super().__init__(contents)
+        self._paused_key = paused_key
+        self._entered = entered
+        self._release = release
+        self._armed = True
+
+    def move_to_end(self, key: tuple[str, str, str], last: bool = True) -> None:
+        """Pause once before touching the oldest replay receipt."""
+        if self._armed and key == self._paused_key:
+            self._armed = False
+            self._entered.set()
+            assert self._release.wait(timeout=5)
+        super().move_to_end(key, last=last)
 
 
 class _FakeClock:
@@ -323,6 +360,304 @@ def test_reject_reaches_rejected() -> None:
     assert result["status"] == TERMINAL_REJECTED
 
 
+def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
+    """A lost approval response can be replayed without advancing twice."""
+    session = _one_shot_session()
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+
+    applying = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    )
+
+    assert applying is not None
+    assert applying["status"] == STATE_APPLYING
+    assert applying["plan"] == pending["plan"]
+    assert applying["expires_at"] == pending["expires_at"]
+    assert applying["model_identity"] == pending["model_identity"]
+    replay = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    )
+    assert replay is not None
+    assert replay["status"] == STATE_APPLYING
+    assert replay["plan"] == applying["plan"]
+    assert session.approve(session_id=_SESSION_ID, plan_id="wrong") is None
+
+
+def test_non_applicable_preview_cannot_be_approved() -> None:
+    """Non-exact fidelity stays inspectable but never reaches applying."""
+    session = _one_shot_session()
+    request = _submit_kwargs(request_id="r-1")
+    request["fidelity"] = FidelityOutcomeV1(
+        status=FIDELITY_NOT_EXACT,
+        reason="fidelity_mismatch",
+        mismatch_count=1,
+        mismatches=("test",),
+    )
+    pending = session.submit(**request)
+    plan_id = cast(str, pending["plan_id"])
+
+    refused = session.approve(session_id=_SESSION_ID, plan_id=plan_id)
+
+    assert refused is not None
+    assert refused["status"] == TERMINAL_FAILED
+    failure = refused["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert failure.category == "not_applicable"
+    assert not failure.retryable
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_PENDING_APPROVAL,)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected"),
+    [
+        ("applied", TERMINAL_APPLIED),
+        ("restored", TERMINAL_APPLY_FAILED_RESTORED),
+        ("rolled_back", TERMINAL_ROLLED_BACK),
+    ],
+)
+def test_apply_outcome_reaches_its_matching_terminal(
+    outcome: str, expected: str
+) -> None:
+    """The three typed outcomes are the only terminal apply transitions."""
+    session = _one_shot_session()
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    plan_id = cast(str, pending["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=plan_id) is not None
+
+    result = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=plan_id, outcome=outcome
+    )
+
+    assert result is not None
+    assert result["status"] == expected
+
+
+def test_new_submit_cannot_replace_an_unreported_approved_plan() -> None:
+    """A lost apply reply or outcome must not erase the applying thread."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+
+    blocked = session.submit(**_submit_kwargs(request_id="r-2"))
+
+    assert blocked["status"] == TERMINAL_FAILED
+    failure = blocked["failure"]
+    assert isinstance(failure, FailureEnvelopeV1)
+    assert failure.category == "apply_outcome_required"
+    assert failure.retryable
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_APPLYING,)
+    assert session._pending_details[_SESSION_ID]["plan_id"] == first_id
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+
+    recorded = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="restored"
+    )
+    assert recorded is not None
+    assert recorded["status"] == TERMINAL_APPLY_FAILED_RESTORED
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    assert second["status"] == STATE_PENDING_APPROVAL
+
+
+def test_applied_plan_can_be_rolled_back_and_replayed() -> None:
+    """A lost rollback response replays its terminal without running again."""
+    session = _one_shot_session()
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    plan_id = cast(str, pending["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=plan_id) is not None
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=plan_id, outcome="applied"
+        )
+        is not None
+    )
+
+    rolled_back = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=plan_id, outcome="rolled_back"
+    )
+
+    assert rolled_back is not None
+    assert rolled_back["status"] == TERMINAL_ROLLED_BACK
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=plan_id, outcome="rolled_back"
+        )
+        == rolled_back
+    )
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=plan_id, outcome="applied"
+        )
+        is not None
+    )
+
+
+def test_restored_outcome_replays_after_graph_thread_is_reused() -> None:
+    """A successful terminal response can be retried after a new preview."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+    terminal = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="restored"
+    )
+    assert terminal is not None
+    assert terminal["status"] == TERMINAL_APPLY_FAILED_RESTORED
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    assert second["status"] == STATE_PENDING_APPROVAL
+
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="restored"
+        )
+        == terminal
+    )
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_PENDING_APPROVAL,)
+
+
+def test_restored_and_rollback_receipts_replay_independently() -> None:
+    """B's lost restore reply survives a later rollback of applied plan A."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="applied"
+        )
+        is not None
+    )
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    second_id = cast(str, second["plan_id"])
+    assert (
+        session.approve(session_id=_SESSION_ID, plan_id=second_id) is not None
+    )
+    restored = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=second_id, outcome="restored"
+    )
+    assert restored is not None
+    rolled_back = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="rolled_back"
+    )
+    assert rolled_back is not None
+
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=second_id, outcome="restored"
+        )
+        == restored
+    )
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="rolled_back"
+        )
+        == rolled_back
+    )
+
+
+def test_cross_session_eviction_cannot_race_a_receipt_replay() -> None:
+    """A replay touch and another session's eviction share one cache lock."""
+    session = RequestGraphSession(engine=FakeEngine([]))
+    oldest_key = (_SESSION_ID, "oldest-plan", "restored")
+    terminal: dict[str, object] = {"status": TERMINAL_APPLY_FAILED_RESTORED}
+    session._remember_outcome(oldest_key, terminal)
+    for index in range(MAX_OUTCOME_RECEIPTS - 1):
+        session._remember_outcome(
+            (f"other-{index}", f"plan-{index}", "restored"), terminal
+        )
+    replay_entered = threading.Event()
+    allow_replay = threading.Event()
+    insertion_started = threading.Event()
+    insertion_done = threading.Event()
+    session._outcome_receipts = _PausingReceipts(
+        session._outcome_receipts,
+        paused_key=oldest_key,
+        entered=replay_entered,
+        release=allow_replay,
+    )
+
+    def insert_from_another_session() -> None:
+        """Try to evict the oldest entry while its replay is paused."""
+        insertion_started.set()
+        session._remember_outcome(
+            ("new-session", "new-plan", "applied"),
+            {"status": TERMINAL_APPLIED},
+        )
+        insertion_done.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        replay = pool.submit(
+            session.report_apply_outcome,
+            session_id=_SESSION_ID,
+            plan_id="oldest-plan",
+            outcome="restored",
+        )
+        assert replay_entered.wait(timeout=5)
+        insertion = pool.submit(insert_from_another_session)
+        try:
+            assert insertion_started.wait(timeout=5)
+            # Before the shared lock, insertion evicted the replayed key
+            # here, then replay's move_to_end raised KeyError.
+            assert not insertion_done.wait(timeout=0.05)
+        finally:
+            allow_replay.set()
+        assert replay.result(timeout=5) == terminal
+        insertion.result(timeout=5)
+
+
+def test_applied_plan_can_be_rolled_back_after_a_new_preview() -> None:
+    """A new pending graph request does not erase the prior rollback receipt."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    session = RequestGraphSession(engine=engine, executor=_always_ok_executor)
+    first = session.submit(**_submit_kwargs(request_id="r-1"))
+    first_id = cast(str, first["plan_id"])
+    assert session.approve(session_id=_SESSION_ID, plan_id=first_id) is not None
+    assert (
+        session.report_apply_outcome(
+            session_id=_SESSION_ID, plan_id=first_id, outcome="applied"
+        )
+        is not None
+    )
+    second = session.submit(**_submit_kwargs(request_id="r-2"))
+    assert second["status"] == STATE_PENDING_APPROVAL
+
+    rolled_back = session.report_apply_outcome(
+        session_id=_SESSION_ID, plan_id=first_id, outcome="rolled_back"
+    )
+
+    assert rolled_back is not None
+    assert rolled_back["status"] == TERMINAL_ROLLED_BACK
+    history = rolled_back["history"]
+    assert isinstance(history, tuple)
+    assert history[-1] == TERMINAL_ROLLED_BACK
+    assert session._graph.get_state(
+        {"configurable": {"thread_id": _SESSION_ID}}
+    ).next == (STATE_PENDING_APPROVAL,)
+    assert (
+        session.approve(
+            session_id=_SESSION_ID, plan_id=cast(str, second["plan_id"])
+        )
+        is not None
+    )
+
+
 def test_cancel_reaches_cancelled() -> None:
     """Cancelling the pending plan reaches `cancelled`."""
     session = _one_shot_session()
@@ -413,6 +748,30 @@ def test_a_reject_one_tick_past_the_ttl_reaches_expired_not_rejected() -> None:
 
     assert result is not None
     assert result["status"] == TERMINAL_EXPIRED
+
+
+def test_an_approve_one_tick_past_the_ttl_reaches_expired_not_applying() -> (
+    None
+):
+    """An expired approval never exposes the pending plan as applicable."""
+    clock = _FakeClock(datetime(2026, 9, 21, tzinfo=UTC))
+    session = _one_shot_session(clock=clock, ttl_seconds=60.0)
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    clock.moment += timedelta(seconds=61)
+
+    result = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    )
+
+    assert result is not None
+    assert result["status"] == TERMINAL_EXPIRED
+    assert session._pending_details == {}
+    assert (
+        session._graph.get_state(
+            {"configurable": {"thread_id": _SESSION_ID}}
+        ).values
+        == {}
+    )
 
 
 def test_a_reject_with_a_wrong_plan_id_changes_nothing() -> None:

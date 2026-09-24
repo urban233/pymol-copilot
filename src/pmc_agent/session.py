@@ -18,13 +18,15 @@ rather than nearly true, while sessions with different ids stay fully
 concurrent. The registry reference-counts waiting operations, so a lock is
 removed only after its final user leaves; retaining neither locks nor
 checkpointed snapshots after a terminal request bounds a long-lived server's
-memory to its currently pending plans and in-flight requests.
+memory to its currently pending plans, in-flight requests, and one small
+rollback receipt per session with a still-applied plan.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import threading
 import uuid
+from collections import OrderedDict
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
@@ -35,9 +37,15 @@ from langgraph.types import Command
 from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
 from pmc_agent.graph import PLAN_TTL_SECONDS
 from pmc_agent.graph import RESUME_ACTION_CANCEL
+from pmc_agent.graph import RESUME_ACTION_APPROVE
 from pmc_agent.graph import RESUME_ACTION_REJECT
 from pmc_agent.graph import RESUME_ACTION_SUPERSEDE
 from pmc_agent.graph import STATE_PENDING_APPROVAL
+from pmc_agent.graph import STATE_APPLYING
+from pmc_agent.graph import TERMINAL_APPLIED
+from pmc_agent.graph import TERMINAL_APPLY_FAILED_RESTORED
+from pmc_agent.graph import TERMINAL_FAILED
+from pmc_agent.graph import TERMINAL_ROLLED_BACK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import RequestState
@@ -56,9 +64,11 @@ from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
+MAX_OUTCOME_RECEIPTS = 512
 DEFAULT_GENERATION_DEADLINE_SECONDS = 30.0
 
 
@@ -166,6 +176,21 @@ class RequestGraphSession:
         self._sessions_guard = threading.Lock()
         self._sessions: dict[str, _SessionSlot] = {}
         self._active_cancellations: dict[str, CancelToken] = {}
+        self._pending_details: dict[str, dict[str, object]] = {}
+        # Only the latest successfully applied plan can still be rolled back.
+        # Keep its tiny receipt apart from the graph thread: a later preview
+        # must be free to use that same session thread without losing it.
+        self._applied_details: dict[str, tuple[str, tuple[str, ...]]] = {}
+        # A response can be lost after a terminal was recorded. Keep a
+        # bounded replay window independent of the graph thread, which a
+        # later preview is free to reuse.
+        self._outcome_receipts: OrderedDict[
+            tuple[str, str, str], dict[str, object]
+        ] = OrderedDict()
+        # Session locks do not serialize operations across different
+        # sessions; every read and mutation of this shared LRU needs its
+        # own lock, including the paired get/move_to_end replay lookup.
+        self._outcome_receipts_lock = threading.Lock()
         self._checkpointer = InMemorySaver()
         self._graph = build_request_graph(
             engine=engine,
@@ -262,6 +287,12 @@ class RequestGraphSession:
         snapshot = self._graph.get_state(_thread_config(session_id))
         return snapshot.next == (STATE_PENDING_APPROVAL,)
 
+    def _is_applying(self, session_id: str) -> bool:
+        """Return whether a session is waiting for its apply outcome."""
+        return self._graph.get_state(_thread_config(session_id)).next == (
+            STATE_APPLYING,
+        )
+
     def submit(
         self,
         *,
@@ -302,12 +333,34 @@ class RequestGraphSession:
         config = _thread_config(session_id)
         slot = self._acquire_session(session_id)
         try:
+            if self._is_applying(session_id):
+                # An approved client may already have mutated the live
+                # session even if its outcome report was lost. Never replace
+                # this thread until the client supplies that outcome.
+                return {
+                    "status": TERMINAL_FAILED,
+                    "failure": FailureEnvelopeV1(
+                        category="apply_outcome_required",
+                        message=(
+                            "the previous approved plan still awaits its "
+                            "client apply outcome"
+                        ),
+                        retryable=True,
+                    ),
+                }
             if self._is_pending(session_id):
                 self._graph.invoke(
                     Command(resume={"action": RESUME_ACTION_SUPERSEDE}),
                     config,
                 )
                 self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
+            elif (
+                self._graph.get_state(config).values.get("status")
+                == TERMINAL_APPLIED
+            ):
+                self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
             initial_state: RequestState = {
                 "request_id": request_id,
                 "session_id": session_id,
@@ -347,6 +400,14 @@ class RequestGraphSession:
                         del self._active_cancellations[session_id]
             if result.get("status") != STATE_PENDING_APPROVAL:
                 self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
+            else:
+                # LangGraph's interrupted checkpoint retains its control
+                # fields but not every opaque domain value. Keep the exact
+                # response facts server-side for the later approval reply.
+                result["snapshot_digest"] = snapshot_identity.digest
+                result["validation_applicable"] = fidelity.status == "exact"
+                self._pending_details[session_id] = dict(result)
             return result
         finally:
             self._release_session(session_id, slot)
@@ -382,9 +443,132 @@ class RequestGraphSession:
                 Command(resume={"action": RESUME_ACTION_REJECT}), config
             )
             self._delete_thread(session_id)
+            self._pending_details.pop(session_id, None)
             return result
         finally:
             self._release_session(session_id, slot)
+
+    def approve(
+        self, *, session_id: str, plan_id: str
+    ) -> dict[str, object] | None:
+        """Approve once, or replay the same handshake while awaiting outcome."""
+        config = _thread_config(session_id)
+        slot = self._acquire_session(session_id)
+        try:
+            snapshot = self._graph.get_state(config)
+            if snapshot.next not in {
+                (STATE_PENDING_APPROVAL,),
+                (STATE_APPLYING,),
+            }:
+                return None
+            if snapshot.values.get("plan_id") != plan_id:
+                return None
+            approved_values = self._pending_details.get(session_id)
+            if approved_values is None:
+                return None
+            if approved_values.get("validation_applicable") is not True:
+                return {
+                    "status": TERMINAL_FAILED,
+                    "failure": FailureEnvelopeV1(
+                        category="not_applicable",
+                        message="a non-exact fidelity preview cannot be approved",
+                        retryable=False,
+                    ),
+                }
+            if snapshot.next == (STATE_PENDING_APPROVAL,):
+                result = self._graph.invoke(
+                    Command(resume={"action": RESUME_ACTION_APPROVE}), config
+                )
+                # Approval can race the graph's own TTL check. Only an actual
+                # ``applying`` interrupt may receive the committed preview.
+                if result.get("status") != STATE_APPLYING:
+                    self._delete_thread(session_id)
+                    self._pending_details.pop(session_id, None)
+                    return result
+            # LangGraph's interrupt return contains only the resumed node's
+            # partial update. Read the checkpoint for both first approval
+            # and a retry after its response was lost.
+            applying = dict(self._graph.get_state(config).values)
+            for name in (
+                "plan",
+                "plan_id",
+                "expires_at",
+                "model_identity",
+                "snapshot_digest",
+                "validation_applicable",
+            ):
+                applying[name] = approved_values[name]
+            return applying
+        finally:
+            self._release_session(session_id, slot)
+
+    def report_apply_outcome(
+        self, *, session_id: str, plan_id: str, outcome: str
+    ) -> dict[str, object] | None:
+        """Resume an approved plan with its client-observed terminal outcome."""
+        config = _thread_config(session_id)
+        slot = self._acquire_session(session_id)
+        try:
+            receipt_key = (session_id, plan_id, outcome)
+            with self._outcome_receipts_lock:
+                receipt = self._outcome_receipts.get(receipt_key)
+                if receipt is not None:
+                    self._outcome_receipts.move_to_end(receipt_key)
+                    return dict(receipt)
+            snapshot = self._graph.get_state(config)
+            applied = self._applied_details.get(session_id)
+            if (
+                applied is not None
+                and outcome == "rolled_back"
+                and applied[0] == plan_id
+            ):
+                # A later preview may have reused this graph thread. Its
+                # current pending plan must remain untouched by the rollback
+                # of an earlier successfully applied plan.
+                result: dict[str, object] = {
+                    "status": TERMINAL_ROLLED_BACK,
+                    "history": (*applied[1], TERMINAL_ROLLED_BACK),
+                }
+                del self._applied_details[session_id]
+                if (
+                    snapshot.values.get("status") == TERMINAL_APPLIED
+                    and snapshot.values.get("plan_id") == plan_id
+                ):
+                    self._delete_thread(session_id)
+                    self._pending_details.pop(session_id, None)
+                self._remember_outcome(receipt_key, result)
+                return result
+            if not self._is_applying(session_id):
+                return None
+            if snapshot.values.get("plan_id") != plan_id:
+                return None
+            result = self._graph.invoke(
+                Command(resume={"outcome": outcome}), config
+            )
+            if result.get("status") == TERMINAL_APPLIED:
+                history = result.get("history")
+                assert isinstance(history, tuple)
+                self._applied_details[session_id] = (plan_id, history)
+            if result.get("status") in {
+                TERMINAL_APPLY_FAILED_RESTORED,
+                TERMINAL_ROLLED_BACK,
+            }:
+                self._delete_thread(session_id)
+                self._pending_details.pop(session_id, None)
+            self._remember_outcome(receipt_key, result)
+            return result
+        finally:
+            self._release_session(session_id, slot)
+
+    def _remember_outcome(
+        self, key: tuple[str, str, str], result: dict[str, object]
+    ) -> None:
+        """Retain a bounded exact-terminal receipt for a lost HTTP reply."""
+        with self._outcome_receipts_lock:
+            self._outcome_receipts[key] = dict(result)
+            self._outcome_receipts.move_to_end(key)
+            if len(self._outcome_receipts) > MAX_OUTCOME_RECEIPTS:
+                self._outcome_receipts.popitem(last=False)
 
     def cancel(self, *, session_id: str) -> dict[str, object] | None:
         """Resume `session_id`'s pending plan as cancelled.
@@ -417,6 +601,7 @@ class RequestGraphSession:
                         _thread_config(session_id),
                     )
                     self._delete_thread(session_id)
+                    self._pending_details.pop(session_id, None)
                     return result
                 return {"status": TERMINAL_CANCELLED}
             finally:
@@ -431,6 +616,7 @@ class RequestGraphSession:
                 Command(resume={"action": RESUME_ACTION_CANCEL}), config
             )
             self._delete_thread(session_id)
+            self._pending_details.pop(session_id, None)
             return result
         finally:
             self._release_session(session_id, slot)

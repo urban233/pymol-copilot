@@ -12,6 +12,8 @@ from threading import Thread
 
 from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
 from pmc_core.protocol import CancelRequestV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
@@ -20,6 +22,8 @@ from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import decode_cancel_request_json
+from pmc_core.protocol import decode_apply_outcome_request_json
+from pmc_core.protocol import decode_apply_request_json
 from pmc_core.protocol import decode_execution_request_json
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_reject_request_json
@@ -36,6 +40,8 @@ PLAN_PATH = "/v1/plan"
 #: exactly as it did when these paths were not routed at all.
 REJECT_PATH = "/v1/reject"
 CANCEL_PATH = "/v1/cancel"
+APPLY_PATH = "/v1/apply"
+APPLY_OUTCOME_PATH = "/v1/apply-outcome"
 #: The sidecar executor's endpoint (docs/master_plan.md item 4). Routed
 #: only when a server is constructed with an execution_handler; a server
 #: with none (every caller before this endpoint existed) returns 404 here,
@@ -57,6 +63,10 @@ type PLAN_HANDLER = Callable[[PlanRequestV1], PLAN_RESPONSE]
 type EXECUTION_HANDLER = Callable[[ExecutionRequestV1], ExecutionReportV1]
 type REJECT_HANDLER = Callable[[RejectRequestV1], FailedPlanResponseV1]
 type CANCEL_HANDLER = Callable[[CancelRequestV1], FailedPlanResponseV1]
+type APPLY_HANDLER = Callable[[ApplyRequestV1], PLAN_RESPONSE]
+type APPLY_OUTCOME_HANDLER = Callable[
+    [ApplyOutcomeRequestV1], FailedPlanResponseV1
+]
 
 # Preserve the original public type-alias names.
 globals()["PlanResponse"] = PLAN_RESPONSE
@@ -75,6 +85,8 @@ class LoopbackPlanServer:
         execution_handler: EXECUTION_HANDLER | None = None,
         reject_handler: REJECT_HANDLER | None = None,
         cancel_handler: CANCEL_HANDLER | None = None,
+        apply_handler: APPLY_HANDLER | None = None,
+        apply_outcome_handler: APPLY_OUTCOME_HANDLER | None = None,
     ) -> None:
         """Create a server that authenticates requests before decoding JSON.
 
@@ -94,6 +106,10 @@ class LoopbackPlanServer:
             cancel_handler: The same lifecycle's cancel entry point,
                 invoked after strict decoding of a CANCEL_PATH request.
                 None -- the default -- routes CANCEL_PATH to 404.
+            apply_handler: Approval lifecycle invoked after strict decoding
+                of an APPLY_PATH request; absent handlers leave it unrouted.
+            apply_outcome_handler: Terminal apply-outcome lifecycle invoked
+                after strict decoding of an APPLY_OUTCOME_PATH request.
 
         Raises:
             ValueError: If credential is empty.
@@ -105,6 +121,8 @@ class LoopbackPlanServer:
         self._execution_handler = execution_handler
         self._reject_handler = reject_handler
         self._cancel_handler = cancel_handler
+        self._apply_handler = apply_handler
+        self._apply_outcome_handler = apply_outcome_handler
         self._httpd = ThreadingHTTPServer(
             (LOOPBACK_HOST, 0), self._make_request_handler()
         )
@@ -221,6 +239,18 @@ class LoopbackPlanServer:
                 ):
                     self._handle_cancel()
                     return
+                if (
+                    self.path == APPLY_PATH
+                    and server._apply_handler is not None
+                ):
+                    self._handle_apply()
+                    return
+                if (
+                    self.path == APPLY_OUTCOME_PATH
+                    and server._apply_outcome_handler is not None
+                ):
+                    self._handle_apply_outcome()
+                    return
                 self._send_empty(HTTPStatus.NOT_FOUND)
 
             def _handle_plan(self) -> None:
@@ -317,6 +347,42 @@ class LoopbackPlanServer:
                     response_payload = encode_json(response).encode("utf-8")
                 except (ProtocolDecodeError, ValueError):
                     self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
+                self._send_json(response_payload)
+
+            def _handle_apply(self) -> None:
+                """Decode, dispatch, and answer one approved-plan request."""
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                if payload is None:
+                    return
+                try:
+                    request = decode_apply_request_json(payload.decode("utf-8"))
+                    handler = server._apply_handler
+                    assert handler is not None
+                    response_payload = encode_json(handler(request)).encode(
+                        "utf-8"
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                self._send_json(response_payload)
+
+            def _handle_apply_outcome(self) -> None:
+                """Decode and dispatch one terminal approved-plan outcome."""
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                if payload is None:
+                    return
+                try:
+                    request = decode_apply_outcome_request_json(
+                        payload.decode("utf-8")
+                    )
+                    handler = server._apply_outcome_handler
+                    assert handler is not None
+                    response_payload = encode_json(handler(request)).encode(
+                        "utf-8"
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
                     return
                 self._send_json(response_payload)
 

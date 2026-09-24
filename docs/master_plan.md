@@ -94,9 +94,9 @@ Every item carries a **State**. The values are:
 | 5 | Structure card | Martin | **done** — PR #29 | — | 13, 14 |
 | 6 | Error envelope | Martin | **done** — PR #31 | 2 ✓ | 8, 11 |
 | 7 | Live extraction and fidelity gate | Hannah | **done** — PR #37 | 3 ✓, 4 ✓ | 10, 11 |
-| 8 | LangGraph request graph | Hannah | **in progress** | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
-| 9 | Inference abstraction and Lemonade | Hannah | **blocked** | 0 ✓, 1 ✓, 8 | 12, 16, 19 |
-| 10 | Approval, apply, recovery | Hannah | **blocked** | 2 ✓, 3 ✓, 7 ✓, 8 | 11, 12 |
+| 8 | LangGraph request graph | Hannah | **done** — PR #47 | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
+| 9 | Inference abstraction and Lemonade | Hannah | **done** — PR #46 | 0 ✓, 1 ✓, 8 ✓ | 12, 16, 19 |
+| 10 | Approval, apply, recovery | Hannah | **in review** — PR #51 | 2 ✓, 3 ✓, 7 ✓, 8 ✓ | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **blocked** | 6 ✓, 7 ✓, 8, 10 | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9, 10, 11 | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
@@ -125,9 +125,9 @@ flowchart LR
   I5["5 · structure card"]:::done
   I6["6 · error envelope"]:::done
   I7["7 · fidelity gate"]:::done
-  I8["8 · request graph"]:::progress
-  I9["9 · inference"]:::blocked
-  I10["10 · apply and recovery"]:::blocked
+  I8["8 · request graph"]:::done
+  I9["9 · inference"]:::done
+  I10["10 · apply and recovery"]:::review
   I11["11 · output"]:::blocked
   I12["12 · end-to-end suite"]:::blocked
   I13["13 · prompt builder"]:::done
@@ -188,21 +188,16 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   the sidecar executor, the structure card, the error envelope and the
   fidelity gate. Nothing in the remaining twelve items is waiting on a
   shared-core hand-off any more.
-- **Item 8 is in progress on `feat/langgraph-request-graph`**, unblocked on
-  every prerequisite. It gates items 9, 10, 11 and 12 — Hannah's entire
-  remaining chain — so nothing on the runtime side can begin until it lands,
-  which makes it the highest-value thing on the board. Its own engine
-  interface and fake adapter (`src/pmc_agent/inference/`) already exist as
-  part of it, ahead of item 9 — see item 9's own note.
+- **Items 8 and 9 are merged.** The request graph (PR #47) and the local
+  Lemonade adapter (PR #46) now unblock the remaining runtime work.
 - **Item 14 is Martin's, and it is the longest single item left.** At ~5
   days it is the biggest remaining piece of the model half, and items 15,
   16, 17 and 18 all sit behind it. It is also the first item to call the
   prompt builder's `build_for_data()` seam for real, rather than through the
   parity test that stands in for a caller today.
-- **Nothing downstream of item 8 has merged.** `src/pmc_agent/runtime.py` is
-  still the 66-line pass-through stub from the dependency split, not item 8's
-  graph; `src/pmc_train/` holds only `__init__.py`; `tests/recovery/` holds
-  only a readme.
+- **Item 10 is in review as PR #51.** It adds the approval handshake, private
+  recovery points, live apply, rollback, and real-PyMOL recovery evidence.
+  Items 11 and 12 remain blocked on its review and merge.
 
 ### Cross-owner hand-offs
 
@@ -404,7 +399,7 @@ hetero atoms.
 
 ### 8. LangGraph request graph
 
-**Size:** ~4 days · **State:** in progress — blocks 9, 10, 11, 12
+**Size:** ~4 days · **State:** done (PR #47)
 
 ```
 Build the request graph in src/pmc_agent/ using LangGraph. States: received,
@@ -421,7 +416,7 @@ terminal state against a fake inference adapter.
 
 ### 9. Inference abstraction and Lemonade
 
-**Size:** ~4 days · **State:** blocked on 8
+**Size:** ~4 days · **State:** done (PR #46)
 
 ```
 Add src/pmc_agent/inference/: a narrow engine interface — bounded completion
@@ -443,7 +438,7 @@ than pretending.
 
 ### 10. Approval, apply, recovery — the safety centerpiece
 
-**Size:** ~5 days · **State:** blocked on 8
+**Size:** ~5 days · **State:** in review (PR #51)
 
 ```
 Implement the approval path in src/pmc_client/: copilot_apply <plan-id>,

@@ -4,8 +4,11 @@ py_library(
     name = "pmc_client",
     srcs = [
         "__init__.py",
+        "approval.py",
+        "apply.py",
         "command.py",
         "fidelity.py",
+        "recovery.py",
         "session.py",
         "transport.py",
     ],

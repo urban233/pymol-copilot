@@ -18,13 +18,18 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import UTC
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 from pmc_client.command import PLAN_ID_DISPLAY_PREFIX
 from pmc_client.command import CopilotCommandClient
+from pmc_client.recovery import RecoveryPointError
 from pmc_client.command import PlanTransport
+from pmc_client.recovery import RecoveryStore
 from pmc_client.session import extract_live_snapshot
 from pmc_client.transport import TransportError
 from pmc_core.executor import EXECUTOR_VERSION
@@ -42,6 +47,8 @@ from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
@@ -50,6 +57,8 @@ from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import StateSnapshot
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
+from pmc_sidecar.child import PlanRunResult
+from pmc_sidecar.child import run_plan
 
 SESSION_ID = "22222222-2222-4222-8222-222222222222"
 CREATED_AT = "2026-08-26T14:22:03.123Z"
@@ -123,6 +132,7 @@ class _RecordingSession:
     #: business-logic condition.
     raise_on_get_names: Exception | None = None
     commands: dict[str, Callable[[str], None]] = field(default_factory=dict)
+    events: list[str] = field(default_factory=list)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Record a registered command.
@@ -252,6 +262,40 @@ class _RecordingSession:
         """
         return "1.00000"
 
+    def save(self, filename: str) -> None:
+        """Record and materialize a complete recovery point."""
+        Path(filename).write_bytes(b"session")
+        self.events.append("save")
+
+    def load(self, filename: str, *, partial: int) -> None:  # noqa: ARG002
+        """Record a complete-session recovery load."""
+        assert partial == 0
+        self.events.append("load")
+
+    def sync(self) -> None:
+        """Record the closed dispatcher's synchronization boundary."""
+        self.events.append("sync")
+
+    def select(self, name: str, expression: str) -> None:  # noqa: ARG002
+        """Record a closed-dispatch selection mutation."""
+        self.events.append("select")
+
+    def color(self, color: str, target: str) -> None:  # noqa: ARG002
+        """Record a closed-dispatch color mutation."""
+        self.events.append("color")
+
+    def show(self, representation: str, target: str) -> None:  # noqa: ARG002
+        """Record a closed-dispatch show mutation."""
+        self.events.append("show")
+
+    def hide(self, representation: str, target: str) -> None:  # noqa: ARG002
+        """Record a closed-dispatch hide mutation."""
+        self.events.append("hide")
+
+    def orient(self, target: str) -> None:  # noqa: ARG002
+        """Record a closed-dispatch orient mutation."""
+        self.events.append("orient")
+
 
 def _report_for(
     snapshot: ObjectSnapshot,
@@ -343,6 +387,17 @@ class RecordingTransport:
         [RejectRequestV1], FailedPlanResponseV1
     ] = _default_rejected
     reject_requests: list[RejectRequestV1] = field(default_factory=list)
+    apply_requests: list[ApplyRequestV1] = field(default_factory=list)
+    outcome_requests: list[ApplyOutcomeRequestV1] = field(default_factory=list)
+    apply_response_factory: (
+        Callable[
+            [ApplyRequestV1], ValidatedPlanResponseV1 | FailedPlanResponseV1
+        ]
+        | None
+    ) = None
+    _last_validated: ValidatedPlanResponseV1 | None = field(
+        default=None, init=False
+    )
 
     def submit(
         self, request: PlanRequestV1
@@ -356,7 +411,10 @@ class RecordingTransport:
             The typed response produced by the response factory.
         """
         self.requests.append(request)
-        return self.response_factory(request)
+        response = self.response_factory(request)
+        if isinstance(response, ValidatedPlanResponseV1):
+            self._last_validated = response
+        return response
 
     def reject(self, request: RejectRequestV1) -> FailedPlanResponseV1:
         """Record and handle one reject request.
@@ -369,6 +427,36 @@ class RecordingTransport:
         """
         self.reject_requests.append(request)
         return self.reject_response_factory(request)
+
+    def apply(
+        self, request: ApplyRequestV1
+    ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+        """Record approval and return the preview's canonical plan by default."""
+        self.apply_requests.append(request)
+        if self.apply_response_factory is not None:
+            return self.apply_response_factory(request)
+        if self._last_validated is None:
+            return FailedPlanResponseV1(
+                request.request_id,
+                request.session_id,
+                FailureEnvelopeV1("no_pending_plan", "no pending plan", False),
+            )
+        return dataclasses.replace(
+            self._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+        )
+
+    def report_apply_outcome(
+        self, request: ApplyOutcomeRequestV1
+    ) -> FailedPlanResponseV1:
+        """Record the local outcome and acknowledge its graph terminal."""
+        self.outcome_requests.append(request)
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1(request.outcome, request.outcome, False),
+        )
 
 
 def fixture_plan() -> ActionPlan:
@@ -420,6 +508,8 @@ def validated_response(
         ),
         plan_id="55555555-5555-4555-8555-555555555555",
         snapshot_digest=request.snapshot.digest,
+        expires_at="2026-08-26T14:27:03.220Z",
+        model_identity="test-model@test-checkpoint",
     )
 
 
@@ -434,6 +524,9 @@ def uuid_factory() -> Callable[[], uuid.UUID]:
             uuid.UUID(SESSION_ID),
             uuid.UUID("33333333-3333-4333-8333-333333333333"),
             uuid.UUID("44444444-4444-4444-8444-444444444444"),
+            uuid.UUID("55555555-5555-4555-8555-555555555556"),
+            uuid.UUID("66666666-6666-4666-8666-666666666667"),
+            uuid.UUID("77777777-7777-4777-8777-777777777778"),
         )
     )
     return lambda: next(values)
@@ -444,6 +537,8 @@ def _client(
     output: Callable[[str], None],
     *,
     probe: Callable[[FidelityRequest], FidelityReport],
+    recovery_store: RecoveryStore | None = None,
+    dispatcher: Callable[[object, ActionPlan], PlanRunResult] | None = None,
 ) -> tuple[CopilotCommandClient, _RecordingSession]:
     """Build a registered client and the fake session it is bound to.
 
@@ -451,6 +546,8 @@ def _client(
         transport: The transport the client submits requests through.
         output: Callable receiving command-console text.
         probe: The fidelity probe the client is injected with.
+        recovery_store: Optional hermetic recovery-point lifecycle.
+        dispatcher: Optional scripted closed dispatcher.
 
     Returns:
         The registered client and its fake session.
@@ -462,6 +559,9 @@ def _client(
         uuid_factory=uuid_factory(),
         timestamp_factory=lambda: CREATED_AT,
         probe=probe,
+        recovery_store=recovery_store,
+        dispatcher=run_plan if dispatcher is None else dispatcher,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
     )
     client.register(session)
     return client, session
@@ -599,8 +699,8 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
     )
 
 
-def test_registers_all_three_copilot_commands() -> None:
-    """Registration exposes all three commands, bound to the same client."""
+def test_registers_all_four_copilot_commands() -> None:
+    """Registration exposes all four commands, bound to the same client."""
     session = _RecordingSession()
     client = CopilotCommandClient(
         RecordingTransport(validated_response, []), lambda _text: None
@@ -611,6 +711,62 @@ def test_registers_all_three_copilot_commands() -> None:
     assert session.commands["copilot"] == client.copilot
     assert session.commands["copilot_apply"] == client.copilot_apply
     assert session.commands["copilot_reject"] == client.copilot_reject
+    assert session.commands["copilot_rollback"] == client.copilot_rollback
+
+
+def test_preview_does_not_require_a_home_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Read-only preview remains available in a hermetic Windows sandbox."""
+    requests: list[PlanRequestV1] = []
+
+    def unavailable_store() -> RecoveryStore:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr("pmc_client.command.RecoveryStore", unavailable_store)
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        lambda _text: None,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot(INTENT)
+
+    assert len(requests) == 1
+
+
+def test_apply_refuses_before_server_handshake_without_private_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing home directory cannot leave the server awaiting an outcome."""
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    def unavailable_store() -> RecoveryStore:
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr("pmc_client.command.RecoveryStore", unavailable_store)
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: could not initialize private recovery storage: "
+        "Could not determine home directory. Nothing was applied."
+    ]
+    assert transport.apply_requests == []
+    assert transport.outcome_requests == []
+    assert live.events == []
 
 
 def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
@@ -679,6 +835,22 @@ def test_transport_failure_reports_bounded_diagnostic() -> None:
                 f"loopback request failed: {request.request_id}"
             )
 
+        def apply(
+            self, request: ApplyRequestV1
+        ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+            """Raise the same bounded outage if approval were reached."""
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
+        def report_apply_outcome(
+            self, request: ApplyOutcomeRequestV1
+        ) -> FailedPlanResponseV1:
+            """Raise the same bounded outage if an outcome were reached."""
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
     output: list[str] = []
     session = _RecordingSession()
     client = CopilotCommandClient(
@@ -724,6 +896,8 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
             ),
             plan_id=response.plan_id,
             snapshot_digest=response.snapshot_digest,
+            expires_at=response.expires_at,
+            model_identity=response.model_identity,
         )
 
     output: list[str] = []
@@ -799,7 +973,7 @@ def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
 
     assert output == [
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}{first_id} is not "
-        "the pending plan"
+        "the pending plan. Nothing was applied."
     ]
 
 
@@ -836,7 +1010,9 @@ def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
     # The failed second request cleared the pending plan entirely
     # (nothing replaced it), so this is refused as having no pending
     # plan at all -- not as an id mismatch against a stale one.
-    assert output == ["copilot_apply: no pending plan for this session"]
+    assert output == [
+        "copilot_apply: no pending plan for this session. Nothing was applied."
+    ]
 
 
 def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
@@ -885,7 +1061,9 @@ def test_copilot_apply_with_no_pending_plan() -> None:
 
     client.copilot_apply(f"{PLAN_ID_DISPLAY_PREFIX}not-a-real-id")
 
-    assert output == ["copilot_apply: no pending plan for this session"]
+    assert output == [
+        "copilot_apply: no pending plan for this session. Nothing was applied."
+    ]
 
 
 def test_copilot_apply_with_a_mismatched_id() -> None:
@@ -904,7 +1082,7 @@ def test_copilot_apply_with_a_mismatched_id() -> None:
 
     assert output == [
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan "
-        "is not the pending plan"
+        "is not the pending plan. Nothing was applied."
     ]
 
 
@@ -932,14 +1110,19 @@ def test_copilot_apply_refuses_a_non_applicable_pending_plan() -> None:
     ]
 
 
-def test_copilot_apply_refuses_an_applicable_pending_plan_too() -> None:
-    """copilot_apply still refuses an applicable plan: apply is item 10's."""
+def test_copilot_apply_applies_the_approved_canonical_plan(
+    tmp_path: Path,
+) -> None:
+    """A valid approved plan saves first, applies once, and is reported."""
     output: list[str] = []
     session = _RecordingSession()
-    client, _session = _client(
-        RecordingTransport(validated_response, []),
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+    client, applied_session = _client(
+        transport,
         output.append,
         probe=_exact_probe(session),
+        recovery_store=store,
     )
     client.copilot(INTENT)
     output.clear()
@@ -951,9 +1134,795 @@ def test_copilot_apply_refuses_an_applicable_pending_plan_too() -> None:
     assert output == [
         "copilot_apply: plan "
         f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555 "
-        "is applicable, but apply is not implemented yet (master plan "
-        "item 10). Nothing was applied."
+        "applied. Recovery point retained at "
+        f"{store.directory / 'plan-55555555-5555-4555-8555-555555555555.pse'}."
     ]
+    assert applied_session.events == ["save", "select", "sync", "color", "sync"]
+    assert len(transport.apply_requests) == 1
+    assert len(transport.outcome_requests) == 1
+    assert transport.outcome_requests[0].outcome == "applied"
+
+
+def test_copilot_apply_can_retry_after_lost_approval_response(
+    tmp_path: Path,
+) -> None:
+    """A transport loss before any local mutation leaves a usable pending plan."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    attempts = 0
+
+    def lost_once(request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("approval response lost")
+        assert transport._last_validated is not None
+        return dataclasses.replace(
+            transport._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+        )
+
+    transport.apply_response_factory = lost_once
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    client.copilot_apply(plan_id)
+
+    assert output == ["copilot_apply unavailable: approval response lost"]
+    assert live.events == []
+    assert transport.outcome_requests == []
+    assert client._pending_plan is not None
+
+    client.copilot_apply(plan_id)
+
+    assert len(transport.apply_requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied"
+    ]
+    assert live.events == ["save", "select", "sync", "color", "sync"]
+
+
+def test_new_preview_settles_a_lost_approval_before_submitting(
+    tmp_path: Path,
+) -> None:
+    """A lost apply reply cannot strand or overwrite the approved request."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert live.events == []
+    assert transport.outcome_requests == []
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+
+
+@pytest.mark.parametrize("outcome_report_lost", [False, True])
+def test_close_settles_a_lost_approval_reply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome_report_lost: bool,
+) -> None:
+    """Shutdown reports no local mutation after an uncertain approval."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+    assert client._uncertain_approval is not None
+
+    if outcome_report_lost:
+        original_report = transport.report_apply_outcome
+        attempts = 0
+
+        def report_after_outage(
+            request: ApplyOutcomeRequestV1,
+        ) -> FailedPlanResponseV1:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise TransportError("outcome response lost")
+            return original_report(request)
+
+        monkeypatch.setattr(
+            transport, "report_apply_outcome", report_after_outage
+        )
+        client.copilot("Another preview")
+        assert client._unreported_outcomes == [
+            ("55555555-5555-4555-8555-555555555555", "restored")
+        ]
+        assert len(transport.requests) == 1
+
+    client.close()
+
+    assert live.events == []
+    assert len(transport.requests) == 1
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._unreported_outcomes == []
+
+
+def test_expired_local_retry_settles_a_lost_approval(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A locally refused retry still reports that nothing was applied."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    client.copilot_apply(plan_id)
+    monkeypatch.setattr(
+        client,
+        "_now_factory",
+        lambda: datetime(2026, 8, 26, 14, 28, tzinfo=UTC),
+    )
+
+    client.copilot_apply(plan_id)
+
+    assert len(transport.apply_requests) == 1
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._pending_plan is None
+
+
+def test_reject_after_lost_approval_reports_no_local_mutation(
+    tmp_path: Path,
+) -> None:
+    """Rejecting an already approved plan closes its applying state."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    def already_approved(request: RejectRequestV1) -> FailedPlanResponseV1:
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1("no_pending_plan", "already approved", False),
+        )
+
+    transport.apply_response_factory = lost_apply
+    transport.reject_response_factory = already_approved
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    client.copilot_apply(plan_id)
+
+    client.copilot_reject(plan_id)
+
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._pending_plan is None
+    assert output[-1].endswith("closed after approval. Nothing was applied.")
+
+
+def test_new_preview_waits_and_retries_when_lost_approval_cannot_be_settled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unavailable outcome endpoint prevents an unsafe new submit."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def report_after_outage(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("outcome endpoint unavailable")
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", report_after_outage)
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 1
+    assert live.events == []
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+    assert any(
+        "previous approval is still unconfirmed" in line for line in output
+    )
+
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._unreported_outcomes == []
+
+
+def test_new_preview_retries_lost_applied_outcome_before_submitting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A completed live apply is reported before the next graph request."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def report_after_outage(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TransportError("outcome response lost")
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", report_after_outage)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert live.events == ["save", "select", "sync", "color", "sync"]
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "applied")
+    ]
+    assert transport.outcome_requests == []
+
+    client.copilot("Another preview")
+
+    assert len(transport.requests) == 2
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied"
+    ]
+    assert client._unreported_outcomes == []
+
+
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_failed_second_apply_keeps_first_plan_rollback_available(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cleanup_fails: bool
+) -> None:
+    """A remains rollbackable after B restores, even with a locked B file."""
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = first_id if previews == 1 else second_id
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    dispatches = 0
+
+    def dispatch(cmd: object, plan: ActionPlan) -> PlanRunResult:
+        nonlocal dispatches
+        dispatches += 1
+        if dispatches == 1:
+            return run_plan(cmd, plan)
+        return PlanRunResult("failed", "test", ())
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        dispatcher=dispatch,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    client.copilot_apply(f"p-{first_id}")
+    first_path = store.retained
+    assert first_path is not None and first_path.exists()
+
+    client.copilot(INTENT)
+    second_path = store.directory / f"plan-{second_id}.pse"
+    if cleanup_fails:
+        real_unlink = Path.unlink
+
+        def locked_second(self: Path, *, missing_ok: bool = False) -> None:
+            if self == second_path:
+                raise OSError("locked")
+            real_unlink(self, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "unlink", locked_second)
+    client.copilot_apply(f"p-{second_id}")
+
+    assert store.retained == first_path
+    assert first_path.exists()
+    assert second_path.exists() is cleanup_fails
+    assert client._applied_plan is not None
+    assert client._applied_plan.plan_id == first_id
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied",
+        "restored",
+    ]
+
+    client.copilot_rollback(f"p-{first_id}")
+
+    assert client._applied_plan is None
+    assert store.retained is None
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "applied",
+        "restored",
+        "rolled_back",
+    ]
+
+
+@pytest.mark.parametrize("lose_rollback", [False, True])
+def test_rollback_report_does_not_erase_another_plans_unreported_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lose_rollback: bool
+) -> None:
+    """A's rollback cannot discard B's failed restored-outcome report."""
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    third_id = "77777777-7777-4777-8777-777777777777"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = (first_id, second_id, third_id)[previews - 1]
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    dispatches = 0
+
+    def dispatch(cmd: object, plan: ActionPlan) -> PlanRunResult:
+        nonlocal dispatches
+        dispatches += 1
+        if dispatches == 1:
+            return run_plan(cmd, plan)
+        return PlanRunResult("failed", "test", ())
+
+    live = _RecordingSession()
+    transport = RecordingTransport(preview, [])
+    client = CopilotCommandClient(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(live),
+        recovery_store=RecoveryStore(tmp_path),
+        dispatcher=dispatch,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+    client.copilot(INTENT)
+    client.copilot_apply(f"p-{first_id}")
+    client.copilot(INTENT)
+
+    original_report = transport.report_apply_outcome
+    restored_attempts = 0
+    rollback_attempts = 0
+
+    def lose_two_restored_reports(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal restored_attempts, rollback_attempts
+        if request.plan_id == second_id and request.outcome == "restored":
+            restored_attempts += 1
+            if restored_attempts <= 2:
+                raise TransportError("B outcome response lost")
+        if request.plan_id == first_id and request.outcome == "rolled_back":
+            rollback_attempts += 1
+            if lose_rollback and rollback_attempts == 1:
+                raise TransportError("A rollback response lost")
+        return original_report(request)
+
+    monkeypatch.setattr(
+        transport, "report_apply_outcome", lose_two_restored_reports
+    )
+    client.copilot_apply(f"p-{second_id}")
+    assert client._unreported_outcomes == [(second_id, "restored")]
+
+    client.copilot_rollback(f"p-{first_id}")
+
+    assert restored_attempts == 2
+    expected_pending = [(second_id, "restored")]
+    if lose_rollback:
+        expected_pending.append((first_id, "rolled_back"))
+    assert client._unreported_outcomes == expected_pending
+    assert [request.outcome for request in transport.outcome_requests] == (
+        ["applied"] if lose_rollback else ["applied", "rolled_back"]
+    )
+
+    client.copilot("Preview C")
+
+    assert restored_attempts == 3
+    assert client._unreported_outcomes == []
+    assert len(transport.requests) == 3
+    expected_reports = ["applied"]
+    if not lose_rollback:
+        expected_reports.append("rolled_back")
+    expected_reports.append("restored")
+    if lose_rollback:
+        expected_reports.append("rolled_back")
+    assert [request.outcome for request in transport.outcome_requests] == (
+        expected_reports
+    )
+
+
+def test_copilot_apply_refuses_changed_server_identity_before_save(
+    tmp_path: Path,
+) -> None:
+    """A canonical reply from a different model cannot reach disk or PyMOL."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def changed_identity(
+        request: ApplyRequestV1,
+    ) -> ValidatedPlanResponseV1:
+        """Return the preview response with only model identity changed."""
+        assert transport._last_validated is not None
+        return dataclasses.replace(
+            transport._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+            model_identity="different-model@checkpoint",
+        )
+
+    transport.apply_response_factory = changed_identity
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: server model identity changed since preview. "
+        "Nothing was applied."
+    ]
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert not RecoveryStore(tmp_path).directory.exists()
+
+
+def test_copilot_apply_reports_restored_when_recovery_save_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A post-approval save failure still closes the server apply state."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+
+    def fail_save(_cmd: object, _plan_id: str) -> Path:
+        raise RecoveryPointError("save failed")
+
+    monkeypatch.setattr(store, "save", fail_save)
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=store,
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: could not create a private recovery point for plan "
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555. "
+        "Nothing was applied."
+    ]
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+
+
+def test_copilot_apply_reports_restored_when_recovery_cleanup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cleanup trouble after a verified restore cannot strand the server."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+
+    def fail_discard() -> None:
+        raise RecoveryPointError("locked")
+
+    monkeypatch.setattr(store, "discard", fail_discard)
+    client, _live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=store,
+        dispatcher=lambda _cmd, _plan: PlanRunResult("failed", "test", ()),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert (
+        "session was restored cleanly, but recovery point could not be removed"
+        in output[0]
+    )
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+
+
+def test_halted_client_retries_failed_outcome_without_live_operations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed restore stays halted but can still settle its server thread."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+        dispatcher=lambda _cmd, _plan: PlanRunResult("failed", "test", ()),
+    )
+
+    def failed_load(_filename: str, *, partial: int) -> None:
+        assert partial == 0
+        live.events.append("load")
+        raise RuntimeError("restore failed")
+
+    monkeypatch.setattr(live, "load", failed_load)
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def report_after_outage(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise TransportError("outcome endpoint unavailable")
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", report_after_outage)
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert client._halted_recovery is not None
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+    events_after_failure = list(live.events)
+    assert events_after_failure == ["save", "load"]
+
+    client.copilot("Another preview")
+
+    assert attempts == 2
+    assert len(transport.requests) == 1
+    assert live.events == events_after_failure
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+
+    client.copilot("Another preview")
+
+    assert attempts == 3
+    assert len(transport.requests) == 1
+    assert live.events == events_after_failure
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._unreported_outcomes == []
+    assert output[-1].startswith("copilot: Copilot is halted")
+
+
+def test_close_retries_an_unconfirmed_outcome(tmp_path: Path) -> None:
+    """Shutdown makes one final status attempt without touching PyMOL."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client._unreported_outcomes.append(
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    )
+
+    client.close()
+
+    assert client._unreported_outcomes == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert live.events == []
+
+
+def test_copilot_apply_refuses_changed_server_text_before_save(
+    tmp_path: Path,
+) -> None:
+    """The response must exactly match the immutable preview the user saw."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def changed_text(request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        """Return a valid but shorter canonical plan for the same approval."""
+        assert transport._last_validated is not None
+        return dataclasses.replace(
+            transport._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+            action_plan=ActionPlan(operations=(fixture_plan().operations[0],)),
+        )
+
+    transport.apply_response_factory = changed_text
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: server plan differs from the approved preview. "
+        "Nothing was applied."
+    ]
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert not RecoveryStore(tmp_path).directory.exists()
+
+
+def test_copilot_apply_reports_restored_for_changed_approval_facts(
+    tmp_path: Path,
+) -> None:
+    """Changed server facts refuse mutation and close the approved request."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def changed_facts(request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        assert transport._last_validated is not None
+        return dataclasses.replace(
+            transport._last_validated,
+            request_id=request.request_id,
+            session_id=request.session_id,
+            snapshot_digest="sha256:changed",
+        )
+
+    transport.apply_response_factory = changed_facts
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    output.clear()
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert output == [
+        "copilot_apply: server approval facts differ from the preview. "
+        "Nothing was applied."
+    ]
+    assert live.events == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert not RecoveryStore(tmp_path).directory.exists()
 
 
 def test_copilot_reject_with_no_pending_plan() -> None:
@@ -1022,7 +1991,9 @@ def test_copilot_reject_round_trip_clears_the_pending_plan() -> None:
         f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
     )
 
-    assert output == ["copilot_apply: no pending plan for this session"]
+    assert output == [
+        "copilot_apply: no pending plan for this session. Nothing was applied."
+    ]
 
 
 def test_copilot_reject_transport_failure_reports_bounded_diagnostic() -> None:
@@ -1054,6 +2025,24 @@ def test_copilot_reject_transport_failure_reports_bounded_diagnostic() -> None:
             Raises:
                 TransportError: Always, to simulate an unavailable server.
             """
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
+        def apply(
+            self, request: ApplyRequestV1
+        ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+            """Refuse an unexpected approval in this reject-only test."""
+            return FailedPlanResponseV1(
+                request.request_id,
+                request.session_id,
+                FailureEnvelopeV1("no_pending_plan", "no pending plan", False),
+            )
+
+        def report_apply_outcome(
+            self, request: ApplyOutcomeRequestV1
+        ) -> FailedPlanResponseV1:
+            """Raise if an outcome is unexpectedly reached in this test."""
             raise TransportError(
                 f"loopback request failed: {request.request_id}"
             )

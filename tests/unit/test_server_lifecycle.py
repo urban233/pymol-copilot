@@ -11,7 +11,11 @@ protocol's typed responses; every state and transition is
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import dataclasses
+import itertools
 from collections.abc import Callable
+from datetime import UTC
+from datetime import datetime
+from datetime import timedelta
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
@@ -34,6 +38,8 @@ from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import FIDELITY_UNAVAILABLE
 from pmc_core.protocol import CancelRequestV1
+from pmc_core.protocol import ApplyOutcomeRequestV1
+from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FidelityOutcomeV1
@@ -149,7 +155,9 @@ def _lifecycle(
         policy_validator=policy_validator,
         max_repair_attempts=max_repair_attempts,
     )
-    timestamps = iter(("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z"))
+    timestamps = itertools.cycle(
+        ("2026-08-26T14:22:03.124Z", "2026-08-26T14:22:03.220Z")
+    )
     return RequestGraphLifecycle(
         session=session, timestamp_source=timestamps.__next__
     )
@@ -328,6 +336,186 @@ def test_cancel_with_no_pending_plan_is_refused() -> None:
 
     assert response.failure.category == FAILURE_NO_PENDING_PLAN
     assert response.failure.retryable is False
+
+
+def test_apply_returns_the_canonical_approved_plan_then_records_outcome() -> (
+    None
+):
+    """The approval endpoint advances once and exposes no client-supplied plan."""
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+
+    approved = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+
+    assert isinstance(approved, ValidatedPlanResponseV1)
+    assert approved.plan_id == pending.plan_id
+    assert approved.action_plan.render_pml() == pending.action_plan.render_pml()
+    assert approved.model_identity == pending.model_identity
+
+    terminal = lifecycle.report_apply_outcome(
+        ApplyOutcomeRequestV1(
+            request_id="44444444-4444-4444-8444-444444444444",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+            outcome="applied",
+        )
+    )
+
+    assert terminal.failure.category == "applied"
+    repeated = lifecycle.report_apply_outcome(
+        ApplyOutcomeRequestV1(
+            request_id="55555555-5555-4555-8555-555555555555",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+            outcome="applied",
+        )
+    )
+    assert repeated.failure.category == "applied"
+
+
+def test_apply_refuses_a_non_applicable_preview_without_advancing() -> None:
+    """The server never approves a plan built from non-exact fidelity."""
+    non_exact = dataclasses.replace(
+        request(),
+        fidelity=FidelityOutcomeV1(
+            status=FIDELITY_NOT_EXACT,
+            reason=REASON_FIDELITY_MISMATCH,
+            mismatch_count=1,
+            mismatches=("test",),
+        ),
+    )
+    lifecycle = _lifecycle(
+        FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    )
+    pending = lifecycle(non_exact)
+    assert isinstance(pending, ValidatedPlanResponseV1)
+    assert not pending.validation.applicable
+
+    refused = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+
+    assert isinstance(refused, FailedPlanResponseV1)
+    assert refused.failure.category == "not_applicable"
+    assert not refused.failure.retryable
+    rejected = lifecycle.reject(
+        RejectRequestV1(
+            request_id="44444444-4444-4444-8444-444444444444",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+    assert rejected.failure.category == "rejected"
+
+
+def test_submit_while_apply_outcome_is_missing_returns_typed_retryable_failure() -> (
+    None
+):
+    """The wire API preserves an applying plan until its outcome arrives."""
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 2
+    )
+    lifecycle = _lifecycle(engine)
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+    approved = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+    assert isinstance(approved, ValidatedPlanResponseV1)
+
+    next_request = dataclasses.replace(
+        request(), request_id="66666666-6666-4666-8666-666666666666"
+    )
+    blocked = lifecycle(next_request)
+
+    assert isinstance(blocked, FailedPlanResponseV1)
+    assert blocked.failure.category == "apply_outcome_required"
+    assert blocked.failure.retryable
+    replay = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="44444444-4444-4444-8444-444444444444",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+    assert isinstance(replay, ValidatedPlanResponseV1)
+    assert replay.plan_id == approved.plan_id
+    assert replay.action_plan == approved.action_plan
+
+    terminal = lifecycle.report_apply_outcome(
+        ApplyOutcomeRequestV1(
+            request_id="55555555-5555-4555-8555-555555555555",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+            outcome="restored",
+        )
+    )
+    assert terminal.failure.category == "apply_failed_restored"
+    next_preview = lifecycle(next_request)
+    assert isinstance(next_preview, ValidatedPlanResponseV1)
+
+
+def test_apply_after_expiry_returns_a_typed_terminal_not_a_plan() -> None:
+    """The lifecycle must not turn an expired approval into executable text."""
+    moment = [datetime(2026, 9, 21, tzinfo=UTC)]
+    session = RequestGraphSession(
+        engine=FakeEngine(
+            [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)]
+        ),
+        executor=_always_ok_executor,
+        clock=lambda: moment[0],
+        ttl_seconds=60.0,
+    )
+    lifecycle = RequestGraphLifecycle(
+        session=session, timestamp_source=lambda: "2026-09-21T00:00:00Z"
+    )
+    pending = lifecycle(request())
+    assert isinstance(pending, ValidatedPlanResponseV1)
+    moment[0] += timedelta(seconds=61)
+
+    response = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id=pending.plan_id,
+        )
+    )
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.failure.category == "expired"
+    assert response.failure.retryable is True
+
+
+def test_apply_without_a_matching_pending_plan_is_refused() -> None:
+    """A stale approval cannot make the lifecycle return executable text."""
+    lifecycle = _lifecycle(FakeEngine([]))
+
+    response = lifecycle.apply(
+        ApplyRequestV1(
+            request_id="33333333-3333-4333-8333-333333333333",
+            session_id=SESSION_ID,
+            plan_id="44444444-4444-4444-8444-444444444444",
+        )
+    )
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.failure.category == FAILURE_NO_PENDING_PLAN
 
 
 if __name__ == "__main__":

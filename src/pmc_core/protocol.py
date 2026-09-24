@@ -160,6 +160,22 @@ def _timestamp(value: object, *, name: str) -> str:
     return text
 
 
+def parse_utc_timestamp(value: str) -> datetime:
+    """Parse one strict V1 RFC3339 UTC timestamp.
+
+    Args:
+        value: Timestamp in the protocol's UTC wire form.
+
+    Returns:
+        The corresponding timezone-aware UTC moment.
+
+    Raises:
+        ProtocolDecodeError: If ``value`` is not a protocol timestamp.
+    """
+    text = _timestamp(value, name="timestamp")
+    return datetime.fromisoformat(text[:-1] + "+00:00")
+
+
 def _int(value: object, *, name: str) -> int:
     """Require a protocol value to be an integer, not a bool.
 
@@ -605,6 +621,100 @@ class RejectRequestV1:
 
 
 @dataclass(frozen=True)
+class ApplyRequestV1:
+    """A strictly decoded request to approve one pending plan."""
+
+    request_id: str
+    session_id: str
+    plan_id: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the request using its V1 wire-field names."""
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+            "planId": self.plan_id,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ApplyRequestV1:
+        """Decode and validate a V1 apply request."""
+        data = _strict_object(
+            value,
+            name="ApplyRequestV1",
+            required={"protocolVersion", "requestId", "sessionId", "planId"},
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
+            plan_id=_uuid4(data["planId"], name="planId"),
+        )
+
+
+APPLY_OUTCOME_APPLIED = "applied"
+APPLY_OUTCOME_RESTORED = "restored"
+APPLY_OUTCOME_ROLLED_BACK = "rolled_back"
+APPLY_OUTCOMES: frozenset[str] = frozenset(
+    {
+        APPLY_OUTCOME_APPLIED,
+        APPLY_OUTCOME_RESTORED,
+        APPLY_OUTCOME_ROLLED_BACK,
+    }
+)
+
+
+@dataclass(frozen=True)
+class ApplyOutcomeRequestV1:
+    """A strictly decoded terminal outcome for one approved plan."""
+
+    request_id: str
+    session_id: str
+    plan_id: str
+    outcome: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the outcome request using its V1 wire-field names."""
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+            "planId": self.plan_id,
+            "outcome": self.outcome,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> ApplyOutcomeRequestV1:
+        """Decode and validate a V1 apply-outcome request."""
+        data = _strict_object(
+            value,
+            name="ApplyOutcomeRequestV1",
+            required={
+                "protocolVersion",
+                "requestId",
+                "sessionId",
+                "planId",
+                "outcome",
+            },
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        outcome = _string(data["outcome"], name="outcome")
+        if outcome not in APPLY_OUTCOMES:
+            raise ProtocolDecodeError("unsupported apply outcome")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
+            plan_id=_uuid4(data["planId"], name="planId"),
+            outcome=outcome,
+        )
+
+
+@dataclass(frozen=True)
 class CancelRequestV1:
     """A strictly decoded request to cancel a session's pending plan.
 
@@ -965,6 +1075,8 @@ class ValidatedPlanResponseV1:
     validation: ValidationReportV1
     plan_id: str
     snapshot_digest: str
+    expires_at: str
+    model_identity: str
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
@@ -984,6 +1096,8 @@ class ValidatedPlanResponseV1:
                 "planId": self.plan_id,
                 "planVersion": self.protocol_version,
                 "snapshotDigest": self.snapshot_digest,
+                "expiresAt": self.expires_at,
+                "modelIdentity": self.model_identity,
                 "commands": encode_plan(self.action_plan),
             },
             "validation": self.validation.to_dict(),
@@ -1021,7 +1135,29 @@ class ValidatedPlanResponseV1:
         if data["status"] != "validated":
             raise ProtocolDecodeError("response status is not validated")
         action_plan_data = _object(data["actionPlan"], name="actionPlan")
-        plan = decode_plan(action_plan_data)
+        _strict_object(
+            action_plan_data,
+            name="actionPlan",
+            required={
+                "planId",
+                "planVersion",
+                "snapshotDigest",
+                "expiresAt",
+                "modelIdentity",
+                "commands",
+            },
+        )
+        # ExecutionRequestV1 intentionally keeps the smaller, exact action-plan
+        # wire schema.  Approval metadata belongs only to the validated response,
+        # so project the shared plan payload rather than widening that boundary.
+        plan = decode_plan(
+            {
+                "planId": action_plan_data["planId"],
+                "planVersion": action_plan_data["planVersion"],
+                "snapshotDigest": action_plan_data["snapshotDigest"],
+                "commands": action_plan_data["commands"],
+            }
+        )
         validation = ValidationReportV1.from_dict(data["validation"])
         snapshot_digest = _string(
             action_plan_data["snapshotDigest"], name="snapshotDigest"
@@ -1039,6 +1175,12 @@ class ValidatedPlanResponseV1:
             validation=validation,
             plan_id=_uuid4(action_plan_data["planId"], name="planId"),
             snapshot_digest=snapshot_digest,
+            expires_at=_timestamp(
+                action_plan_data["expiresAt"], name="expiresAt"
+            ),
+            model_identity=_string(
+                action_plan_data["modelIdentity"], name="modelIdentity"
+            ),
         )
 
 
@@ -1498,7 +1640,9 @@ def encode_json(
     | ValidatedPlanResponseV1
     | FailedPlanResponseV1
     | RejectRequestV1
-    | CancelRequestV1,
+    | CancelRequestV1
+    | ApplyRequestV1
+    | ApplyOutcomeRequestV1,
 ) -> str:
     """Encode a supported protocol value as compact JSON.
 
@@ -1626,3 +1770,21 @@ def decode_cancel_request_json(value: str) -> CancelRequestV1:
     except (ValueError, RecursionError) as error:
         raise ProtocolDecodeError("invalid JSON") from error
     return CancelRequestV1.from_dict(decoded)
+
+
+def decode_apply_request_json(value: str) -> ApplyRequestV1:
+    """Decode JSON strictly as a V1 apply request."""
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return ApplyRequestV1.from_dict(decoded)
+
+
+def decode_apply_outcome_request_json(value: str) -> ApplyOutcomeRequestV1:
+    """Decode JSON strictly as a V1 apply-outcome request."""
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return ApplyOutcomeRequestV1.from_dict(decoded)
