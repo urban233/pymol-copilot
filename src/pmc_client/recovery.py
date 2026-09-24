@@ -51,6 +51,9 @@ class RecoveryStore:
         self._root = (Path.home() if root is None else root).resolve()
         self._retained: Path | None = None
         self._previous: Path | None = None
+        # A failed cleanup must not become an active rollback handle, but
+        # its path must remain reachable for a later close() retry.
+        self._obsolete: list[Path] = []
 
     @property
     def retained(self) -> Path | None:
@@ -124,6 +127,7 @@ class RecoveryStore:
         try:
             previous.unlink(missing_ok=True)
         except OSError as error:
+            self._obsolete.append(previous)
             raise RecoveryPointError(
                 "could not discard previous recovery point"
             ) from error
@@ -160,6 +164,8 @@ class RecoveryStore:
         try:
             path.unlink(missing_ok=True)
         except OSError as error:
+            if previous is not None:
+                self._obsolete.append(path)
             raise RecoveryPointError(
                 "could not discard recovery point"
             ) from error
@@ -189,9 +195,19 @@ class RecoveryStore:
         return path
 
     def close(self) -> None:
-        """Discard a retained point when its owning PyMOL session ends."""
-        self.discard()
-        self.discard()
+        """Discard active points and retry cleanup of obsolete files."""
+        try:
+            self.discard()
+            self.discard()
+        finally:
+            for path in tuple(self._obsolete):
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    # The earlier failed commit/discard already raised a
+                    # warning. Keep this path for a later close() attempt.
+                    continue
+                self._obsolete.remove(path)
 
     @staticmethod
     def _remove_unretained(path: Path | None) -> None:

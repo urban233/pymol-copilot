@@ -89,6 +89,51 @@ def test_second_save_keeps_the_previous_point_until_commit(
     assert store.retained == second
 
 
+@pytest.mark.parametrize("consume_before_close", [False, True])
+def test_failed_commit_keeps_old_file_for_cleanup_without_redirecting_rollback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    consume_before_close: bool,
+) -> None:
+    """A locked old point is retried on close, while B remains active."""
+    store = RecoveryStore(tmp_path)
+    first = store.save(_FakeCmd(), "first")
+    second = store.save(_FakeCmd(), "second")
+    real_unlink = Path.unlink
+    locked = True
+
+    def fail_first(self: Path, *, missing_ok: bool = False) -> None:
+        if self == first and locked:
+            raise OSError("locked")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", fail_first)
+    with pytest.raises(RecoveryPointError, match="previous recovery point"):
+        store.commit()
+
+    assert first.exists()
+    assert second.exists()
+    assert store.retained == second
+    assert store._previous is None
+    assert store._obsolete == [first]
+
+    if consume_before_close:
+        store.consume()
+        assert not second.exists()
+        assert store.retained is None
+        assert first.exists()
+
+    store.close()
+    assert first.exists()
+    assert store._obsolete == [first]
+    assert not second.exists()
+
+    locked = False
+    store.close()
+    assert not first.exists()
+    assert store._obsolete == []
+
+
 def test_failed_second_apply_restores_the_previous_point(
     tmp_path: Path,
 ) -> None:
@@ -125,6 +170,11 @@ def test_failed_second_apply_keeps_previous_even_if_cleanup_fails(
     assert store.retained == first
     assert first.exists()
     assert second.exists()
+
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+    store.close()
+    assert not first.exists()
+    assert not second.exists()
 
 
 def test_failed_replacement_preserves_the_previous_retained_point(
