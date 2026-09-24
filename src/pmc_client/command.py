@@ -410,7 +410,8 @@ class CopilotCommandClient:
         cmd.extend("copilot_rollback", self.copilot_rollback)
 
     def close(self) -> None:
-        """Remove this session's retained recovery point on shutdown."""
+        """Retry pending status reports and close private recovery storage."""
+        self._flush_unreported_outcomes()
         if self._recovery_store is not None:
             self._recovery_store.close()
 
@@ -433,6 +434,10 @@ class CopilotCommandClient:
         """Report the permanent failed-restore latch, if it is set."""
         if self._halted_recovery is None:
             return False
+        # The live session remains off-limits, but a status report is safe
+        # and can release a server graph parked at applying. A transport
+        # failure leaves the report queued for the next command or close().
+        self._flush_unreported_outcomes()
         self._output(
             f"{command}: Copilot is halted after a failed restore. "
             f"Recovery point preserved at {self._halted_recovery}. Restart "
@@ -484,6 +489,14 @@ class CopilotCommandClient:
             )
         return True
 
+    def _flush_unreported_outcomes(self) -> bool:
+        """Retry every queued report without querying or mutating PyMOL."""
+        confirmed = True
+        for unresolved in tuple(self._unreported_outcomes):
+            if not self._send_outcome(*unresolved):
+                confirmed = False
+        return confirmed
+
     def _settle_uncertain_approval(self, plan_id: str) -> bool:
         """Close a possibly approved request that was never applied locally."""
         if self._uncertain_approval != plan_id:
@@ -507,13 +520,12 @@ class CopilotCommandClient:
         if self._cmd is None:
             raise RuntimeError("copilot invoked before register()")
 
-        for unresolved in tuple(self._unreported_outcomes):
-            if not self._send_outcome(*unresolved):
-                self._output(
-                    "copilot: previous apply outcome is still unconfirmed; "
-                    "retry after the server is available."
-                )
-                return
+        if not self._flush_unreported_outcomes():
+            self._output(
+                "copilot: previous apply outcome is still unconfirmed; "
+                "retry after the server is available."
+            )
+            return
         if (
             self._uncertain_approval is not None
             and not self._settle_uncertain_approval(self._uncertain_approval)

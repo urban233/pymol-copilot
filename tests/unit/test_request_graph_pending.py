@@ -12,6 +12,8 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import threading
 import time
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -37,6 +39,7 @@ from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
+from pmc_agent.session import MAX_OUTCOME_RECEIPTS
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import ExecutionReport
@@ -55,6 +58,33 @@ from pmc_core.snapshot import to_json
 _OBJECT_NAME = "fx"
 _SESSION_ID = "22222222-2222-4222-8222-222222222222"
 _VALID_COMPLETION = "orient chain A\n"
+
+
+class _PausingReceipts(OrderedDict[tuple[str, str, str], dict[str, object]]):
+    """Hold one replay touch so another session can try to evict it."""
+
+    def __init__(
+        self,
+        contents: OrderedDict[tuple[str, str, str], dict[str, object]],
+        *,
+        paused_key: tuple[str, str, str],
+        entered: threading.Event,
+        release: threading.Event,
+    ) -> None:
+        """Copy receipts and arm a single paused move of `paused_key`."""
+        super().__init__(contents)
+        self._paused_key = paused_key
+        self._entered = entered
+        self._release = release
+        self._armed = True
+
+    def move_to_end(self, key: tuple[str, str, str], last: bool = True) -> None:
+        """Pause once before touching the oldest replay receipt."""
+        if self._armed and key == self._paused_key:
+            self._armed = False
+            self._entered.set()
+            assert self._release.wait(timeout=5)
+        super().move_to_end(key, last=last)
 
 
 class _FakeClock:
@@ -538,6 +568,56 @@ def test_restored_and_rollback_receipts_replay_independently() -> None:
         )
         == rolled_back
     )
+
+
+def test_cross_session_eviction_cannot_race_a_receipt_replay() -> None:
+    """A replay touch and another session's eviction share one cache lock."""
+    session = RequestGraphSession(engine=FakeEngine([]))
+    oldest_key = (_SESSION_ID, "oldest-plan", "restored")
+    terminal: dict[str, object] = {"status": TERMINAL_APPLY_FAILED_RESTORED}
+    session._remember_outcome(oldest_key, terminal)
+    for index in range(MAX_OUTCOME_RECEIPTS - 1):
+        session._remember_outcome(
+            (f"other-{index}", f"plan-{index}", "restored"), terminal
+        )
+    replay_entered = threading.Event()
+    allow_replay = threading.Event()
+    insertion_started = threading.Event()
+    insertion_done = threading.Event()
+    session._outcome_receipts = _PausingReceipts(
+        session._outcome_receipts,
+        paused_key=oldest_key,
+        entered=replay_entered,
+        release=allow_replay,
+    )
+
+    def insert_from_another_session() -> None:
+        """Try to evict the oldest entry while its replay is paused."""
+        insertion_started.set()
+        session._remember_outcome(
+            ("new-session", "new-plan", "applied"),
+            {"status": TERMINAL_APPLIED},
+        )
+        insertion_done.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        replay = pool.submit(
+            session.report_apply_outcome,
+            session_id=_SESSION_ID,
+            plan_id="oldest-plan",
+            outcome="restored",
+        )
+        assert replay_entered.wait(timeout=5)
+        insertion = pool.submit(insert_from_another_session)
+        try:
+            assert insertion_started.wait(timeout=5)
+            # Before the shared lock, insertion evicted the replayed key
+            # here, then replay's move_to_end raised KeyError.
+            assert not insertion_done.wait(timeout=0.05)
+        finally:
+            allow_replay.set()
+        assert replay.result(timeout=5) == terminal
+        insertion.result(timeout=5)
 
 
 def test_applied_plan_can_be_rolled_back_after_a_new_preview() -> None:

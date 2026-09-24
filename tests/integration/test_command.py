@@ -1691,6 +1691,96 @@ def test_copilot_apply_reports_restored_when_recovery_cleanup_fails(
     ]
 
 
+def test_halted_client_retries_failed_outcome_without_live_operations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed restore stays halted but can still settle its server thread."""
+    output: list[str] = []
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+        dispatcher=lambda _cmd, _plan: PlanRunResult("failed", "test", ()),
+    )
+
+    def failed_load(_filename: str, *, partial: int) -> None:
+        assert partial == 0
+        live.events.append("load")
+        raise RuntimeError("restore failed")
+
+    monkeypatch.setattr(live, "load", failed_load)
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def report_after_outage(
+        request: ApplyOutcomeRequestV1,
+    ) -> FailedPlanResponseV1:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise TransportError("outcome endpoint unavailable")
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", report_after_outage)
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert client._halted_recovery is not None
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+    events_after_failure = list(live.events)
+    assert events_after_failure == ["save", "load"]
+
+    client.copilot("Another preview")
+
+    assert attempts == 2
+    assert len(transport.requests) == 1
+    assert live.events == events_after_failure
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+
+    client.copilot("Another preview")
+
+    assert attempts == 3
+    assert len(transport.requests) == 1
+    assert live.events == events_after_failure
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._unreported_outcomes == []
+    assert output[-1].startswith("copilot: Copilot is halted")
+
+
+def test_close_retries_an_unconfirmed_outcome(tmp_path: Path) -> None:
+    """Shutdown makes one final status attempt without touching PyMOL."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client._unreported_outcomes.append(
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    )
+
+    client.close()
+
+    assert client._unreported_outcomes == []
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert live.events == []
+
+
 def test_copilot_apply_refuses_changed_server_text_before_save(
     tmp_path: Path,
 ) -> None:

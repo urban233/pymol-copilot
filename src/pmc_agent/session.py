@@ -187,6 +187,10 @@ class RequestGraphSession:
         self._outcome_receipts: OrderedDict[
             tuple[str, str, str], dict[str, object]
         ] = OrderedDict()
+        # Session locks do not serialize operations across different
+        # sessions; every read and mutation of this shared LRU needs its
+        # own lock, including the paired get/move_to_end replay lookup.
+        self._outcome_receipts_lock = threading.Lock()
         self._checkpointer = InMemorySaver()
         self._graph = build_request_graph(
             engine=engine,
@@ -506,10 +510,11 @@ class RequestGraphSession:
         slot = self._acquire_session(session_id)
         try:
             receipt_key = (session_id, plan_id, outcome)
-            receipt = self._outcome_receipts.get(receipt_key)
-            if receipt is not None:
-                self._outcome_receipts.move_to_end(receipt_key)
-                return dict(receipt)
+            with self._outcome_receipts_lock:
+                receipt = self._outcome_receipts.get(receipt_key)
+                if receipt is not None:
+                    self._outcome_receipts.move_to_end(receipt_key)
+                    return dict(receipt)
             snapshot = self._graph.get_state(config)
             applied = self._applied_details.get(session_id)
             if (
@@ -559,10 +564,11 @@ class RequestGraphSession:
         self, key: tuple[str, str, str], result: dict[str, object]
     ) -> None:
         """Retain a bounded exact-terminal receipt for a lost HTTP reply."""
-        self._outcome_receipts[key] = dict(result)
-        self._outcome_receipts.move_to_end(key)
-        if len(self._outcome_receipts) > MAX_OUTCOME_RECEIPTS:
-            self._outcome_receipts.popitem(last=False)
+        with self._outcome_receipts_lock:
+            self._outcome_receipts[key] = dict(result)
+            self._outcome_receipts.move_to_end(key)
+            if len(self._outcome_receipts) > MAX_OUTCOME_RECEIPTS:
+                self._outcome_receipts.popitem(last=False)
 
     def cancel(self, *, session_id: str) -> dict[str, object] | None:
         """Resume `session_id`'s pending plan as cancelled.
