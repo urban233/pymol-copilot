@@ -410,8 +410,10 @@ class CopilotCommandClient:
         cmd.extend("copilot_rollback", self.copilot_rollback)
 
     def close(self) -> None:
-        """Retry pending status reports and close private recovery storage."""
+        """Settle unfinished server status and close recovery storage."""
         self._flush_unreported_outcomes()
+        if self._uncertain_approval is not None:
+            self._settle_uncertain_approval(self._uncertain_approval)
         if self._recovery_store is not None:
             self._recovery_store.close()
 

@@ -1224,6 +1224,65 @@ def test_new_preview_settles_a_lost_approval_before_submitting(
     assert client._uncertain_approval is None
 
 
+@pytest.mark.parametrize("outcome_report_lost", [False, True])
+def test_close_settles_a_lost_approval_reply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    outcome_report_lost: bool,
+) -> None:
+    """Shutdown reports no local mutation after an uncertain approval."""
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+    assert client._uncertain_approval is not None
+
+    if outcome_report_lost:
+        original_report = transport.report_apply_outcome
+        attempts = 0
+
+        def report_after_outage(
+            request: ApplyOutcomeRequestV1,
+        ) -> FailedPlanResponseV1:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise TransportError("outcome response lost")
+            return original_report(request)
+
+        monkeypatch.setattr(
+            transport, "report_apply_outcome", report_after_outage
+        )
+        client.copilot("Another preview")
+        assert client._unreported_outcomes == [
+            ("55555555-5555-4555-8555-555555555555", "restored")
+        ]
+        assert len(transport.requests) == 1
+
+    client.close()
+
+    assert live.events == []
+    assert len(transport.requests) == 1
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+    assert client._unreported_outcomes == []
+
+
 def test_expired_local_retry_settles_a_lost_approval(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
