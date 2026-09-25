@@ -20,7 +20,16 @@ spec, not by sequence cluster.
 The held-out set is frozen. The spec says test splits are immutable
 after inspection begins, so changing `HELD_OUT_SPEC_IDS` must bump
 `SPLIT_VERSION`, and `tests/data/test_split.py` pins both together so a
-silent edit fails CI.
+silent edit fails CI. So must changing what the split excludes: version
+2 is version 1 with every `slice` sample removed, after the label audit
+judged one wrong.
+
+**Exclusions.** `configs/generation/split.json` can name representations
+whose samples are removed from the split entirely -- from training and
+from the held-out synthetic set alike -- and written to
+`excluded.jsonl` instead, so none of them disappears unrecorded. A gold
+item using an excluded representation is refused rather than dropped:
+the test split is edited by hand, not filtered.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -34,6 +43,11 @@ from pathlib import Path
 from typing import Any
 from typing import Literal
 
+from pmc_core.parser import parse_pml
+from pmc_core.plan import REPRESENTATION_ALLOWLIST
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import HideOperation
+from pmc_core.plan import ShowOperation
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
 from pmc_data.decontam import METHOD
@@ -49,8 +63,9 @@ from pmc_data.structures import StructureSpec
 from pmc_data.structures import build_structure
 from pmc_data.structures import enumerate_structures
 
-#: The split's own version. Bump it whenever HELD_OUT_SPEC_IDS changes.
-SPLIT_VERSION = 1
+#: The split's own version. Bump it whenever HELD_OUT_SPEC_IDS or the
+#: configured exclusions change.
+SPLIT_VERSION = 2
 
 #: The specs whose structures only the test side may see.
 HELD_OUT_SPEC_IDS: frozenset[str] = frozenset(
@@ -152,6 +167,9 @@ class SplitConfig:
             for, so the dependence on the frozen one is visible.
         audit_sample_size: How many training labels the audit draws.
         audit_seed: The seed the audit draw derives from.
+        excluded_representations: Representations whose samples are
+            removed from the split.
+        exclusion_reason: Why, as the manifest and datasheet record it.
     """
 
     seed: int
@@ -160,6 +178,8 @@ class SplitConfig:
     decontam_sensitivity: tuple[float, ...]
     audit_sample_size: int
     audit_seed: int
+    excluded_representations: tuple[str, ...]
+    exclusion_reason: str
 
 
 def _section(data: Mapping[str, Any], key: str) -> Mapping[str, Any]:
@@ -250,6 +270,22 @@ def load_split_config(path: Path) -> SplitConfig:
         raise InvalidSplitConfigError(
             f"threshold must be in (0, 1], not {threshold}"
         )
+    exclude = _section(data, "exclude")
+    representations = exclude.get("representations")
+    if not isinstance(representations, list) or not all(
+        isinstance(name, str) for name in representations
+    ):
+        raise InvalidSplitConfigError(
+            "'exclude.representations' must be a list of names"
+        )
+    unknown = sorted(set(representations) - set(REPRESENTATION_ALLOWLIST))
+    if unknown:
+        raise InvalidSplitConfigError(
+            f"unknown representations to exclude: {unknown}"
+        )
+    reason = exclude.get("reason")
+    if representations and (not isinstance(reason, str) or not reason):
+        raise InvalidSplitConfigError("an exclusion must state its 'reason'")
     size = _integer(audit, "sample_size")
     if size < 1:
         raise InvalidSplitConfigError(
@@ -264,6 +300,8 @@ def load_split_config(path: Path) -> SplitConfig:
         ),
         audit_sample_size=size,
         audit_seed=_integer(audit, "seed"),
+        excluded_representations=tuple(sorted(set(representations))),
+        exclusion_reason=reason if isinstance(reason, str) else "",
     )
 
 
@@ -288,6 +326,8 @@ class SplitResult:
             as a secondary evaluation set with templated intents.
         dropped: Corpus samples on training structures whose intent
             near-duplicated a gold intent, each with the match.
+        excluded: Corpus samples, from either side, removed because
+            their plan uses an excluded representation.
         sensitivity: How many training samples each configured
             threshold would drop.
         template_overlap: How many training samples would be dropped by
@@ -300,6 +340,7 @@ class SplitResult:
     test_gold: tuple[Sample, ...]
     heldout_synthetic: tuple[Sample, ...]
     dropped: tuple[tuple[Sample, NearDuplicate], ...]
+    excluded: tuple[Sample, ...]
     sensitivity: Mapping[str, int]
     template_overlap: int
 
@@ -392,6 +433,35 @@ def _check_lineage(samples: Sequence[Sample], seed: int) -> None:
             )
 
 
+def uses_representation(sample: Sample, names: frozenset[str]) -> bool:
+    """Say whether a sample's plan shows or hides any of the named ones.
+
+    Read off the plan itself, re-parsed from the canonical .pml the
+    sample records, rather than off its category or its unsupported
+    markers, so the rule applies to what the sample actually does.
+
+    Args:
+        sample: The sample.
+        names: The representation names.
+
+    Returns:
+        True when any show or hide operation uses one of them.
+
+    Raises:
+        InvalidSplitError: If the recorded plan no longer parses.
+    """
+    plan = parse_pml(sample.plan_pml)
+    if not isinstance(plan, ActionPlan):
+        raise InvalidSplitError(
+            f"{sample.sample_id!r}: recorded plan no longer parses"
+        )
+    return any(
+        isinstance(operation, ShowOperation | HideOperation)
+        and operation.representation in names
+        for operation in plan.operations
+    )
+
+
 def build_split(
     *,
     corpus: Sequence[Sample],
@@ -411,12 +481,13 @@ def build_split(
 
     Returns:
         The split. Every corpus sample lands in exactly one of train,
-        heldout_synthetic and dropped.
+        heldout_synthetic, dropped and excluded.
 
     Raises:
         InvalidSplitError: If the corpus is incomplete, the gold set is
-            unreviewed, stale or misplaced, any sample's lineage is
-            broken, or sample ids collide.
+            unreviewed, stale, misplaced or uses an excluded
+            representation, any sample's lineage is broken, or sample
+            ids collide.
     """
     if not corpus_complete:
         raise InvalidSplitError(
@@ -428,12 +499,27 @@ def build_split(
     ids = [s.sample_id for s in (*corpus, *gold_samples)]
     if len(ids) != len(set(ids)):
         raise InvalidSplitError("sample ids are not unique across the inputs")
+    excluded_names = frozenset(config.excluded_representations)
+    bad_gold = [
+        s.sample_id
+        for s in gold_samples
+        if uses_representation(s, excluded_names)
+    ]
+    if bad_gold:
+        raise InvalidSplitError(
+            f"gold items use an excluded representation: {', '.join(bad_gold)}"
+        )
 
+    excluded = tuple(
+        s for s in corpus if uses_representation(s, excluded_names)
+    )
+    excluded_ids = {s.sample_id for s in excluded}
+    kept = tuple(s for s in corpus if s.sample_id not in excluded_ids)
     heldout = tuple(
-        s for s in corpus if side_of(s.structure.spec_id) == SIDE_TEST
+        s for s in kept if side_of(s.structure.spec_id) == SIDE_TEST
     )
     candidates = tuple(
-        s for s in corpus if side_of(s.structure.spec_id) == SIDE_TRAIN
+        s for s in kept if side_of(s.structure.spec_id) == SIDE_TRAIN
     )
     vocabulary = structure_vocabulary(
         build_structure(spec) for spec in enumerate_structures(config.seed)
@@ -456,6 +542,7 @@ def build_split(
             for s in candidates
             if s.sample_id in duplicates
         ),
+        excluded=excluded,
         sensitivity=sensitivity(
             train_pairs,
             gold_pairs,

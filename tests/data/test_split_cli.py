@@ -25,6 +25,7 @@ from pmc_data.gold_set import write_gold_items
 from pmc_data.manifest import DATA_FILES
 from pmc_data.sample import read_samples
 from pmc_data.split import HELD_OUT_SPEC_IDS
+from pmc_data.split import uses_representation
 
 
 @pytest.fixture
@@ -106,6 +107,7 @@ def test_every_corpus_sample_lands_exactly_once(repo: Repo) -> None:
     placed = (
         [s.sample_id for s in read_samples(split / "train.jsonl")]
         + [s.sample_id for s in read_samples(split / "heldout_synthetic.jsonl")]
+        + [s.sample_id for s in read_samples(split / "excluded.jsonl")]
         + dropped
     )
 
@@ -134,6 +136,40 @@ def test_a_near_duplicate_is_dropped_with_its_match(repo: Repo) -> None:
     assert dropped[repo.duplicated_train_id]["score"] == 1.0
     assert {record["gold_id"] for record in dropped.values()} == {"gold_001"}
     assert all(record["score"] >= 0.5 for record in dropped.values())
+
+
+def test_excluded_representations_are_dropped_from_both_sides(
+    repo: Repo,
+) -> None:
+    """No slice sample survives anywhere; each is recorded as excluded."""
+    assert _build(repo) == 0
+    split = _only_split(repo.out)
+    slice_only = frozenset(("slice",))
+
+    for name in ("train.jsonl", "heldout_synthetic.jsonl"):
+        assert not [
+            s.sample_id
+            for s in read_samples(split / name)
+            if uses_representation(s, slice_only)
+        ], name
+    excluded = read_samples(split / "excluded.jsonl")
+    assert {s.structure.spec_id for s in excluded} == {
+        "minimal_single_chain",
+        "two_chains_hetatm",
+    }
+    manifest = json.loads((split / "manifest.json").read_text("utf-8"))
+    assert manifest["counts"]["excluded"] == len(excluded)
+    assert manifest["provenance"]["exclusions"]["representations"] == ["slice"]
+
+
+def test_refuses_gold_using_an_excluded_representation(repo: Repo) -> None:
+    """The test split is edited by hand, never silently filtered."""
+    config = repo.root / "configs" / "generation" / "split.json"
+    data = json.loads(config.read_text("utf-8"))
+    data["exclude"]["representations"] = ["slice", "sticks"]
+    config.write_text(json.dumps(data), encoding="utf-8")
+
+    assert _build(repo) == 1
 
 
 def test_refuses_unreviewed_gold(repo: Repo) -> None:

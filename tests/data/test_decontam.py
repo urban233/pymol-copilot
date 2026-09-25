@@ -110,6 +110,39 @@ def test_an_unknown_method_is_refused(tmp_path: Path) -> None:
         load_split_config(path)
 
 
+def test_the_frozen_config_excludes_slice() -> None:
+    """Every slice sample is dropped, and the config says why."""
+    assert CONFIG.excluded_representations == ("slice",)
+    assert CONFIG.exclusion_reason
+
+
+@pytest.mark.parametrize(
+    ("exclude", "match"),
+    [
+        ({"representations": ["splice"], "reason": "x"}, "unknown"),
+        ({"representations": ["slice"]}, "reason"),
+        ({"representations": "slice", "reason": "x"}, "list"),
+    ],
+)
+def test_a_malformed_exclusion_is_refused(
+    tmp_path: Path, exclude: dict[str, object], match: str
+) -> None:
+    """An exclusion must name real representations and give its reason.
+
+    Args:
+        tmp_path: Scratch directory.
+        exclude: The malformed exclude section.
+        match: What the refusal must mention.
+    """
+    data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    data["exclude"] = exclude
+    path = tmp_path / "split.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(InvalidSplitConfigError, match=match):
+        load_split_config(path)
+
+
 def test_normalization_folds_only_what_it_claims() -> None:
     """Case, punctuation, spacing and British spelling fold; nothing else."""
     assert normalize_intent("  Colour Chain-A, RED!  ") == "color chain a red"

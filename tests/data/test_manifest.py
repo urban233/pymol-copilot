@@ -139,6 +139,46 @@ def test_a_multi_line_license_stays_one_list_item() -> None:
     assert manifest_module._first_line("BSD") == "BSD"
 
 
+def test_earlier_audits_are_carried_into_the_datasheet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A superseded version's audit stays on record in the new datasheet.
+
+    Args:
+        tmp_path: Scratch directory.
+        monkeypatch: Re-roots the binary.
+    """
+    repo = make_repo(tmp_path)
+    monkeypatch.setattr(split_cli, "REPO_ROOT", tmp_path)
+    history = repo.docs / "history" / "split-0123456789abcdef"
+    history.mkdir(parents=True)
+    audit = {
+        "wrong": 1,
+        "judged": 50,
+        "error_rate": 0.02,
+        "wilson_low": 0.0035,
+        "wilson_high": 0.105,
+        "auditor": "Martin",
+    }
+    (history / "manifest.json").write_text(
+        json.dumps(
+            {"split_id": "0123456789abcdef", "split_version": 1, "audit": audit}
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        split_cli.run(["build", "--corpus", str(repo.corpus)], git=GIT_CLEAN)
+        == 0
+    )
+    (found,) = repo.out.glob("split-*")
+    manifest = read_manifest(found / "manifest.json")
+    datasheet = (found / "DATASHEET.md").read_text("utf-8")
+
+    assert manifest["previous_audits"][0]["audit"] == audit
+    assert "Split version 1 (`0123456789abcdef`): 1/50 wrong" in datasheet
+
+
 def test_datasheet_states_the_limits(split: Path) -> None:
     """The datasheet says what the split does not establish."""
     text = (split / "DATASHEET.md").read_text("utf-8")

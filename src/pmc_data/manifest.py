@@ -41,6 +41,7 @@ DATA_FILES = (
     "test_gold.jsonl",
     "heldout_synthetic.jsonl",
     "decontam_dropped.jsonl",
+    "excluded.jsonl",
 )
 
 #: The top-level fields every manifest must carry.
@@ -55,6 +56,7 @@ REQUIRED_FIELDS = (
     "regeneration",
     "audit_plan",
     "audit",
+    "previous_audits",
 )
 
 #: The provenance fields every manifest must carry.
@@ -70,6 +72,7 @@ REQUIRED_PROVENANCE = (
     "seed",
     "held_out_spec_ids",
     "decontam",
+    "exclusions",
 )
 
 
@@ -251,6 +254,40 @@ def _audit_section(audit: Mapping[str, Any] | None) -> str:
     )
 
 
+def _previous_section(previous: Sequence[Mapping[str, Any]]) -> str:
+    """Render the audits of earlier, superseded split versions.
+
+    Args:
+        previous: One record per earlier version, oldest first.
+
+    Returns:
+        The subsection, or nothing when there is no earlier version.
+    """
+    if not previous:
+        return ""
+    lines = [
+        "\n\nEarlier split versions, superseded by this one and kept in "
+        "`docs/dataset/history/`:\n"
+    ]
+    for record in previous:
+        audit = record["audit"]
+        result = (
+            "not audited"
+            if audit is None
+            else (
+                f"{audit['wrong']}/{audit['judged']} wrong = "
+                f"{audit['error_rate']:.3f} (Wilson 95% interval "
+                f"{audit['wilson_low']:.3f}-{audit['wilson_high']:.3f}), "
+                f"judged by {audit['auditor']}"
+            )
+        )
+        lines.append(
+            f"- Split version {record['split_version']} "
+            f"(`{record['split_id']}`): {result}."
+        )
+    return "\n".join(lines)
+
+
 def render_datasheet(manifest: Mapping[str, Any]) -> str:
     """Render the datasheet for one manifest.
 
@@ -267,6 +304,12 @@ def render_datasheet(manifest: Mapping[str, Any]) -> str:
     files = manifest["files"]
     authorship = provenance["gold_authorship"]
     held_out = ", ".join(f"`{s}`" for s in provenance["held_out_spec_ids"])
+    earlier = _previous_section(manifest["previous_audits"])
+    exclusions = provenance["exclusions"]
+    excluded = (
+        ", ".join(f"`{name}`" for name in exclusions["representations"])
+        or "none"
+    )
     split_rows = [
         (
             name,
@@ -323,6 +366,8 @@ never saw, on intents a person wrote rather than a template.
 - **`decontam_dropped.jsonl`** -- training samples removed because their
   intent near-duplicated a gold intent, each with the gold item it
   matched.
+- **`excluded.jsonl`** -- corpus samples removed from both sides
+  because their plan uses an excluded representation.
 
 Each sample carries its structure identity and checksum, every
 contract version, the canonical plan, the prompt as the model sees it,
@@ -351,6 +396,9 @@ executor's verification record.
 - **Split by source structure.** Held out: {held_out}. Every
   structural feature appears on both sides. No held-out structure's
   spec, snapshot hash or structure digest appears in training.
+- **Excluded representations: {excluded}.** {counts["excluded"]} corpus
+  samples whose plan shows or hides one were removed from training and
+  from `heldout_synthetic` alike. Reason: {exclusions["reason"]}.
 - **Decontamination** (`{decontam["method"]}`, threshold
   {decontam["threshold"]}) dropped {counts["decontam_dropped"]} training
   samples whose intent names the same entities as a gold intent and is
@@ -364,7 +412,7 @@ executor's verification record.
 
 ## Label audit
 
-{_audit_section(manifest["audit"])}
+{_audit_section(manifest["audit"])}{earlier}
 
 ## Uses
 

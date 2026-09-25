@@ -10,7 +10,9 @@ with `oracle_executor.oracle_report` standing in for the PyMOL child,
 so lineage checks see exactly what a real run would record.
 
 One gold intent is deliberately a near-duplicate of one training
-intent, so decontamination has something to drop.
+intent, so decontamination has something to drop, and one `show slice`
+sample sits on each side, so the configured exclusion has something to
+remove.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -27,7 +29,16 @@ from pmc_data.gold_set import write_gold_items
 from pmc_data.sample import Sample
 from pmc_data.sample import write_samples
 from pmc_data.structures import build_structure
+from pmc_core.plan import ActionPlan
+from pmc_core.plan import ChainTerm
+from pmc_core.plan import AndClause
+from pmc_core.plan import Factor
+from pmc_core.plan import SelectionExpression
+from pmc_core.plan import ShowOperation
 from pmc_data.structures import enumerate_structures
+from pmc_data.taxonomy import PlanCandidate
+from pmc_data.taxonomy import categorize
+from pmc_data.taxonomy import difficulty_of
 from pmc_data.taxonomy import enumerate_plans
 
 SEED = 20260921
@@ -91,7 +102,42 @@ def _corpus() -> list[Sample]:
             if isinstance(result, Sample):
                 samples.append(result)
                 kept += 1
+    for spec_id in (TRAIN_SPECS[0], HELD_OUT_SPECS[0]):
+        spec = specs[spec_id]
+        result = verify_sample(
+            build_structure(spec),
+            spec,
+            _slice_candidate(),
+            sample_id=f"{spec_id}_slice",
+            executor=oracle_report,
+        )
+        assert isinstance(result, Sample), result
+        samples.append(result)
     return samples
+
+
+def _slice_candidate() -> PlanCandidate:
+    """Build the `show slice, chain A` candidate the exclusion removes.
+
+    Returns:
+        The candidate.
+    """
+    plan = ActionPlan(
+        operations=(
+            ShowOperation(
+                representation="slice",
+                target=SelectionExpression(
+                    clauses=(AndClause(factors=(Factor(term=ChainTerm("A")),)),)
+                ),
+            ),
+        )
+    )
+    return PlanCandidate(
+        plan=plan,
+        category=categorize(plan),
+        difficulty=difficulty_of(plan),
+        intent="Show chain A as slice.",
+    )
 
 
 def _gold(duplicate_of: Sample) -> list[GoldItem]:
@@ -175,6 +221,10 @@ def make_repo(root: Path, *, complete: bool = True) -> Repo:
                     "sensitivity": [0.3, 0.5, 0.7],
                 },
                 "audit": {"sample_size": AUDIT_SIZE, "seed": 7},
+                "exclude": {
+                    "representations": ["slice"],
+                    "reason": "fixture exclusion",
+                },
             }
         ),
         encoding="utf-8",

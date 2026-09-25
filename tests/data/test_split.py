@@ -86,7 +86,7 @@ def test_split_is_frozen() -> None:
     split has been inspected.
     """
     assert (SPLIT_VERSION, tuple(sorted(HELD_OUT_SPEC_IDS))) == (
-        1,
+        2,
         (
             "altloc_two_residues",
             "everything_bonded",

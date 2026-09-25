@@ -11,7 +11,8 @@ Three subcommands:
         --split data/splits/split-<id> --auditor martin
 
 `build` divides a completed corpus run and the committed gold set into
-`train`, `test_gold`, `heldout_synthetic` and `decontam_dropped`, and
+`train`, `test_gold`, `heldout_synthetic`, `decontam_dropped` and
+`excluded`, and
 writes them under `data/splits/split-<id>/` with `manifest.json` and
 `DATASHEET.md`. The id is a digest of the data files, so the same inputs
 land in the same directory; an existing split is never overwritten.
@@ -239,6 +240,28 @@ def _single_versions(samples: Sequence[Sample]) -> dict[str, Any]:
     return json.loads(found.pop())
 
 
+def previous_audits(docs: Path) -> list[dict[str, Any]]:
+    """Collect the audits of earlier split versions kept in history.
+
+    Args:
+        docs: The committed dataset documentation directory.
+
+    Returns:
+        One record per earlier version, ordered by split version.
+    """
+    records: list[dict[str, Any]] = []
+    for path in sorted((docs / "history").glob("*/manifest.json")):
+        earlier = json.loads(path.read_text(encoding="utf-8"))
+        records.append(
+            {
+                "split_id": earlier["split_id"],
+                "split_version": earlier["split_version"],
+                "audit": earlier["audit"],
+            }
+        )
+    return sorted(records, key=lambda record: record["split_version"])
+
+
 def build_manifest(
     *,
     result: SplitResult,
@@ -252,6 +275,7 @@ def build_manifest(
     gold_samples_path: Path,
     git: tuple[str, bool],
     root: Path,
+    previous: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Assemble the manifest for one built split.
 
@@ -267,6 +291,7 @@ def build_manifest(
         gold_samples_path: Where the gold samples were read from.
         git: The commit and whether the tree was dirty.
         root: The repository root, for the license file.
+        previous: The audits of earlier split versions.
 
     Returns:
         The manifest, with no audit yet.
@@ -277,6 +302,7 @@ def build_manifest(
         *result.test_gold,
         *result.heldout_synthetic,
         *(sample for sample, _ in result.dropped),
+        *result.excluded,
     )
     drafters = Counter(item.drafted_by for item in gold_items)
     reviewers = Counter(
@@ -315,12 +341,17 @@ def build_manifest(
                 "threshold": config.decontam_threshold,
                 "sensitivity": dict(result.sensitivity),
             },
+            "exclusions": {
+                "representations": list(config.excluded_representations),
+                "reason": config.exclusion_reason or "none",
+            },
         },
         "counts": {
             "train": _counts(result.train),
             "test_gold": _counts(result.test_gold),
             "heldout_synthetic": _counts(result.heldout_synthetic),
             "decontam_dropped": len(result.dropped),
+            "excluded": len(result.excluded),
             "train_candidates": len(result.train) + len(result.dropped),
             "template_overlap": result.template_overlap,
         },
@@ -363,6 +394,7 @@ def build_manifest(
             "seed": config.audit_seed,
         },
         "audit": None,
+        "previous_audits": previous,
     }
 
 
@@ -378,6 +410,7 @@ def _write_parts(directory: Path, result: SplitResult) -> None:
     write_samples(
         directory / "heldout_synthetic.jsonl", result.heldout_synthetic
     )
+    write_samples(directory / "excluded.jsonl", result.excluded)
     with (directory / "decontam_dropped.jsonl").open(
         "w", encoding="utf-8", newline="\n"
     ) as handle:
@@ -470,6 +503,7 @@ def run_build(args: argparse.Namespace, git: tuple[str, bool]) -> int:
         gold_samples_path=gold_samples_path,
         git=git,
         root=REPO_ROOT,
+        previous=previous_audits(_resolve(args.docs)),
     )
     write_json(staging / "manifest.json", manifest)
     (staging / "DATASHEET.md").write_text(
@@ -493,7 +527,8 @@ def run_build(args: argparse.Namespace, git: tuple[str, bool]) -> int:
         f"train={counts['train']['total']} "
         f"test_gold={counts['test_gold']['total']} "
         f"heldout_synthetic={counts['heldout_synthetic']['total']} "
-        f"decontam_dropped={counts['decontam_dropped']}"
+        f"decontam_dropped={counts['decontam_dropped']} "
+        f"excluded={counts['excluded']}"
     )
     print(f"WROTE {final}")
     return 0
