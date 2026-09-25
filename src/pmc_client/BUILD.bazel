@@ -8,6 +8,7 @@ py_library(
         "apply.py",
         "command.py",
         "fidelity.py",
+        "messages.py",
         "recovery.py",
         "session.py",
         "transport.py",

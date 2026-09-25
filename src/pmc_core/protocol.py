@@ -73,7 +73,7 @@ _EXECUTION_ERROR_CATEGORIES: frozenset[str] = _ERROR_ENVELOPE_CATEGORIES
 #: imported: `pmc_core.executor` imports this module, so the reverse import
 #: would cycle. `tests/unit/test_request_graph_transitions.py` cross-checks
 #: this list against the executor's own `REASON_*` constants directly.
-_EXECUTION_INFRASTRUCTURE_CATEGORIES: frozenset[str] = frozenset(
+EXECUTION_INFRASTRUCTURE_CATEGORIES: frozenset[str] = frozenset(
     f"execution_{reason}"
     for reason in (
         "oversized_input",
@@ -93,7 +93,7 @@ _EXECUTION_INFRASTRUCTURE_CATEGORIES: frozenset[str] = frozenset(
 #: the same reason as above: `pmc_agent` depends on this module, not the
 #: reverse. `tests/unit/test_inference_fake.py` cross-checks this list
 #: against `ENGINE_FAILURE_CATEGORIES` directly.
-_ENGINE_FAILURE_CATEGORIES: frozenset[str] = frozenset(
+ENGINE_FAILURE_CATEGORIES: frozenset[str] = frozenset(
     {
         "engine_unavailable",
         "engine_timeout",
@@ -145,8 +145,8 @@ FAILURE_CATEGORIES: frozenset[str] = (
         }
     )
     | _EXECUTION_ERROR_CATEGORIES
-    | _EXECUTION_INFRASTRUCTURE_CATEGORIES
-    | _ENGINE_FAILURE_CATEGORIES
+    | EXECUTION_INFRASTRUCTURE_CATEGORIES
+    | ENGINE_FAILURE_CATEGORIES
 )
 
 
