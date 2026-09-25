@@ -5,7 +5,6 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 from http import HTTPStatus
 from http.client import HTTPConnection
-from http.client import HTTPException
 from http.client import HTTPResponse
 
 from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
@@ -244,7 +243,16 @@ class LoopbackPlanClient:
                     f"server rejected request with HTTP {response.status}"
                 )
             response_payload = self._read_response(response)
-        except (HTTPException, OSError, TimeoutError) as error:
+        except TransportError:
+            raise
+        except Exception as error:
+            # docs/master_plan.md item 11: every failure path must be
+            # bounded, never an unhandled exception escaping into PyMOL's
+            # own command dispatch -- widened past the specific transport
+            # exceptions this library documents, since an HTTP client can
+            # raise other things (a malformed response line, an internal
+            # library assertion) that are just as much "the loopback
+            # request failed" from this module's point of view.
             raise TransportError("loopback request failed") from error
         finally:
             connection.close()
@@ -312,7 +320,12 @@ class LoopbackPlanClient:
                     f"server rejected request with HTTP {response.status}"
                 )
             response_payload = self._read_response(response)
-        except (HTTPException, OSError, TimeoutError) as error:
+        except TransportError:
+            raise
+        except Exception as error:
+            # See health()'s own matching except block for why this is
+            # widened past the specific transport exceptions this library
+            # documents.
             raise TransportError("loopback request failed") from error
         finally:
             connection.close()

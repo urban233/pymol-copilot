@@ -20,6 +20,8 @@ import pathlib
 import re
 import tomllib
 
+import pytest
+
 import pmc_core
 from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
 from pmc_core.protocol import HEALTH_CONTRACT_KEYS
@@ -37,7 +39,14 @@ PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 _VERSION_CONSTANT = re.compile(r"^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_VERSION$")
 
 #: Names that match `_VERSION_CONSTANT` but are not contract versions.
-_NOT_A_CONTRACT_VERSION = frozenset({"REASON_UNSUPPORTED_SCHEMA_VERSION"})
+#: `APPLICATION_VERSION` is this build's own version, reported separately
+#: as `HealthResponseV1.server.applicationVersion`
+#: (`test_application_version_matches_pyproject` below already covers it);
+#: it is not one of the peer-negotiated contract versions
+#: `contract_versions()` aggregates.
+_NOT_A_CONTRACT_VERSION = frozenset(
+    {"REASON_UNSUPPORTED_SCHEMA_VERSION", "APPLICATION_VERSION"}
+)
 
 
 def _wire_key(constant_name: str) -> str:
@@ -188,3 +197,7 @@ def test_health_contract_keys_matches_contract_versions_exactly() -> None:
     one place both are read together.
     """
     assert set(contract_versions()) == HEALTH_CONTRACT_KEYS
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

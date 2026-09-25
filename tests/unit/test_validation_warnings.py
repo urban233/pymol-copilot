@@ -143,3 +143,7 @@ def test_every_warning_stays_within_the_byte_bound(
     for warning in warnings:
         assert len(warning.encode("utf-8")) <= MAX_VALIDATION_WARNING_BYTES
         assert warning.isascii() and warning.isprintable()
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

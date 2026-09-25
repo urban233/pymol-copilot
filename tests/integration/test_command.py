@@ -805,18 +805,29 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
 
 
 def test_registers_all_four_copilot_commands() -> None:
-    """Registration exposes all four commands, bound to the same client."""
+    """Registration exposes all four commands, each reaching its own handler.
+
+    Each registered callback is `_guarded()`'s own wrapper (docs/master_plan.md
+    item 11), not the bound method directly, so identity no longer proves
+    wiring; invoking the simplest one instead proves it actually reaches
+    the real handler behind it.
+    """
+    output: list[str] = []
     session = _RecordingSession()
     client = CopilotCommandClient(
-        RecordingTransport(validated_response, []), lambda _text: None
+        RecordingTransport(validated_response, []), output.append
     )
 
     client.register(session)
 
-    assert session.commands["copilot"] == client.copilot
-    assert session.commands["copilot_apply"] == client.copilot_apply
-    assert session.commands["copilot_reject"] == client.copilot_reject
-    assert session.commands["copilot_rollback"] == client.copilot_rollback
+    assert set(session.commands) == {
+        "copilot",
+        "copilot_apply",
+        "copilot_reject",
+        "copilot_rollback",
+    }
+    session.commands["copilot_reject"]("p-does-not-exist")
+    assert output == ["copilot_reject: no pending plan for this session"]
 
 
 def test_preview_does_not_require_a_home_directory(
@@ -902,7 +913,10 @@ def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
 
     client.copilot(INTENT)
 
-    assert output == ["copilot failed (policy; not retryable): command denied"]
+    assert output == [
+        "copilot: command denied. Run copilot_health to check for a "
+        "version mismatch, then try again."
+    ]
 
 
 def test_transport_failure_reports_bounded_diagnostic() -> None:
@@ -970,8 +984,9 @@ def test_transport_failure_reports_bounded_diagnostic() -> None:
     client.copilot(INTENT)
 
     assert output == [
-        "copilot unavailable: loopback request failed: "
-        "33333333-3333-4333-8333-333333333333"
+        "copilot: loopback request failed: "
+        "33333333-3333-4333-8333-333333333333. Check that the server is "
+        "running, then try again; run copilot_health for details."
     ]
 
 
@@ -1038,7 +1053,10 @@ def test_a_target_resolution_failure_sends_nothing() -> None:
 
     assert requests == []
     assert len(output) == 1
-    assert output[0].startswith("copilot failed: no molecular object")
+    assert (
+        output[0]
+        == "copilot: no molecular object is loaded. Nothing was applied."
+    )
 
 
 def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
@@ -1079,7 +1097,8 @@ def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
 
     assert output == [
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}{first_id} is not "
-        "the pending plan. Nothing was applied."
+        f"the pending plan (pending: {PLAN_ID_DISPLAY_PREFIX}{second_id}); "
+        "apply that, or run copilot again. Nothing was applied."
     ]
 
 
@@ -1128,7 +1147,9 @@ def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
     (get_names/get_type) this module cannot enumerate every failure mode
     of; copilot() must fail closed the same way it already does for a
     failure in extract_live_snapshot(), not let an unrelated exception
-    escape uncaught.
+    escape uncaught. docs/master_plan.md item 11: only the exception's type
+    name is reported, never its own message, since a raw PyMOL exception can
+    carry a selection expression or another fragment of plan text.
     """
     requests: list[PlanRequestV1] = []
     transport = RecordingTransport(validated_response, requests)
@@ -1149,9 +1170,11 @@ def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
     client.copilot(INTENT)
 
     assert requests == []
-    assert len(output) == 1
-    assert output[0].startswith("copilot failed: ")
-    assert "simulated PyMOL-internal query failure" in output[0]
+    assert output == [
+        "copilot: internal error (RuntimeError). Nothing was applied. "
+        "Retry; if it keeps happening, run copilot_health."
+    ]
+    assert "simulated PyMOL-internal query failure" not in output[0]
 
 
 def test_copilot_apply_with_no_pending_plan() -> None:
@@ -1188,7 +1211,10 @@ def test_copilot_apply_with_a_mismatched_id() -> None:
 
     assert output == [
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan "
-        "is not the pending plan. Nothing was applied."
+        "is not the pending plan "
+        f"(pending: {PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-"
+        "555555555555); apply that, or run copilot again. Nothing was "
+        "applied."
     ]
 
 
@@ -1283,7 +1309,10 @@ def test_copilot_apply_can_retry_after_lost_approval_response(
     plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
     client.copilot_apply(plan_id)
 
-    assert output == ["copilot_apply unavailable: approval response lost"]
+    assert output == [
+        "copilot_apply: approval response lost. Check that the server is "
+        "running, then try again; run copilot_health for details."
+    ]
     assert live.events == []
     assert transport.outcome_requests == []
     assert client._pending_plan is not None
@@ -2062,7 +2091,9 @@ def test_copilot_reject_with_a_mismatched_id() -> None:
 
     assert output == [
         f"copilot_reject: plan {PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan "
-        "is not the pending plan"
+        "is not the pending plan "
+        f"(pending: {PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-"
+        "555555555555); reject that, or run copilot again"
     ]
     assert transport.reject_requests == []
 
@@ -2166,8 +2197,9 @@ def test_copilot_reject_transport_failure_reports_bounded_diagnostic() -> None:
     )
 
     assert output == [
-        "copilot_reject unavailable: loopback request failed: "
-        "44444444-4444-4444-8444-444444444444"
+        "copilot_reject: loopback request failed: "
+        "44444444-4444-4444-8444-444444444444. Check that the server is "
+        "running, then try again; run copilot_health for details."
     ]
 
 
@@ -2213,8 +2245,8 @@ def test_copilot_reject_reports_a_non_rejected_terminal() -> None:
     )
 
     assert output == [
-        "copilot_reject failed (expired; retryable): "
-        "the plan's TTL had already passed"
+        "copilot_reject: the plan's TTL had already passed. The plan's "
+        "approval window passed. Run copilot again for a fresh plan."
     ]
 
 

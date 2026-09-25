@@ -757,8 +757,9 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
         server.close()
 
     assert output == [
-        "copilot failed (repair_exhausted; retryable): "
-        "the repair budget was spent with no validated plan"
+        "copilot: the repair budget was spent with no validated plan. "
+        "The model could not produce a valid plan after retrying. "
+        "Rephrase the intent more specifically and run copilot again."
     ]
     assert_session_unchanged(before, after)
 
@@ -793,7 +794,7 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     assert len(output) == 1, (
         f"expected exactly one bounded diagnostic line, got {output!r}"
     )
-    assert output[0].startswith("copilot unavailable: ")
+    assert output[0].startswith("copilot: loopback request failed")
     assert_session_unchanged(before, after)
 
 

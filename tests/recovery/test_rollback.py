@@ -161,7 +161,8 @@ def test_rollback_refusals_do_not_load_or_consume(tmp_path: Path) -> None:
     client.copilot_rollback("p-not-the-plan")
 
     assert output == [
-        "copilot_rollback: plan p-not-the-plan is not the applied plan"
+        "copilot_rollback: plan p-not-the-plan is not the applied plan "
+        "(applied: p-33333333-3333-4333-8333-333333333333)"
     ]
     assert cmd.events == ["save"]
     assert store.retained is not None

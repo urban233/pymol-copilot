@@ -49,6 +49,19 @@ py_test(
 )
 
 py_test(
+    name = "failure_messages",
+    size = "small",
+    srcs = ["test_failure_messages.py"],
+    main = "test_failure_messages.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+py_test(
     name = "subsystem_imports",
     srcs = ["test_subsystem_imports.py"],
     main = "test_subsystem_imports.py",

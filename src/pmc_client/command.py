@@ -46,7 +46,13 @@ from pmc_client.apply import compare_recovery
 from pmc_client.fidelity import FidelityOutcome
 from pmc_client.fidelity import check_fidelity
 from pmc_client.fidelity import to_wire
+from pmc_client.messages import MAX_LINE_BYTES
+from pmc_client.messages import bounded
+from pmc_client.messages import describe_failure
+from pmc_client.messages import describe_transport
+from pmc_client.messages import describe_unexpected
 from pmc_client.session import PyMOLSession
+from pmc_client.session import TargetResolutionError
 from pmc_client.session import extract_live_snapshot
 from pmc_client.session import resolve_target_object
 from pmc_client.transport import LoopbackPlanClient
@@ -498,10 +504,78 @@ class CopilotCommandClient:
         # surface too; retain that internal type so mutation code cannot be
         # called without naming every method it needs.
         self._cmd = cast(LivePyMOLSession, cmd)
-        cmd.extend("copilot", self.copilot)
-        cmd.extend("copilot_apply", self.copilot_apply)
-        cmd.extend("copilot_reject", self.copilot_reject)
-        cmd.extend("copilot_rollback", self.copilot_rollback)
+        cmd.extend("copilot", self._guarded("copilot", self.copilot))
+        cmd.extend(
+            "copilot_apply",
+            self._guarded("copilot_apply", self.copilot_apply, mutating=True),
+        )
+        cmd.extend(
+            "copilot_reject",
+            self._guarded("copilot_reject", self.copilot_reject),
+        )
+        cmd.extend(
+            "copilot_rollback",
+            self._guarded(
+                "copilot_rollback", self.copilot_rollback, mutating=True
+            ),
+        )
+
+    def _guarded(
+        self,
+        command: str,
+        handler: Callable[[str], None],
+        *,
+        mutating: bool = False,
+    ) -> Callable[[str], None]:
+        """Wrap one registered command so an internal defect never escapes.
+
+        Every handler already catches the exceptions its own PyMOL and
+        transport calls can raise; this is the last-resort net for a
+        genuine defect in this module's own code (an `AttributeError` from
+        a typo, a `KeyError` from an unexpected shape) that no other catch
+        anticipates. Without it, such a defect would propagate as a raw
+        traceback into PyMOL's own command dispatch -- exactly what
+        SPECIFICATION.md:503-511 forbids for every failure path, including
+        this one.
+
+        Args:
+            command: The command name, for the fallback message.
+            handler: The bound method PyMOL should call for this command.
+            mutating: Whether this command can mutate the live session. A
+                defect caught here from a mutating command cannot tell
+                whether the mutation already started, so it halts and
+                preserves any retained recovery point rather than merely
+                reporting nothing was applied.
+
+        Returns:
+            A callable safe to hand to `cmd.extend`.
+        """
+
+        def wrapped(argument: str) -> None:
+            try:
+                handler(argument)
+            except Exception as error:
+                retained = (
+                    self._recovery_store.retained
+                    if self._recovery_store is not None
+                    else None
+                )
+                if mutating and retained is not None:
+                    self._halt(str(retained))
+                    self._output(
+                        f"{command}: internal error "
+                        f"({type(error).__name__}). Recovery point "
+                        f"preserved at {retained}. Restart PyMOL and load "
+                        "it manually."
+                    )
+                else:
+                    self._output(
+                        f"{command}: internal error "
+                        f"({type(error).__name__}). Nothing was applied. "
+                        "Retry; if it keeps happening, restart PyMOL."
+                    )
+
+        return wrapped
 
     def close(self) -> None:
         """Settle unfinished server status and close recovery storage."""
@@ -518,7 +592,7 @@ class CopilotCommandClient:
         try:
             self._recovery_store = RecoveryStore()
         except RuntimeError as error:
-            detail = str(error).rstrip(".")
+            detail = bounded(str(error)).rstrip(".")
             self._output(
                 "copilot_apply: could not initialize private recovery storage: "
                 f"{detail}. Nothing was applied."
@@ -568,7 +642,7 @@ class CopilotCommandClient:
         except TransportError as error:
             if current not in self._unreported_outcomes:
                 self._unreported_outcomes.append(current)
-            self._output(f"copilot recovery status unavailable: {error}")
+            self._output(describe_transport("copilot recovery status", error))
             return False
         if current in self._unreported_outcomes:
             self._unreported_outcomes.remove(current)
@@ -643,14 +717,23 @@ class CopilotCommandClient:
         try:
             object_name = resolve_target_object(self._cmd)
             snapshot, digest = extract_live_snapshot(self._cmd, object_name)
+        except TargetResolutionError as error:
+            # This module's own typed error, raised only with a fixed
+            # template naming loaded object names -- safe to show as-is,
+            # bounded defensively in case that list is unexpectedly long.
+            self._output(
+                f"copilot: {bounded(str(error))}. Nothing was applied."
+            )
+            return
         except Exception as error:
             # Both calls reach real PyMOL query APIs this module cannot
-            # enumerate every failure mode of (resolve_target_object()'s
-            # own TargetResolutionError is one specific, expected case
-            # among them); fail closed and report rather than let an
-            # unhandled exception propagate into PyMOL's own command
-            # dispatch.
-            self._output(f"copilot failed: {error}")
+            # enumerate every failure mode of; fail closed and report
+            # rather than let an unhandled exception -- and whatever
+            # selection or object text it may carry -- propagate into
+            # PyMOL's own command dispatch or this console.
+            self._output(
+                describe_unexpected("copilot", error, mutated_possible=False)
+            )
             return
 
         outcome = check_fidelity(
@@ -661,6 +744,19 @@ class CopilotCommandClient:
         )
         atom_count = len(snapshot.states[0].atoms) if snapshot.states else 0
         state_count = len(snapshot.states)
+
+        try:
+            snapshot_json = to_json(snapshot)
+        except ValueError:
+            # to_json's own allow_nan=False rejects a non-finite camera
+            # view or coordinate -- the same case check_fidelity's own
+            # to_json call already handles, but this one runs regardless
+            # of fidelity and was previously unguarded.
+            self._output(
+                "copilot: the session cannot be serialized (a non-finite "
+                "coordinate or view value). Nothing was applied."
+            )
+            return
 
         request = PlanRequestV1(
             request_id=str(self._uuid_factory()),
@@ -679,13 +775,13 @@ class CopilotCommandClient:
             # server and needs the full canonical snapshot to validate
             # against, not merely its identity; this call site already had
             # it in hand.
-            snapshot_json=to_json(snapshot),
+            snapshot_json=snapshot_json,
             fidelity=to_wire(outcome),
         )
         try:
             response = self._transport.submit(request)
         except TransportError as error:
-            self._output(f"copilot unavailable: {error}")
+            self._output(describe_transport("copilot", error))
             return
         match response:
             case FailedPlanResponseV1():
@@ -742,8 +838,9 @@ class CopilotCommandClient:
             )
         except Exception as error:
             self._output(
-                f"copilot_apply: could not verify the live session: {error}. "
-                "Nothing was applied."
+                describe_unexpected(
+                    "copilot_apply", error, mutated_possible=False
+                )
             )
             self._settle_uncertain_approval(pending.plan_id)
             return
@@ -780,14 +877,16 @@ class CopilotCommandClient:
             )
         except TransportError as error:
             self._uncertain_approval = pending.plan_id
-            self._output(f"copilot_apply unavailable: {error}")
+            self._output(describe_transport("copilot_apply", error))
             return
         if isinstance(response, FailedPlanResponseV1):
             self._uncertain_approval = None
             self._output(
-                f"copilot_apply refused ({response.failure.category}; "
-                f"{'retryable' if response.failure.retryable else 'not retryable'}"
-                f"): {response.failure.message}. Nothing was applied."
+                bounded(
+                    describe_failure("copilot_apply", response.failure)
+                    + " Nothing was applied.",
+                    max_bytes=MAX_LINE_BYTES,
+                )
             )
             return
         self._uncertain_approval = None
@@ -849,8 +948,8 @@ class CopilotCommandClient:
                 store.commit()
             except RecoveryPointError as error:
                 self._output(
-                    f"copilot_apply: previous recovery point could not be "
-                    f"removed: {error}."
+                    "copilot_apply: previous recovery point could not be "
+                    f"removed: {bounded(str(error))}."
                 )
             self._applied_plan = AppliedPlan(
                 plan_id=pending.plan_id,
@@ -872,7 +971,7 @@ class CopilotCommandClient:
                 self._output(
                     f"copilot_apply: plan {display_id} failed and the complete "
                     "session was restored cleanly, but recovery point could not "
-                    f"be removed: {error}."
+                    f"be removed: {bounded(str(error))}."
                 )
             else:
                 self._output(
@@ -923,7 +1022,9 @@ class CopilotCommandClient:
             return
         if normalize_plan_id(plan_id) != applied.plan_id:
             self._output(
-                f"copilot_rollback: plan {plan_id} is not the applied plan"
+                f"copilot_rollback: plan {bounded(plan_id, max_bytes=64)} "
+                f"is not the applied plan (applied: "
+                f"{_display_plan_id(applied.plan_id)})"
             )
             return
         try:
@@ -931,9 +1032,15 @@ class CopilotCommandClient:
                 self._cmd, applied.object_name
             )
         except Exception as error:
+            # Unlike every other catch in this module, execution continues
+            # after this one -- the restore still proceeds regardless of
+            # whether this pre-restore inspection succeeded -- so the
+            # shared describe_unexpected() wording ("nothing was applied")
+            # would be actively misleading here.
             self._output(
-                "copilot_rollback: could not inspect the live session: "
-                f"{error}. The entire session will still be restored."
+                f"copilot_rollback: internal error ({type(error).__name__}) "
+                "while inspecting the live session. The entire session "
+                "will still be restored."
             )
             current_digest = None
         self._output(
@@ -979,7 +1086,7 @@ class CopilotCommandClient:
         except RecoveryPointError as error:
             self._output(
                 "copilot_rollback: session restored, but recovery point "
-                f"could not be removed: {error}."
+                f"could not be removed: {bounded(str(error))}."
             )
         else:
             self._output(
@@ -1009,7 +1116,10 @@ class CopilotCommandClient:
         normalized = normalize_plan_id(plan_id)
         if normalized != pending.plan_id:
             self._output(
-                f"copilot_reject: plan {plan_id} is not the pending plan"
+                f"copilot_reject: plan {bounded(plan_id, max_bytes=64)} is "
+                f"not the pending plan (pending: "
+                f"{_display_plan_id(pending.plan_id)}); reject that, or "
+                "run copilot again"
             )
             return
         request = RejectRequestV1(
@@ -1020,7 +1130,7 @@ class CopilotCommandClient:
         try:
             response = self._transport.reject(request)
         except TransportError as error:
-            self._output(f"copilot_reject unavailable: {error}")
+            self._output(describe_transport("copilot_reject", error))
             return
         if response.failure.category == "rejected":
             self._pending_plan = None
@@ -1047,11 +1157,7 @@ class CopilotCommandClient:
                 )
             return
         self._pending_plan = None
-        self._output(
-            f"copilot_reject failed ({response.failure.category}; "
-            f"{'retryable' if response.failure.retryable else 'not retryable'}"
-            f"): {response.failure.message}"
-        )
+        self._output(describe_failure("copilot_reject", response.failure))
 
     def _report_failure(self, response: FailedPlanResponseV1) -> None:
         """Report a typed failure without attempting to render a plan.
@@ -1059,12 +1165,7 @@ class CopilotCommandClient:
         Args:
             response: Typed failure response to report.
         """
-        failure = response.failure
-        retryability = "retryable" if failure.retryable else "not retryable"
-        self._output(
-            f"copilot failed ({failure.category}; {retryability}): "
-            f"{failure.message}"
-        )
+        self._output(describe_failure("copilot", response.failure))
 
     def _report_validated(
         self,
