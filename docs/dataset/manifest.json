@@ -1,5 +1,18 @@
 {
-  "audit": null,
+  "audit": {
+    "auditor": "Martin",
+    "correct": 49,
+    "error_rate": 0.02,
+    "judged": 50,
+    "sample_size": 50,
+    "seed": 20260923,
+    "sheet_sha256": "decf2074451914d51c8abb4f682f0950fad1dd4170f489208f54217d254929b0",
+    "unsure": 0,
+    "wilson_high": 0.10495443589637815,
+    "wilson_low": 0.003539259271646236,
+    "worst_case_rate": 0.02,
+    "wrong": 1
+  },
   "audit_plan": {
     "sample_size": 50,
     "seed": 20260923
