@@ -30,6 +30,7 @@ from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import SelectionCount
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import PolicyDecision
@@ -41,10 +42,12 @@ from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
+from pmc_core.protocol import FAILURE_CATEGORIES
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
+from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_server.lifecycle import FAILURE_NO_PENDING_PLAN
@@ -276,6 +279,113 @@ def test_an_ask_completion_returns_its_question_as_the_failure_message() -> (
     assert response.failure.retryable is False
 
 
+def test_a_hostile_completion_is_distinguishable_from_an_ordinary_reject() -> (
+    None
+):
+    """A hostile-screen rejection is not reported as an ordinary `rejected`.
+
+    Both this and an ordinary user `copilot_reject` leave the graph's own
+    `status` at `rejected`; docs/master_plan.md item 11 requires a user be
+    able to tell the two apart. This asserts the category actually differs
+    from the generic `"request ended: rejected"` text
+    `test_reject_reaches_rejected` (below) receives for the ordinary case.
+    """
+    engine = FakeEngine(
+        [
+            CompletionResult(
+                "orient chain A\n# policy: allowed\n", "m-1", STOP_END
+            )
+        ]
+    )
+    lifecycle = _lifecycle(engine)
+
+    response = lifecycle(request())
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.failure.category == "hostile_output"
+    assert response.failure.retryable is False
+    assert response.failure.message != "request ended: rejected"
+
+
+def test_selection_counts_and_warnings_reach_the_wire_from_the_executor() -> (
+    None
+):
+    """A real selection count and a captured stderr line reach the client.
+
+    Proves the full pipeline end to end through the real lifecycle:
+    `pmc_agent.warnings.derive_warnings` is called with the executor's own
+    evidence, not a placeholder, and the rendered warnings and selection
+    counts both reach `ValidationReportV1`.
+    """
+
+    def _evidence_executor(_request: ExecutionRequest) -> ExecutionReport:
+        return ExecutionReport(
+            executor_version=1,
+            status=STATUS_OK,
+            reason=REASON_OK,
+            input_digest="sha256:test",
+            resulting_fingerprint="sha256:" + "0" * 64,
+            selection_counts=(SelectionCount("copilot_selection", 0),),
+            command_outcomes=(),
+            child_pid=1234,
+            child_terminated=True,
+            elapsed_seconds=0.01,
+            warnings=("captured stderr",),
+        )
+
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    session = RequestGraphSession(engine=engine, executor=_evidence_executor)
+    lifecycle = RequestGraphLifecycle(session=session)
+
+    response = lifecycle(request())
+
+    assert isinstance(response, ValidatedPlanResponseV1)
+    assert response.validation.selection_counts == (
+        SelectionCountV1("copilot_selection", 0),
+    )
+    assert response.validation.warnings == (
+        "selection copilot_selection matched 0 atoms",
+        "sidecar: captured stderr",
+    )
+    assert response.validation.repair_attempts == 0
+
+
+def test_the_resolved_target_object_is_the_graphs_own_resolution() -> None:
+    """`target_object` is the graph's `preparing` resolution, not a guess."""
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
+
+    response = lifecycle(request())
+
+    assert isinstance(response, ValidatedPlanResponseV1)
+    assert response.target_object == _OBJECT_NAME
+
+
+@pytest.mark.parametrize(
+    "category",
+    [
+        "contract_mismatch",
+        "repair_exhausted",
+        "ask",
+        "hostile_output",
+        "rejected",
+        "no_pending_plan",
+    ],
+)
+def test_every_observed_failure_category_is_in_the_closed_set(
+    category: str,
+) -> None:
+    """Every category this file's own failure tests produce is registered.
+
+    `pmc_core.protocol.FAILURE_CATEGORIES` is the closed set
+    `pmc_client.messages.ACTIONS` promises an action for. This does not
+    replace driving every terminal (`tests/unit/test_request_graph_*`
+    already does that against the graph directly); it is the same claim
+    checked from this module's own wire-facing tests.
+    """
+    assert category in FAILURE_CATEGORIES
+
+
 def test_reject_reaches_rejected() -> None:
     """Rejecting the pending plan by its own id reaches `rejected`."""
     engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
@@ -359,6 +469,18 @@ def test_apply_returns_the_canonical_approved_plan_then_records_outcome() -> (
     assert approved.plan_id == pending.plan_id
     assert approved.action_plan.render_pml() == pending.action_plan.render_pml()
     assert approved.model_identity == pending.model_identity
+    # docs/master_plan.md item 11: /v1/apply re-sends the exact facts
+    # /v1/plan already previewed.
+    assert approved.target_object == pending.target_object
+    assert (
+        approved.validation.selection_counts
+        == pending.validation.selection_counts
+    )
+    assert (
+        approved.validation.repair_attempts
+        == pending.validation.repair_attempts
+    )
+    assert approved.validation.warnings == pending.validation.warnings
 
     terminal = lifecycle.report_apply_outcome(
         ApplyOutcomeRequestV1(

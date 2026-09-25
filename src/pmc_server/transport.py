@@ -11,6 +11,7 @@ from http.server import ThreadingHTTPServer
 from threading import Thread
 
 from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
+from pmc_core.executor import bounded_failure
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
@@ -55,6 +56,14 @@ MAX_MESSAGE_BYTES = 64 * 1024
 #: for both, and for `pmc_client.transport`'s own matching request-side
 #: check. Responses stay on this module's own 64 KiB `MAX_MESSAGE_BYTES`.
 REQUEST_TIMEOUT_SECONDS = 5.0
+
+#: docs/master_plan.md item 11: the category a handler's own unexpected
+#: exception is reported under. A dangerous failure this specific --
+#: something other than this protocol's own typed decode errors escaping
+#: from inside a handler -- must never drop the connection or leak a
+#: traceback; it must still answer with a bounded, typed, retryable
+#: failure so the client has something actionable to report.
+FAILURE_SERVER_INTERNAL_ERROR = "server_internal_error"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -253,6 +262,58 @@ class LoopbackPlanServer:
                     return
                 self._send_empty(HTTPStatus.NOT_FOUND)
 
+            def _internal_error_payload(
+                self,
+                *,
+                path: str,
+                request_id: str,
+                session_id: str,
+                error: Exception,
+            ) -> bytes:
+                """Build the bounded fallback response for a handler defect.
+
+                docs/master_plan.md item 11: a handler raising anything
+                beyond this protocol's own typed decode errors is a
+                defect, but the connection must never simply drop -- the
+                caller has no way to distinguish that from a crashed
+                server, and no bounded, actionable message reaches them
+                either. This is what every handler below falls back to
+                instead. Only the exception's type name is logged, never
+                its message or a traceback: an exception raised deep
+                inside `pmc_agent`'s request graph can carry the user's
+                own intent text or a fragment of the canonical plan.
+
+                Args:
+                    path: The endpoint path the exception was raised from.
+                    request_id: The already-decoded request's own
+                        identifier.
+                    session_id: The already-decoded request's own session
+                        identifier.
+                    error: The exception the handler raised.
+
+                Returns:
+                    An encoded `FailedPlanResponseV1` carrying a bounded,
+                    retryable `server_internal_error` failure.
+                """
+                LOGGER.error(
+                    "loopback handler raised %s for path=%s request=%s",
+                    type(error).__name__,
+                    path,
+                    request_id,
+                )
+                return encode_json(
+                    FailedPlanResponseV1(
+                        request_id=request_id,
+                        session_id=session_id,
+                        failure=bounded_failure(
+                            FAILURE_SERVER_INTERNAL_ERROR,
+                            "the server hit an internal error; "
+                            "nothing was applied",
+                            True,
+                        ),
+                    )
+                ).encode("utf-8")
+
             def _handle_plan(self) -> None:
                 """Decode, dispatch, and answer one PLAN_PATH request."""
                 # docs/master_plan.md item 8: the request now carries the
@@ -275,9 +336,13 @@ class LoopbackPlanServer:
                 try:
                     response = server._handler(request)
                     response_payload = encode_json(response).encode("utf-8")
-                except (ProtocolDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=PLAN_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_validate(self) -> None:
@@ -323,9 +388,13 @@ class LoopbackPlanServer:
                     assert reject_handler is not None
                     response = reject_handler(request)
                     response_payload = encode_json(response).encode("utf-8")
-                except (ProtocolDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=REJECT_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_cancel(self) -> None:
@@ -345,9 +414,13 @@ class LoopbackPlanServer:
                     assert cancel_handler is not None
                     response = cancel_handler(request)
                     response_payload = encode_json(response).encode("utf-8")
-                except (ProtocolDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=CANCEL_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_apply(self) -> None:
@@ -357,14 +430,22 @@ class LoopbackPlanServer:
                     return
                 try:
                     request = decode_apply_request_json(payload.decode("utf-8"))
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
                     handler = server._apply_handler
                     assert handler is not None
                     response_payload = encode_json(handler(request)).encode(
                         "utf-8"
                     )
-                except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.BAD_REQUEST)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=APPLY_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_apply_outcome(self) -> None:
@@ -376,14 +457,22 @@ class LoopbackPlanServer:
                     request = decode_apply_outcome_request_json(
                         payload.decode("utf-8")
                     )
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
                     handler = server._apply_outcome_handler
                     assert handler is not None
                     response_payload = encode_json(handler(request)).encode(
                         "utf-8"
                     )
-                except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.BAD_REQUEST)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=APPLY_OUTCOME_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _authorized_json_body(self, maximum_bytes: int) -> bytes | None:

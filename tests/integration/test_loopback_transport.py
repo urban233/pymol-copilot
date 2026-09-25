@@ -337,6 +337,44 @@ def test_server_logs_response_metadata_without_request_target(
     assert request_target not in caplog.text
 
 
+@pytest.mark.parametrize(
+    "raised", [AssertionError("boom"), RuntimeError("boom"), KeyError("boom")]
+)
+def test_a_handler_defect_answers_bounded_not_a_dropped_connection(
+    raised: Exception, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A handler exception never drops the connection or leaks a traceback.
+
+    docs/master_plan.md item 11: every failure path must produce a
+    bounded, actionable message -- no tracebacks, no plan text leaking
+    through an error. Before this item, only `ProtocolDecodeError` and
+    `ValueError` were caught here; anything else escaped to
+    `socketserver`'s own handler, which drops the connection with no
+    response at all.
+
+    Args:
+        raised: The exception the handler raises for this case.
+        caplog: Pytest log-capture fixture.
+    """
+
+    def raising_handler(_request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        raise raised
+
+    caplog.set_level(logging.ERROR, logger="pmc_server.transport")
+    request = plan_request()
+    with LoopbackPlanServer("secret", raising_handler) as server:
+        response = LoopbackPlanClient(server.port, "secret").submit(request)
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.request_id == request.request_id
+    assert response.session_id == request.session_id
+    assert response.failure.category == "server_internal_error"
+    assert response.failure.retryable is True
+    assert "Traceback" not in caplog.text
+    assert request.intent not in caplog.text
+    assert type(raised).__name__ in caplog.text
+
+
 def test_client_rejects_response_with_mismatched_correlation() -> None:
     """The client does not accept a typed plan for another request."""
 

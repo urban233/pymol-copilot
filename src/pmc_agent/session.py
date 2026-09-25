@@ -500,6 +500,7 @@ class RequestGraphSession:
                 "selection_counts",
                 "sidecar_warnings",
                 "attempt",
+                "snapshot_identity",
             ):
                 applying[name] = approved_values[name]
             return applying
