@@ -28,14 +28,36 @@ client-side transient: recovery must finish even if the local server is down.
 - `inference/` is the local-model boundary: `base.py`'s `InferenceEngine`
   Protocol accepts only a prompt, optional grammar, token and time bounds,
   cancellation, and a model identity; it returns a completion or typed
-  failure, never an engine exception. `fake.py`'s scripted `FakeEngine`
-  drives hermetic graph tests. `lemonade.py` is the production adapter: it
-  streams only to one caller-selected loopback Lemonade origin, applies every
-  bound, and has no remote or alternate-origin fallback. Its
-  `connect_lemonade()` startup constructor proves the exact catalog and
-  loaded checkpoint, then requires a grammar canary to produce its forced
-  sentinel. A refused or silently ignored grammar is a hard failure, never
-  an unconstrained or syntax-only mode.
+  failure, never an engine exception. It also carries a total, never-raising
+  `health()` method (docs/master_plan.md item 11), returning an
+  `EngineHealth`: ready, with the engine's own name, version, and device, or
+  unavailable, with a bounded `EngineFailure`. `pmc_server.lifecycle
+  .RequestGraphLifecycle.health()` reads this straight through
+  `RequestGraphSession.engine_health()` for `copilot_health`; it is a
+  property of the engine itself, never of any one request, so it does not
+  touch the graph. `fake.py`'s scripted `FakeEngine` drives hermetic graph
+  tests and defaults to a ready health matching its own configured model
+  identity. `lemonade.py` is the production adapter: it streams only to one
+  caller-selected loopback Lemonade origin, applies every bound, and has no
+  remote or alternate-origin fallback. Its `connect_lemonade()` startup
+  constructor proves the exact catalog and loaded checkpoint, then requires
+  a grammar canary to produce its forced sentinel. A refused or silently
+  ignored grammar is a hard failure, never an unconstrained or
+  syntax-only mode; its own `health()` instead issues one bounded
+  `GET /api/v1/health` call, never repeating the load or the canary.
+  `unavailable.py`'s `UnavailableEngine` is what a future server entrypoint
+  (docs/master_plan.md item 12) constructs when `connect_lemonade()` itself
+  fails at startup: every `complete()` call returns that one recorded
+  failure unchanged, and `health()` reports it too, so the server stays up
+  for diagnostics (SPECIFICATION.md:609) instead of refusing to start.
+- `warnings.py`'s `derive_warnings()` is a pure function of validation
+  evidence alone — selection counts, the target object's own atom count,
+  the repair-attempt count, and the executor's own captured stderr — never
+  of the model's completion text, matching the same no-model-authority rule
+  every other protected field in this package already follows. It is what
+  `pmc_server.lifecycle` calls to fill a response's own `warnings`, in a
+  fixed template order, bounded to `pmc_core.protocol
+  .MAX_VALIDATION_WARNINGS` entries.
 - `prompt.py` is a placeholder seam, not a real prompt: `PROMPT_BUILDER`
   and a minimal default that stamps the card version, the contract
   manifest, and prior failures into bounded text. docs/master_plan.md item
