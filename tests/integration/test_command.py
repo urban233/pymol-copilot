@@ -25,6 +25,9 @@ from typing import Any
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+from preview_support import find_preview
+from preview_support import plan_id_from
+from preview_support import section
 from pmc_client.command import PLAN_ID_DISPLAY_PREFIX
 from pmc_client.command import CopilotCommandClient
 from pmc_client.recovery import RecoveryPointError
@@ -34,6 +37,8 @@ from pmc_client.session import extract_live_snapshot
 from pmc_client.transport import TransportError
 from pmc_core.executor import EXECUTOR_VERSION
 from pmc_core.executor import REASON_OK
+from pmc_core.executor import REASON_TIMEOUT
+from pmc_core.executor import STATUS_FAILED
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
@@ -359,6 +364,26 @@ def _mismatched_probe(
     return lambda _request: report
 
 
+def _unavailable_probe() -> Callable[[FidelityRequest], FidelityReport]:
+    """Build a probe reporting the check itself could not be performed.
+
+    Returns:
+        A probe reporting a timed-out reconstruction attempt.
+    """
+    report = FidelityReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_FAILED,
+        reason=REASON_TIMEOUT,
+        input_digest=None,
+        reconstructed_snapshot_json=None,
+        child_pid=None,
+        child_terminated=None,
+        elapsed_seconds=5.0,
+        warnings=(),
+    )
+    return lambda _request: report
+
+
 def _default_rejected(request: RejectRequestV1) -> FailedPlanResponseV1:
     """Build a correlated `rejected` response for any reject request.
 
@@ -608,19 +633,26 @@ def test_exact_outcome_is_applicable_and_prints_the_approval_line() -> None:
 
     client.copilot(INTENT)
 
-    assert output[0].startswith("copilot fidelity: exact")
-    assert f"object {OBJECT_NAME}" in output[0]
-    assert output[1].startswith(
-        f"copilot plan: {PLAN_ID_DISPLAY_PREFIX}"
+    preview = find_preview(output)
+    assert preview.startswith(
+        f"copilot plan {PLAN_ID_DISPLAY_PREFIX}"
         "55555555-5555-4555-8555-555555555555"
     )
-    assert "NOT applicable" not in output[1]
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert "2 | color red, copilot_selection" in output[1]
-    assert output[2].startswith("copilot checked:")
-    assert output[3] == (
-        "copilot apply with: copilot_apply "
-        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    assert OBJECT_NAME in section(output, "object")
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert "NOT applicable" not in preview
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert "2 | color red, copilot_selection" in section(output, "commands")
+    assert section(output, "checked").startswith("the plan parses")
+    assert section(output, "apply") == (
+        f"copilot_apply {PLAN_ID_DISPLAY_PREFIX}"
+        "55555555-5555-4555-8555-555555555555"
+    )
+    assert section(output, "reject") == (
+        f"copilot_reject {PLAN_ID_DISPLAY_PREFIX}"
+        "55555555-5555-4555-8555-555555555555"
     )
 
 
@@ -638,11 +670,13 @@ def test_non_exact_outcome_prints_the_plan_but_marks_it_non_applicable() -> (
 
     client.copilot(INTENT)
 
-    assert output[0].startswith("copilot fidelity: NOT EXACT")
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert "(inspectable only -- NOT applicable)" in output[1]
-    assert "cannot be applied" in output[2]
-    assert not any(line.startswith("copilot apply with:") for line in output)
+    assert section(output, "fidelity").startswith("NOT EXACT")
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert section(output, "apply") == "unavailable (inspectable only)"
+    assert "cannot be applied" in section(output, "NOT checked")
+    assert "never executed" not in find_preview(output)
 
 
 def test_server_inapplicable_overrides_an_exact_local_outcome() -> None:
@@ -676,9 +710,79 @@ def test_server_inapplicable_overrides_an_exact_local_outcome() -> None:
 
     client.copilot(INTENT)
 
-    assert output[0].startswith("copilot fidelity: exact")
-    assert "(inspectable only -- NOT applicable)" in output[1]
-    assert not any(line.startswith("copilot apply with:") for line in output)
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert section(output, "apply") == "unavailable (inspectable only)"
+
+
+def test_unavailable_fidelity_still_prints_a_full_preview() -> None:
+    """A fidelity check that could not run at all still previews the plan.
+
+    The sidecar executor still ran (`pmc_agent.graph`'s own `validating`
+    never reads the request's fidelity before doing so), so the preview
+    still exists and still names real counts -- only `applicable` and the
+    checked/not-checked wording differ from the exact case.
+    """
+    output: list[str] = []
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_unavailable_probe(),
+    )
+
+    client.copilot(INTENT)
+
+    assert section(output, "fidelity") == (
+        "unavailable on the declared state scope (timeout)"
+    )
+    assert section(output, "apply") == "unavailable (inspectable only)"
+    assert section(output, "reject").startswith("copilot_reject ")
+    assert "never executed" not in find_preview(output)
+
+
+def test_a_target_object_mismatch_refuses_to_park_a_plan() -> None:
+    """A server resolving a different object never becomes a pending plan.
+
+    Neither side trusts the other's resolution alone, the same way
+    `applicable` is the AND of two independently-formed verdicts: if the
+    server's own resolution disagrees with what this session itself
+    resolved, no plan is safe to park for approval.
+    """
+    output: list[str] = []
+    session = _RecordingSession()
+
+    def different_object_response(
+        request: PlanRequestV1,
+    ) -> ValidatedPlanResponseV1:
+        """Return the ordinary fixture response naming a different object.
+
+        Args:
+            request: Request whose correlation and snapshot values are
+                copied.
+
+        Returns:
+            A validated response whose target_object disagrees with the
+            request's own declared object.
+        """
+        response = validated_response(request)
+        return dataclasses.replace(response, target_object="a-different-object")
+
+    client, _session = _client(
+        RecordingTransport(different_object_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot(INTENT)
+
+    assert output == [
+        "copilot: the server resolved a different object "
+        f"(a-different-object) than this session did ({OBJECT_NAME}). "
+        "Nothing was applied. Run copilot again."
+    ]
+    client.copilot_apply("p-anything")
+    assert output[-1] == (
+        "copilot_apply: no pending plan for this session. Nothing was applied."
+    )
 
 
 def test_client_reuses_session_and_generates_unique_request_ids() -> None:
@@ -996,7 +1100,7 @@ def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
         probe=_exact_probe(probe_session),
     )
     client.copilot(INTENT)
-    first_plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
+    first_plan_id = plan_id_from(output)
     output.clear()
 
     # Simulate the live session becoming unresolvable before the second

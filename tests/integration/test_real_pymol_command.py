@@ -63,6 +63,9 @@ from typing import Protocol
 
 import pytest
 
+from preview_support import find_preview
+from preview_support import plan_id_from
+from preview_support import section
 from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
@@ -674,7 +677,7 @@ def test_success_path_applies_then_rolls_back_the_real_session(
 
         after_copilot = capture_session_state(loaded_fixture)
 
-        plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
+        plan_id = plan_id_from(output)
         assert _run_copilot_apply(loaded_fixture, finished, plan_id) < (
             INVOCATION_DEADLINE_SECONDS
         )
@@ -692,20 +695,31 @@ def test_success_path_applies_then_rolls_back_the_real_session(
     assert requests[0].snapshot.digest != "sha256:example-chain-a-digest"
     assert requests[0].snapshot.object_name == OBJECT_NAME
 
-    assert len(output) == 7, output
-    assert output[0].startswith("copilot fidelity: exact")
-    assert f"object {OBJECT_NAME}" in output[0]
-    assert output[1].startswith("copilot plan:")
-    assert "NOT applicable" not in output[1]
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert "2 | color red, copilot_selection" in output[1]
-    assert output[2].startswith("copilot checked:")
-    assert output[3].startswith("copilot apply with: copilot_apply ")
-    assert output[4].startswith(f"copilot_apply: plan {plan_id} applied.")
-    assert output[5].startswith(
+    preview = find_preview(output)
+    assert OBJECT_NAME in section(output, "object")
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert "NOT applicable" not in preview
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert "2 | color red, copilot_selection" in section(output, "commands")
+    assert section(output, "checked").startswith("the plan parses")
+    assert section(output, "apply").startswith("copilot_apply ")
+
+    apply_lines = [line for line in output if line.startswith("copilot_apply:")]
+    rollback_lines = [
+        line for line in output if line.startswith("copilot_rollback:")
+    ]
+    assert len(apply_lines) == 1
+    assert apply_lines[0].startswith(f"copilot_apply: plan {plan_id} applied.")
+    assert len(rollback_lines) == 2
+    assert rollback_lines[0].startswith(
         "copilot_rollback: replacing the entire session"
     )
-    assert output[6].endswith("rolled back and its recovery point was removed.")
+    assert rollback_lines[1].endswith(
+        "rolled back and its recovery point was removed."
+    )
+    assert len(output) == 1 + len(apply_lines) + len(rollback_lines), output
     assert_session_unchanged(before, after_copilot)
     assert after_apply != before
     assert_session_unchanged(before, after_rollback)

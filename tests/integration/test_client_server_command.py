@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 
+from preview_support import find_preview
+from preview_support import section
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.fake import FakeEngine
@@ -380,11 +382,13 @@ def test_public_command_round_trip_renders_without_session_mutation() -> None:
     assert response.session_id == request.session_id
     assert request.snapshot.object_name == OBJECT_NAME
     assert request.snapshot.digest != "sha256:example-chain-a-digest"
-    assert output[0].startswith("copilot fidelity: exact")
-    assert output[1].startswith("copilot plan:")
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert output[2].startswith("copilot checked:")
-    assert output[3].startswith("copilot apply with: copilot_apply ")
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert find_preview(output).startswith("copilot plan ")
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert section(output, "checked").startswith("the plan parses")
+    assert section(output, "apply").startswith("copilot_apply ")
     assert adapter.mutations == []
     assert adapter.selections == original_selections
     assert adapter.colors == original_colors

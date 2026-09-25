@@ -56,6 +56,7 @@ from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
 from pmc_core.executor import probe_fidelity
 from pmc_core.plan import ActionPlan
+from pmc_core.plan import SelectOperation
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
 from pmc_core.protocol import APPLY_OUTCOME_APPLIED
@@ -66,11 +67,13 @@ from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
+from pmc_core.protocol import MAX_FIDELITY_MISMATCHES
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import parse_utc_timestamp
 from pmc_core.snapshot import to_json
 from pmc_sidecar.child import PlanRunResult
 from pmc_sidecar.child import run_plan
@@ -236,96 +239,187 @@ def _utc_timestamp() -> str:
     )
 
 
-def _fidelity_block(
-    outcome: FidelityOutcome,
-    *,
-    object_name: str,
-    atom_count: int,
-    state_count: int,
-) -> str:
-    """Render the fidelity summary and, when not exact, its mismatches.
+def _plural(count: int, word: str, *, suffix: str = "s") -> str:
+    """Pluralize a counted noun the plain way this console uses everywhere.
+
+    Args:
+        count: The quantity being described.
+        word: The singular noun.
+        suffix: The plural suffix, for the one irregular case (`"mismatch"`
+            takes `"es"`, everything else here takes `"s"`).
+
+    Returns:
+        `word` alone for a count of exactly one, `word` plus `suffix`
+        otherwise -- including zero, which is plural in English.
+    """
+    return word if count == 1 else word + suffix
+
+
+def _relative_expiry(expires_at: str, now: datetime) -> str:
+    """Describe an expiry timestamp relative to the current moment.
+
+    Args:
+        expires_at: The plan's own RFC3339 UTC expiry.
+        now: The current moment, from the same injected clock local
+            approval checks already use.
+
+    Returns:
+        `"already expired"`, or `"in N min"` (never zero: a plan with
+        under a minute left reads as `"in under a minute"` rather than
+        `"in 0 min"`, which would read as already gone).
+    """
+    remaining = (parse_utc_timestamp(expires_at) - now).total_seconds()
+    if remaining <= 0:
+        return "already expired"
+    minutes = round(remaining / 60)
+    if minutes < 1:
+        return "in under a minute"
+    # "min" is an abbreviation, not pluralized the way a full word is --
+    # "in 5 min" reads naturally where "in 5 mins" would not.
+    return f"in {minutes} min"
+
+
+def _fidelity_line(outcome: FidelityOutcome) -> str:
+    """Render the one-line fidelity status, with mismatches if any.
 
     Args:
         outcome: The fidelity outcome to render.
-        object_name: The resolved live object's name.
-        atom_count: The live object's first-state atom count.
-        state_count: The live object's coordinate state count.
 
     Returns:
-        The multi-line fidelity block.
+        One or more lines: the status line, then a bounded, indented
+        mismatch list when `outcome` is not exact.
     """
     if outcome.status == FIDELITY_EXACT:
-        atom_plural = "" if atom_count == 1 else "s"
-        state_plural = "" if state_count == 1 else "s"
-        return (
-            "copilot fidelity: exact on the declared state scope "
-            f"(object {object_name}, {atom_count} atom{atom_plural}, "
-            f"{state_count} state{state_plural})"
-        )
+        return "  fidelity:  exact on the declared state scope"
     if outcome.status == FIDELITY_NOT_EXACT:
         count = len(outcome.mismatches)
-        plural = "" if count == 1 else "es"
         lines = [
-            "copilot fidelity: NOT EXACT on the declared state scope "
-            f"({count} mismatch{plural})"
+            "  fidelity:  NOT EXACT on the declared state scope "
+            f"({count} {_plural(count, 'mismatch', suffix='es')})"
         ]
-        lines.extend(f"  {mismatch}" for mismatch in outcome.mismatches)
+        shown = outcome.mismatches[:MAX_FIDELITY_MISMATCHES]
+        lines.extend(f"    - {mismatch}" for mismatch in shown)
+        omitted = len(outcome.mismatches) - len(shown)
+        if omitted > 0:
+            lines.append(f"    ... and {omitted} more")
         return "\n".join(lines)
     return (
-        "copilot fidelity: unavailable on the declared state scope "
+        "  fidelity:  unavailable on the declared state scope "
         f"({outcome.reason})"
     )
 
 
-def _plan_block(action_plan_pml: str, plan_id: str, *, applicable: bool) -> str:
-    """Render the plan identifier and its numbered canonical commands.
+def _checked_lines(outcome: FidelityOutcome) -> list[str]:
+    """Render what was, and was not, checked -- accurately for each outcome.
 
-    Args:
-        action_plan_pml: The plan's canonical rendered PML text.
-        plan_id: The plan identifier to display.
-        applicable: Whether the plan may be applied.
-
-    Returns:
-        The multi-line plan block.
-    """
-    suffix = "" if applicable else "  (inspectable only -- NOT applicable)"
-    lines = [f"copilot plan: {_display_plan_id(plan_id)}{suffix}"]
-    lines.extend(
-        f"  {index} | {command}"
-        for index, command in enumerate(action_plan_pml.splitlines(), start=1)
-    )
-    return "\n".join(lines)
-
-
-def _checked_block(outcome: FidelityOutcome) -> str:
-    """Render what was, and was not, checked about a plan.
+    The sidecar executor runs the plan every time this preview exists at
+    all (`pmc_agent.graph`'s `validating` never reads the request's own
+    fidelity outcome before doing so), so the selection counts above are
+    always real, even when fidelity is not exact or unavailable. What
+    differs is only whether that sidecar's own reconstruction is known to
+    match the live session -- never whether the plan ran.
 
     Args:
         outcome: The fidelity outcome the plan was gated on.
 
     Returns:
-        The checked/not-checked sentence.
+        Exactly two lines: `checked:` and `NOT checked:`.
     """
     if outcome.status == FIDELITY_EXACT:
-        return (
-            "copilot checked: the plan parses, policy allows it, and a "
-            "fresh PyMOL sidecar reconstructed this session's declared "
-            "state exactly. Not checked: whether the plan is "
-            "scientifically what you meant."
-        )
+        return [
+            "  checked:   the plan parses, policy allows it, and a fresh "
+            "PyMOL sidecar reconstructed this session's declared state "
+            "exactly, then ran the plan against it -- the counts above "
+            "are from that run",
+            "  NOT checked: whether this is scientifically what you meant",
+        ]
     if outcome.status == FIDELITY_NOT_EXACT:
-        return (
-            "copilot checked: the plan parses and policy allows it. Not "
-            "checked: this session could not be reconstructed exactly, "
-            "so the plan was never executed anywhere. It cannot be "
-            "applied."
+        return [
+            "  checked:   the plan parses, policy allows it, and ran in a "
+            "fresh PyMOL sidecar -- the counts above are real, but that "
+            "sidecar's own reconstruction of your session did not match "
+            "it exactly",
+            "  NOT checked: whether this reconstruction is your current "
+            "session; it cannot be applied",
+        ]
+    return [
+        "  checked:   the plan parses, policy allows it, and ran in a "
+        "fresh PyMOL sidecar -- the counts above are real, but this "
+        f"session could not be independently confirmed to match that "
+        f"reconstruction ({outcome.reason})",
+        "  NOT checked: whether this reconstruction is your current "
+        "session; it cannot be applied",
+    ]
+
+
+def _preview_block(
+    response: ValidatedPlanResponseV1,
+    outcome: FidelityOutcome,
+    *,
+    object_name: str,
+    atom_count: int,
+    state_count: int,
+    applicable: bool,
+    now: datetime,
+) -> str:
+    """Render the complete preview SPECIFICATION.md:503-511 requires.
+
+    One block, one `_output` call: plan id and expiry, the resolved
+    object, numbered canonical commands with their own selection counts
+    where available, validation warnings, fidelity status, an explicit
+    checked/not-checked statement, and the exact approval and rejection
+    commands to type -- every one of them, every time, regardless of
+    whether the plan turns out to be applicable.
+
+    Args:
+        response: The server's validated plan response.
+        outcome: This request's own locally observed fidelity outcome.
+        object_name: The resolved live object's name.
+        atom_count: The live object's first-state atom count.
+        state_count: The live object's coordinate state count.
+        applicable: Whether this plan may be approved and applied.
+        now: The current moment, for the expiry's relative description.
+
+    Returns:
+        The complete multi-line preview block.
+    """
+    display_id = _display_plan_id(response.plan_id)
+    lines = [
+        f"copilot plan {display_id} "
+        f"(expires {response.expires_at}, "
+        f"{_relative_expiry(response.expires_at, now)})",
+        f"  object:    {object_name} "
+        f"({atom_count:,} {_plural(atom_count, 'atom')}, "
+        f"{state_count} {_plural(state_count, 'state')})",
+        "  commands:",
+    ]
+    counts = {
+        count.name: count.atom_count
+        for count in response.validation.selection_counts
+    }
+    for index, operation in enumerate(response.action_plan.operations, start=1):
+        rendered = f"    {index} | {operation.render()}"
+        if isinstance(operation, SelectOperation):
+            matched = counts.get(operation.selection_name)
+            if matched is not None:
+                rendered += f"   -> {matched:,} {_plural(matched, 'atom')}"
+        lines.append(rendered)
+    if response.validation.warnings:
+        lines.append("  warnings:")
+        lines.extend(
+            f"    - {warning}" for warning in response.validation.warnings
         )
-    return (
-        "copilot checked: the plan parses and policy allows it. Not "
-        f"checked: a fresh PyMOL sidecar could not complete a fidelity "
-        f"check ({outcome.reason}), so the plan was never executed "
-        "anywhere. It cannot be applied."
+    else:
+        lines.append("  warnings:  none")
+    lines.append(_fidelity_line(outcome))
+    lines.extend(_checked_lines(outcome))
+    lines.append(
+        f"  apply:     copilot_apply {display_id}"
+        if applicable
+        else "  apply:     unavailable (inspectable only)"
     )
+    lines.append(f"  reject:    copilot_reject {display_id}")
+    return "\n".join(lines)
 
 
 class CopilotCommandClient:
@@ -997,6 +1091,18 @@ class CopilotCommandClient:
                 f"snapshot={response.validation.snapshot_digest}"
             )
             return
+        if response.target_object != object_name:
+            # Neither side trusts the other's resolution alone, exactly
+            # like `applicable` below: the server independently resolved
+            # one target object; if it disagrees with what this session
+            # itself resolved, something is wrong enough that no plan
+            # should be parked for approval at all.
+            self._output(
+                "copilot: the server resolved a different object "
+                f"({response.target_object}) than this session did "
+                f"({object_name}). Nothing was applied. Run copilot again."
+            )
+            return
 
         applicable = response.validation.applicable and outcome.is_exact
         self._pending_plan = PendingPlan(
@@ -1012,26 +1118,16 @@ class CopilotCommandClient:
         )
 
         self._output(
-            _fidelity_block(
+            _preview_block(
+                response,
                 outcome,
                 object_name=object_name,
                 atom_count=atom_count,
                 state_count=state_count,
-            )
-        )
-        self._output(
-            _plan_block(
-                response.action_plan.render_pml(),
-                response.plan_id,
                 applicable=applicable,
+                now=self._now_factory(),
             )
         )
-        self._output(_checked_block(outcome))
-        if applicable:
-            self._output(
-                "copilot apply with: copilot_apply "
-                f"{_display_plan_id(response.plan_id)}"
-            )
 
 
 def register_copilot(
