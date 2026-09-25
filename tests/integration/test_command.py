@@ -504,12 +504,13 @@ def validated_response(
         validated_at=CREATED_AT,
         action_plan=fixture_plan(),
         validation=ValidationReportV1(
-            "passed", request.snapshot.digest, applicable, ()
+            "passed", request.snapshot.digest, applicable, (), (), 0
         ),
         plan_id="55555555-5555-4555-8555-555555555555",
         snapshot_digest=request.snapshot.digest,
         expires_at="2026-08-26T14:27:03.220Z",
         model_identity="test-model@test-checkpoint",
+        target_object=request.snapshot.object_name,
     )
 
 
@@ -892,12 +893,13 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
             validated_at=response.validated_at,
             action_plan=response.action_plan,
             validation=ValidationReportV1(
-                "failed", request.snapshot.digest, False, ()
+                "failed", request.snapshot.digest, False, (), (), 0
             ),
             plan_id=response.plan_id,
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     output: list[str] = []

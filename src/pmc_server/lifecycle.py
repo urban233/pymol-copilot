@@ -180,6 +180,13 @@ class RequestGraphLifecycle:
         applicable = result["validation_applicable"]
         assert isinstance(expires_at, str) and isinstance(model_identity, str)
         assert isinstance(snapshot_digest, str) and isinstance(applicable, bool)
+        # docs/master_plan.md item 11: selection counts, repair attempts,
+        # and the resolved target object are not yet threaded through the
+        # graph's own checkpointed pending details -- that lands with the
+        # rest of item 11's wiring. Until then this endpoint reports the
+        # same placeholders `_to_plan_response` does below, which keeps
+        # the two responses for one plan identical, as the client already
+        # requires.
         return ValidatedPlanResponseV1(
             request_id=request.request_id,
             session_id=request.session_id,
@@ -187,12 +194,13 @@ class RequestGraphLifecycle:
             validated_at=self._timestamp_source(),
             action_plan=plan,
             validation=ValidationReportV1(
-                "passed", snapshot_digest, applicable, ()
+                "passed", snapshot_digest, applicable, (), (), 0
             ),
             plan_id=request.plan_id,
             snapshot_digest=snapshot_digest,
             expires_at=expires_at,
             model_identity=model_identity,
+            target_object="",
         )
 
     def report_apply_outcome(
@@ -254,11 +262,22 @@ class RequestGraphLifecycle:
                     # reported.
                     applicable=request.fidelity.status == FIDELITY_EXACT,
                     warnings=(),
+                    # docs/master_plan.md item 11: selection counts and
+                    # repair attempts are not yet threaded through the
+                    # graph's own result mapping -- that lands with the
+                    # rest of item 11's wiring.
+                    selection_counts=(),
+                    repair_attempts=0,
                 ),
                 plan_id=plan_id,
                 snapshot_digest=digest,
                 expires_at=expires_at,
                 model_identity=model_identity,
+                # The client already independently resolved and declared
+                # this exact object; item 11's own cross-check compares
+                # this field against that declaration once the graph
+                # reports its own resolution here instead.
+                target_object=request.snapshot.object_name,
             )
         return self._to_terminal_response(
             request.request_id, request.session_id, result

@@ -131,12 +131,13 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
             )
         ),
         validation=ValidationReportV1(
-            "passed", "sha256:example-chain-a-digest", True, ()
+            "passed", "sha256:example-chain-a-digest", True, (), (), 0
         ),
         plan_id="33333333-3333-4333-8333-333333333333",
         snapshot_digest="sha256:example-chain-a-digest",
         expires_at="2026-08-26T14:27:03.220Z",
         model_identity="test-model@test-checkpoint",
+        target_object="one-object-chain-a-v1",
     )
 
 
@@ -360,6 +361,7 @@ def test_client_rejects_response_with_mismatched_correlation() -> None:
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     with (
@@ -393,6 +395,7 @@ def test_client_rejects_response_with_mismatched_session() -> None:
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     with (
@@ -426,11 +429,14 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
                 "sha256:different-snapshot",
                 response.validation.applicable,
                 response.validation.warnings,
+                response.validation.selection_counts,
+                response.validation.repair_attempts,
             ),
             plan_id=response.plan_id,
             snapshot_digest="sha256:different-snapshot",
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     with (

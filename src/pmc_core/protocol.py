@@ -22,6 +22,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
+from pmc_core.errors import CATEGORIES as _ERROR_ENVELOPE_CATEGORIES
 from pmc_core.errors import ExecutionErrorV1
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_selection_expression
@@ -37,6 +38,116 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 
 PROTOCOL_VERSION = "1"
+
+#: The most bounded validation-warning strings one `ValidationReportV1` may
+#: carry. Docs/master_plan.md item 11: warnings are diagnostic, not a plan
+#: text leak, so this bound exists to keep a console report readable, not
+#: to hide anything.
+MAX_VALIDATION_WARNINGS = 8
+
+#: The most UTF-8 bytes one validation-warning string may occupy.
+MAX_VALIDATION_WARNING_BYTES = 200
+
+#: docs/master_plan.md item 8's own repair budget
+#: (`pmc_agent.graph.MAX_REPAIR_ATTEMPTS`), duplicated here for the same
+#: dependency-boundary reason `REJECT_PATH` and friends are duplicated in
+#: `pmc_client.transport`: this module cannot import `pmc_agent`, since
+#: `pmc_agent` already imports this module. `tests/unit/test_request_graph_pending.py`
+#: asserts the two values agree.
+MAX_REPAIR_ATTEMPTS = 2
+
+#: The most UTF-8 bytes one `FailureEnvelopeV1.message` may occupy. Chosen
+#: to match `pmc_core.errors.MAX_MESSAGE_BYTES`, so a normalized execution
+#: message and a bounded failure message share one budget.
+MAX_FAILURE_MESSAGE_BYTES = 256
+
+#: Every `pmc_core.errors.CATEGORIES` value, unprefixed: `validating`
+#: forwards a normalized execution-error category as-is when a command
+#: actually failed inside the sidecar (docs/master_plan.md item 8).
+_EXECUTION_ERROR_CATEGORIES: frozenset[str] = _ERROR_ENVELOPE_CATEGORIES
+
+#: Every `pmc_core.executor` `REASON_*` value other than `REASON_OK` (never
+#: a failure) and `REASON_COMMAND_FAILURE` (reported through
+#: `_EXECUTION_ERROR_CATEGORIES` instead), prefixed exactly as
+#: `pmc_agent.graph.FAILURE_EXECUTION_PREFIX` does. Hand-listed rather than
+#: imported: `pmc_core.executor` imports this module, so the reverse import
+#: would cycle. `tests/unit/test_request_graph_transitions.py` cross-checks
+#: this list against the executor's own `REASON_*` constants directly.
+_EXECUTION_INFRASTRUCTURE_CATEGORIES: frozenset[str] = frozenset(
+    f"execution_{reason}"
+    for reason in (
+        "oversized_input",
+        "malformed_input",
+        "unsupported_schema_version",
+        "policy_denied",
+        "snapshot_digest_mismatch",
+        "spawn_or_load_failure",
+        "timeout",
+        "child_crash",
+        "fidelity_mismatch",
+        "reconstruction_failure",
+    )
+)
+
+#: Every `pmc_agent.inference.base.EngineFailure` category. Hand-listed for
+#: the same reason as above: `pmc_agent` depends on this module, not the
+#: reverse. `tests/unit/test_inference_fake.py` cross-checks this list
+#: against `ENGINE_FAILURE_CATEGORIES` directly.
+_ENGINE_FAILURE_CATEGORIES: frozenset[str] = frozenset(
+    {
+        "engine_unavailable",
+        "engine_timeout",
+        "engine_refused_grammar",
+        "engine_unknown",
+    }
+)
+
+#: Every `FailureEnvelopeV1.category` the server may put on the wire, over
+#: `/v1/plan`, `/v1/reject`, `/v1/cancel`, `/v1/apply`, and
+#: `/v1/apply-outcome` combined. This is what makes "actionable" checkable:
+#: `pmc_client.messages.ACTIONS` must name a next step for every value
+#: here, and `tests/integration/test_failure_messages.py` drives the real
+#: request graph through every terminal and failure source to prove
+#: nothing it emits falls outside this set. It is a plain frozenset of
+#: string literals, not derived by import, because the categories
+#: themselves are owned by `pmc_agent` and `pmc_server`, both of which
+#: import this module rather than the reverse.
+FAILURE_CATEGORIES: frozenset[str] = (
+    frozenset(
+        {
+            # pmc_agent.graph's own FAILURE_* constants.
+            "contract_mismatch",
+            "malformed_snapshot",
+            "no_target_object",
+            "engine_incomplete",
+            "repair_exhausted",
+            "unrecognized_resume",
+            "unrecognized_apply_outcome",
+            # pmc_agent.session's own inline categories.
+            "apply_outcome_required",
+            "not_applicable",
+            # pmc_server.lifecycle's own FAILURE_NO_PENDING_PLAN.
+            "no_pending_plan",
+            # docs/master_plan.md item 11's own additions.
+            "hostile_output",
+            "server_internal_error",
+            # pmc_agent.graph's TERMINAL_* names, exactly as
+            # `_to_terminal_response` uses each terminal's own status
+            # string as its failure category.
+            "ask",
+            "rejected",
+            "expired",
+            "superseded",
+            "cancelled",
+            "applied",
+            "apply_failed_restored",
+            "rolled_back",
+        }
+    )
+    | _EXECUTION_ERROR_CATEGORIES
+    | _EXECUTION_INFRASTRUCTURE_CATEGORIES
+    | _ENGINE_FAILURE_CATEGORIES
+)
 
 
 class ProtocolDecodeError(ValueError):
@@ -998,12 +1109,60 @@ class ValidationReportV1:
     check fidelity against itself. A client still enforces its own copy of
     the same rule from its own locally observed fidelity outcome; neither
     side trusts the other's `applicable` alone.
+
+    Attributes:
+        status: Always `"passed"` -- see `from_dict`.
+        snapshot_digest: The digest the sidecar validated against.
+        applicable: Whether this plan may be approved and applied.
+        warnings: Bounded, deterministic diagnostic strings
+            (`pmc_agent.warnings.derive_warnings`'s own output plus any
+            captured sidecar stderr), at most `MAX_VALIDATION_WARNINGS` of
+            them, each at most `MAX_VALIDATION_WARNING_BYTES`.
+        selection_counts: The atom count of each named selection the plan
+            created, in the order the plan first names it. At most
+            `MAX_COMMANDS` entries, one ceiling below the plan's own
+            command limit.
+        repair_attempts: How many repair attempts this plan needed before
+            it validated -- zero for a plan that validated on its first
+            generation. Bounded by `MAX_REPAIR_ATTEMPTS`.
     """
 
     status: str
     snapshot_digest: str
     applicable: bool
     warnings: tuple[str, ...]
+    selection_counts: tuple[SelectionCountV1, ...]
+    repair_attempts: int
+
+    def __post_init__(self) -> None:
+        """Reject a report outside its declared bounds.
+
+        Raises:
+            ValueError: If `warnings` exceeds `MAX_VALIDATION_WARNINGS`, any
+                warning is not printable ASCII or exceeds
+                `MAX_VALIDATION_WARNING_BYTES`, `selection_counts` exceeds
+                `MAX_COMMANDS`, or `repair_attempts` is not an int in
+                `[0, MAX_REPAIR_ATTEMPTS]`.
+        """
+        if len(self.warnings) > MAX_VALIDATION_WARNINGS:
+            raise ValueError("validation carries too many warnings")
+        for warning in self.warnings:
+            if not isinstance(warning, str):
+                raise ValueError(f"unsupported warning: {warning!r}")
+            if not warning.isascii() or not warning.isprintable():
+                raise ValueError("warning carries unprintable characters")
+            if len(warning.encode("utf-8")) > MAX_VALIDATION_WARNING_BYTES:
+                raise ValueError("warning exceeds the bound")
+        if len(self.selection_counts) > MAX_COMMANDS:
+            raise ValueError("validation carries too many selection counts")
+        if (
+            isinstance(self.repair_attempts, bool)
+            or not isinstance(self.repair_attempts, int)
+            or not 0 <= self.repair_attempts <= MAX_REPAIR_ATTEMPTS
+        ):
+            raise ValueError(
+                f"unsupported repair attempt count: {self.repair_attempts!r}"
+            )
 
     def to_dict(self) -> dict[str, object]:
         """Encode the validation report using its V1 wire-field names.
@@ -1016,6 +1175,10 @@ class ValidationReportV1:
             "snapshotDigest": self.snapshot_digest,
             "applicable": self.applicable,
             "warnings": list(self.warnings),
+            "selectionCounts": [
+                count.to_dict() for count in self.selection_counts
+            ],
+            "repairAttempts": self.repair_attempts,
         }
 
     @classmethod
@@ -1029,12 +1192,22 @@ class ValidationReportV1:
             The validated validation report.
 
         Raises:
-            ProtocolDecodeError: If value does not match the report schema.
+            ProtocolDecodeError: If value does not match the report schema,
+                or its own construction rules reject a field's value --
+                `__post_init__`'s `ValueError` is re-raised as a
+                `ProtocolDecodeError`.
         """
         data = _strict_object(
             value,
             name="validation",
-            required={"status", "snapshotDigest", "applicable", "warnings"},
+            required={
+                "status",
+                "snapshotDigest",
+                "applicable",
+                "warnings",
+                "selectionCounts",
+                "repairAttempts",
+            },
         )
         match data["warnings"]:
             case list() as warning_values:
@@ -1043,6 +1216,15 @@ class ValidationReportV1:
                 )
             case _:
                 raise ProtocolDecodeError("validation.warnings must be strings")
+        match data["selectionCounts"]:
+            case list() as count_values:
+                selection_counts = tuple(
+                    SelectionCountV1.from_dict(item) for item in count_values
+                )
+            case _:
+                raise ProtocolDecodeError(
+                    "validation.selectionCounts must be a list"
+                )
         match data["applicable"]:
             case bool() as applicable:
                 pass
@@ -1053,19 +1235,35 @@ class ValidationReportV1:
         status = _string(data["status"], name="status")
         if status != "passed":
             raise ProtocolDecodeError("validation status is not passed")
-        return cls(
-            status=status,
-            snapshot_digest=_string(
-                data["snapshotDigest"], name="snapshotDigest"
-            ),
-            applicable=applicable,
-            warnings=warnings,
-        )
+        try:
+            return cls(
+                status=status,
+                snapshot_digest=_string(
+                    data["snapshotDigest"], name="snapshotDigest"
+                ),
+                applicable=applicable,
+                warnings=warnings,
+                selection_counts=selection_counts,
+                repair_attempts=_int(
+                    data["repairAttempts"], name="repairAttempts"
+                ),
+            )
+        except ValueError as error:
+            raise ProtocolDecodeError(str(error)) from error
 
 
 @dataclass(frozen=True)
 class ValidatedPlanResponseV1:
-    """A strictly decoded successful server response."""
+    """A strictly decoded successful server response.
+
+    Attributes:
+        target_object: The one molecular object `preparing` resolved this
+            plan against (`pmc_agent.graph`'s own `RequestState.
+            target_object`). docs/master_plan.md item 11: the client cross-
+            checks this against its own independently resolved object name
+            before ever parking the plan for approval -- neither side
+            trusts the other's resolution alone.
+    """
 
     request_id: str
     session_id: str
@@ -1077,6 +1275,7 @@ class ValidatedPlanResponseV1:
     snapshot_digest: str
     expires_at: str
     model_identity: str
+    target_object: str
     protocol_version: str = PROTOCOL_VERSION
 
     def to_dict(self) -> dict[str, object]:
@@ -1098,6 +1297,7 @@ class ValidatedPlanResponseV1:
                 "snapshotDigest": self.snapshot_digest,
                 "expiresAt": self.expires_at,
                 "modelIdentity": self.model_identity,
+                "targetObject": self.target_object,
                 "commands": encode_plan(self.action_plan),
             },
             "validation": self.validation.to_dict(),
@@ -1144,6 +1344,7 @@ class ValidatedPlanResponseV1:
                 "snapshotDigest",
                 "expiresAt",
                 "modelIdentity",
+                "targetObject",
                 "commands",
             },
         )
@@ -1181,16 +1382,43 @@ class ValidatedPlanResponseV1:
             model_identity=_string(
                 action_plan_data["modelIdentity"], name="modelIdentity"
             ),
+            target_object=_string(
+                action_plan_data["targetObject"], name="targetObject"
+            ),
         )
 
 
 @dataclass(frozen=True)
 class FailureEnvelopeV1:
-    """A bounded, typed failure that carries no executable plan."""
+    """A bounded, typed failure that carries no executable plan.
+
+    `category` is deliberately not restricted to `FAILURE_CATEGORIES` here:
+    that set names what the production server may emit, but this type is
+    also constructed directly by tests exercising the wire shape itself
+    with throwaway category strings. The production closed-set claim is
+    proved dynamically instead, by driving the real request graph and
+    lifecycle through every path (`tests/integration/test_failure_messages.py`).
+    `message` is restricted, because an unbounded or unprintable message is
+    a defect regardless of who constructs this type.
+    """
 
     category: str
     message: str
     retryable: bool
+
+    def __post_init__(self) -> None:
+        """Reject a message outside the accepted bounded, printable shape.
+
+        Raises:
+            ValueError: If message is not a string, is not printable ASCII,
+                or exceeds `MAX_FAILURE_MESSAGE_BYTES`.
+        """
+        if not isinstance(self.message, str):
+            raise ValueError(f"unsupported failure message: {self.message!r}")
+        if not self.message.isascii() or not self.message.isprintable():
+            raise ValueError("failure message carries unprintable characters")
+        if len(self.message.encode("utf-8")) > MAX_FAILURE_MESSAGE_BYTES:
+            raise ValueError("failure message exceeds the bound")
 
     def to_dict(self) -> dict[str, object]:
         """Encode the bounded failure envelope.
@@ -1215,7 +1443,11 @@ class FailureEnvelopeV1:
             The validated failure envelope.
 
         Raises:
-            ProtocolDecodeError: If value does not match the envelope schema.
+            ProtocolDecodeError: If value does not match the envelope
+                schema, or its own construction rules reject `message` --
+                `FailureEnvelopeV1.__post_init__`'s `ValueError` is
+                re-raised as a `ProtocolDecodeError`, exactly as
+                `decode_execution_error` re-raises `ExecutionErrorV1`'s.
         """
         data = _strict_object(
             value,
@@ -1227,11 +1459,14 @@ class FailureEnvelopeV1:
                 pass
             case _:
                 raise ProtocolDecodeError("failure.retryable must be a boolean")
-        return cls(
-            category=_string(data["category"], name="category"),
-            message=_string(data["message"], name="message"),
-            retryable=retryable,
-        )
+        try:
+            return cls(
+                category=_string(data["category"], name="category"),
+                message=_string(data["message"], name="message"),
+                retryable=retryable,
+            )
+        except ValueError as error:
+            raise ProtocolDecodeError(str(error)) from error
 
 
 @dataclass(frozen=True)
@@ -1290,6 +1525,396 @@ class FailedPlanResponseV1:
             session_id=_uuid4(data["sessionId"], name="sessionId"),
             failure=FailureEnvelopeV1.from_dict(data["failure"]),
         )
+
+
+@dataclass(frozen=True)
+class HealthRequestV1:
+    """A strictly decoded request for `copilot_health`'s server-side facts.
+
+    Carries no plan id, exactly like `CancelRequestV1`: health has nothing
+    to correlate against a pending plan.
+    """
+
+    request_id: str
+    session_id: str
+    protocol_version: str = PROTOCOL_VERSION
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the request using its V1 wire-field names.
+
+        Returns:
+            The request represented with wire-field names.
+        """
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> HealthRequestV1:
+        """Decode and validate a V1 health request.
+
+        Args:
+            value: JSON-like value containing a health request.
+
+        Returns:
+            The validated health request.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the request schema.
+        """
+        data = _strict_object(
+            value,
+            name="HealthRequestV1",
+            required={"protocolVersion", "requestId", "sessionId"},
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        return cls(
+            request_id=_uuid4(data["requestId"], name="requestId"),
+            session_id=_uuid4(data["sessionId"], name="sessionId"),
+        )
+
+
+#: `EngineHealthV1.state`: the engine answered and reports a usable model.
+HEALTH_ENGINE_READY = "ready"
+
+#: `EngineHealthV1.state`: the engine could not be reached, or is not
+#: loaded, at the moment `copilot_health` asked.
+HEALTH_ENGINE_UNAVAILABLE = "unavailable"
+
+_HEALTH_ENGINE_STATES = frozenset(
+    {HEALTH_ENGINE_READY, HEALTH_ENGINE_UNAVAILABLE}
+)
+
+#: The exact `HealthResponseV1.contract_versions` key set --
+#: `pmc_core.versions.contract_versions()`'s own keys, hand-listed rather
+#: than imported: that module imports this one (it reads
+#: `CURRENT_CONTRACT_MANIFEST` and `PROTOCOL_VERSION`), so the reverse
+#: import would cycle. `tests/contract/test_versions.py` cross-checks this
+#: constant against `contract_versions()` directly.
+HEALTH_CONTRACT_KEYS: frozenset[str] = frozenset(
+    {
+        "protocol",
+        "plan",
+        "policy",
+        "snapshot",
+        "card",
+        "prompt",
+        "grammar",
+        "errorEnvelope",
+        "executor",
+    }
+)
+
+
+@dataclass(frozen=True)
+class EngineHealthV1:
+    """The engine facts a V1 health response carries, on the wire.
+
+    Exactly one field group is populated, matching `state`:
+    `engine_version`/`device` when ready, `failure_category`/
+    `failure_message` when not. `pmc_agent.inference.base.EngineHealth` is
+    this type's producer; `pmc_client` may not import `pmc_agent`
+    (dependency boundary), so this wire type is the one shape both sides
+    agree on.
+
+    Attributes:
+        state: `HEALTH_ENGINE_READY` or `HEALTH_ENGINE_UNAVAILABLE`.
+        engine: A stable engine name, e.g. `"lemonade"` or `"fake"`.
+        engine_version: The engine's own reported version, when ready.
+        device: The device the engine is running on, when ready.
+        failure_category: A bounded engine-failure category, when
+            unavailable.
+        failure_message: A bounded engine-failure message, when
+            unavailable.
+    """
+
+    state: str
+    engine: str
+    engine_version: str | None
+    device: str | None
+    failure_category: str | None
+    failure_message: str | None
+
+    def __post_init__(self) -> None:
+        """Reject a state whose field group is not exactly populated.
+
+        Raises:
+            ValueError: If `state` is unrecognized, or the field group for
+                that state is not exactly populated.
+        """
+        if self.state not in _HEALTH_ENGINE_STATES:
+            raise ValueError(f"unsupported engine health state: {self.state!r}")
+        if self.state == HEALTH_ENGINE_READY:
+            if self.engine_version is None or self.device is None:
+                raise ValueError(
+                    "a ready engine health must report version and device"
+                )
+            if (
+                self.failure_category is not None
+                or self.failure_message is not None
+            ):
+                raise ValueError("a ready engine health must carry no failure")
+        else:
+            if self.failure_category is None or self.failure_message is None:
+                raise ValueError(
+                    "an unavailable engine health must carry a failure"
+                )
+            if self.engine_version is not None or self.device is not None:
+                raise ValueError(
+                    "an unavailable engine health must carry no version "
+                    "or device"
+                )
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the engine health using its V1 wire-field names.
+
+        Returns:
+            The engine health represented with wire-field names.
+        """
+        return {
+            "state": self.state,
+            "engine": self.engine,
+            "engineVersion": self.engine_version,
+            "device": self.device,
+            "failureCategory": self.failure_category,
+            "failureMessage": self.failure_message,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> EngineHealthV1:
+        """Decode and validate a V1 engine health value.
+
+        Args:
+            value: JSON-like value containing an engine health.
+
+        Returns:
+            The validated engine health.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the engine health
+                schema, or its own construction rules reject it --
+                `__post_init__`'s `ValueError` is re-raised as a
+                `ProtocolDecodeError`.
+        """
+        data = _strict_object(
+            value,
+            name="engine",
+            required={
+                "state",
+                "engine",
+                "engineVersion",
+                "device",
+                "failureCategory",
+                "failureMessage",
+            },
+        )
+        try:
+            return cls(
+                state=_string(data["state"], name="state"),
+                engine=_string(data["engine"], name="engine"),
+                engine_version=_optional_string(
+                    data["engineVersion"], name="engineVersion"
+                ),
+                device=_optional_string(data["device"], name="device"),
+                failure_category=_optional_string(
+                    data["failureCategory"], name="failureCategory"
+                ),
+                failure_message=_optional_string(
+                    data["failureMessage"], name="failureMessage"
+                ),
+            )
+        except ValueError as error:
+            raise ProtocolDecodeError(str(error)) from error
+
+
+@dataclass(frozen=True)
+class HealthResponseV1:
+    """A strictly decoded `copilot_health` response.
+
+    Attributes:
+        application_version: `pmc_core.versions.APPLICATION_VERSION` on the
+            server build that answered.
+        contract_versions: `pmc_core.versions.contract_versions()` on the
+            server build that answered -- exact key set `HEALTH_CONTRACT_KEYS`,
+            string values.
+        engine: The engine's own current health.
+        model_identity: The engine's model identity when ready; None when
+            unavailable.
+    """
+
+    request_id: str
+    session_id: str
+    application_version: str
+    contract_versions: dict[str, str]
+    engine: EngineHealthV1
+    model_identity: str | None
+    protocol_version: str = PROTOCOL_VERSION
+
+    def __post_init__(self) -> None:
+        """Reject a response with the wrong contract keys or model identity.
+
+        Raises:
+            ValueError: If `contract_versions`'s key set is not exactly
+                `HEALTH_CONTRACT_KEYS`, or `model_identity` disagrees with
+                whether `engine` is ready.
+        """
+        if set(self.contract_versions) != HEALTH_CONTRACT_KEYS:
+            raise ValueError(
+                "health response has an unexpected contract key set"
+            )
+        if not all(
+            isinstance(key, str) and isinstance(val, str)
+            for key, val in self.contract_versions.items()
+        ):
+            raise ValueError(
+                "health response contract versions must be strings"
+            )
+        if (
+            self.engine.state == HEALTH_ENGINE_READY
+            and self.model_identity is None
+        ):
+            raise ValueError(
+                "a ready engine health must report a model identity"
+            )
+        if (
+            self.engine.state == HEALTH_ENGINE_UNAVAILABLE
+            and self.model_identity is not None
+        ):
+            raise ValueError(
+                "an unavailable engine health must carry no model identity"
+            )
+
+    def to_dict(self) -> dict[str, object]:
+        """Encode the health response using its V1 wire shape.
+
+        Returns:
+            The response represented with wire-field names.
+        """
+        return {
+            "protocolVersion": self.protocol_version,
+            "requestId": self.request_id,
+            "sessionId": self.session_id,
+            "status": "health",
+            "applicationVersion": self.application_version,
+            "contractVersions": dict(self.contract_versions),
+            "engine": self.engine.to_dict(),
+            "modelIdentity": self.model_identity,
+        }
+
+    @classmethod
+    def from_dict(cls, value: object) -> HealthResponseV1:
+        """Decode and validate a V1 health response.
+
+        Args:
+            value: JSON-like value containing a health response.
+
+        Returns:
+            The validated health response.
+
+        Raises:
+            ProtocolDecodeError: If value does not match the response
+                schema, or its own construction rules reject it --
+                `__post_init__`'s `ValueError` is re-raised as a
+                `ProtocolDecodeError`.
+        """
+        data = _strict_object(
+            value,
+            name="HealthResponseV1",
+            required={
+                "protocolVersion",
+                "requestId",
+                "sessionId",
+                "status",
+                "applicationVersion",
+                "contractVersions",
+                "engine",
+                "modelIdentity",
+            },
+        )
+        if data["protocolVersion"] != PROTOCOL_VERSION:
+            raise ProtocolDecodeError("unsupported protocol version")
+        if data["status"] != "health":
+            raise ProtocolDecodeError("response status is not health")
+        match data["contractVersions"]:
+            case dict() as raw_versions:
+                contract_versions = {
+                    _string(key, name="contractVersions key"): _string(
+                        item, name="contractVersions value"
+                    )
+                    for key, item in raw_versions.items()
+                }
+            case _:
+                raise ProtocolDecodeError(
+                    "health.contractVersions must be an object"
+                )
+        try:
+            return cls(
+                request_id=_uuid4(data["requestId"], name="requestId"),
+                session_id=_uuid4(data["sessionId"], name="sessionId"),
+                application_version=_string(
+                    data["applicationVersion"], name="applicationVersion"
+                ),
+                contract_versions=contract_versions,
+                engine=EngineHealthV1.from_dict(data["engine"]),
+                model_identity=_optional_string(
+                    data["modelIdentity"], name="modelIdentity"
+                ),
+            )
+        except ValueError as error:
+            raise ProtocolDecodeError(str(error)) from error
+
+
+def encode_health_response_json(value: HealthResponseV1) -> str:
+    """Encode a health response as compact JSON.
+
+    Args:
+        value: Health response to encode.
+
+    Returns:
+        The compact JSON representation.
+    """
+    return json.dumps(value.to_dict(), separators=(",", ":"))
+
+
+def decode_health_request_json(value: str) -> HealthRequestV1:
+    """Decode JSON strictly as a V1 health request.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed health request.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return HealthRequestV1.from_dict(decoded)
+
+
+def decode_health_response_json(value: str) -> HealthResponseV1:
+    """Decode JSON strictly as a V1 health response.
+
+    Args:
+        value: JSON text to decode.
+
+    Returns:
+        The decoded typed health response.
+
+    Raises:
+        ProtocolDecodeError: If the JSON or protocol value is invalid.
+    """
+    try:
+        decoded = json.loads(value)
+    except (ValueError, RecursionError) as error:
+        raise ProtocolDecodeError("invalid JSON") from error
+    return HealthResponseV1.from_dict(decoded)
 
 
 def decode_execution_error(value: object) -> ExecutionErrorV1:
