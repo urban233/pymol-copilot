@@ -233,6 +233,7 @@ py_test(
     size = "medium",
     srcs = ["test_manifest.py"],
     main = "test_manifest.py",
+    data = ["//docs/dataset:dataset_docs"],
     deps = [
         ":oracle_executor",
         "@pypi//pytest",

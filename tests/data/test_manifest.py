@@ -17,11 +17,20 @@ from split_fixture import GIT_CLEAN
 from split_fixture import make_repo
 from pmc_data import manifest as manifest_module
 from pmc_data import split_cli
+from pmc_data.gold_set import DEFAULT_GOLD_ITEMS_PATH
+from pmc_data.gold_set import DEFAULT_GOLD_SAMPLES_PATH
 from pmc_data.manifest import REQUIRED_FIELDS
 from pmc_data.manifest import REQUIRED_PROVENANCE
 from pmc_data.manifest import InvalidManifestError
 from pmc_data.manifest import read_manifest
+from pmc_data.manifest import render_datasheet
+from pmc_data.manifest import sha256_of
 from pmc_data.manifest import validate_manifest
+from pmc_data.split import HELD_OUT_SPEC_IDS
+from pmc_data.split import SPLIT_VERSION
+
+#: The committed record of the frozen split.
+DOCS = Path(__file__).resolve().parents[2] / "docs" / "dataset"
 
 
 @pytest.fixture
@@ -144,6 +153,34 @@ def test_datasheet_states_the_limits(split: Path) -> None:
         "Not yet performed",
     ):
         assert phrase.lower() in text.lower(), phrase
+
+
+def test_committed_manifest_matches_the_repo() -> None:
+    """The frozen split still describes the gold set and split in the tree.
+
+    Editing the gold items or samples, or the held-out set, after the
+    split was frozen fails here until the split is rebuilt -- and a
+    changed held-out set also needs a SPLIT_VERSION bump, which
+    tests/data/test_split.py pins. This is how "test splits are
+    immutable after inspection begins" is enforced.
+    """
+    manifest = read_manifest(DOCS / "manifest.json")
+    provenance = manifest["provenance"]
+
+    assert provenance["git_dirty"] is False
+    assert manifest["split_version"] == SPLIT_VERSION
+    assert provenance["held_out_spec_ids"] == sorted(HELD_OUT_SPEC_IDS)
+    assert provenance["gold_items_sha256"] == sha256_of(DEFAULT_GOLD_ITEMS_PATH)
+    assert provenance["gold_samples_sha256"] == sha256_of(
+        DEFAULT_GOLD_SAMPLES_PATH
+    )
+    assert (DOCS / "DATASHEET.md").read_text("utf-8") == render_datasheet(
+        manifest
+    )
+    audit = manifest["audit"]
+    if audit is not None:
+        sheet = DOCS / "audit" / "sheet.jsonl"
+        assert sha256_of(sheet) == audit["sheet_sha256"]
 
 
 if __name__ == "__main__":
