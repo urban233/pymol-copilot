@@ -30,6 +30,7 @@ from preview_support import plan_id_from
 from preview_support import section
 from pmc_client.command import PLAN_ID_DISPLAY_PREFIX
 from pmc_client.command import CopilotCommandClient
+from pmc_client.command import _LITERAL_PARSING_MODE
 from pmc_client.recovery import RecoveryPointError
 from pmc_client.command import PlanTransport
 from pmc_client.recovery import RecoveryStore
@@ -50,6 +51,7 @@ from pmc_core.plan import Factor
 from pmc_core.plan import NamedSelection
 from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
+from pmc_core.protocol import MAX_INTENT_LENGTH
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
@@ -138,6 +140,11 @@ class _RecordingSession:
     raise_on_get_names: Exception | None = None
     commands: dict[str, Callable[[str], None]] = field(default_factory=dict)
     events: list[str] = field(default_factory=list)
+    #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
+    #: `pymol.commanding.extend()` does, so `register()`'s own
+    #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
+    #: entry to rewrite (docs/master_plan.md item 11).
+    keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Record a registered command.
@@ -147,6 +154,7 @@ class _RecordingSession:
             callback: Command callback to record.
         """
         self.commands[name] = callback
+        self.keyword[name] = [callback, 0, 0, ",", 11]
 
     def get_names(
         self,
@@ -2248,6 +2256,140 @@ def test_copilot_reject_reports_a_non_rejected_terminal() -> None:
         "copilot_reject: the plan's TTL had already passed. The plan's "
         "approval window passed. Run copilot again for a fresh plan."
     ]
+
+
+# --- Step 10: literal parsing, usage lines, and the intent length limit --
+
+
+def test_register_sets_copilots_own_parsing_mode_to_literal() -> None:
+    """Only `copilot`'s own entry is rewritten; the id commands stay strict."""
+    session = _RecordingSession()
+    client = CopilotCommandClient(
+        RecordingTransport(validated_response, []),
+        lambda _text: None,
+        probe=_exact_probe(session),
+    )
+
+    client.register(session)
+
+    assert session.keyword["copilot"][4] == _LITERAL_PARSING_MODE
+    for command in ("copilot_apply", "copilot_reject", "copilot_rollback"):
+        assert session.keyword[command][4] != _LITERAL_PARSING_MODE
+
+
+def test_copilot_with_an_empty_intent_prints_usage() -> None:
+    """A bare `copilot` (PyMOL calls this with zero arguments) is refused."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot("")
+
+    assert requests == []
+    assert output == ["copilot: usage: copilot <what you want to do>"]
+
+
+def test_copilot_with_a_whitespace_only_intent_prints_usage() -> None:
+    """Whitespace alone is not a usable intent either."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot("   ")
+
+    assert output == ["copilot: usage: copilot <what you want to do>"]
+
+
+def test_copilot_with_an_over_limit_intent_refuses_before_sending() -> None:
+    """An intent past the protocol's own length limit never reaches submit."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    long_intent = "x" * (MAX_INTENT_LENGTH + 1)
+
+    client.copilot(long_intent)
+
+    assert requests == []
+    assert output == [
+        f"copilot: intent is {len(long_intent)} characters, over the "
+        f"{MAX_INTENT_LENGTH}-character limit. Shorten it and try again."
+    ]
+
+
+def test_copilot_with_exactly_the_limit_is_not_refused() -> None:
+    """The boundary itself is still accepted; only past it is refused."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot("x" * MAX_INTENT_LENGTH)
+
+    assert len(requests) == 1
+    assert requests[0].intent == "x" * MAX_INTENT_LENGTH
+
+
+def test_copilot_apply_with_an_empty_plan_id_prints_usage() -> None:
+    """A bare `copilot_apply` is refused before touching any pending plan."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_apply("")
+
+    assert output == ["copilot_apply: usage: copilot_apply <plan id>"]
+
+
+def test_copilot_reject_with_an_empty_plan_id_prints_usage() -> None:
+    """A bare `copilot_reject` is refused before touching any pending plan."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_reject("")
+
+    assert output == ["copilot_reject: usage: copilot_reject <plan id>"]
+
+
+def test_copilot_rollback_with_an_empty_plan_id_prints_usage() -> None:
+    """A bare `copilot_rollback` is refused before touching any recovery point."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_rollback("")
+
+    assert output == ["copilot_rollback: usage: copilot_rollback <plan id>"]
 
 
 if __name__ == "__main__":

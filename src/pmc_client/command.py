@@ -30,6 +30,7 @@ from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from dataclasses import dataclass
+from typing import Any
 from typing import Protocol
 from typing import cast
 
@@ -74,6 +75,7 @@ from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import MAX_FIDELITY_MISMATCHES
+from pmc_core.protocol import MAX_INTENT_LENGTH
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
@@ -94,6 +96,18 @@ from pmc_core.snapshot import ObjectSnapshot
 #: silently drift from it.
 CONTRACT_MANIFEST = CURRENT_CONTRACT_MANIFEST
 
+#: PyMOL's own `parsing.LITERAL` mode (`pymol/parsing.py`), duplicated as
+#: a plain int rather than imported: this module has no dependency on
+#: `pymol` (`tests/integration/test_command.py` drives it with a fake
+#: session, never a real one), and this is the one value that would break
+#: that. Set on `copilot`'s own `cmd.keyword` entry after registration, it
+#: makes PyMOL hand the entire remainder of the line through as one
+#: literal string -- no `,`/`;` splitting, no `x=y` keyword-argument
+#: parsing -- matching intent's own free-text shape rather than a PyMOL
+#: argument list. `tests/integration/test_real_pymol_command.py` cross-
+#: checks this value against `pymol.parsing.LITERAL` directly.
+_LITERAL_PARSING_MODE = 20
+
 
 def _display_plan_id(raw_plan_id: str) -> str:
     """Render a raw plan identifier for console display and re-entry.
@@ -110,6 +124,16 @@ def _display_plan_id(raw_plan_id: str) -> str:
 
 class CmdExtension(Protocol):
     """Small subset of the PyMOL command API required for registration."""
+
+    #: PyMOL's own `cmd.keyword`: each registered name maps to a mutable
+    #: `[function, min_args, max_args, separator, mode]` list, `extend()`'s
+    #: own doing. `register()` only ever rewrites one already-registered
+    #: entry's `mode` (index 4); nothing here constructs or removes an
+    #: entry directly. A concrete `dict`/`list`, not `MutableMapping`
+    #: /`MutableSequence`: a read-write Protocol attribute is checked
+    #: invariantly, and every implementation here (real PyMOL's own
+    #: attribute included) is genuinely a plain `dict` of `list`s.
+    keyword: dict[str, list[Any]]
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Register a command callback.
@@ -505,6 +529,13 @@ class CopilotCommandClient:
         # called without naming every method it needs.
         self._cmd = cast(LivePyMOLSession, cmd)
         cmd.extend("copilot", self._guarded("copilot", self.copilot))
+        # SPECIFICATION.md's intent is free text: a comma, a semicolon, or
+        # `x=y` inside it must never be read as PyMOL argument syntax.
+        # `parsing.STRICT` (the mode `extend()` itself set a moment ago)
+        # would split on `,`, and `;` would end the command early; setting
+        # this entry's own mode is the one supported way to change it
+        # after the fact (docs/master_plan.md item 11).
+        cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE
         cmd.extend(
             "copilot_apply",
             self._guarded("copilot_apply", self.copilot_apply, mutating=True),
@@ -551,7 +582,7 @@ class CopilotCommandClient:
             A callable safe to hand to `cmd.extend`.
         """
 
-        def wrapped(argument: str) -> None:
+        def wrapped(argument: str = "") -> None:
             try:
                 handler(argument)
             except Exception as error:
@@ -679,16 +710,30 @@ class CopilotCommandClient:
         self._pending_plan = None
         self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
 
-    def copilot(self, intent: str) -> None:
+    def copilot(self, intent: str = "") -> None:
         """Extract the live session, gate it on fidelity, and submit a plan.
 
         Args:
-            intent: Natural-language intent to submit for planning.
+            intent: Natural-language intent to submit for planning. Empty
+                when PyMOL dispatched a bare `copilot` with nothing after
+                it -- `parsing.LITERAL` mode still requires a default here
+                (see `register()`), since PyMOL calls this with zero
+                arguments in that case.
         """
         if self._halted("copilot"):
             return
         if self._cmd is None:
             raise RuntimeError("copilot invoked before register()")
+        if not intent.strip():
+            self._output("copilot: usage: copilot <what you want to do>")
+            return
+        if len(intent) > MAX_INTENT_LENGTH:
+            self._output(
+                f"copilot: intent is {len(intent)} characters, over the "
+                f"{MAX_INTENT_LENGTH}-character limit. Shorten it and "
+                "try again."
+            )
+            return
 
         if not self._flush_unreported_outcomes():
             self._output(
@@ -795,16 +840,20 @@ class CopilotCommandClient:
                     state_count=state_count,
                 )
 
-    def copilot_apply(self, plan_id: str) -> None:
+    def copilot_apply(self, plan_id: str = "") -> None:
         """Approve, re-verify, and apply one immutable pending plan.
 
         Args:
             plan_id: The plan identifier to apply, as the user typed it.
+                Empty when PyMOL dispatched a bare `copilot_apply`.
         """
         if self._halted("copilot_apply"):
             return
         if self._cmd is None:
             raise RuntimeError("copilot_apply invoked before register()")
+        if not plan_id.strip():
+            self._output("copilot_apply: usage: copilot_apply <plan id>")
+            return
         pending = self._pending_plan
         # Rows that cannot depend on the current live session are settled
         # first. This keeps a stale id or expired plan from even querying
@@ -1009,12 +1058,15 @@ class CopilotCommandClient:
             )
         self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
 
-    def copilot_rollback(self, plan_id: str) -> None:
+    def copilot_rollback(self, plan_id: str = "") -> None:
         """Replace the live session with the one retained pre-apply image."""
         if self._halted("copilot_rollback"):
             return
         if self._cmd is None:
             raise RuntimeError("copilot_rollback invoked before register()")
+        if not plan_id.strip():
+            self._output("copilot_rollback: usage: copilot_rollback <plan id>")
+            return
         applied = self._applied_plan
         store = self._recovery_store
         if applied is None or store is None or store.retained is None:
@@ -1096,7 +1148,7 @@ class CopilotCommandClient:
         self._applied_plan = None
         self._report_outcome(applied.plan_id, APPLY_OUTCOME_ROLLED_BACK)
 
-    def copilot_reject(self, plan_id: str) -> None:
+    def copilot_reject(self, plan_id: str = "") -> None:
         """Reject the pending plan, if it matches; nothing is ever applied.
 
         An unknown or mismatched plan is refused locally. A matching plan
@@ -1106,8 +1158,12 @@ class CopilotCommandClient:
 
         Args:
             plan_id: The plan identifier to reject, as the user typed it.
+                Empty when PyMOL dispatched a bare `copilot_reject`.
         """
         if self._halted("copilot_reject"):
+            return
+        if not plan_id.strip():
+            self._output("copilot_reject: usage: copilot_reject <plan id>")
             return
         pending = self._pending_plan
         if pending is None:

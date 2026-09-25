@@ -589,6 +589,13 @@ class FidelityOutcomeV1:
         )
 
 
+#: The most characters one `PlanRequestV1.intent` may carry. docs
+#: /master_plan.md item 11: `pmc_client.command` refuses an over-limit
+#: intent before ever building a request, naming its own length, rather
+#: than let this same bound reject it only after the fact.
+MAX_INTENT_LENGTH = 4096
+
+
 @dataclass(frozen=True)
 class PlanRequestV1:
     """A strictly decoded request sent from client to server.
@@ -660,7 +667,7 @@ class PlanRequestV1:
         if data["protocolVersion"] != PROTOCOL_VERSION:
             raise ProtocolDecodeError("unsupported protocol version")
         intent = _string(data["intent"], name="intent")
-        if not 1 <= len(intent) <= 4096:
+        if not 1 <= len(intent) <= MAX_INTENT_LENGTH:
             raise ProtocolDecodeError("intent length is outside the V1 limit")
         return cls(
             request_id=_uuid4(data["requestId"], name="requestId"),

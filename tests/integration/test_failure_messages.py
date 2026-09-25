@@ -183,10 +183,16 @@ class _FakeSession:
     raise_on_save: Exception | None = None
     commands: dict[str, Callable[[str], None]] = field(default_factory=dict)
     events: list[str] = field(default_factory=list)
+    #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
+    #: `pymol.commanding.extend()` does, so `register()`'s own
+    #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
+    #: entry to rewrite (docs/master_plan.md item 11).
+    keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Record a registered command."""
         self.commands[name] = callback
+        self.keyword[name] = [callback, 0, 0, ",", 11]
 
     def get_names(
         self,

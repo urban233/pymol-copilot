@@ -5,7 +5,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
+from typing import Any
 from typing import cast
 
 import pytest
@@ -44,9 +46,15 @@ class _Cmd:
     """Minimal save/load command surface with observable call order."""
 
     events: list[str]
+    #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
+    #: `pymol.commanding.extend()` does, so `register()`'s own
+    #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
+    #: entry to rewrite (docs/master_plan.md item 11).
+    keyword: dict[str, list[Any]] = field(default_factory=dict)
 
-    def extend(self, _name: str, _callback: Callable[[str], None]) -> None:
+    def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Accept command registration; this test invokes the method directly."""
+        self.keyword[name] = [callback, 0, 0, ",", 11]
 
     def save(self, filename: str) -> None:
         """Materialize the private recovery file for the store."""

@@ -72,6 +72,7 @@ from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_client.command import register_copilot
+from pmc_client.command import _LITERAL_PARSING_MODE
 from pmc_client.recovery import RecoveryStore
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.executor import REASON_OK
@@ -79,6 +80,7 @@ from pmc_core.executor import STATUS_OK
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import MAX_INTENT_LENGTH
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
@@ -434,7 +436,7 @@ class _SynchronizingExtension:
             callback: Function invoked for the registered command.
         """
 
-        def synchronized(argument: str) -> None:
+        def synchronized(argument: str = "") -> None:
             try:
                 callback(argument)
             finally:
@@ -811,6 +813,193 @@ def test_sabotage_mutation_is_detected_by_state_comparison(
     assert before != after
     with pytest.raises(AssertionError):
         assert_session_unchanged(before, after)
+
+
+# --- Step 10: literal parsing, usage lines, and the intent length limit --
+
+
+def test_literal_parsing_mode_matches_pymol_own_constant(
+    real_pymol: PyMOLCmd,  # noqa: ARG001
+) -> None:
+    """`_LITERAL_PARSING_MODE` must track the pinned wheel's own value.
+
+    `pmc_client.command` duplicates this as a plain int rather than
+    importing `pymol.parsing.LITERAL` (that module has no dependency on
+    `pymol` at all); this proves the duplicate has not drifted from what
+    this exact pinned wheel defines. The `real_pymol` fixture is only
+    depended on for its own `winstage.ensure_importable()` call, which
+    every direct `import pymol` in this module relies on.
+    """
+    from pymol import parsing  # pyrefly: ignore.
+
+    assert _LITERAL_PARSING_MODE == parsing.LITERAL
+
+
+def test_copilot_receives_a_comma_semicolon_and_equals_intent_literally(
+    loaded_fixture: PyMOLCmd,
+) -> None:
+    """A comma, `x=y`, and `;` inside the intent all reach copilot() as text.
+
+    `parsing.STRICT` (PyMOL's own default for every other registered
+    command) would split this intent's comma into two positional
+    arguments, read `y=1` as a keyword argument, and let its `;` end the
+    command early so `orient` ran as a second, genuinely separate PyMOL
+    command. `register()`'s own `parsing.LITERAL` rewrite
+    (docs/master_plan.md item 11) means none of that happens: the whole
+    remainder of the line reaches the server as one intent string, proven
+    here by inspecting the request the real loopback server actually
+    received, and `orient` is never dispatched -- proven by the camera
+    view being bit-for-bit unchanged, since `orient` always recomputes it.
+    """
+    literal_intent = "color chain A red, y=1; orient"
+    requests: list[PlanRequestV1] = []
+    output: list[str] = []
+    lifecycle = _lifecycle()
+
+    def record_lifecycle(
+        request: PlanRequestV1,
+    ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+        """Record a request and return its lifecycle response."""
+        requests.append(request)
+        return lifecycle(request)
+
+    server = LoopbackPlanServer(CREDENTIAL, record_lifecycle)
+    try:
+        server.start()
+        finished = threading.Event()
+        register_copilot(
+            # pyrefly: ignore.  __getattr__ delegates the query surface at
+            # runtime, but pyrefly cannot verify that structurally.
+            _SynchronizingExtension(
+                RealPyMOLCmdExtension(loaded_fixture), finished
+            ),
+            LoopbackPlanClient(server.port, CREDENTIAL),
+            output.append,
+        )
+        view_before = loaded_fixture.get_view()
+
+        elapsed = _run_pymol_command(
+            loaded_fixture, finished, f"copilot {literal_intent}"
+        )
+
+        view_after = loaded_fixture.get_view()
+    finally:
+        server.close()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert len(requests) == 1
+    assert requests[0].intent == literal_intent
+    assert view_after == view_before
+
+
+def test_a_bare_copilot_prints_usage_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """`copilot` with nothing after it prints its usage line, not a traceback.
+
+    This refusal happens before any request would be built, so no server
+    is needed at all; `LoopbackPlanClient` only has to construct cleanly.
+    """
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+
+    elapsed = _run_pymol_command(loaded_fixture, finished, "copilot")
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == ["copilot: usage: copilot <what you want to do>"]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_a_bare_copilot_apply_prints_usage_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """`copilot_apply` with nothing after it prints its usage line."""
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+
+    elapsed = _run_pymol_command(loaded_fixture, finished, "copilot_apply")
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == ["copilot_apply: usage: copilot_apply <plan id>"]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_a_bare_copilot_reject_prints_usage_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """`copilot_reject` with nothing after it prints its usage line."""
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+
+    elapsed = _run_pymol_command(loaded_fixture, finished, "copilot_reject")
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == ["copilot_reject: usage: copilot_reject <plan id>"]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_an_over_limit_intent_prints_the_refusal_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """An intent past the protocol's own limit is refused, not truncated."""
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+    long_intent = "x" * 5000
+
+    elapsed = _run_pymol_command(
+        loaded_fixture, finished, f"copilot {long_intent}"
+    )
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == [
+        f"copilot: intent is {len(long_intent)} characters, over the "
+        f"{MAX_INTENT_LENGTH}-character limit. Shorten it and try again."
+    ]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
 
 
 if __name__ == "__main__":

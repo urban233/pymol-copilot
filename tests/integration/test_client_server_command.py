@@ -114,6 +114,11 @@ class DisposablePyMOLAdapter:
         default_factory=lambda: {"existing_selection": "blue"}
     )
     atoms: tuple[_FakeAtom, ...] = (_DEFAULT_ATOM,)
+    #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
+    #: `pymol.commanding.extend()` does, so `register()`'s own
+    #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
+    #: entry to rewrite (docs/master_plan.md item 11).
+    keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Register a command callback without changing molecular state.
@@ -123,6 +128,7 @@ class DisposablePyMOLAdapter:
             callback: Function invoked for the registered command.
         """
         self.commands[name] = callback
+        self.keyword[name] = [callback, 0, 0, ",", 11]
 
     def select(self, name: str, expression: str) -> None:
         """Record a selection mutation if the client attempts one.
