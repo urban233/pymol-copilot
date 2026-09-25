@@ -47,7 +47,9 @@ from pmc_client.apply import compare_recovery
 from pmc_client.fidelity import FidelityOutcome
 from pmc_client.fidelity import check_fidelity
 from pmc_client.fidelity import to_wire
+from pmc_client.messages import ACTIONS
 from pmc_client.messages import MAX_LINE_BYTES
+from pmc_client.messages import _DEFAULT_ACTION
 from pmc_client.messages import bounded
 from pmc_client.messages import describe_failure
 from pmc_client.messages import describe_transport
@@ -74,15 +76,21 @@ from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
+from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_core.protocol import MAX_FIDELITY_MISMATCHES
 from pmc_core.protocol import MAX_INTENT_LENGTH
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import parse_utc_timestamp
 from pmc_core.snapshot import to_json
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 from pmc_sidecar.child import PlanRunResult
 from pmc_sidecar.child import run_plan
 from pmc_client.recovery import RecoveryStore
@@ -216,6 +224,9 @@ class PlanTransport(Protocol):
         self, request: ApplyOutcomeRequestV1
     ) -> FailedPlanResponseV1:
         """Report a terminal live-apply outcome to the server."""
+
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Submit a health request and return the server's own facts."""
 
 
 @dataclass(frozen=True)
@@ -452,6 +463,86 @@ def _preview_block(
     return "\n".join(lines)
 
 
+#: The order `copilot_health`'s own `contracts:` line names each contract
+#: version in -- `HEALTH_CONTRACT_KEYS` minus `protocol`, which is already
+#: shown on the `client:` line above it and can never actually disagree in
+#: practice: a mismatched `protocolVersion` fails the health round trip
+#: itself at the wire-decode level, before a `HealthResponseV1` exists to
+#: compare.
+_CONTRACT_DISPLAY_ORDER = (
+    "plan",
+    "policy",
+    "snapshot",
+    "card",
+    "prompt",
+    "grammar",
+    "errorEnvelope",
+    "executor",
+)
+
+
+def _engine_health_lines(response: HealthResponseV1) -> list[str]:
+    """Render `engine:` and `model:` from one health response.
+
+    Args:
+        response: The server's own health facts.
+
+    Returns:
+        Exactly two lines.
+    """
+    engine = response.engine
+    if engine.state == HEALTH_ENGINE_READY:
+        return [
+            f"  engine:    ready -- {engine.engine} {engine.engine_version} "
+            f"on {engine.device}",
+            f"  model:     {response.model_identity}",
+        ]
+    # `EngineHealthV1.__post_init__` guarantees both fields are populated
+    # for every state other than `HEALTH_ENGINE_READY`, handled above.
+    assert engine.failure_category is not None
+    assert engine.failure_message is not None
+    action = ACTIONS.get(engine.failure_category, _DEFAULT_ACTION)
+    return [
+        bounded(
+            f"  engine:    unavailable ({engine.failure_message}). {action}",
+            max_bytes=MAX_LINE_BYTES,
+        ),
+        "  model:     unknown",
+    ]
+
+
+def _contracts_lines(response: HealthResponseV1) -> list[str]:
+    """Render the `contracts:` summary line and one line per mismatch.
+
+    Args:
+        response: The server's own health facts.
+
+    Returns:
+        One summary line, plus one `MISMATCH` line for each contract this
+        client and the responding server disagree on.
+    """
+    client_versions = contract_versions()
+    server_versions = response.contract_versions
+    parts = [f"{key} {client_versions[key]}" for key in _CONTRACT_DISPLAY_ORDER]
+    mismatches = [
+        key
+        for key in _CONTRACT_DISPLAY_ORDER
+        if client_versions[key] != server_versions.get(key)
+    ]
+    summary = (
+        "all match this client"
+        if not mismatches
+        else f"{len(mismatches)} {_plural(len(mismatches), 'mismatch', suffix='es')}"
+    )
+    lines = [f"  contracts: {', '.join(parts)} -- {summary}"]
+    lines.extend(
+        f"    {key} server {server_versions.get(key)} / client "
+        f"{client_versions[key]} -- MISMATCH"
+        for key in mismatches
+    )
+    return lines
+
+
 class CopilotCommandClient:
     """Preview plans and mutate only through an approved recovery boundary."""
 
@@ -517,7 +608,7 @@ class CopilotCommandClient:
     def register(self, cmd: RegisteredPyMOLSession) -> None:
         """Register this client's commands with a live PyMOL session.
 
-        Stores `cmd` for later live queries and registers the four user
+        Stores `cmd` for later live queries and registers the five user
         commands.
 
         Args:
@@ -549,6 +640,10 @@ class CopilotCommandClient:
             self._guarded(
                 "copilot_rollback", self.copilot_rollback, mutating=True
             ),
+        )
+        cmd.extend(
+            "copilot_health",
+            self._guarded("copilot_health", self.copilot_health),
         )
 
     def _guarded(
@@ -1214,6 +1309,56 @@ class CopilotCommandClient:
             return
         self._pending_plan = None
         self._output(describe_failure("copilot_reject", response.failure))
+
+    def copilot_health(self, _argument: str = "") -> None:
+        """Report client, server, engine, and contract-version facts.
+
+        Read-only and always allowed, even while Copilot is halted after a
+        failed restore (SPECIFICATION.md:690): a user needs this
+        diagnostic precisely when something else has already gone wrong,
+        so unlike every other registered command this one never checks
+        `_halted()` -- it reports the halt itself, on its own last line,
+        instead of refusing. It sends no plan request and changes no
+        client state.
+
+        Args:
+            _argument: Ignored; `copilot_health` takes no argument.
+        """
+        lines = [
+            "copilot health",
+            f"  client:    application {APPLICATION_VERSION}, protocol "
+            f"{PROTOCOL_VERSION}",
+        ]
+        try:
+            response = self._transport.health(
+                HealthRequestV1(
+                    request_id=str(self._uuid_factory()),
+                    session_id=self._session_id,
+                )
+            )
+        except TransportError as error:
+            described = describe_transport("copilot_health", error)
+            lines.append(
+                f"  server:    unavailable "
+                f"({described.removeprefix('copilot_health: ')})"
+            )
+            lines.append("  engine:    unknown")
+            lines.append("  model:     unknown")
+            lines.append("  contracts: unknown")
+        else:
+            lines.append(
+                "  server:    reachable, application "
+                f"{response.application_version}"
+            )
+            lines.extend(_engine_health_lines(response))
+            lines.extend(_contracts_lines(response))
+        lines.append(
+            "  copilot:   ready"
+            if self._halted_recovery is None
+            else "  copilot:   HALTED -- recovery point preserved at "
+            f"{self._halted_recovery}"
+        )
+        self._output("\n".join(lines))
 
     def _report_failure(self, response: FailedPlanResponseV1) -> None:
         """Report a typed failure without attempting to render a plan.
