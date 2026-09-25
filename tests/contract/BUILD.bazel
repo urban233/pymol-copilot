@@ -175,6 +175,18 @@ py_test(
     ],
 )
 
+py_test(
+    name = "versions",
+    size = "small",
+    srcs = ["test_versions.py"],
+    main = "test_versions.py",
+    data = ["//:pyproject.toml"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
 test_suite(
     name = "all",
     tests = [
@@ -191,5 +203,6 @@ test_suite(
         ":prompt",
         ":protocol",
         ":snapshot",
+        ":versions",
     ],
 )
