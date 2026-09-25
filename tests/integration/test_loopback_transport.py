@@ -29,20 +29,27 @@ from pmc_core.plan import Factor
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
+from pmc_core.protocol import EngineHealthV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import ObjectSnapshot
@@ -50,6 +57,7 @@ from pmc_core.snapshot import to_json
 from pmc_server.transport import CANCEL_PATH
 from pmc_server.transport import APPLY_OUTCOME_PATH
 from pmc_server.transport import APPLY_PATH
+from pmc_server.transport import HEALTH_PATH
 from pmc_server.transport import MAX_EXECUTION_REQUEST_BYTES
 from pmc_server.transport import REJECT_PATH
 from pmc_server.transport import VALIDATE_PATH
@@ -824,6 +832,151 @@ def test_cancel_endpoint_is_404_with_no_cancel_handler_configured() -> None:
         connection.close()
 
     assert response.status == HTTPStatus.NOT_FOUND
+
+
+def health_request() -> HealthRequestV1:
+    """Build an accepted health-request fixture.
+
+    Returns:
+        A well-formed request for the /v1/health endpoint.
+    """
+    return HealthRequestV1(request_id=REQUEST_ID, session_id=SESSION_ID)
+
+
+def fake_ready_health_handler(request: HealthRequestV1) -> HealthResponseV1:
+    """Answer any health request as though the engine were ready.
+
+    Args:
+        request: The decoded health request.
+
+    Returns:
+        A fixed, correlated, ready health response.
+    """
+    return HealthResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        application_version=APPLICATION_VERSION,
+        contract_versions=dict(contract_versions()),
+        engine=EngineHealthV1(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            failure_category=None,
+            failure_message=None,
+        ),
+        model_identity="fake-engine-v1",
+    )
+
+
+def fake_unavailable_health_handler(
+    request: HealthRequestV1,
+) -> HealthResponseV1:
+    """Answer any health request as though the engine were unavailable.
+
+    Args:
+        request: The decoded health request.
+
+    Returns:
+        A fixed, correlated, unavailable health response.
+    """
+    return HealthResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        application_version=APPLICATION_VERSION,
+        contract_versions=dict(contract_versions()),
+        engine=EngineHealthV1(
+            state=HEALTH_ENGINE_UNAVAILABLE,
+            engine="lemonade",
+            engine_version=None,
+            device=None,
+            failure_category="engine_unavailable",
+            failure_message="lemonade could not be reached",
+        ),
+        model_identity=None,
+    )
+
+
+def test_health_endpoint_round_trips_over_loopback() -> None:
+    """A real HTTP round trip through the health handler's own mapping."""
+    with LoopbackPlanServer(
+        "secret", validated_response, health_handler=fake_ready_health_handler
+    ) as server:
+        response = LoopbackPlanClient(server.port, "secret").health(
+            health_request()
+        )
+
+    assert response.request_id == REQUEST_ID
+    assert response.session_id == SESSION_ID
+    assert response.engine.state == HEALTH_ENGINE_READY
+    assert response.contract_versions == dict(contract_versions())
+
+
+def test_health_endpoint_reports_an_unavailable_engine() -> None:
+    """The server stays up and answers even when its engine is down.
+
+    SPECIFICATION.md:609: "Server remains available for diagnostics; no
+    unconstrained fallback." `/v1/plan` still fails for this same server;
+    `/v1/health` is what lets a user tell why.
+    """
+    with LoopbackPlanServer(
+        "secret",
+        validated_response,
+        health_handler=fake_unavailable_health_handler,
+    ) as server:
+        response = LoopbackPlanClient(server.port, "secret").health(
+            health_request()
+        )
+
+    assert response.engine.state == HEALTH_ENGINE_UNAVAILABLE
+    assert response.engine.failure_category == "engine_unavailable"
+    assert response.model_identity is None
+
+
+def test_health_endpoint_is_404_with_no_health_handler_configured() -> None:
+    """A server built without a health_handler still 404s the path."""
+    with LoopbackPlanServer("secret", validated_response) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(health_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            HEALTH_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+def test_health_endpoint_rejects_wrong_credential() -> None:
+    """A wrong credential is refused before the health handler ever runs."""
+    with LoopbackPlanServer(
+        "secret", validated_response, health_handler=fake_ready_health_handler
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(health_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            HEALTH_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "wrong",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.UNAUTHORIZED
 
 
 if __name__ == "__main__":

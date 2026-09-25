@@ -37,14 +37,19 @@ from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
+from pmc_core.protocol import EngineHealthV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 
 type TIMESTAMP_SOURCE = Callable[[], str]
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
@@ -257,6 +262,42 @@ class RequestGraphLifecycle:
             return self._no_pending_plan(request.request_id, request.session_id)
         return self._to_terminal_response(
             request.request_id, request.session_id, result
+        )
+
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Report this server's own application, contract, and engine facts.
+
+        docs/master_plan.md item 11's own `copilot_health` command. Never
+        touches the request graph: health is a property of the engine and
+        this build, not of any one request.
+
+        Args:
+            request: Decoded health request to answer.
+
+        Returns:
+            The server's application version, every contract version this
+            build agrees to, and the engine's own current health.
+        """
+        engine_health = self._session.engine_health()
+        failure = engine_health.failure
+        return HealthResponseV1(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            application_version=APPLICATION_VERSION,
+            contract_versions=dict(contract_versions()),
+            engine=EngineHealthV1(
+                state=engine_health.state,
+                engine=engine_health.engine,
+                engine_version=engine_health.engine_version,
+                device=engine_health.device,
+                failure_category=failure.category
+                if failure is not None
+                else None,
+                failure_message=failure.message
+                if failure is not None
+                else None,
+            ),
+            model_identity=engine_health.model_identity,
         )
 
     def _to_plan_response(

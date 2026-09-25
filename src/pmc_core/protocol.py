@@ -2267,7 +2267,8 @@ def encode_json(
     | RejectRequestV1
     | CancelRequestV1
     | ApplyRequestV1
-    | ApplyOutcomeRequestV1,
+    | ApplyOutcomeRequestV1
+    | HealthRequestV1,
 ) -> str:
     """Encode a supported protocol value as compact JSON.
 

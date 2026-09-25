@@ -22,7 +22,10 @@ import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.inference.unavailable import UnavailableEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_core.executor import REASON_CHILD_CRASH
 from pmc_core.executor import REASON_FIDELITY_MISMATCH
@@ -38,6 +41,8 @@ from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import FIDELITY_UNAVAILABLE
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
@@ -45,11 +50,14 @@ from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FAILURE_CATEGORIES
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import HealthRequestV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import SelectionCountV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 from pmc_server.lifecycle import FAILURE_NO_PENDING_PLAN
 from pmc_server.lifecycle import RequestGraphLifecycle
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
@@ -134,7 +142,7 @@ def request() -> PlanRequestV1:
 
 
 def _lifecycle(
-    engine: FakeEngine,
+    engine: InferenceEngine,
     *,
     policy_validator: Callable[[ActionPlan], PlanDecision] = evaluate_plan,
     max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
@@ -142,7 +150,7 @@ def _lifecycle(
     """Build a lifecycle over a fresh session, fixed timestamps, a fake.
 
     Args:
-        engine: The fake engine `generating` will call.
+        engine: The engine `generating` will call, or a health-only fake.
         policy_validator: Forwarded to `RequestGraphSession`. Defaults to
             the graph's own real `evaluate_plan`.
         max_repair_attempts: Forwarded to `RequestGraphSession`. Defaults
@@ -384,6 +392,44 @@ def test_every_observed_failure_category_is_in_the_closed_set(
     checked from this module's own wire-facing tests.
     """
     assert category in FAILURE_CATEGORIES
+
+
+def test_health_reports_application_contract_and_engine_facts() -> None:
+    """`copilot_health` reads real build facts, not placeholders."""
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    lifecycle = _lifecycle(engine)
+
+    response = lifecycle.health(
+        HealthRequestV1(
+            request_id=REQUEST_ID,
+            session_id=SESSION_ID,
+        )
+    )
+
+    assert response.request_id == REQUEST_ID
+    assert response.session_id == SESSION_ID
+    assert response.application_version == APPLICATION_VERSION
+    assert response.contract_versions == dict(contract_versions())
+    assert response.engine.state == HEALTH_ENGINE_READY
+    assert response.engine.engine == "fake"
+    assert response.model_identity == engine.model_identity
+
+
+def test_health_reports_an_unavailable_engine_without_touching_a_request() -> (
+    None
+):
+    """An unavailable engine is reported, and no plan request is affected."""
+    engine = UnavailableEngine(EngineFailure("engine_unavailable", "down"))
+    lifecycle = _lifecycle(engine)
+
+    response = lifecycle.health(
+        HealthRequestV1(request_id=REQUEST_ID, session_id=SESSION_ID)
+    )
+
+    assert response.engine.state == HEALTH_ENGINE_UNAVAILABLE
+    assert response.engine.failure_category == "engine_unavailable"
+    assert response.engine.failure_message == "down"
+    assert response.model_identity is None
 
 
 def test_reject_reaches_rejected() -> None:

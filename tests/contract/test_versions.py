@@ -22,6 +22,7 @@ import tomllib
 
 import pmc_core
 from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
+from pmc_core.protocol import HEALTH_CONTRACT_KEYS
 from pmc_core.versions import APPLICATION_VERSION
 from pmc_core.versions import contract_versions
 
@@ -176,3 +177,14 @@ def test_application_version_matches_pyproject() -> None:
     with PYPROJECT_PATH.open("rb") as handle:
         pyproject = tomllib.load(handle)
     assert pyproject["project"]["version"] == APPLICATION_VERSION
+
+
+def test_health_contract_keys_matches_contract_versions_exactly() -> None:
+    """`HealthResponseV1`'s own hand-listed key set never falls behind.
+
+    `HEALTH_CONTRACT_KEYS` is hand-listed in `pmc_core.protocol` rather
+    than imported from this module, because `pmc_core.versions` imports
+    `pmc_core.protocol` and the reverse import would cycle. This is the
+    one place both are read together.
+    """
+    assert set(contract_versions()) == HEALTH_CONTRACT_KEYS

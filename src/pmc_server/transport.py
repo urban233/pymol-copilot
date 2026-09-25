@@ -18,6 +18,8 @@ from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import RejectRequestV1
@@ -26,9 +28,11 @@ from pmc_core.protocol import decode_cancel_request_json
 from pmc_core.protocol import decode_apply_outcome_request_json
 from pmc_core.protocol import decode_apply_request_json
 from pmc_core.protocol import decode_execution_request_json
+from pmc_core.protocol import decode_health_request_json
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_reject_request_json
 from pmc_core.protocol import encode_execution_response_json
+from pmc_core.protocol import encode_health_response_json
 from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
@@ -48,6 +52,10 @@ APPLY_OUTCOME_PATH = "/v1/apply-outcome"
 #: with none (every caller before this endpoint existed) returns 404 here,
 #: exactly as it did when this path was not routed at all.
 VALIDATE_PATH = "/v1/validate"
+#: docs/master_plan.md item 11's own `copilot_health` command. Routed only
+#: when a server is constructed with a health_handler, exactly like every
+#: other optional endpoint above.
+HEALTH_PATH = "/v1/health"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 #: `/v1/validate` and (since docs/master_plan.md item 8) `/v1/plan` both
@@ -76,6 +84,7 @@ type APPLY_HANDLER = Callable[[ApplyRequestV1], PLAN_RESPONSE]
 type APPLY_OUTCOME_HANDLER = Callable[
     [ApplyOutcomeRequestV1], FailedPlanResponseV1
 ]
+type HEALTH_HANDLER = Callable[[HealthRequestV1], HealthResponseV1]
 
 # Preserve the original public type-alias names.
 globals()["PlanResponse"] = PLAN_RESPONSE
@@ -96,6 +105,7 @@ class LoopbackPlanServer:
         cancel_handler: CANCEL_HANDLER | None = None,
         apply_handler: APPLY_HANDLER | None = None,
         apply_outcome_handler: APPLY_OUTCOME_HANDLER | None = None,
+        health_handler: HEALTH_HANDLER | None = None,
     ) -> None:
         """Create a server that authenticates requests before decoding JSON.
 
@@ -119,6 +129,9 @@ class LoopbackPlanServer:
                 of an APPLY_PATH request; absent handlers leave it unrouted.
             apply_outcome_handler: Terminal apply-outcome lifecycle invoked
                 after strict decoding of an APPLY_OUTCOME_PATH request.
+            health_handler: `copilot_health`'s own server-side facts,
+                invoked after strict decoding of a HEALTH_PATH request.
+                None -- the default -- routes HEALTH_PATH to 404.
 
         Raises:
             ValueError: If credential is empty.
@@ -132,6 +145,7 @@ class LoopbackPlanServer:
         self._cancel_handler = cancel_handler
         self._apply_handler = apply_handler
         self._apply_outcome_handler = apply_outcome_handler
+        self._health_handler = health_handler
         self._httpd = ThreadingHTTPServer(
             (LOOPBACK_HOST, 0), self._make_request_handler()
         )
@@ -259,6 +273,12 @@ class LoopbackPlanServer:
                     and server._apply_outcome_handler is not None
                 ):
                     self._handle_apply_outcome()
+                    return
+                if (
+                    self.path == HEALTH_PATH
+                    and server._health_handler is not None
+                ):
+                    self._handle_health()
                     return
                 self._send_empty(HTTPStatus.NOT_FOUND)
 
@@ -473,6 +493,45 @@ class LoopbackPlanServer:
                         session_id=request.session_id,
                         error=error,
                     )
+                self._send_json(response_payload)
+
+            def _handle_health(self) -> None:
+                """Decode, dispatch, and answer one HEALTH_PATH request.
+
+                `copilot_health` exists specifically to be usable when
+                something else is wrong, so unlike the plan-bearing
+                endpoints above, a handler defect here answers a plain 500
+                rather than a typed `HealthResponseV1` -- there is no
+                well-formed "health of a broken health check" to report,
+                and the client already treats "server unreachable or
+                erroring" as its own diagnostic fact. Only the exception's
+                type name is logged, never a traceback.
+                """
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                if payload is None:
+                    return
+                try:
+                    request = decode_health_request_json(
+                        payload.decode("utf-8")
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    handler = server._health_handler
+                    assert handler is not None
+                    response_payload = encode_health_response_json(
+                        handler(request)
+                    ).encode("utf-8")
+                except Exception as error:
+                    LOGGER.error(
+                        "loopback handler raised %s for path=%s request=%s",
+                        type(error).__name__,
+                        HEALTH_PATH,
+                        request.request_id,
+                    )
+                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
+                    return
                 self._send_json(response_payload)
 
             def _authorized_json_body(self, maximum_bytes: int) -> bytes | None:
