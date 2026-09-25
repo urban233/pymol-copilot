@@ -25,6 +25,7 @@ py_library(
         "conformance/rejections.jsonl",
         "conformance/samples.jsonl",
         "gold/gold_items.jsonl",
+        "gold/gold_samples.jsonl",
         "gold_cases/chain_a_red.json",
         "gold_cases/chain_a_red_second_fixture_gold_case.json",
     ],

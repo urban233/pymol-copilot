@@ -168,6 +168,24 @@ py_test(
     ],
 )
 
+# Replays every committed gold sample -- the test split -- through the
+# production execution boundary, one spawned pmc_sidecar.child each,
+# exactly as conformance_real_pymol replays the corpus slice.
+py_test(
+    name = "gold_set_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_gold_set_real_pymol.py"],
+    main = "test_gold_set_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
 py_test(
     name = "split",
     size = "small",

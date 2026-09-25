@@ -255,6 +255,14 @@ def test_coverage_gaps_names_what_is_missing() -> None:
     assert "color:chain" not in gaps["pairs"]
 
 
+def test_every_gold_item_is_reviewed() -> None:
+    """The committed gold set is signed off, item by item."""
+    unreviewed = [item.gold_id for item in COMMITTED if not item.reviewed]
+
+    assert not unreviewed
+    assert all(item.reviewed_by for item in COMMITTED)
+
+
 def test_gold_is_on_held_out_structures_only() -> None:
     """No gold item is asked about a structure training may see."""
     assert {item.spec_id for item in COMMITTED} <= HELD_OUT_SPEC_IDS
