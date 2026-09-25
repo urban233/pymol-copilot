@@ -5,8 +5,9 @@
 evaluation rests on. It is replayed here the way the conformance slice
 is: each sample's structure is rebuilt from the spec it records, its
 plan is parsed back out of its canonical .pml, and a fresh
-`pmc_sidecar.child` must reproduce both the fingerprint and the
-selection counts the sample was verified against. Contract drift that
+`pmc_sidecar.child` must reproduce the selection counts the sample was
+verified against, and the fingerprint wherever the oracle predicted
+one. Contract drift that
 would silently re-grade the test split fails here instead.
 
 It also checks the samples still correspond to the reviewed items, one
@@ -81,9 +82,17 @@ def test_every_gold_item_still_verifies(sample: Sample) -> None:
     )
 
     assert report.reason == REASON_OK, report
-    assert report.resulting_fingerprint == (
-        sample.verification.resulting_fingerprint
-    )
+    if sample.verification.expected_fingerprint is not None:
+        # Only where the oracle made a claim. An orienting plan carries
+        # no expected fingerprint -- the oracle declines to predict a
+        # camera move -- and its resulting view matrix is not the same
+        # on every platform: gold_062 to gold_065 reproduce on macOS
+        # and differ on ubuntu-24.04 and windows-2025. Those samples
+        # were graded on their selection counts, which are compared
+        # below on every platform.
+        assert report.resulting_fingerprint == (
+            sample.verification.resulting_fingerprint
+        )
     assert (
         tuple((c.name, c.atom_count) for c in report.selection_counts)
         == sample.verification.selection_counts

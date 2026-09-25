@@ -160,4 +160,12 @@ so lineage checks see what a real run records.
   words like "backbone", "side chain" and "ligand pocket", which would
   select everything or nothing; each non-obvious mapping is recorded in
   the item's `concept` field.
+- **An orienting plan's resulting fingerprint is platform-dependent.**
+  The view matrix after `orient` reproduced on macOS and differed on
+  ubuntu-24.04 and windows-2025 for four of the six gold `orient` items.
+  The oracle never predicts it, so those samples are graded on selection
+  counts alone, and the gold replay compares fingerprints only where the
+  oracle made a claim. A corpus regenerated on another platform can
+  therefore differ in the recorded `resulting_fingerprint` of its
+  `orient` samples, and only there.
 
