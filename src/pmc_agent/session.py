@@ -58,13 +58,13 @@ from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import bounded_failure
 from pmc_core.executor import execute
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
-from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
@@ -339,13 +339,11 @@ class RequestGraphSession:
                 # this thread until the client supplies that outcome.
                 return {
                     "status": TERMINAL_FAILED,
-                    "failure": FailureEnvelopeV1(
-                        category="apply_outcome_required",
-                        message=(
-                            "the previous approved plan still awaits its "
-                            "client apply outcome"
-                        ),
-                        retryable=True,
+                    "failure": bounded_failure(
+                        "apply_outcome_required",
+                        "the previous approved plan still awaits its "
+                        "client apply outcome",
+                        True,
                     ),
                 }
             if self._is_pending(session_id):
@@ -381,6 +379,8 @@ class RequestGraphSession:
                 "model_identity": None,
                 "failure": None,
                 "question": None,
+                "selection_counts": (),
+                "sidecar_warnings": (),
                 "completion": None,
             }
             cancel_token = CancelToken()
@@ -469,10 +469,10 @@ class RequestGraphSession:
             if approved_values.get("validation_applicable") is not True:
                 return {
                     "status": TERMINAL_FAILED,
-                    "failure": FailureEnvelopeV1(
-                        category="not_applicable",
-                        message="a non-exact fidelity preview cannot be approved",
-                        retryable=False,
+                    "failure": bounded_failure(
+                        "not_applicable",
+                        "a non-exact fidelity preview cannot be approved",
+                        False,
                     ),
                 }
             if snapshot.next == (STATE_PENDING_APPROVAL,):
@@ -496,6 +496,10 @@ class RequestGraphSession:
                 "model_identity",
                 "snapshot_digest",
                 "validation_applicable",
+                "target_object",
+                "selection_counts",
+                "sidecar_warnings",
+                "attempt",
             ):
                 applying[name] = approved_values[name]
             return applying

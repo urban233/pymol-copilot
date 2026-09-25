@@ -38,6 +38,18 @@ py_test(
 )
 
 py_test(
+    name = "validation_warnings",
+    size = "small",
+    srcs = ["test_validation_warnings.py"],
+    main = "test_validation_warnings.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "inference_fake",
     size = "small",
     srcs = ["test_inference_fake.py"],
