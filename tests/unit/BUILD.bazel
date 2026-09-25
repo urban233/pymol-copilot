@@ -62,6 +62,18 @@ py_test(
 )
 
 py_test(
+    name = "inference_unavailable",
+    size = "small",
+    srcs = ["test_inference_unavailable.py"],
+    main = "test_inference_unavailable.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "inference_lemonade",
     size = "small",
     srcs = ["test_inference_lemonade.py"],

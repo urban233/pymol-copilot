@@ -37,6 +37,8 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
+from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_agent.session import MAX_OUTCOME_RECEIPTS
@@ -153,6 +155,17 @@ class _SlowEngine:
             _VALID_COMPLETION, self.model_identity, STOP_END
         )
 
+    def health(self) -> EngineHealth:
+        """Return a fixed ready health; this fake is never actually down."""
+        return EngineHealth(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            model_identity=self.model_identity,
+            failure=None,
+        )
+
 
 class _CancellableEngine:
     """An engine that proves it received a live cancellation token."""
@@ -190,6 +203,17 @@ class _CancellableEngine:
         self.observed_cancellation.set()
         return CompletionResult(
             _VALID_COMPLETION, self.model_identity, STOP_END
+        )
+
+    def health(self) -> EngineHealth:
+        """Return a fixed ready health; this fake is never actually down."""
+        return EngineHealth(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            model_identity=self.model_identity,
+            failure=None,
         )
 
 

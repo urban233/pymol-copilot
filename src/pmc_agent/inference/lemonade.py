@@ -46,7 +46,10 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
 from pmc_core.errors import normalize_message
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
 
 # Item 17 replaces this base checkpoint with the fine-tuned artifact. Keep
 # both values explicit so the identity and the server-side model selection
@@ -67,6 +70,12 @@ _LOAD_PATH = "/api/v1/load"
 _GRAMMAR_CANARY = 'root ::= "pmc-grammar-probe-ok"'
 _GRAMMAR_CANARY_OUTPUT = "pmc-grammar-probe-ok"
 _GRAMMAR_CANARY_PROMPT = "Reply with the capital of France in one word."
+
+#: `health()`'s own budget -- deliberately tighter than
+#: `DEFAULT_READ_TIMEOUT_SECONDS`, since a health check exists to answer
+#: quickly whether the engine already probed is still there, not to wait
+#: out the same budget a real completion gets.
+_HEALTH_CHECK_TIMEOUT_SECONDS = 2.0
 
 
 def _local_origin(base_url: str) -> tuple[str, str, int]:
@@ -346,6 +355,87 @@ class LemonadeEngine:
         """
         self._capabilities = capabilities
 
+    def health(self) -> EngineHealth:
+        """Report this engine's current health with one bounded health check.
+
+        Unlike `probe_capabilities`, this never reloads the model and
+        never repeats the grammar canary -- it exists to answer cheaply
+        and quickly whether an already-probed engine is still there, using
+        `_HEALTH_CHECK_TIMEOUT_SECONDS` rather than this engine's own
+        (much longer) configured read timeout.
+
+        Returns:
+            Ready health naming this engine's own probed capabilities when
+            the server answers healthy; unavailable health carrying a
+            bounded typed failure otherwise. Never raises, including when
+            called before this engine has ever been probed.
+        """
+        if self._capabilities is None:
+            return EngineHealth(
+                state=HEALTH_ENGINE_UNAVAILABLE,
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                model_identity=None,
+                failure=_unknown(
+                    "Lemonade engine has not completed its startup probe"
+                ),
+            )
+        result = _request(
+            self,
+            "GET",
+            _HEALTH_PATH,
+            timeout_seconds=_HEALTH_CHECK_TIMEOUT_SECONDS,
+        )
+        if isinstance(result, EngineFailure):
+            return EngineHealth(
+                state=HEALTH_ENGINE_UNAVAILABLE,
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                model_identity=None,
+                failure=result,
+            )
+        response, health_data = result
+        if response.status_code != 200:
+            return EngineHealth(
+                state=HEALTH_ENGINE_UNAVAILABLE,
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                model_identity=None,
+                failure=_failure(
+                    ENGINE_UNAVAILABLE, _response_message(response)
+                ),
+            )
+        if health_data is None or health_data.get("status") != "ok":
+            return EngineHealth(
+                state=HEALTH_ENGINE_UNAVAILABLE,
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                model_identity=None,
+                failure=_unknown("Lemonade health did not report status ok"),
+            )
+        version = health_data.get("version")
+        if not isinstance(version, str):
+            return EngineHealth(
+                state=HEALTH_ENGINE_UNAVAILABLE,
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                model_identity=None,
+                failure=_unknown("Lemonade health did not report a version"),
+            )
+        return EngineHealth(
+            state=HEALTH_ENGINE_READY,
+            engine="lemonade",
+            engine_version=version,
+            device=self._capabilities.device,
+            model_identity=self.model_identity,
+            failure=None,
+        )
+
     def _request_body(self, request: CompletionRequest) -> dict[str, object]:
         """Build the only completion request shape this adapter can send.
 
@@ -600,6 +690,7 @@ def _request(
     path: str,
     *,
     body: dict[str, object] | None = None,
+    timeout_seconds: float | None = None,
 ) -> tuple[httpx.Response, dict[str, object] | None] | EngineFailure:
     """Issue one probe request and decode its optional object body.
 
@@ -608,6 +699,10 @@ def _request(
         method: The HTTP method to send.
         path: The relative Lemonade API path.
         body: An optional JSON request body.
+        timeout_seconds: A per-call timeout override, tighter than the
+            engine's own configured read timeout -- used by `health()`,
+            which must answer quickly rather than wait out the budget a
+            real completion gets. None keeps the client's own default.
 
     Returns:
         The raw response and decoded object, or an unavailable transport
@@ -617,9 +712,18 @@ def _request(
     try:
         # A redirect may point at an arbitrary remote origin. Keep the
         # startup capability probe at the single configured local origin too.
-        response = engine._client.request(
-            method, path, json=body, follow_redirects=False
-        )
+        if timeout_seconds is not None:
+            response = engine._client.request(
+                method,
+                path,
+                json=body,
+                follow_redirects=False,
+                timeout=timeout_seconds,
+            )
+        else:
+            response = engine._client.request(
+                method, path, json=body, follow_redirects=False
+            )
     except httpx.RequestError as error:
         return _failure(ENGINE_UNAVAILABLE, str(error))
     except Exception as error:  # The capability boundary is total too.

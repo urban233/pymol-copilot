@@ -51,6 +51,7 @@ from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
 from pmc_agent.inference.base import CancelToken
+from pmc_agent.inference.base import EngineHealth
 from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.prompt import PROMPT_BUILDER
 from pmc_agent.prompt import build_default_prompt
@@ -173,6 +174,7 @@ class RequestGraphSession:
             ttl_seconds: How long a minted plan stays approvable.
             max_repair_attempts: SPECIFICATION.md:640's repair budget.
         """
+        self._engine = engine
         self._sessions_guard = threading.Lock()
         self._sessions: dict[str, _SessionSlot] = {}
         self._active_cancellations: dict[str, CancelToken] = {}
@@ -224,6 +226,19 @@ class RequestGraphSession:
         with self._sessions_guard:
             token = self._active_cancellations.get(session_id)
         return token if token is not None else CancelToken()
+
+    def engine_health(self) -> EngineHealth:
+        """Report the engine's own current health.
+
+        docs/master_plan.md item 11: `copilot_health` reads this through
+        `pmc_server.lifecycle` rather than the graph, since health is a
+        property of the engine itself, not of any one request.
+
+        Returns:
+            The engine's current health. Never raises: `InferenceEngine
+            .health()` is itself a total method.
+        """
+        return self._engine.health()
 
     def _acquire_session(self, session_id: str) -> _SessionSlot:
         """Reserve and acquire the serialized-operation slot for a session.
