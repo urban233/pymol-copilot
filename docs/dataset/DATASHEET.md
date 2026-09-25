@@ -79,7 +79,11 @@ executor's verification record.
 
 ## Label audit
 
-Not yet performed. The audit sheet is drawn with `split_cli audit draw` and scored with `split_cli audit score` once every verdict is filled in; this section is rewritten then.
+50 training labels were drawn at random (seed 20260923) and judged by claude-opus-5-5, at Martin's request, calibrated to Martin's split version 1 verdicts.
+
+- **Observed error rate: 0/50 = 0.000** (Wilson 95% interval 0.000-0.071), over the 50 labels judged correct or wrong.
+- Unsure: 0, reported separately and not counted as either. If every unsure label were wrong, the rate would be 0.000.
+- Sheet SHA-256: `2f4807858593b374ad801e30f5fa02ffc8dd224dd4cda021f50568e262b1928e`.
 
 Earlier split versions, superseded by this one and kept in `docs/dataset/history/`:
 

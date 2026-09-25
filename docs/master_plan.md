@@ -544,14 +544,17 @@ and report the observed error rate as a number.
 **Result** (branch `feat/gold-set-split-audit`; see
 [docs/dataset/DATASHEET.md](dataset/DATASHEET.md)):
 
-- **Observed label error rate: 1/50 = 2.0%** (Wilson 95% interval
-  0.4%–10.5%), from 50 training labels drawn at random and judged by
-  Martin. The one wrong label was an unobservable-representation sample
-  (`show slice, chain B`).
-- Split `split-f6c24e0f8463359c`, by source structure, 6 of 24 specs held
-  out: 2,455 train, 68 reviewed gold items (the test split), 865
-  held-out synthetic samples.
-- Decontamination dropped 68 of 2,523 training candidates as
+- **Split version 2, `split-e4599620801af592`** — by source structure, 6
+  of 24 specs held out: 2,389 train, 68 reviewed gold items (the test
+  split), 842 held-out synthetic samples. Every `slice` sample (89) is
+  excluded, after Martin judged the version 1 audit's only wrong label, a
+  `slice` sample, and directed that all of them be dropped.
+- **Observed label error rate, version 2: 0/50** (Wilson 95% interval
+  0%–7.1%). Judged by Claude at Martin's request, calibrated to Martin's
+  version 1 verdicts, so weaker independence than a hand check.
+- **Version 1, judged by Martin: 1/50 = 2.0%** (Wilson 95% interval
+  0.4%–10.5%); kept in `docs/dataset/history/`.
+- Decontamination dropped 68 of 2,457 training candidates as
   near-duplicates of a gold intent.
 - Item 16 evaluates on `test_gold.jsonl`, with `heldout_synthetic.jsonl`
   as a secondary structure-generalization figure. Item 17 trains on

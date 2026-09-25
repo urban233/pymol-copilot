@@ -1,5 +1,18 @@
 {
-  "audit": null,
+  "audit": {
+    "auditor": "claude-opus-5-5, at Martin's request, calibrated to Martin's split version 1 verdicts",
+    "correct": 50,
+    "error_rate": 0.0,
+    "judged": 50,
+    "sample_size": 50,
+    "seed": 20260923,
+    "sheet_sha256": "2f4807858593b374ad801e30f5fa02ffc8dd224dd4cda021f50568e262b1928e",
+    "unsure": 0,
+    "wilson_high": 0.07134759913335872,
+    "wilson_low": 6.938893903907228e-18,
+    "worst_case_rate": 0.0,
+    "wrong": 0
+  },
   "audit_plan": {
     "sample_size": 50,
     "seed": 20260923

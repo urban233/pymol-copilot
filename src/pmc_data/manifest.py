@@ -241,8 +241,7 @@ def _audit_section(audit: Mapping[str, Any] | None) -> str:
         )
     return (
         f"{audit['sample_size']} training labels were drawn at random "
-        f"(seed {audit['seed']}) and judged by hand by "
-        f"{audit['auditor']}.\n\n"
+        f"(seed {audit['seed']}) and judged by {audit['auditor']}.\n\n"
         f"- **Observed error rate: {audit['wrong']}/{audit['judged']} = "
         f"{audit['error_rate']:.3f}** (Wilson 95% interval "
         f"{audit['wilson_low']:.3f}-{audit['wilson_high']:.3f}), over the "
