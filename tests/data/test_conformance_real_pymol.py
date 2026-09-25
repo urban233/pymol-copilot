@@ -110,15 +110,17 @@ def _replayed_plan(sample: Sample) -> ActionPlan:
 def test_every_committed_sample_still_verifies(sample: Sample) -> None:
     """A committed sample must still reproduce what it recorded.
 
-    Both halves are checked, because for some samples only one of them
-    carries any weight. An orienting plan is handed no
+    The fingerprint is compared wherever the oracle predicted one, and
+    the selection counts always. An orienting plan is handed no
     `expected_resulting_fingerprint` -- the oracle refuses to predict a
-    camera move -- and `orient` does not alter the snapshot, so its
-    resulting fingerprint is the *input* structure's and would match
-    however the selection had drifted. The selection counts are the
-    evidence that sample was actually graded on, so they are compared
-    here too; without that, selection-semantics drift leaves the
-    committed record stale while this replay stays green.
+    camera move -- and its resulting fingerprint, which includes the
+    view `orient` moved, is not the same on every platform: gold items
+    062-065 reproduced on macOS and differed on ubuntu-24.04 and
+    windows-2025. Comparing it would test the platform, not the
+    pipeline. The selection counts are the evidence such a sample was
+    actually graded on, so they are what is compared for it; without
+    them, selection-semantics drift would leave the committed record
+    stale while this replay stayed green.
 
     Args:
         sample: The committed sample being replayed.
@@ -141,9 +143,10 @@ def test_every_committed_sample_still_verifies(sample: Sample) -> None:
     assert report.reason == REASON_OK, (
         f"{sample.sample_id}: {report.reason} {report.command_outcomes}"
     )
-    assert report.resulting_fingerprint == (
-        sample.verification.resulting_fingerprint
-    )
+    if sample.verification.expected_fingerprint is not None:
+        assert report.resulting_fingerprint == (
+            sample.verification.resulting_fingerprint
+        )
     assert (
         tuple(
             (count.name, count.atom_count) for count in report.selection_counts
