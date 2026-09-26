@@ -34,6 +34,7 @@ from pmc_client.command import CopilotCommandClient
 from pmc_client.command import _LITERAL_PARSING_MODE
 from pmc_client.recovery import RecoveryPointError
 from pmc_client.command import PlanTransport
+from pmc_client.messages import MAX_LINE_BYTES
 from pmc_client.recovery import RecoveryStore
 from pmc_client.session import extract_live_snapshot
 from pmc_client.transport import TransportError
@@ -2026,6 +2027,126 @@ def test_a_reporting_defect_after_a_verified_rollback_is_not_read_as_uncertain(
     ]
 
 
+def test_a_halt_preserves_its_file_through_a_later_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A halted recovery point survives `close()`, not just the halt message.
+
+    `_guarded`'s halt branch used to read `store.retained` directly rather
+    than calling `store.preserve()`. The store still owned that handle, so
+    `close()` -- which runs `RecoveryStore.close()`, `discard()`ing twice --
+    unlinked the very file the halt message just told the user to load by
+    hand. `preserve()` makes the store forget the handle first.
+    """
+    plan_id = "55555555-5555-4555-8555-555555555555"
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    def fake_apply_plan(
+        cmd: Any,
+        *,
+        object_name: str,  # noqa: ARG001
+        plan_id: str,
+        plan: ActionPlan,  # noqa: ARG001
+        store: RecoveryStore,
+        dispatcher: Callable[[Any, ActionPlan], PlanRunResult],  # noqa: ARG001
+    ) -> None:
+        store.save(cmd, plan_id)
+        raise RuntimeError("boom")
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+    client.copilot(INTENT)
+    output.clear()
+    monkeypatch.setattr("pmc_client.command.apply_plan", fake_apply_plan)
+
+    live.commands["copilot_apply"](f"p-{plan_id}")
+
+    assert client._halted_recovery is not None
+    preserved_path = Path(client._halted_recovery)
+    assert preserved_path.exists()
+    assert output == [
+        "copilot_apply: internal error (RuntimeError). Recovery point "
+        f"preserved at {preserved_path}. Restart PyMOL and load it manually."
+    ]
+
+    client.close()
+
+    assert preserved_path.exists()
+
+
+def test_a_defect_before_its_own_store_save_never_halts_on_an_older_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A defect that never reaches this call's own `store.save()` never halts.
+
+    Plan A applied successfully and its recovery point is legitimately
+    retained for a later `copilot_rollback`. A defect in plan B's own
+    apply that never reaches `store.save()` leaves `store.retained`
+    unchanged at plan A's point; reading it directly here would describe
+    A's own healthy point as though this failed attempt had produced it,
+    and halt Copilot over it. Comparing against what was retained before
+    this call began is what tells the two apart.
+    """
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = first_id if previews == 1 else second_id
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    live.commands["copilot_apply"](f"p-{first_id}")
+    first_path = store.retained
+    assert first_path is not None and first_path.exists()
+
+    client.copilot(INTENT)
+    output.clear()
+    monkeypatch.setattr(
+        "pmc_client.command.apply_plan",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    live.commands["copilot_apply"](f"p-{second_id}")
+
+    assert client._halted_recovery is None
+    assert output == [
+        "copilot_apply: internal error (RuntimeError). Nothing was "
+        "applied. Retry; if it keeps happening, restart PyMOL."
+    ]
+    assert store.retained == first_path
+    assert first_path.exists()
+
+
 @pytest.mark.parametrize("lose_rollback", [False, True])
 def test_rollback_report_does_not_erase_another_plans_unreported_restore(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lose_rollback: bool
@@ -2816,6 +2937,41 @@ def test_copilot_health_reports_a_ready_matching_server() -> None:
         "grammar 1, errorEnvelope 1, executor 1 -- all match this client\n"
         "  copilot:   ready"
     ]
+
+
+def test_copilot_health_bounds_an_unbounded_engine_version() -> None:
+    """A hostile or malformed `engineVersion` never reaches the console raw.
+
+    Unlike `engine`, `device`, and `model_identity` -- each derived from
+    this client's or the engine's own configuration -- `engine_version` is
+    arbitrary text the remote engine's own HTTP response supplied, so it
+    gets the same bounding every other untrusted wire value does.
+    """
+
+    def _hostile_version(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        return dataclasses.replace(
+            base,
+            engine=dataclasses.replace(
+                base.engine, engine_version="v1\n" + "x" * 500
+            ),
+        )
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_hostile_version
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    engine_line = output[0].splitlines()[3]
+    assert "\n" not in engine_line
+    assert len(engine_line.encode("utf-8")) <= MAX_LINE_BYTES
+    assert engine_line.startswith("  engine:    ready -- fake v1?x")
 
 
 def test_copilot_health_reports_an_unavailable_engine() -> None:

@@ -30,6 +30,7 @@ from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from typing import Protocol
 from typing import cast
@@ -493,9 +494,18 @@ def _engine_health_lines(response: HealthResponseV1) -> list[str]:
     """
     engine = response.engine
     if engine.state == HEALTH_ENGINE_READY:
+        # Unlike `engine`, `device`, and `model_identity` -- each derived
+        # from this client's or the engine's own configuration --
+        # `engine_version` is arbitrary text the remote engine's own HTTP
+        # response supplied (`LemonadeEngine.health()` takes it as-is from
+        # `GET /api/v1/health`), so it gets the same `bounded()` treatment
+        # as the unavailable branch's `failure_message` below.
         return [
-            f"  engine:    ready -- {engine.engine} {engine.engine_version} "
-            f"on {engine.device}",
+            bounded(
+                f"  engine:    ready -- {engine.engine} "
+                f"{engine.engine_version} on {engine.device}",
+                max_bytes=MAX_LINE_BYTES,
+            ),
             f"  model:     {response.model_identity}",
         ]
     # `EngineHealthV1.__post_init__` guarantees both fields are populated
@@ -622,6 +632,13 @@ class CopilotCommandClient:
         # evidence of its own uncertain mutation.
         self._mutation_started = False
         self._mutation_settled = False
+        # What this invocation's own store.retained was before it began,
+        # so _guarded can tell a point this call itself just created from
+        # an older, unrelated one it merely happened to see -- and, when
+        # it is this call's own, hand it to store.preserve() rather than
+        # merely reading store.retained, so the store forgets the handle
+        # instead of unlinking it on a later close().
+        self._retained_before_mutation: Path | None = None
 
     @property
     def session_id(self) -> str:
@@ -705,7 +722,17 @@ class CopilotCommandClient:
                 consistent outcome before this defect hit -- in which
                 case the defect is in bookkeeping after the fact, not in
                 the mutation itself, and halting would only discard
-                already-completed, verified work.
+                already-completed, verified work. Within the "still
+                unknown" case, `self._retained_before_mutation` (snapshot
+                of `store.retained` before the handler ran) tells apart a
+                point this call's own `store.save()` just created from an
+                older, unrelated one that merely happened to still be
+                retained -- e.g. a defect before `store.save()` ever ran.
+                Only the former is halted on, and always through
+                `store.preserve()`, never a bare read of `store.retained`:
+                `preserve()` makes the store forget the handle, so a
+                later `close()` cannot unlink the very file this message
+                just told the user to load by hand.
 
         Returns:
             A callable safe to hand to `cmd.extend`.
@@ -715,25 +742,34 @@ class CopilotCommandClient:
             if mutating:
                 self._mutation_started = False
                 self._mutation_settled = False
+                self._retained_before_mutation = (
+                    self._recovery_store.retained
+                    if self._recovery_store is not None
+                    else None
+                )
             try:
                 handler(argument)
             except Exception as error:
+                current_retained = (
+                    self._recovery_store.retained
+                    if self._recovery_store is not None
+                    else None
+                )
                 if (
                     mutating
                     and self._mutation_started
                     and not self._mutation_settled
+                    and current_retained is not None
+                    and current_retained != self._retained_before_mutation
                 ):
-                    retained = (
-                        self._recovery_store.retained
-                        if self._recovery_store is not None
-                        else None
-                    )
-                    self._halt(str(retained) if retained is not None else None)
+                    assert self._recovery_store is not None
+                    preserved = self._recovery_store.preserve()
+                    self._halt(str(preserved))
                     self._output(
                         f"{command}: internal error "
                         f"({type(error).__name__}). Recovery point "
-                        f"preserved at {self._halted_recovery}. Restart "
-                        "PyMOL and load it manually."
+                        f"preserved at {preserved}. Restart PyMOL and "
+                        "load it manually."
                     )
                 elif mutating and self._mutation_settled:
                     self._output(
