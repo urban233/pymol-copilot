@@ -98,3 +98,47 @@ py_test(
         "//src/pmc_eval:pmc_eval",
     ],
 )
+
+# The grader against real PyMOL: every gold sample's own reference plan,
+# and a deliberately wrong answer of each kind, run through the whole
+# harness with a fresh pmc_sidecar.child per attempt.
+py_test(
+    name = "reference_model_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_reference_model_real_pymol.py"],
+    main = "test_reference_model_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        ":fakes",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# Opt-in evidence against a real local Lemonade server: skipped unless
+# PMC_LEMONADE_BASE_URL names one, which is the only host value this
+# target receives.
+py_test(
+    name = "lemonade_real",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_lemonade_real.py"],
+    main = "test_lemonade_real.py",
+    data = ["//configs/evaluation:baseline.json"],
+    env_inherit = ["PMC_LEMONADE_BASE_URL"],
+    tags = ["external"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
