@@ -64,6 +64,6 @@ document, and the first run will show whether anything differs.
 4. **Reachability**: the harness talks to `http://localhost:13305` from
    inside the distro. With Docker Desktop that is normally forwarded; if
    it is not, set `networkingMode=mirrored` in `%UserProfile%\.wslconfig`.
-5. **The config**: set `engine.backend` to `"cuda"`, paste the printed
-   `engine_provenance`, commit, and run as in
-   `docs/evaluation/README.md`.
+5. **The config**: `engine.backend` is already `"cuda"`; paste the
+   printed `engine_provenance` into `configs/evaluation/baseline.json`,
+   commit, and run as in `docs/evaluation/README.md`.

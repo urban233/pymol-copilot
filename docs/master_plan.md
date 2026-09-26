@@ -578,11 +578,19 @@ rests on.
   endpoint is pre-registered in
   [docs/evaluation/PREREGISTRATION.md](evaluation/PREREGISTRATION.md).
 - **Base model fixed for item 17:** Llama-3.2-1B-Instruct, Q4_K_M GGUF.
-- **The baseline has not run yet.** Two findings stop it, recorded in
+- **The baseline has not run yet; it runs next on Martin's WSL2 machine
+  with an NVIDIA GPU**, using the engine rig in
+  [configs/evaluation/engine/](../configs/evaluation/engine/README.md).
+  Setting the engine up found and fixed three things, recorded in
   [configs/evaluation/README.md](../configs/evaluation/README.md): the
-  model's chat template stamps today's date into every prompt, and the
-  item 9 Lemonade adapter refuses the server's `: ping` SSE keep-alive
-  and the GGUF path a pulled model reports as its streamed model id.
+  model's chat template stamped today's date into every prompt (now
+  pinned), and the item 9 Lemonade adapter refused the server's `: ping`
+  SSE keep-alive and the GGUF path a pulled model reports as its
+  streamed model id (fixed in `src/pmc_agent/inference/lemonade.py`).
+- Pilots on the Mac found that under the grammar the untuned model loops
+  until it hits the token limit, on every gold sample reached so far.
+- **Note for item 19:** the longest held-out prompt is 5,495 tokens, so
+  the runtime adapter's default 4096-token context cannot serve it.
 
 ### 17. Fine-tuning
 

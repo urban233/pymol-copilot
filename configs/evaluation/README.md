@@ -45,8 +45,13 @@ baseline compares, only under the exact file that produced it.
 The engine runs in Docker; `engine/README.md` has the variants (x86_64
 or WSL2 on CPU, WSL2 with an NVIDIA GPU, native arm64 on Apple Silicon)
 and `engine/setup.sh`, which pulls the model, pins the chat template's
-date and prints the `engine_provenance` to record here. The baseline
-config records the native arm64 engine on an M2 Pro.
+date and prints the `engine_provenance` to record here.
+
+**The baseline runs on a WSL2 machine with an NVIDIA GPU**, the machine
+item 17 trains on: `engine.backend` is `cuda`, and `engine_provenance`
+is deliberately empty until `engine/setup.sh cuda` fills it in on that
+machine, so no run can start with another machine's record. The Mac
+measurements below come from the pilot.
 
 Two details `setup.sh` takes care of. A model is pulled as `user.<name>`
 but catalogued, loaded and reported as `<name>`, so `model_name` is
@@ -103,4 +108,7 @@ Pilot measurements, 2026-09-26/27:
   the model repeats commands (`select copilot_name, name 1`, `name 2`,
   ...) or terms (`chain CB and chain CB and ...`) until it is cut off.
   That is a result about the base model, reported as `truncated`, and
-  it makes every such sample cost a full 256-token completion.
+  it makes every such sample cost a full 256-token completion. A second
+  pilot on the native arm64 engine gave the same outcome for all 41
+  gold samples it reached, at about 20 s per sample; it was stopped to
+  run the baseline on the NVIDIA machine instead.

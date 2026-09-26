@@ -100,8 +100,10 @@ false one.
 ## Running it
 
 ```
-docker compose -f tests/discovery/lemonade/compose.yaml up -d
-# register the model: configs/evaluation/README.md
+cd configs/evaluation/engine
+docker compose -f compose.yaml -f compose.nvidia.yaml up -d
+./setup.sh cuda        # paste its engine_provenance into baseline.json
+cd -                   # and commit it
 PMC_LEMONADE_BASE_URL=http://localhost:13305 \
     bazel test //tests/eval:lemonade_real --test_output=all
 for set in test_gold heldout_synthetic; do
@@ -113,6 +115,9 @@ for set in test_gold heldout_synthetic; do
 done
 bazel run //src/pmc_eval:eval_cli -- publish --runs results/eval-*
 ```
+
+The engine variants, and how to run them on Apple Silicon or on WSL2
+with an NVIDIA GPU, are in `configs/evaluation/engine/README.md`.
 
 A run refuses a modified tracked file, a split other than the committed
 one, a sample verified under other contract versions, an unfilled
