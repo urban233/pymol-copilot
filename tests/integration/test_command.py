@@ -1863,6 +1863,65 @@ def test_failed_second_apply_keeps_first_plan_rollback_available(
     ]
 
 
+def test_a_defect_before_a_second_apply_saves_never_halts_on_the_first_apply(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An internal defect before any new save() never halts over an old point.
+
+    Plan A's own successful apply deliberately keeps its retained
+    recovery point around for a later `copilot_rollback` -- `_guarded()`
+    must not mistake that already-retained point for evidence that
+    *this* invocation's own mutation began, or an unrelated defect in a
+    later, entirely separate `copilot_apply` would halt Copilot and tell
+    the user to restore *over* plan A's own real, healthy changes.
+    """
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = first_id if previews == 1 else second_id
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    live.commands["copilot_apply"](f"p-{first_id}")
+    first_path = store.retained
+    assert first_path is not None and first_path.exists()
+
+    client.copilot(INTENT)
+    output.clear()
+    monkeypatch.setattr(
+        "pmc_client.command.evaluate_plan",
+        lambda _plan: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    live.commands["copilot_apply"](f"p-{second_id}")
+
+    assert client._halted_recovery is None
+    assert output == [
+        "copilot_apply: internal error (RuntimeError). Nothing was "
+        "applied. Retry; if it keeps happening, restart PyMOL."
+    ]
+    assert store.retained == first_path
+    assert first_path.exists()
+
+
 @pytest.mark.parametrize("lose_rollback", [False, True])
 def test_rollback_report_does_not_erase_another_plans_unreported_restore(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lose_rollback: bool
@@ -2440,6 +2499,56 @@ def test_copilot_reject_reports_a_non_rejected_terminal() -> None:
     assert output == [
         "copilot_reject: the plan's TTL had already passed. The plan's "
         "approval window passed. Run copilot again for a fresh plan."
+    ]
+
+
+def test_copilot_reject_keeps_the_pending_plan_on_a_server_internal_error() -> (
+    None
+):
+    """A crashed reject handler is not read as a settled server verdict.
+
+    Unlike every other category `copilot_reject` can receive here, a
+    `server_internal_error` means the server's own reject handler
+    crashed -- it never actually decided the plan was rejected, so it
+    may still be pending there. Clearing `_pending_plan` regardless
+    would tell the user to retry, only for the retry to fail locally
+    with "no pending plan for this session" while the server keeps the
+    plan pending until it expires or is superseded.
+    """
+
+    def crashed_response(request: RejectRequestV1) -> FailedPlanResponseV1:
+        """Build a correlated `server_internal_error` response."""
+        return FailedPlanResponseV1(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            failure=FailureEnvelopeV1(
+                "server_internal_error",
+                "the server hit an internal error; nothing was applied",
+                True,
+            ),
+        )
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], reject_response_factory=crashed_response
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+    client.copilot(INTENT)
+    pending_before = client._pending_plan
+    output.clear()
+
+    client.copilot_reject(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert client._pending_plan == pending_before
+    assert output == [
+        "copilot_reject: the server hit an internal error; nothing was "
+        "applied. The server hit an internal error. Retry; if it keeps "
+        "happening, restart the server and run copilot_health."
     ]
 
 

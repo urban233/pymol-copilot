@@ -669,30 +669,47 @@ class CopilotCommandClient:
             handler: The bound method PyMOL should call for this command.
             mutating: Whether this command can mutate the live session. A
                 defect caught here from a mutating command cannot tell
-                whether the mutation already started, so it halts and
-                preserves any retained recovery point rather than merely
-                reporting nothing was applied.
+                whether *this* invocation's own mutation already started,
+                so it halts and preserves the recovery point rather than
+                merely reporting nothing was applied -- but only when
+                this call is the one that actually changed which point is
+                retained. A successful `copilot_apply` deliberately keeps
+                its own retained point around for a later
+                `copilot_rollback`; without comparing against what was
+                already retained before this call, a later, unrelated
+                defect would halt Copilot over that earlier, healthy
+                apply's own point, discarding real work the live session
+                never touched.
 
         Returns:
             A callable safe to hand to `cmd.extend`.
         """
 
         def wrapped(argument: str = "") -> None:
+            retained_before = (
+                self._recovery_store.retained
+                if self._recovery_store is not None
+                else None
+            )
             try:
                 handler(argument)
             except Exception as error:
-                retained = (
+                retained_after = (
                     self._recovery_store.retained
                     if self._recovery_store is not None
                     else None
                 )
-                if mutating and retained is not None:
-                    self._halt(str(retained))
+                if (
+                    mutating
+                    and retained_after is not None
+                    and retained_after != retained_before
+                ):
+                    self._halt(str(retained_after))
                     self._output(
                         f"{command}: internal error "
                         f"({type(error).__name__}). Recovery point "
-                        f"preserved at {retained}. Restart PyMOL and load "
-                        "it manually."
+                        f"preserved at {retained_after}. Restart PyMOL "
+                        "and load it manually."
                     )
                 else:
                     self._output(
@@ -1332,6 +1349,15 @@ class CopilotCommandClient:
                     "copilot_reject: approval outcome is still unconfirmed; "
                     "retry after the server is available."
                 )
+            return
+        if response.failure.category == "server_internal_error":
+            # The server's own reject handler crashed -- unlike every
+            # other category reaching this point, that is not a settled
+            # server-side verdict: the plan may still be pending there.
+            # Keep _pending_plan so a retry can still reach the server,
+            # instead of failing locally with "no pending plan for this
+            # session" while the server keeps it pending regardless.
+            self._output(describe_failure("copilot_reject", response.failure))
             return
         self._pending_plan = None
         self._output(describe_failure("copilot_reject", response.failure))
