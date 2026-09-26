@@ -15,3 +15,16 @@ py_test(
         "//src/pmc_eval:pmc_eval",
     ],
 )
+
+py_test(
+    name = "screen_reasons",
+    size = "small",
+    srcs = ["test_screen_reasons.py"],
+    main = "test_screen_reasons.py",
+    deps = [
+        "//tests/adversarial:denied_forms_corpus",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
