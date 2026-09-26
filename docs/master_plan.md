@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-24
+**Written:** 2026-09-16 · **State as of:** 2026-09-26
 
 Every item carries a **State**. The values are:
 
@@ -97,14 +97,14 @@ Every item carries a **State**. The values are:
 | 8 | LangGraph request graph | Hannah | **done** — PR #47 | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
 | 9 | Inference abstraction and Lemonade | Hannah | **done** — PR #46 | 0 ✓, 1 ✓, 8 ✓ | 12, 16, 19 |
 | 10 | Approval, apply, recovery | Hannah | **done** — PR #51 | 2 ✓, 3 ✓, 7 ✓, 8 ✓ | 11, 12 |
-| 11 | Output and diagnostics | Hannah | **ready** | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
+| 11 | Output and diagnostics | Hannah | **in review** — PR #55 | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9 ✓, 10 ✓, 11 | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
-| 15 | Gold set, split, audit | Martin | **in review** — PR #53 | 14 ✓ | 16, 17, 18 |
-| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13 ✓, 14, 15, 9 | 17, 18 |
-| 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
-| 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
+| 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
+| 16 | Eval harness and untuned baseline | Martin | **in progress** | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
+| 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15 ✓, 16 | 18, 19 |
+| 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16, 17 | — |
 | 19 | Integration | Joint | **blocked** | 12, 17 | — |
 
 ### The graph
@@ -128,12 +128,12 @@ flowchart LR
   I8["8 · request graph"]:::done
   I9["9 · inference"]:::done
   I10["10 · apply and recovery"]:::done
-  I11["11 · output"]:::ready
+  I11["11 · output"]:::review
   I12["12 · end-to-end suite"]:::blocked
   I13["13 · prompt builder"]:::done
   I14["14 · dataset"]:::done
-  I15["15 · gold set"]:::review
-  I16["16 · eval and baseline"]:::blocked
+  I15["15 · gold set"]:::done
+  I16["16 · eval and baseline"]:::progress
   I17["17 · fine-tuning"]:::blocked
   I18["18 · notebook"]:::blocked
   I19["19 · integration"]:::blocked
@@ -557,7 +557,7 @@ and report the observed error rate as a number.
 
 ### 16. Eval harness and untuned baseline
 
-**Size:** ~3 days · **State:** blocked on 9, 14, 15
+**Size:** ~3 days · **State:** in progress on `feat/eval-harness-baseline` — plan in [plans/11-eval-harness-and-baseline.md](../plans/11-eval-harness-and-baseline.md)
 
 ```
 Build the offline eval harness: per sample, generate a plan, parse it,
@@ -568,6 +568,21 @@ against the UNTUNED BASE MODEL FIRST and commit those numbers before any
 fine-tuning exists. That baseline is what the entire evaluation argument
 rests on.
 ```
+
+**Progress** (see [docs/evaluation/README.md](evaluation/README.md)):
+
+- The harness is built and tested: `src/pmc_eval/` drives the runtime's
+  own request graph with the training prompt, grades against the stored
+  assertions (a correct plan scores 68/68 gold samples through real
+  PyMOL), and `eval_cli` runs, resumes and publishes. The primary
+  endpoint is pre-registered in
+  [docs/evaluation/PREREGISTRATION.md](evaluation/PREREGISTRATION.md).
+- **Base model fixed for item 17:** Llama-3.2-1B-Instruct, Q4_K_M GGUF.
+- **The baseline has not run yet.** Two findings stop it, recorded in
+  [configs/evaluation/README.md](../configs/evaluation/README.md): the
+  model's chat template stamps today's date into every prompt, and the
+  item 9 Lemonade adapter refuses the server's `: ping` SSE keep-alive
+  and the GGUF path a pulled model reports as its streamed model id.
 
 ### 17. Fine-tuning
 
