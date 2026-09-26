@@ -1,3 +1,4 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 
 # The offline evaluation harness (docs/master_plan.md item 16). It drives
@@ -11,6 +12,7 @@ py_library(
     name = "pmc_eval",
     srcs = [
         "__init__.py",
+        "config.py",
         "grade.py",
         "metrics.py",
         "prompt.py",
@@ -28,4 +30,27 @@ py_library(
         "@pypi//langgraph_checkpoint",
     ],
     visibility = ["//src/pmc_eval:__pkg__", "//src:tests"],
+)
+
+# Runs the offline evaluation and publishes the baseline. Not a test:
+# a run is hours of local-model inference and a fresh PyMOL child per
+# attempt, so it runs by hand via bazel run and writes into the source
+# tree through BUILD_WORKSPACE_DIRECTORY. It never imports PyMOL
+# itself -- pmc_core.executor spawns pmc_sidecar.child, which this
+# target depends on so the child module is on the spawned
+# interpreter's path. Visible to tests so //tests/eval:eval_cli can
+# drive it against a fake model and sidecar.
+py_binary(
+    name = "eval_cli",
+    srcs = ["eval_cli.py"],
+    main = "eval_cli.py",
+    data = ["//configs/evaluation:baseline.json"],
+    deps = [
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+    visibility = ["//src:tests"],
 )

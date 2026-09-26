@@ -115,6 +115,11 @@ CONDITION_GRAMMAR = "grammar"
 #: run records exactly what it did. See the module docstring.
 NORMALIZATION = "append-missing-final-newline"
 
+#: The version of how this module drives the graph: which seams it wraps,
+#: what it sends, and how it reads each attempt's outcome back. Any change
+#: to any of those is a bump, and a new baseline.
+HARNESS_VERSION = 1
+
 #: What each `AttemptFailure.source` the graph records means as an
 #: attempt outcome.
 _SOURCE_OUTCOMES = {

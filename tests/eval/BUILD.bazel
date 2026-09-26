@@ -52,6 +52,7 @@ py_library(
     deps = [
         "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
     ],
 )
 
@@ -79,6 +80,21 @@ py_test(
     deps = [
         "@pypi//pytest",
         "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+py_test(
+    name = "eval_cli",
+    size = "medium",
+    srcs = ["test_eval_cli.py"],
+    main = "test_eval_cli.py",
+    deps = [
+        ":fakes",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
         "//src/pmc_eval:pmc_eval",
     ],
 )

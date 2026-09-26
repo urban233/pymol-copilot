@@ -11,8 +11,12 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 from collections.abc import Sequence
 
+from pmc_agent.inference.base import ENGINE_UNAVAILABLE
 from pmc_agent.inference.base import STOP_END
+from pmc_agent.inference.base import CancelToken
+from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.base import EngineFailure
 from pmc_core.errors import CATEGORY_UNKNOWN_COLOR
 from pmc_core.errors import ERROR_ENVELOPE_VERSION
 from pmc_core.errors import ExecutionErrorV1
@@ -26,6 +30,9 @@ from pmc_core.executor import CommandOutcome
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
 from pmc_core.executor import SelectionCount
+from pmc_core.parser import parse_pml
+from pmc_core.plan import ActionPlan
+from pmc_data.sample import Sample
 
 
 def completion(text: str, stop_reason: str = STOP_END) -> CompletionResult:
@@ -184,3 +191,129 @@ class ScriptedExecutor:
         report = self._reports[len(self._calls)]
         self._calls.append(request)
         return report
+
+
+class ReferenceEngine:
+    """A model that answers every sample's prompt with its reference plan.
+
+    It stands in for a perfect model in the CLI tests, which are about
+    what the CLI writes and refuses rather than about any model. A
+    one-token request is the CLI's context preflight, answered with an
+    empty, length-stopped completion.
+    """
+
+    def __init__(
+        self,
+        samples: Sequence[Sample],
+        *,
+        model_identity: str,
+        unavailable_for: frozenset[str] = frozenset(),
+        preflight_failure: EngineFailure | None = None,
+    ) -> None:
+        """Create a reference model for `samples`.
+
+        Args:
+            samples: The samples it will be prompted with.
+            model_identity: The identity it reports.
+            unavailable_for: Sample ids whose prompt it fails as an
+                unavailable engine would.
+            preflight_failure: The failure to return for the context
+                preflight, or None to pass it.
+        """
+        self._answers = {s.prompt_text: s.plan_pml for s in samples}
+        self._unavailable = {
+            s.prompt_text for s in samples if s.sample_id in unavailable_for
+        }
+        self._model_identity = model_identity
+        self._preflight_failure = preflight_failure
+        self._calls: list[CompletionRequest] = []
+
+    @property
+    def model_identity(self) -> str:
+        """Return the configured identity.
+
+        Returns:
+            The identity this engine reports.
+        """
+        return self._model_identity
+
+    @property
+    def calls(self) -> tuple[CompletionRequest, ...]:
+        """Return every request received so far.
+
+        Returns:
+            The requests, in call order.
+        """
+        return tuple(self._calls)
+
+    def complete(
+        self, request: CompletionRequest, *, cancel: CancelToken
+    ) -> CompletionResult | EngineFailure:
+        """Answer one request.
+
+        Args:
+            request: The completion request.
+            cancel: Ignored.
+
+        Returns:
+            The reference plan, the preflight's answer, or a failure.
+        """
+        del cancel
+        self._calls.append(request)
+        if request.max_tokens == 1:
+            if self._preflight_failure is not None:
+                return self._preflight_failure
+            return CompletionResult(
+                text="",
+                model_identity=self._model_identity,
+                stop_reason="length",
+            )
+        if request.prompt in self._unavailable:
+            return EngineFailure(ENGINE_UNAVAILABLE, "connection refused")
+        return CompletionResult(
+            text=self._answers[request.prompt],
+            model_identity=self._model_identity,
+            stop_reason=STOP_END,
+        )
+
+
+class ReferenceExecutor:
+    """A sidecar that reproduces each sample's own verification.
+
+    Keyed by plan and structure, so it answers a sample's reference plan
+    on that sample's structure with the report the sample was verified
+    with, and refuses anything else.
+    """
+
+    def __init__(self, samples: Sequence[Sample]) -> None:
+        """Create a reference sidecar for `samples`.
+
+        Args:
+            samples: The samples whose verifications to reproduce.
+        """
+        self._reports: dict[tuple[str, str], ExecutionReport] = {}
+        for sample in samples:
+            plan = parse_pml(sample.plan_pml)
+            assert isinstance(plan, ActionPlan)
+            self._reports[
+                (sample.plan_pml, sample.structure.structure_digest)
+            ] = ok_report(
+                fingerprint=sample.verification.resulting_fingerprint,
+                counts=sample.verification.selection_counts,
+                commands=len(plan.operations),
+            )
+
+    def __call__(self, request: ExecutionRequest) -> ExecutionReport:
+        """Reproduce one sample's verification.
+
+        Args:
+            request: The execution request.
+
+        Returns:
+            The sample's verified report.
+        """
+        key = (
+            request.plan.render_pml(),
+            request.expected_snapshot_digest or "",
+        )
+        return self._reports[key]
