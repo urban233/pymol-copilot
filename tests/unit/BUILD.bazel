@@ -1,6 +1,30 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "command_preview",
+    size = "small",
+    srcs = ["test_command_preview.py"],
+    main = "test_command_preview.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "client_messages",
+    size = "small",
+    srcs = ["test_client_messages.py"],
+    main = "test_client_messages.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "server_lifecycle",
     size = "small",
     srcs = ["test_server_lifecycle.py"],
@@ -38,10 +62,34 @@ py_test(
 )
 
 py_test(
+    name = "validation_warnings",
+    size = "small",
+    srcs = ["test_validation_warnings.py"],
+    main = "test_validation_warnings.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
     name = "inference_fake",
     size = "small",
     srcs = ["test_inference_fake.py"],
     main = "test_inference_fake.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "inference_unavailable",
+    size = "small",
+    srcs = ["test_inference_unavailable.py"],
+    main = "test_inference_unavailable.py",
     deps = [
         "@pypi//pytest",
         "//src/pmc_agent/inference:inference",

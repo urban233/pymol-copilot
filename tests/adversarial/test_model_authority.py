@@ -48,6 +48,7 @@ from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import SelectionCount
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import ContractManifestV1
@@ -296,6 +297,48 @@ def test_a_plan_naming_a_different_object_cannot_change_target_object() -> None:
     result = _run(engine, executor)
 
     assert result["target_object"] == _OBJECT_NAME
+
+
+def test_selection_counts_and_warnings_come_only_from_the_executor() -> None:
+    """A completion has no way to claim its own selection count or warning.
+
+    Attacks: `selection_counts`, `sidecar_warnings` (docs/master_plan.md
+    item 11's own new fields). Must remain: exactly the executor's own
+    scripted `ExecutionReport` -- the completion is discarded the moment
+    it parses into a typed plan, and nothing in that plan's shape can
+    carry a claimed count or warning of its own. The executor here is
+    scripted with values a benign run would never produce, so if
+    `validating` read either field from anywhere but the report, this
+    assertion would catch it.
+    """
+    engine = FakeEngine(
+        [
+            CompletionResult(
+                "select copilot_selection, chain A\n", "m-1", STOP_END
+            )
+        ]
+    )
+    poisoned_report = ExecutionReport(
+        executor_version=1,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest="sha256:test",
+        resulting_fingerprint="sha256:" + "0" * 64,
+        selection_counts=(SelectionCount("copilot_selection", 999),),
+        command_outcomes=(),
+        child_pid=1234,
+        child_terminated=True,
+        elapsed_seconds=0.01,
+        warnings=("a captured sidecar diagnostic",),
+    )
+    executor = FakeExecutor([poisoned_report])
+
+    result = _run(engine, executor)
+
+    assert result["selection_counts"] == (
+        SelectionCount("copilot_selection", 999),
+    )
+    assert result["sidecar_warnings"] == ("a captured sidecar diagnostic",)
 
 
 def test_a_policy_override_comment_cannot_bypass_a_parse_or_policy_verdict() -> (

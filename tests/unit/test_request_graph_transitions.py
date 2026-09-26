@@ -16,6 +16,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END
 
 from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
 from pmc_agent.graph import NON_TERMINAL_STATES
 from pmc_agent.graph import REQUEST_STATES
 from pmc_agent.graph import STATE_GENERATING
@@ -37,6 +38,18 @@ from pmc_agent.graph import TERMINAL_SUPERSEDED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
 from pmc_agent.graph import route_by_status
+from pmc_core.executor import REASON_CHILD_CRASH
+from pmc_core.executor import REASON_FIDELITY_MISMATCH
+from pmc_core.executor import REASON_MALFORMED_INPUT
+from pmc_core.executor import REASON_OVERSIZED_INPUT
+from pmc_core.executor import REASON_POLICY_DENIED
+from pmc_core.executor import REASON_RECONSTRUCTION_FAILURE
+from pmc_core.executor import REASON_SNAPSHOT_DIGEST_MISMATCH
+from pmc_core.executor import REASON_SPAWN_OR_LOAD_FAILURE
+from pmc_core.executor import REASON_TIMEOUT
+from pmc_core.executor import REASON_UNSUPPORTED_SCHEMA_VERSION
+from pmc_core.protocol import FAILURE_CATEGORIES
+from pmc_core.protocol import MAX_REPAIR_ATTEMPTS as WIRE_MAX_REPAIR_ATTEMPTS
 
 
 def _state(status: str) -> RequestState:
@@ -189,6 +202,47 @@ def test_the_graph_compiles_with_every_node_and_edge_wired() -> None:
     build_request_graph(engine=FakeEngine([])).compile(
         checkpointer=InMemorySaver()
     )
+
+
+def test_max_repair_attempts_matches_the_wire_bound() -> None:
+    """The graph's repair budget and the wire's own bound never drift apart.
+
+    `pmc_core.protocol.MAX_REPAIR_ATTEMPTS` is a hand-duplicated copy of
+    this constant (see that module's own comment for why it cannot be a
+    direct import), used to bound `ValidationReportV1.repair_attempts`.
+    This is the one place both values are read together.
+    """
+    assert MAX_REPAIR_ATTEMPTS == WIRE_MAX_REPAIR_ATTEMPTS
+
+
+def test_failure_categories_cover_every_execution_infrastructure_reason() -> (
+    None
+):
+    """Every non-command-failure executor reason has a wire category.
+
+    `pmc_core.protocol.FAILURE_CATEGORIES` hand-lists `execution_<reason>`
+    for each `pmc_core.executor.REASON_*` value `validating` can forward
+    unprefixed-command-failure reasons under (`FAILURE_EXECUTION_PREFIX`).
+    `REASON_OK` (never a failure) and `REASON_COMMAND_FAILURE` (reported
+    through the error envelope's own categories instead) are excluded on
+    purpose; every other reason must appear here so a future executor
+    reason cannot silently fall outside the closed set
+    `pmc_client.messages.ACTIONS` promises an action for.
+    """
+    reasons = {
+        REASON_OVERSIZED_INPUT,
+        REASON_MALFORMED_INPUT,
+        REASON_UNSUPPORTED_SCHEMA_VERSION,
+        REASON_POLICY_DENIED,
+        REASON_SNAPSHOT_DIGEST_MISMATCH,
+        REASON_SPAWN_OR_LOAD_FAILURE,
+        REASON_TIMEOUT,
+        REASON_CHILD_CRASH,
+        REASON_FIDELITY_MISMATCH,
+        REASON_RECONSTRUCTION_FAILURE,
+    }
+    for reason in reasons:
+        assert f"execution_{reason}" in FAILURE_CATEGORIES, reason
 
 
 if __name__ == "__main__":

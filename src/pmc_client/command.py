@@ -30,6 +30,7 @@ from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from dataclasses import dataclass
+from typing import Any
 from typing import Protocol
 from typing import cast
 
@@ -46,7 +47,15 @@ from pmc_client.apply import compare_recovery
 from pmc_client.fidelity import FidelityOutcome
 from pmc_client.fidelity import check_fidelity
 from pmc_client.fidelity import to_wire
+from pmc_client.messages import ACTIONS
+from pmc_client.messages import MAX_LINE_BYTES
+from pmc_client.messages import _DEFAULT_ACTION
+from pmc_client.messages import bounded
+from pmc_client.messages import describe_failure
+from pmc_client.messages import describe_transport
+from pmc_client.messages import describe_unexpected
 from pmc_client.session import PyMOLSession
+from pmc_client.session import TargetResolutionError
 from pmc_client.session import extract_live_snapshot
 from pmc_client.session import resolve_target_object
 from pmc_client.transport import LoopbackPlanClient
@@ -56,6 +65,7 @@ from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
 from pmc_core.executor import probe_fidelity
 from pmc_core.plan import ActionPlan
+from pmc_core.plan import SelectOperation
 from pmc_core.policy import evaluate_plan
 from pmc_core.protocol import CURRENT_CONTRACT_MANIFEST
 from pmc_core.protocol import APPLY_OUTCOME_APPLIED
@@ -66,12 +76,22 @@ from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
+from pmc_core.protocol import HEALTH_CONTRACT_KEYS
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import MAX_FIDELITY_MISMATCHES
+from pmc_core.protocol import MAX_INTENT_LENGTH
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import parse_utc_timestamp
 from pmc_core.snapshot import to_json
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 from pmc_sidecar.child import PlanRunResult
 from pmc_sidecar.child import run_plan
 from pmc_client.recovery import RecoveryStore
@@ -84,6 +104,18 @@ from pmc_core.snapshot import ObjectSnapshot
 #: against, rather than a second, independently-typed literal that could
 #: silently drift from it.
 CONTRACT_MANIFEST = CURRENT_CONTRACT_MANIFEST
+
+#: PyMOL's own `parsing.LITERAL` mode (`pymol/parsing.py`), duplicated as
+#: a plain int rather than imported: this module has no dependency on
+#: `pymol` (`tests/integration/test_command.py` drives it with a fake
+#: session, never a real one), and this is the one value that would break
+#: that. Set on `copilot`'s own `cmd.keyword` entry after registration, it
+#: makes PyMOL hand the entire remainder of the line through as one
+#: literal string -- no `,`/`;` splitting, no `x=y` keyword-argument
+#: parsing -- matching intent's own free-text shape rather than a PyMOL
+#: argument list. `tests/integration/test_real_pymol_command.py` cross-
+#: checks this value against `pymol.parsing.LITERAL` directly.
+_LITERAL_PARSING_MODE = 20
 
 
 def _display_plan_id(raw_plan_id: str) -> str:
@@ -101,6 +133,16 @@ def _display_plan_id(raw_plan_id: str) -> str:
 
 class CmdExtension(Protocol):
     """Small subset of the PyMOL command API required for registration."""
+
+    #: PyMOL's own `cmd.keyword`: each registered name maps to a mutable
+    #: `[function, min_args, max_args, separator, mode]` list, `extend()`'s
+    #: own doing. `register()` only ever rewrites one already-registered
+    #: entry's `mode` (index 4); nothing here constructs or removes an
+    #: entry directly. A concrete `dict`/`list`, not `MutableMapping`
+    #: /`MutableSequence`: a read-write Protocol attribute is checked
+    #: invariantly, and every implementation here (real PyMOL's own
+    #: attribute included) is genuinely a plain `dict` of `list`s.
+    keyword: dict[str, list[Any]]
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Register a command callback.
@@ -184,6 +226,9 @@ class PlanTransport(Protocol):
     ) -> FailedPlanResponseV1:
         """Report a terminal live-apply outcome to the server."""
 
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Submit a health request and return the server's own facts."""
+
 
 @dataclass(frozen=True)
 class PendingPlan:
@@ -236,96 +281,283 @@ def _utc_timestamp() -> str:
     )
 
 
-def _fidelity_block(
-    outcome: FidelityOutcome,
-    *,
-    object_name: str,
-    atom_count: int,
-    state_count: int,
-) -> str:
-    """Render the fidelity summary and, when not exact, its mismatches.
+def _plural(count: int, word: str, *, suffix: str = "s") -> str:
+    """Pluralize a counted noun the plain way this console uses everywhere.
+
+    Args:
+        count: The quantity being described.
+        word: The singular noun.
+        suffix: The plural suffix, for the one irregular case (`"mismatch"`
+            takes `"es"`, everything else here takes `"s"`).
+
+    Returns:
+        `word` alone for a count of exactly one, `word` plus `suffix`
+        otherwise -- including zero, which is plural in English.
+    """
+    return word if count == 1 else word + suffix
+
+
+def _relative_expiry(expires_at: str, now: datetime) -> str:
+    """Describe an expiry timestamp relative to the current moment.
+
+    Args:
+        expires_at: The plan's own RFC3339 UTC expiry.
+        now: The current moment, from the same injected clock local
+            approval checks already use.
+
+    Returns:
+        `"already expired"`, or `"in N min"` (never zero: a plan with
+        under a minute left reads as `"in under a minute"` rather than
+        `"in 0 min"`, which would read as already gone).
+    """
+    remaining = (parse_utc_timestamp(expires_at) - now).total_seconds()
+    if remaining <= 0:
+        return "already expired"
+    minutes = round(remaining / 60)
+    if minutes < 1:
+        return "in under a minute"
+    # "min" is an abbreviation, not pluralized the way a full word is --
+    # "in 5 min" reads naturally where "in 5 mins" would not.
+    return f"in {minutes} min"
+
+
+def _fidelity_line(outcome: FidelityOutcome) -> str:
+    """Render the one-line fidelity status, with mismatches if any.
 
     Args:
         outcome: The fidelity outcome to render.
-        object_name: The resolved live object's name.
-        atom_count: The live object's first-state atom count.
-        state_count: The live object's coordinate state count.
 
     Returns:
-        The multi-line fidelity block.
+        One or more lines: the status line, then a bounded, indented
+        mismatch list when `outcome` is not exact.
     """
     if outcome.status == FIDELITY_EXACT:
-        atom_plural = "" if atom_count == 1 else "s"
-        state_plural = "" if state_count == 1 else "s"
-        return (
-            "copilot fidelity: exact on the declared state scope "
-            f"(object {object_name}, {atom_count} atom{atom_plural}, "
-            f"{state_count} state{state_plural})"
-        )
+        return "  fidelity:  exact on the declared state scope"
     if outcome.status == FIDELITY_NOT_EXACT:
         count = len(outcome.mismatches)
-        plural = "" if count == 1 else "es"
         lines = [
-            "copilot fidelity: NOT EXACT on the declared state scope "
-            f"({count} mismatch{plural})"
+            "  fidelity:  NOT EXACT on the declared state scope "
+            f"({count} {_plural(count, 'mismatch', suffix='es')})"
         ]
-        lines.extend(f"  {mismatch}" for mismatch in outcome.mismatches)
+        shown = outcome.mismatches[:MAX_FIDELITY_MISMATCHES]
+        lines.extend(f"    - {mismatch}" for mismatch in shown)
+        omitted = len(outcome.mismatches) - len(shown)
+        if omitted > 0:
+            lines.append(f"    ... and {omitted} more")
         return "\n".join(lines)
     return (
-        "copilot fidelity: unavailable on the declared state scope "
+        "  fidelity:  unavailable on the declared state scope "
         f"({outcome.reason})"
     )
 
 
-def _plan_block(action_plan_pml: str, plan_id: str, *, applicable: bool) -> str:
-    """Render the plan identifier and its numbered canonical commands.
+def _checked_lines(outcome: FidelityOutcome) -> list[str]:
+    """Render what was, and was not, checked -- accurately for each outcome.
 
-    Args:
-        action_plan_pml: The plan's canonical rendered PML text.
-        plan_id: The plan identifier to display.
-        applicable: Whether the plan may be applied.
-
-    Returns:
-        The multi-line plan block.
-    """
-    suffix = "" if applicable else "  (inspectable only -- NOT applicable)"
-    lines = [f"copilot plan: {_display_plan_id(plan_id)}{suffix}"]
-    lines.extend(
-        f"  {index} | {command}"
-        for index, command in enumerate(action_plan_pml.splitlines(), start=1)
-    )
-    return "\n".join(lines)
-
-
-def _checked_block(outcome: FidelityOutcome) -> str:
-    """Render what was, and was not, checked about a plan.
+    The sidecar executor runs the plan every time this preview exists at
+    all (`pmc_agent.graph`'s `validating` never reads the request's own
+    fidelity outcome before doing so), so the selection counts above are
+    always real, even when fidelity is not exact or unavailable. What
+    differs is only whether that sidecar's own reconstruction is known to
+    match the live session -- never whether the plan ran.
 
     Args:
         outcome: The fidelity outcome the plan was gated on.
 
     Returns:
-        The checked/not-checked sentence.
+        Exactly two lines: `checked:` and `NOT checked:`.
     """
     if outcome.status == FIDELITY_EXACT:
-        return (
-            "copilot checked: the plan parses, policy allows it, and a "
-            "fresh PyMOL sidecar reconstructed this session's declared "
-            "state exactly. Not checked: whether the plan is "
-            "scientifically what you meant."
-        )
+        return [
+            "  checked:   the plan parses, policy allows it, and a fresh "
+            "PyMOL sidecar reconstructed this session's declared state "
+            "exactly, then ran the plan against it -- the counts above "
+            "are from that run",
+            "  NOT checked: whether this is scientifically what you meant",
+        ]
     if outcome.status == FIDELITY_NOT_EXACT:
-        return (
-            "copilot checked: the plan parses and policy allows it. Not "
-            "checked: this session could not be reconstructed exactly, "
-            "so the plan was never executed anywhere. It cannot be "
-            "applied."
+        return [
+            "  checked:   the plan parses, policy allows it, and ran in a "
+            "fresh PyMOL sidecar -- the counts above are real, but that "
+            "sidecar's own reconstruction of your session did not match "
+            "it exactly",
+            "  NOT checked: whether this reconstruction is your current "
+            "session; it cannot be applied",
+        ]
+    return [
+        "  checked:   the plan parses, policy allows it, and ran in a "
+        "fresh PyMOL sidecar -- the counts above are real, but this "
+        f"session could not be independently confirmed to match that "
+        f"reconstruction ({outcome.reason})",
+        "  NOT checked: whether this reconstruction is your current "
+        "session; it cannot be applied",
+    ]
+
+
+def _preview_block(
+    response: ValidatedPlanResponseV1,
+    outcome: FidelityOutcome,
+    *,
+    object_name: str,
+    atom_count: int,
+    state_count: int,
+    applicable: bool,
+    now: datetime,
+) -> str:
+    """Render the complete preview SPECIFICATION.md:503-511 requires.
+
+    One block, one `_output` call: plan id and expiry, the resolved
+    object, numbered canonical commands with their own selection counts
+    where available, validation warnings, fidelity status, an explicit
+    checked/not-checked statement, and the exact approval and rejection
+    commands to type -- every one of them, every time, regardless of
+    whether the plan turns out to be applicable.
+
+    Args:
+        response: The server's validated plan response.
+        outcome: This request's own locally observed fidelity outcome.
+        object_name: The resolved live object's name.
+        atom_count: The live object's first-state atom count.
+        state_count: The live object's coordinate state count.
+        applicable: Whether this plan may be approved and applied.
+        now: The current moment, for the expiry's relative description.
+
+    Returns:
+        The complete multi-line preview block.
+    """
+    display_id = _display_plan_id(response.plan_id)
+    lines = [
+        f"copilot plan {display_id} "
+        f"(expires {response.expires_at}, "
+        f"{_relative_expiry(response.expires_at, now)})",
+        f"  object:    {object_name} "
+        f"({atom_count:,} {_plural(atom_count, 'atom')}, "
+        f"{state_count} {_plural(state_count, 'state')})",
+        "  commands:",
+    ]
+    counts = {
+        count.name: count.atom_count
+        for count in response.validation.selection_counts
+    }
+    for index, operation in enumerate(response.action_plan.operations, start=1):
+        rendered = f"    {index} | {operation.render()}"
+        if isinstance(operation, SelectOperation):
+            matched = counts.get(operation.selection_name)
+            if matched is not None:
+                rendered += f"   -> {matched:,} {_plural(matched, 'atom')}"
+        lines.append(rendered)
+    if response.validation.warnings:
+        lines.append("  warnings:")
+        lines.extend(
+            f"    - {warning}" for warning in response.validation.warnings
         )
-    return (
-        "copilot checked: the plan parses and policy allows it. Not "
-        f"checked: a fresh PyMOL sidecar could not complete a fidelity "
-        f"check ({outcome.reason}), so the plan was never executed "
-        "anywhere. It cannot be applied."
+    else:
+        lines.append("  warnings:  none")
+    lines.append(_fidelity_line(outcome))
+    lines.extend(_checked_lines(outcome))
+    lines.append(
+        f"  apply:     copilot_apply {display_id}"
+        if applicable
+        else "  apply:     unavailable (inspectable only)"
     )
+    lines.append(f"  reject:    copilot_reject {display_id}")
+    return "\n".join(lines)
+
+
+#: The order `copilot_health`'s own `contracts:` line names each contract
+#: version in -- `HEALTH_CONTRACT_KEYS` minus `protocol`, which is already
+#: shown on the `client:` line above it and can never actually disagree in
+#: practice: a mismatched `protocolVersion` fails the health round trip
+#: itself at the wire-decode level, before a `HealthResponseV1` exists to
+#: compare.
+_CONTRACT_DISPLAY_ORDER = (
+    "plan",
+    "policy",
+    "snapshot",
+    "card",
+    "prompt",
+    "grammar",
+    "errorEnvelope",
+    "executor",
+)
+
+
+def _engine_health_lines(response: HealthResponseV1) -> list[str]:
+    """Render `engine:` and `model:` from one health response.
+
+    Args:
+        response: The server's own health facts.
+
+    Returns:
+        Exactly two lines.
+    """
+    engine = response.engine
+    if engine.state == HEALTH_ENGINE_READY:
+        return [
+            f"  engine:    ready -- {engine.engine} {engine.engine_version} "
+            f"on {engine.device}",
+            f"  model:     {response.model_identity}",
+        ]
+    # `EngineHealthV1.__post_init__` guarantees both fields are populated
+    # for every state other than `HEALTH_ENGINE_READY`, handled above.
+    assert engine.failure_category is not None
+    assert engine.failure_message is not None
+    action = ACTIONS.get(engine.failure_category, _DEFAULT_ACTION)
+    return [
+        bounded(
+            f"  engine:    unavailable ({engine.failure_message}). {action}",
+            max_bytes=MAX_LINE_BYTES,
+        ),
+        "  model:     unknown",
+    ]
+
+
+def _contracts_lines(response: HealthResponseV1) -> list[str]:
+    """Render the `contracts:` summary line and one line per mismatch.
+
+    `HealthResponseV1.contract_versions` is not required to carry exactly
+    this client's own key set: a server build that added or dropped a
+    contract is precisely the disagreement this command exists to name,
+    so a missing or an extra key is reported the same way a differing
+    value is, rather than failing the whole response closed before this
+    function ever runs.
+
+    Args:
+        response: The server's own health facts.
+
+    Returns:
+        One summary line, plus one `MISMATCH` line for each contract this
+        client and the responding server disagree on -- a differing
+        value, a key the server never sent, or a key this client does not
+        know.
+    """
+    client_versions = contract_versions()
+    server_versions = response.contract_versions
+    parts = [f"{key} {client_versions[key]}" for key in _CONTRACT_DISPLAY_ORDER]
+    value_mismatches = [
+        key
+        for key in _CONTRACT_DISPLAY_ORDER
+        if client_versions[key] != server_versions.get(key)
+    ]
+    extra_keys = sorted(set(server_versions) - HEALTH_CONTRACT_KEYS)
+    mismatch_count = len(value_mismatches) + len(extra_keys)
+    summary = (
+        "all match this client"
+        if not mismatch_count
+        else f"{mismatch_count} {_plural(mismatch_count, 'mismatch', suffix='es')}"
+    )
+    lines = [f"  contracts: {', '.join(parts)} -- {summary}"]
+    lines.extend(
+        f"    {key} server {server_versions.get(key)} / client "
+        f"{client_versions[key]} -- MISMATCH"
+        for key in value_mismatches
+    )
+    lines.extend(
+        f"    {key} server {server_versions[key]} / client "
+        "(unknown to this client) -- MISMATCH"
+        for key in extra_keys
+    )
+    return lines
 
 
 class CopilotCommandClient:
@@ -380,6 +612,16 @@ class CopilotCommandClient:
         self._halted_recovery: str | None = None
         self._uncertain_approval: str | None = None
         self._unreported_outcomes: list[tuple[str, str]] = []
+        # Set by copilot_apply/copilot_rollback around their own live
+        # mutating call, read by _guarded's last-resort exception handler.
+        # Neither "was retained changed" nor "is anything retained" can
+        # answer whether *this* invocation is the one in doubt: a
+        # successful apply or rollback deliberately changes what is
+        # retained (or clears it) as part of settling cleanly, and an
+        # unrelated later command's own failure must not read that as
+        # evidence of its own uncertain mutation.
+        self._mutation_started = False
+        self._mutation_settled = False
 
     @property
     def session_id(self) -> str:
@@ -393,7 +635,7 @@ class CopilotCommandClient:
     def register(self, cmd: RegisteredPyMOLSession) -> None:
         """Register this client's commands with a live PyMOL session.
 
-        Stores `cmd` for later live queries and registers the four user
+        Stores `cmd` for later live queries and registers the five user
         commands.
 
         Args:
@@ -404,10 +646,111 @@ class CopilotCommandClient:
         # surface too; retain that internal type so mutation code cannot be
         # called without naming every method it needs.
         self._cmd = cast(LivePyMOLSession, cmd)
-        cmd.extend("copilot", self.copilot)
-        cmd.extend("copilot_apply", self.copilot_apply)
-        cmd.extend("copilot_reject", self.copilot_reject)
-        cmd.extend("copilot_rollback", self.copilot_rollback)
+        cmd.extend("copilot", self._guarded("copilot", self.copilot))
+        # SPECIFICATION.md's intent is free text: a comma, a semicolon, or
+        # `x=y` inside it must never be read as PyMOL argument syntax.
+        # `parsing.STRICT` (the mode `extend()` itself set a moment ago)
+        # would split on `,`, and `;` would end the command early; setting
+        # this entry's own mode is the one supported way to change it
+        # after the fact (docs/master_plan.md item 11).
+        cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE
+        cmd.extend(
+            "copilot_apply",
+            self._guarded("copilot_apply", self.copilot_apply, mutating=True),
+        )
+        cmd.extend(
+            "copilot_reject",
+            self._guarded("copilot_reject", self.copilot_reject),
+        )
+        cmd.extend(
+            "copilot_rollback",
+            self._guarded(
+                "copilot_rollback", self.copilot_rollback, mutating=True
+            ),
+        )
+        cmd.extend(
+            "copilot_health",
+            self._guarded("copilot_health", self.copilot_health),
+        )
+
+    def _guarded(
+        self,
+        command: str,
+        handler: Callable[[str], None],
+        *,
+        mutating: bool = False,
+    ) -> Callable[[str], None]:
+        """Wrap one registered command so an internal defect never escapes.
+
+        Every handler already catches the exceptions its own PyMOL and
+        transport calls can raise; this is the last-resort net for a
+        genuine defect in this module's own code (an `AttributeError` from
+        a typo, a `KeyError` from an unexpected shape) that no other catch
+        anticipates. Without it, such a defect would propagate as a raw
+        traceback into PyMOL's own command dispatch -- exactly what
+        SPECIFICATION.md:503-511 forbids for every failure path, including
+        this one.
+
+        Args:
+            command: The command name, for the fallback message.
+            handler: The bound method PyMOL should call for this command.
+            mutating: Whether this command can mutate the live session.
+                `copilot_apply` and `copilot_rollback` set
+                `self._mutation_started`/`self._mutation_settled` around
+                their own live-mutating call, so a defect caught here can
+                tell apart three cases: the mutation never began (nothing
+                was applied), it began and its outcome is still unknown
+                (halt and preserve, since the live session may be
+                mid-change), or it began and finished with a known,
+                consistent outcome before this defect hit -- in which
+                case the defect is in bookkeeping after the fact, not in
+                the mutation itself, and halting would only discard
+                already-completed, verified work.
+
+        Returns:
+            A callable safe to hand to `cmd.extend`.
+        """
+
+        def wrapped(argument: str = "") -> None:
+            if mutating:
+                self._mutation_started = False
+                self._mutation_settled = False
+            try:
+                handler(argument)
+            except Exception as error:
+                if (
+                    mutating
+                    and self._mutation_started
+                    and not self._mutation_settled
+                ):
+                    retained = (
+                        self._recovery_store.retained
+                        if self._recovery_store is not None
+                        else None
+                    )
+                    self._halt(str(retained) if retained is not None else None)
+                    self._output(
+                        f"{command}: internal error "
+                        f"({type(error).__name__}). Recovery point "
+                        f"preserved at {self._halted_recovery}. Restart "
+                        "PyMOL and load it manually."
+                    )
+                elif mutating and self._mutation_settled:
+                    self._output(
+                        f"{command}: internal error "
+                        f"({type(error).__name__}) after the operation "
+                        "itself already completed. Run copilot_health to "
+                        "check status; restart PyMOL if it keeps "
+                        "happening."
+                    )
+                else:
+                    self._output(
+                        f"{command}: internal error "
+                        f"({type(error).__name__}). Nothing was applied. "
+                        "Retry; if it keeps happening, restart PyMOL."
+                    )
+
+        return wrapped
 
     def close(self) -> None:
         """Settle unfinished server status and close recovery storage."""
@@ -424,7 +767,7 @@ class CopilotCommandClient:
         try:
             self._recovery_store = RecoveryStore()
         except RuntimeError as error:
-            detail = str(error).rstrip(".")
+            detail = bounded(str(error)).rstrip(".")
             self._output(
                 "copilot_apply: could not initialize private recovery storage: "
                 f"{detail}. Nothing was applied."
@@ -474,7 +817,19 @@ class CopilotCommandClient:
         except TransportError as error:
             if current not in self._unreported_outcomes:
                 self._unreported_outcomes.append(current)
-            self._output(f"copilot recovery status unavailable: {error}")
+            self._output(describe_transport("copilot recovery status", error))
+            return False
+        if response.failure.category == "server_internal_error":
+            # The server's own outcome-recording handler crashed -- this
+            # report is exactly as undelivered as a dropped connection,
+            # since the graph resume that would have recorded it may
+            # never have completed. Never treat it as settled; retry the
+            # same report later, exactly like a TransportError.
+            if current not in self._unreported_outcomes:
+                self._unreported_outcomes.append(current)
+            self._output(
+                describe_failure("copilot recovery status", response.failure)
+            )
             return False
         if current in self._unreported_outcomes:
             self._unreported_outcomes.remove(current)
@@ -511,16 +866,30 @@ class CopilotCommandClient:
         self._pending_plan = None
         self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
 
-    def copilot(self, intent: str) -> None:
+    def copilot(self, intent: str = "") -> None:
         """Extract the live session, gate it on fidelity, and submit a plan.
 
         Args:
-            intent: Natural-language intent to submit for planning.
+            intent: Natural-language intent to submit for planning. Empty
+                when PyMOL dispatched a bare `copilot` with nothing after
+                it -- `parsing.LITERAL` mode still requires a default here
+                (see `register()`), since PyMOL calls this with zero
+                arguments in that case.
         """
         if self._halted("copilot"):
             return
         if self._cmd is None:
             raise RuntimeError("copilot invoked before register()")
+        if not intent.strip():
+            self._output("copilot: usage: copilot <what you want to do>")
+            return
+        if len(intent) > MAX_INTENT_LENGTH:
+            self._output(
+                f"copilot: intent is {len(intent)} characters, over the "
+                f"{MAX_INTENT_LENGTH}-character limit. Shorten it and "
+                "try again."
+            )
+            return
 
         if not self._flush_unreported_outcomes():
             self._output(
@@ -549,14 +918,23 @@ class CopilotCommandClient:
         try:
             object_name = resolve_target_object(self._cmd)
             snapshot, digest = extract_live_snapshot(self._cmd, object_name)
+        except TargetResolutionError as error:
+            # This module's own typed error, raised only with a fixed
+            # template naming loaded object names -- safe to show as-is,
+            # bounded defensively in case that list is unexpectedly long.
+            self._output(
+                f"copilot: {bounded(str(error))}. Nothing was applied."
+            )
+            return
         except Exception as error:
             # Both calls reach real PyMOL query APIs this module cannot
-            # enumerate every failure mode of (resolve_target_object()'s
-            # own TargetResolutionError is one specific, expected case
-            # among them); fail closed and report rather than let an
-            # unhandled exception propagate into PyMOL's own command
-            # dispatch.
-            self._output(f"copilot failed: {error}")
+            # enumerate every failure mode of; fail closed and report
+            # rather than let an unhandled exception -- and whatever
+            # selection or object text it may carry -- propagate into
+            # PyMOL's own command dispatch or this console.
+            self._output(
+                describe_unexpected("copilot", error, mutated_possible=False)
+            )
             return
 
         outcome = check_fidelity(
@@ -567,6 +945,19 @@ class CopilotCommandClient:
         )
         atom_count = len(snapshot.states[0].atoms) if snapshot.states else 0
         state_count = len(snapshot.states)
+
+        try:
+            snapshot_json = to_json(snapshot)
+        except ValueError:
+            # to_json's own allow_nan=False rejects a non-finite camera
+            # view or coordinate -- the same case check_fidelity's own
+            # to_json call already handles, but this one runs regardless
+            # of fidelity and was previously unguarded.
+            self._output(
+                "copilot: the session cannot be serialized (a non-finite "
+                "coordinate or view value). Nothing was applied."
+            )
+            return
 
         request = PlanRequestV1(
             request_id=str(self._uuid_factory()),
@@ -585,13 +976,13 @@ class CopilotCommandClient:
             # server and needs the full canonical snapshot to validate
             # against, not merely its identity; this call site already had
             # it in hand.
-            snapshot_json=to_json(snapshot),
+            snapshot_json=snapshot_json,
             fidelity=to_wire(outcome),
         )
         try:
             response = self._transport.submit(request)
         except TransportError as error:
-            self._output(f"copilot unavailable: {error}")
+            self._output(describe_transport("copilot", error))
             return
         match response:
             case FailedPlanResponseV1():
@@ -605,16 +996,20 @@ class CopilotCommandClient:
                     state_count=state_count,
                 )
 
-    def copilot_apply(self, plan_id: str) -> None:
+    def copilot_apply(self, plan_id: str = "") -> None:
         """Approve, re-verify, and apply one immutable pending plan.
 
         Args:
             plan_id: The plan identifier to apply, as the user typed it.
+                Empty when PyMOL dispatched a bare `copilot_apply`.
         """
         if self._halted("copilot_apply"):
             return
         if self._cmd is None:
             raise RuntimeError("copilot_apply invoked before register()")
+        if not plan_id.strip():
+            self._output("copilot_apply: usage: copilot_apply <plan id>")
+            return
         pending = self._pending_plan
         # Rows that cannot depend on the current live session are settled
         # first. This keeps a stale id or expired plan from even querying
@@ -648,8 +1043,9 @@ class CopilotCommandClient:
             )
         except Exception as error:
             self._output(
-                f"copilot_apply: could not verify the live session: {error}. "
-                "Nothing was applied."
+                describe_unexpected(
+                    "copilot_apply", error, mutated_possible=False
+                )
             )
             self._settle_uncertain_approval(pending.plan_id)
             return
@@ -686,14 +1082,30 @@ class CopilotCommandClient:
             )
         except TransportError as error:
             self._uncertain_approval = pending.plan_id
-            self._output(f"copilot_apply unavailable: {error}")
+            self._output(describe_transport("copilot_apply", error))
             return
         if isinstance(response, FailedPlanResponseV1):
+            if response.failure.category == "server_internal_error":
+                # lifecycle.apply() calls session.approve() before ever
+                # assembling this response; approve() may already have
+                # committed the graph to STATE_APPLYING, so this failure
+                # is exactly as uncertain as a dropped connection --
+                # settled later like one, never assumed clean.
+                self._uncertain_approval = pending.plan_id
+                self._output(
+                    bounded(
+                        describe_failure("copilot_apply", response.failure),
+                        max_bytes=MAX_LINE_BYTES,
+                    )
+                )
+                return
             self._uncertain_approval = None
             self._output(
-                f"copilot_apply refused ({response.failure.category}; "
-                f"{'retryable' if response.failure.retryable else 'not retryable'}"
-                f"): {response.failure.message}. Nothing was applied."
+                bounded(
+                    describe_failure("copilot_apply", response.failure)
+                    + " Nothing was applied.",
+                    max_bytes=MAX_LINE_BYTES,
+                )
             )
             return
         self._uncertain_approval = None
@@ -728,6 +1140,7 @@ class CopilotCommandClient:
                 "the canonical plan is no longer allowed by local policy",
             )
             return
+        self._mutation_started = True
         outcome = apply_plan(
             self._cmd,
             object_name=object_name,
@@ -736,6 +1149,12 @@ class CopilotCommandClient:
             store=store,
             dispatcher=self._dispatcher,
         )
+        # apply_plan's own outcome.status is a definite, already-settled
+        # verdict about the live session (applied, restored, restore
+        # failed, or refused before any mutation): everything from here on
+        # is bookkeeping about that known outcome, not a live mutation
+        # still in doubt.
+        self._mutation_settled = True
         self._pending_plan = None
         self._report_apply_result(pending, object_name, outcome, store)
 
@@ -755,8 +1174,8 @@ class CopilotCommandClient:
                 store.commit()
             except RecoveryPointError as error:
                 self._output(
-                    f"copilot_apply: previous recovery point could not be "
-                    f"removed: {error}."
+                    "copilot_apply: previous recovery point could not be "
+                    f"removed: {bounded(str(error))}."
                 )
             self._applied_plan = AppliedPlan(
                 plan_id=pending.plan_id,
@@ -778,7 +1197,7 @@ class CopilotCommandClient:
                 self._output(
                     f"copilot_apply: plan {display_id} failed and the complete "
                     "session was restored cleanly, but recovery point could not "
-                    f"be removed: {error}."
+                    f"be removed: {bounded(str(error))}."
                 )
             else:
                 self._output(
@@ -816,12 +1235,15 @@ class CopilotCommandClient:
             )
         self._report_outcome(pending.plan_id, APPLY_OUTCOME_RESTORED)
 
-    def copilot_rollback(self, plan_id: str) -> None:
+    def copilot_rollback(self, plan_id: str = "") -> None:
         """Replace the live session with the one retained pre-apply image."""
         if self._halted("copilot_rollback"):
             return
         if self._cmd is None:
             raise RuntimeError("copilot_rollback invoked before register()")
+        if not plan_id.strip():
+            self._output("copilot_rollback: usage: copilot_rollback <plan id>")
+            return
         applied = self._applied_plan
         store = self._recovery_store
         if applied is None or store is None or store.retained is None:
@@ -829,7 +1251,9 @@ class CopilotCommandClient:
             return
         if normalize_plan_id(plan_id) != applied.plan_id:
             self._output(
-                f"copilot_rollback: plan {plan_id} is not the applied plan"
+                f"copilot_rollback: plan {bounded(plan_id, max_bytes=64)} "
+                f"is not the applied plan (applied: "
+                f"{_display_plan_id(applied.plan_id)})"
             )
             return
         try:
@@ -837,9 +1261,15 @@ class CopilotCommandClient:
                 self._cmd, applied.object_name
             )
         except Exception as error:
+            # Unlike every other catch in this module, execution continues
+            # after this one -- the restore still proceeds regardless of
+            # whether this pre-restore inspection succeeded -- so the
+            # shared describe_unexpected() wording ("nothing was applied")
+            # would be actively misleading here.
             self._output(
-                "copilot_rollback: could not inspect the live session: "
-                f"{error}. The entire session will still be restored."
+                f"copilot_rollback: internal error ({type(error).__name__}) "
+                "while inspecting the live session. The entire session "
+                "will still be restored."
             )
             current_digest = None
         self._output(
@@ -856,6 +1286,7 @@ class CopilotCommandClient:
             )
         path = store.retained
         assert path is not None
+        self._mutation_started = True
         try:
             store.restore(self._cmd, path)
             mismatches = compare_recovery(
@@ -872,6 +1303,12 @@ class CopilotCommandClient:
                 f"point preserved at {preserved}. Restart PyMOL and load it manually."
             )
             return
+        # The restore is verified (or its failure already handled and
+        # returned, above): whatever remains -- consuming the recovery
+        # point, clearing local state, reporting the outcome -- is
+        # bookkeeping about an already-settled, known live-session state,
+        # not a mutation still in doubt.
+        self._mutation_settled = True
         if mismatches:
             preserved = store.preserve()
             self._halt(str(preserved))
@@ -885,7 +1322,7 @@ class CopilotCommandClient:
         except RecoveryPointError as error:
             self._output(
                 "copilot_rollback: session restored, but recovery point "
-                f"could not be removed: {error}."
+                f"could not be removed: {bounded(str(error))}."
             )
         else:
             self._output(
@@ -895,7 +1332,7 @@ class CopilotCommandClient:
         self._applied_plan = None
         self._report_outcome(applied.plan_id, APPLY_OUTCOME_ROLLED_BACK)
 
-    def copilot_reject(self, plan_id: str) -> None:
+    def copilot_reject(self, plan_id: str = "") -> None:
         """Reject the pending plan, if it matches; nothing is ever applied.
 
         An unknown or mismatched plan is refused locally. A matching plan
@@ -905,8 +1342,12 @@ class CopilotCommandClient:
 
         Args:
             plan_id: The plan identifier to reject, as the user typed it.
+                Empty when PyMOL dispatched a bare `copilot_reject`.
         """
         if self._halted("copilot_reject"):
+            return
+        if not plan_id.strip():
+            self._output("copilot_reject: usage: copilot_reject <plan id>")
             return
         pending = self._pending_plan
         if pending is None:
@@ -915,7 +1356,10 @@ class CopilotCommandClient:
         normalized = normalize_plan_id(plan_id)
         if normalized != pending.plan_id:
             self._output(
-                f"copilot_reject: plan {plan_id} is not the pending plan"
+                f"copilot_reject: plan {bounded(plan_id, max_bytes=64)} is "
+                f"not the pending plan (pending: "
+                f"{_display_plan_id(pending.plan_id)}); reject that, or "
+                "run copilot again"
             )
             return
         request = RejectRequestV1(
@@ -926,7 +1370,7 @@ class CopilotCommandClient:
         try:
             response = self._transport.reject(request)
         except TransportError as error:
-            self._output(f"copilot_reject unavailable: {error}")
+            self._output(describe_transport("copilot_reject", error))
             return
         if response.failure.category == "rejected":
             self._pending_plan = None
@@ -952,12 +1396,67 @@ class CopilotCommandClient:
                     "retry after the server is available."
                 )
             return
+        if response.failure.category == "server_internal_error":
+            # The server's own reject handler crashed -- unlike every
+            # other category reaching this point, that is not a settled
+            # server-side verdict: the plan may still be pending there.
+            # Keep _pending_plan so a retry can still reach the server,
+            # instead of failing locally with "no pending plan for this
+            # session" while the server keeps it pending regardless.
+            self._output(describe_failure("copilot_reject", response.failure))
+            return
         self._pending_plan = None
-        self._output(
-            f"copilot_reject failed ({response.failure.category}; "
-            f"{'retryable' if response.failure.retryable else 'not retryable'}"
-            f"): {response.failure.message}"
+        self._output(describe_failure("copilot_reject", response.failure))
+
+    def copilot_health(self, _argument: str = "") -> None:
+        """Report client, server, engine, and contract-version facts.
+
+        Read-only and always allowed, even while Copilot is halted after a
+        failed restore (SPECIFICATION.md:690): a user needs this
+        diagnostic precisely when something else has already gone wrong,
+        so unlike every other registered command this one never checks
+        `_halted()` -- it reports the halt itself, on its own last line,
+        instead of refusing. It sends no plan request and changes no
+        client state.
+
+        Args:
+            _argument: Ignored; `copilot_health` takes no argument.
+        """
+        lines = [
+            "copilot health",
+            f"  client:    application {APPLICATION_VERSION}, protocol "
+            f"{PROTOCOL_VERSION}",
+        ]
+        try:
+            response = self._transport.health(
+                HealthRequestV1(
+                    request_id=str(self._uuid_factory()),
+                    session_id=self._session_id,
+                )
+            )
+        except TransportError as error:
+            described = describe_transport("copilot_health", error)
+            lines.append(
+                f"  server:    unavailable "
+                f"({described.removeprefix('copilot_health: ')})"
+            )
+            lines.append("  engine:    unknown")
+            lines.append("  model:     unknown")
+            lines.append("  contracts: unknown")
+        else:
+            lines.append(
+                "  server:    reachable, application "
+                f"{response.application_version}"
+            )
+            lines.extend(_engine_health_lines(response))
+            lines.extend(_contracts_lines(response))
+        lines.append(
+            "  copilot:   ready"
+            if self._halted_recovery is None
+            else "  copilot:   HALTED -- recovery point preserved at "
+            f"{self._halted_recovery}"
         )
+        self._output("\n".join(lines))
 
     def _report_failure(self, response: FailedPlanResponseV1) -> None:
         """Report a typed failure without attempting to render a plan.
@@ -965,12 +1464,7 @@ class CopilotCommandClient:
         Args:
             response: Typed failure response to report.
         """
-        failure = response.failure
-        retryability = "retryable" if failure.retryable else "not retryable"
-        self._output(
-            f"copilot failed ({failure.category}; {retryability}): "
-            f"{failure.message}"
-        )
+        self._output(describe_failure("copilot", response.failure))
 
     def _report_validated(
         self,
@@ -997,6 +1491,18 @@ class CopilotCommandClient:
                 f"snapshot={response.validation.snapshot_digest}"
             )
             return
+        if response.target_object != object_name:
+            # Neither side trusts the other's resolution alone, exactly
+            # like `applicable` below: the server independently resolved
+            # one target object; if it disagrees with what this session
+            # itself resolved, something is wrong enough that no plan
+            # should be parked for approval at all.
+            self._output(
+                "copilot: the server resolved a different object "
+                f"({response.target_object}) than this session did "
+                f"({object_name}). Nothing was applied. Run copilot again."
+            )
+            return
 
         applicable = response.validation.applicable and outcome.is_exact
         self._pending_plan = PendingPlan(
@@ -1012,26 +1518,16 @@ class CopilotCommandClient:
         )
 
         self._output(
-            _fidelity_block(
+            _preview_block(
+                response,
                 outcome,
                 object_name=object_name,
                 atom_count=atom_count,
                 state_count=state_count,
-            )
-        )
-        self._output(
-            _plan_block(
-                response.action_plan.render_pml(),
-                response.plan_id,
                 applicable=applicable,
+                now=self._now_factory(),
             )
         )
-        self._output(_checked_block(outcome))
-        if applicable:
-            self._output(
-                "copilot apply with: copilot_apply "
-                f"{_display_plan_id(response.plan_id)}"
-            )
 
 
 def register_copilot(

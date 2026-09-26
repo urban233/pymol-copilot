@@ -26,19 +26,30 @@ from pmc_agent.graph import TERMINAL_ASK
 from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import TERMINAL_EXPIRED
 from pmc_agent.graph import TERMINAL_FAILED
+from pmc_agent.graph import TERMINAL_REJECTED
 from pmc_agent.graph import TERMINAL_SUPERSEDED
 from pmc_agent.session import RequestGraphSession
+from pmc_agent.warnings import derive_warnings
+from pmc_core.executor import SelectionCount
+from pmc_core.executor import bounded_failure
 from pmc_core.plan import ActionPlan
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
+from pmc_core.protocol import EngineHealthV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
+from pmc_core.protocol import SelectionCountV1
+from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 
 type TIMESTAMP_SOURCE = Callable[[], str]
 type PLAN_RESPONSE = ValidatedPlanResponseV1 | FailedPlanResponseV1
@@ -62,6 +73,23 @@ _RETRYABLE_TERMINALS: frozenset[str] = frozenset(
 #: reaching this category regardless means a stale or racing caller, which
 #: is why it is not retryable.
 FAILURE_NO_PENDING_PLAN = "no_pending_plan"
+
+
+def _selection_counts_v1(
+    counts: tuple[SelectionCount, ...],
+) -> tuple[SelectionCountV1, ...]:
+    """Convert the graph's own selection counts to their V1 wire shape.
+
+    Args:
+        counts: Selection counts from `pmc_core.executor.ExecutionReport`,
+            carried unchanged through `RequestState["selection_counts"]`.
+
+    Returns:
+        The same counts, in the same order, as `SelectionCountV1`.
+    """
+    return tuple(
+        SelectionCountV1(count.name, count.atom_count) for count in counts
+    )
 
 
 def _server_timestamp() -> str:
@@ -178,8 +206,23 @@ class RequestGraphLifecycle:
         model_identity = result["model_identity"]
         snapshot_digest = result["snapshot_digest"]
         applicable = result["validation_applicable"]
+        target_object = result["target_object"]
+        selection_counts = result["selection_counts"]
+        sidecar_warnings = result["sidecar_warnings"]
+        attempt = result["attempt"]
+        snapshot_identity = result["snapshot_identity"]
         assert isinstance(expires_at, str) and isinstance(model_identity, str)
         assert isinstance(snapshot_digest, str) and isinstance(applicable, bool)
+        assert isinstance(target_object, str) and isinstance(attempt, int)
+        assert isinstance(selection_counts, tuple) and isinstance(
+            sidecar_warnings, tuple
+        )
+        assert isinstance(snapshot_identity, StructureSnapshotV1)
+        repair_attempts = max(0, attempt - 1)
+        # /v1/apply re-sends the exact facts /v1/plan previewed, computed
+        # the same way, so the plan applied is never a different report
+        # from the plan shown -- pmc_client.command already refuses if the
+        # two ever disagree.
         return ValidatedPlanResponseV1(
             request_id=request.request_id,
             session_id=request.session_id,
@@ -187,12 +230,23 @@ class RequestGraphLifecycle:
             validated_at=self._timestamp_source(),
             action_plan=plan,
             validation=ValidationReportV1(
-                "passed", snapshot_digest, applicable, ()
+                status="passed",
+                snapshot_digest=snapshot_digest,
+                applicable=applicable,
+                warnings=derive_warnings(
+                    selection_counts=selection_counts,
+                    target_atom_count=snapshot_identity.atom_count,
+                    repair_attempts=repair_attempts,
+                    sidecar_warnings=sidecar_warnings,
+                ),
+                selection_counts=_selection_counts_v1(selection_counts),
+                repair_attempts=repair_attempts,
             ),
             plan_id=request.plan_id,
             snapshot_digest=snapshot_digest,
             expires_at=expires_at,
             model_identity=model_identity,
+            target_object=target_object,
         )
 
     def report_apply_outcome(
@@ -208,6 +262,42 @@ class RequestGraphLifecycle:
             return self._no_pending_plan(request.request_id, request.session_id)
         return self._to_terminal_response(
             request.request_id, request.session_id, result
+        )
+
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Report this server's own application, contract, and engine facts.
+
+        docs/master_plan.md item 11's own `copilot_health` command. Never
+        touches the request graph: health is a property of the engine and
+        this build, not of any one request.
+
+        Args:
+            request: Decoded health request to answer.
+
+        Returns:
+            The server's application version, every contract version this
+            build agrees to, and the engine's own current health.
+        """
+        engine_health = self._session.engine_health()
+        failure = engine_health.failure
+        return HealthResponseV1(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            application_version=APPLICATION_VERSION,
+            contract_versions=dict(contract_versions()),
+            engine=EngineHealthV1(
+                state=engine_health.state,
+                engine=engine_health.engine,
+                engine_version=engine_health.engine_version,
+                device=engine_health.device,
+                failure_category=failure.category
+                if failure is not None
+                else None,
+                failure_message=failure.message
+                if failure is not None
+                else None,
+            ),
+            model_identity=engine_health.model_identity,
         )
 
     def _to_plan_response(
@@ -238,6 +328,16 @@ class RequestGraphLifecycle:
             assert isinstance(expires_at, str)
             model_identity = result["model_identity"]
             assert isinstance(model_identity, str)
+            target_object = result["target_object"]
+            assert isinstance(target_object, str)
+            selection_counts = result["selection_counts"]
+            sidecar_warnings = result["sidecar_warnings"]
+            attempt = result["attempt"]
+            assert isinstance(selection_counts, tuple) and isinstance(
+                sidecar_warnings, tuple
+            )
+            assert isinstance(attempt, int)
+            repair_attempts = max(0, attempt - 1)
             return ValidatedPlanResponseV1(
                 request_id=request.request_id,
                 session_id=request.session_id,
@@ -253,12 +353,24 @@ class RequestGraphLifecycle:
                     # compare against, only what the client already
                     # reported.
                     applicable=request.fidelity.status == FIDELITY_EXACT,
-                    warnings=(),
+                    warnings=derive_warnings(
+                        selection_counts=selection_counts,
+                        target_atom_count=request.snapshot.atom_count,
+                        repair_attempts=repair_attempts,
+                        sidecar_warnings=sidecar_warnings,
+                    ),
+                    selection_counts=_selection_counts_v1(selection_counts),
+                    repair_attempts=repair_attempts,
                 ),
                 plan_id=plan_id,
                 snapshot_digest=digest,
                 expires_at=expires_at,
                 model_identity=model_identity,
+                # The graph's own independent resolution
+                # (`pmc_agent.graph`'s `preparing` node), not the client's
+                # own declared object -- `pmc_client.command` cross-checks
+                # the two and refuses to park a plan if they disagree.
+                target_object=target_object,
             )
         return self._to_terminal_response(
             request.request_id, request.session_id, result
@@ -280,7 +392,10 @@ class RequestGraphLifecycle:
             `FailureEnvelopeV1` is forwarded unchanged, including whatever
             `retryable` verdict the failure category that produced it
             already carries; `ask`'s bounded question becomes the
-            envelope's message; every other terminal gets a fixed message
+            envelope's message; a hostile-screen `rejected` forwards its
+            own recorded `hostile_output` envelope so it reads differently
+            from an ordinary user reject, even though both leave `status`
+            at `rejected`; every other terminal gets a fixed message
             naming itself, with `retryable` from `_RETRYABLE_TERMINALS`.
         """
         status = result["status"]
@@ -297,17 +412,23 @@ class RequestGraphLifecycle:
             return FailedPlanResponseV1(
                 request_id=request_id,
                 session_id=session_id,
-                failure=FailureEnvelopeV1(
-                    category=TERMINAL_ASK, message=question, retryable=False
-                ),
+                failure=bounded_failure(TERMINAL_ASK, question, False),
             )
+        if status == TERMINAL_REJECTED:
+            hostile_failure = result.get("failure")
+            if isinstance(hostile_failure, FailureEnvelopeV1):
+                return FailedPlanResponseV1(
+                    request_id=request_id,
+                    session_id=session_id,
+                    failure=hostile_failure,
+                )
         return FailedPlanResponseV1(
             request_id=request_id,
             session_id=session_id,
-            failure=FailureEnvelopeV1(
-                category=status,
-                message=f"request ended: {status}",
-                retryable=status in _RETRYABLE_TERMINALS,
+            failure=bounded_failure(
+                status,
+                f"request ended: {status}",
+                status in _RETRYABLE_TERMINALS,
             ),
         )
 
@@ -327,11 +448,9 @@ class RequestGraphLifecycle:
         return FailedPlanResponseV1(
             request_id=request_id,
             session_id=session_id,
-            failure=FailureEnvelopeV1(
-                category=FAILURE_NO_PENDING_PLAN,
-                message=(
-                    "no plan matching the request is pending for this session"
-                ),
-                retryable=False,
+            failure=bounded_failure(
+                FAILURE_NO_PENDING_PLAN,
+                "no plan matching the request is pending for this session",
+                False,
             ),
         )

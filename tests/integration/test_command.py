@@ -22,11 +22,16 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from typing import cast
 
 import pytest  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+from preview_support import find_preview
+from preview_support import plan_id_from
+from preview_support import section
 from pmc_client.command import PLAN_ID_DISPLAY_PREFIX
 from pmc_client.command import CopilotCommandClient
+from pmc_client.command import _LITERAL_PARSING_MODE
 from pmc_client.recovery import RecoveryPointError
 from pmc_client.command import PlanTransport
 from pmc_client.recovery import RecoveryStore
@@ -34,6 +39,8 @@ from pmc_client.session import extract_live_snapshot
 from pmc_client.transport import TransportError
 from pmc_core.executor import EXECUTOR_VERSION
 from pmc_core.executor import REASON_OK
+from pmc_core.executor import REASON_TIMEOUT
+from pmc_core.executor import STATUS_FAILED
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
@@ -45,14 +52,22 @@ from pmc_core.plan import Factor
 from pmc_core.plan import NamedSelection
 from pmc_core.plan import SelectOperation
 from pmc_core.plan import SelectionExpression
-from pmc_core.protocol import FailedPlanResponseV1
-from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import MAX_INTENT_LENGTH
+from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
+from pmc_core.protocol import EngineHealthV1
+from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import StateSnapshot
 from pmc_core.snapshot import structure_digest
@@ -133,6 +148,11 @@ class _RecordingSession:
     raise_on_get_names: Exception | None = None
     commands: dict[str, Callable[[str], None]] = field(default_factory=dict)
     events: list[str] = field(default_factory=list)
+    #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
+    #: `pymol.commanding.extend()` does, so `register()`'s own
+    #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
+    #: entry to rewrite (docs/master_plan.md item 11).
+    keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Record a registered command.
@@ -142,6 +162,7 @@ class _RecordingSession:
             callback: Command callback to record.
         """
         self.commands[name] = callback
+        self.keyword[name] = [callback, 0, 0, ",", 11]
 
     def get_names(
         self,
@@ -359,6 +380,26 @@ def _mismatched_probe(
     return lambda _request: report
 
 
+def _unavailable_probe() -> Callable[[FidelityRequest], FidelityReport]:
+    """Build a probe reporting the check itself could not be performed.
+
+    Returns:
+        A probe reporting a timed-out reconstruction attempt.
+    """
+    report = FidelityReport(
+        executor_version=EXECUTOR_VERSION,
+        status=STATUS_FAILED,
+        reason=REASON_TIMEOUT,
+        input_digest=None,
+        reconstructed_snapshot_json=None,
+        child_pid=None,
+        child_terminated=None,
+        elapsed_seconds=5.0,
+        warnings=(),
+    )
+    return lambda _request: report
+
+
 def _default_rejected(request: RejectRequestV1) -> FailedPlanResponseV1:
     """Build a correlated `rejected` response for any reject request.
 
@@ -372,6 +413,35 @@ def _default_rejected(request: RejectRequestV1) -> FailedPlanResponseV1:
         request_id=request.request_id,
         session_id=request.session_id,
         failure=FailureEnvelopeV1("rejected", "rejected", False),
+    )
+
+
+def _default_health_response(request: HealthRequestV1) -> HealthResponseV1:
+    """Build a correlated, ready, all-versions-matching health response.
+
+    Args:
+        request: Request whose correlation values are copied.
+
+    Returns:
+        A health response reporting the fake engine ready with this same
+        build's own contract versions, so a test that never scripts its
+        own `health_response_factory` still gets a plausible "everything
+        matches" answer.
+    """
+    return HealthResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        application_version=APPLICATION_VERSION,
+        contract_versions=dict(contract_versions()),
+        engine=EngineHealthV1(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            failure_category=None,
+            failure_message=None,
+        ),
+        model_identity="test-model@test-checkpoint",
     )
 
 
@@ -395,6 +465,10 @@ class RecordingTransport:
         ]
         | None
     ) = None
+    health_response_factory: Callable[[HealthRequestV1], HealthResponseV1] = (
+        _default_health_response
+    )
+    health_requests: list[HealthRequestV1] = field(default_factory=list)
     _last_validated: ValidatedPlanResponseV1 | None = field(
         default=None, init=False
     )
@@ -458,6 +532,18 @@ class RecordingTransport:
             FailureEnvelopeV1(request.outcome, request.outcome, False),
         )
 
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Record and handle one health request.
+
+        Args:
+            request: Request to record and handle.
+
+        Returns:
+            The typed response produced by the health response factory.
+        """
+        self.health_requests.append(request)
+        return self.health_response_factory(request)
+
 
 def fixture_plan() -> ActionPlan:
     """Build the two-command plan these protocol fixtures carry.
@@ -504,12 +590,13 @@ def validated_response(
         validated_at=CREATED_AT,
         action_plan=fixture_plan(),
         validation=ValidationReportV1(
-            "passed", request.snapshot.digest, applicable, ()
+            "passed", request.snapshot.digest, applicable, (), (), 0
         ),
         plan_id="55555555-5555-4555-8555-555555555555",
         snapshot_digest=request.snapshot.digest,
         expires_at="2026-08-26T14:27:03.220Z",
         model_identity="test-model@test-checkpoint",
+        target_object=request.snapshot.object_name,
     )
 
 
@@ -607,19 +694,26 @@ def test_exact_outcome_is_applicable_and_prints_the_approval_line() -> None:
 
     client.copilot(INTENT)
 
-    assert output[0].startswith("copilot fidelity: exact")
-    assert f"object {OBJECT_NAME}" in output[0]
-    assert output[1].startswith(
-        f"copilot plan: {PLAN_ID_DISPLAY_PREFIX}"
+    preview = find_preview(output)
+    assert preview.startswith(
+        f"copilot plan {PLAN_ID_DISPLAY_PREFIX}"
         "55555555-5555-4555-8555-555555555555"
     )
-    assert "NOT applicable" not in output[1]
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert "2 | color red, copilot_selection" in output[1]
-    assert output[2].startswith("copilot checked:")
-    assert output[3] == (
-        "copilot apply with: copilot_apply "
-        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    assert OBJECT_NAME in section(output, "object")
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert "NOT applicable" not in preview
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert "2 | color red, copilot_selection" in section(output, "commands")
+    assert section(output, "checked").startswith("the plan parses")
+    assert section(output, "apply") == (
+        f"copilot_apply {PLAN_ID_DISPLAY_PREFIX}"
+        "55555555-5555-4555-8555-555555555555"
+    )
+    assert section(output, "reject") == (
+        f"copilot_reject {PLAN_ID_DISPLAY_PREFIX}"
+        "55555555-5555-4555-8555-555555555555"
     )
 
 
@@ -637,11 +731,13 @@ def test_non_exact_outcome_prints_the_plan_but_marks_it_non_applicable() -> (
 
     client.copilot(INTENT)
 
-    assert output[0].startswith("copilot fidelity: NOT EXACT")
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert "(inspectable only -- NOT applicable)" in output[1]
-    assert "cannot be applied" in output[2]
-    assert not any(line.startswith("copilot apply with:") for line in output)
+    assert section(output, "fidelity").startswith("NOT EXACT")
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert section(output, "apply") == "unavailable (inspectable only)"
+    assert "cannot be applied" in section(output, "NOT checked")
+    assert "never executed" not in find_preview(output)
 
 
 def test_server_inapplicable_overrides_an_exact_local_outcome() -> None:
@@ -675,9 +771,79 @@ def test_server_inapplicable_overrides_an_exact_local_outcome() -> None:
 
     client.copilot(INTENT)
 
-    assert output[0].startswith("copilot fidelity: exact")
-    assert "(inspectable only -- NOT applicable)" in output[1]
-    assert not any(line.startswith("copilot apply with:") for line in output)
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert section(output, "apply") == "unavailable (inspectable only)"
+
+
+def test_unavailable_fidelity_still_prints_a_full_preview() -> None:
+    """A fidelity check that could not run at all still previews the plan.
+
+    The sidecar executor still ran (`pmc_agent.graph`'s own `validating`
+    never reads the request's fidelity before doing so), so the preview
+    still exists and still names real counts -- only `applicable` and the
+    checked/not-checked wording differ from the exact case.
+    """
+    output: list[str] = []
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_unavailable_probe(),
+    )
+
+    client.copilot(INTENT)
+
+    assert section(output, "fidelity") == (
+        "unavailable on the declared state scope (timeout)"
+    )
+    assert section(output, "apply") == "unavailable (inspectable only)"
+    assert section(output, "reject").startswith("copilot_reject ")
+    assert "never executed" not in find_preview(output)
+
+
+def test_a_target_object_mismatch_refuses_to_park_a_plan() -> None:
+    """A server resolving a different object never becomes a pending plan.
+
+    Neither side trusts the other's resolution alone, the same way
+    `applicable` is the AND of two independently-formed verdicts: if the
+    server's own resolution disagrees with what this session itself
+    resolved, no plan is safe to park for approval.
+    """
+    output: list[str] = []
+    session = _RecordingSession()
+
+    def different_object_response(
+        request: PlanRequestV1,
+    ) -> ValidatedPlanResponseV1:
+        """Return the ordinary fixture response naming a different object.
+
+        Args:
+            request: Request whose correlation and snapshot values are
+                copied.
+
+        Returns:
+            A validated response whose target_object disagrees with the
+            request's own declared object.
+        """
+        response = validated_response(request)
+        return dataclasses.replace(response, target_object="a-different-object")
+
+    client, _session = _client(
+        RecordingTransport(different_object_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot(INTENT)
+
+    assert output == [
+        "copilot: the server resolved a different object "
+        f"(a-different-object) than this session did ({OBJECT_NAME}). "
+        "Nothing was applied. Run copilot again."
+    ]
+    client.copilot_apply("p-anything")
+    assert output[-1] == (
+        "copilot_apply: no pending plan for this session. Nothing was applied."
+    )
 
 
 def test_client_reuses_session_and_generates_unique_request_ids() -> None:
@@ -699,19 +865,31 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
     )
 
 
-def test_registers_all_four_copilot_commands() -> None:
-    """Registration exposes all four commands, bound to the same client."""
+def test_registers_all_five_copilot_commands() -> None:
+    """Registration exposes all five commands, each reaching its own handler.
+
+    Each registered callback is `_guarded()`'s own wrapper (docs/master_plan.md
+    item 11), not the bound method directly, so identity no longer proves
+    wiring; invoking the simplest one instead proves it actually reaches
+    the real handler behind it.
+    """
+    output: list[str] = []
     session = _RecordingSession()
     client = CopilotCommandClient(
-        RecordingTransport(validated_response, []), lambda _text: None
+        RecordingTransport(validated_response, []), output.append
     )
 
     client.register(session)
 
-    assert session.commands["copilot"] == client.copilot
-    assert session.commands["copilot_apply"] == client.copilot_apply
-    assert session.commands["copilot_reject"] == client.copilot_reject
-    assert session.commands["copilot_rollback"] == client.copilot_rollback
+    assert set(session.commands) == {
+        "copilot",
+        "copilot_apply",
+        "copilot_reject",
+        "copilot_rollback",
+        "copilot_health",
+    }
+    session.commands["copilot_reject"]("p-does-not-exist")
+    assert output == ["copilot_reject: no pending plan for this session"]
 
 
 def test_preview_does_not_require_a_home_directory(
@@ -797,7 +975,10 @@ def test_typed_failure_reports_diagnostic_without_plan_text() -> None:
 
     client.copilot(INTENT)
 
-    assert output == ["copilot failed (policy; not retryable): command denied"]
+    assert output == [
+        "copilot: command denied. Run copilot_health to check for a "
+        "version mismatch, then try again."
+    ]
 
 
 def test_transport_failure_reports_bounded_diagnostic() -> None:
@@ -851,6 +1032,12 @@ def test_transport_failure_reports_bounded_diagnostic() -> None:
                 f"loopback request failed: {request.request_id}"
             )
 
+        def health(self, request: HealthRequestV1) -> HealthResponseV1:
+            """Raise the same bounded outage if health were reached."""
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
     output: list[str] = []
     session = _RecordingSession()
     client = CopilotCommandClient(
@@ -865,8 +1052,9 @@ def test_transport_failure_reports_bounded_diagnostic() -> None:
     client.copilot(INTENT)
 
     assert output == [
-        "copilot unavailable: loopback request failed: "
-        "33333333-3333-4333-8333-333333333333"
+        "copilot: loopback request failed: "
+        "33333333-3333-4333-8333-333333333333. Check that the server is "
+        "running, then try again; run copilot_health for details."
     ]
 
 
@@ -892,12 +1080,13 @@ def test_failed_validation_reports_status_without_rendering_plan() -> None:
             validated_at=response.validated_at,
             action_plan=response.action_plan,
             validation=ValidationReportV1(
-                "failed", request.snapshot.digest, False, ()
+                "failed", request.snapshot.digest, False, (), (), 0
             ),
             plan_id=response.plan_id,
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     output: list[str] = []
@@ -932,7 +1121,10 @@ def test_a_target_resolution_failure_sends_nothing() -> None:
 
     assert requests == []
     assert len(output) == 1
-    assert output[0].startswith("copilot failed: no molecular object")
+    assert (
+        output[0]
+        == "copilot: no molecular object is loaded. Nothing was applied."
+    )
 
 
 def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
@@ -973,7 +1165,8 @@ def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
 
     assert output == [
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}{first_id} is not "
-        "the pending plan. Nothing was applied."
+        f"the pending plan (pending: {PLAN_ID_DISPLAY_PREFIX}{second_id}); "
+        "apply that, or run copilot again. Nothing was applied."
     ]
 
 
@@ -994,7 +1187,7 @@ def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
         probe=_exact_probe(probe_session),
     )
     client.copilot(INTENT)
-    first_plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
+    first_plan_id = plan_id_from(output)
     output.clear()
 
     # Simulate the live session becoming unresolvable before the second
@@ -1022,7 +1215,9 @@ def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
     (get_names/get_type) this module cannot enumerate every failure mode
     of; copilot() must fail closed the same way it already does for a
     failure in extract_live_snapshot(), not let an unrelated exception
-    escape uncaught.
+    escape uncaught. docs/master_plan.md item 11: only the exception's type
+    name is reported, never its own message, since a raw PyMOL exception can
+    carry a selection expression or another fragment of plan text.
     """
     requests: list[PlanRequestV1] = []
     transport = RecordingTransport(validated_response, requests)
@@ -1043,9 +1238,11 @@ def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
     client.copilot(INTENT)
 
     assert requests == []
-    assert len(output) == 1
-    assert output[0].startswith("copilot failed: ")
-    assert "simulated PyMOL-internal query failure" in output[0]
+    assert output == [
+        "copilot: internal error (RuntimeError). Nothing was applied. "
+        "Retry; if it keeps happening, run copilot_health."
+    ]
+    assert "simulated PyMOL-internal query failure" not in output[0]
 
 
 def test_copilot_apply_with_no_pending_plan() -> None:
@@ -1082,7 +1279,10 @@ def test_copilot_apply_with_a_mismatched_id() -> None:
 
     assert output == [
         f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan "
-        "is not the pending plan. Nothing was applied."
+        "is not the pending plan "
+        f"(pending: {PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-"
+        "555555555555); apply that, or run copilot again. Nothing was "
+        "applied."
     ]
 
 
@@ -1177,7 +1377,10 @@ def test_copilot_apply_can_retry_after_lost_approval_response(
     plan_id = f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
     client.copilot_apply(plan_id)
 
-    assert output == ["copilot_apply unavailable: approval response lost"]
+    assert output == [
+        "copilot_apply: approval response lost. Check that the server is "
+        "running, then try again; run copilot_health for details."
+    ]
     assert live.events == []
     assert transport.outcome_requests == []
     assert client._pending_plan is not None
@@ -1222,6 +1425,125 @@ def test_new_preview_settles_a_lost_approval_before_submitting(
         "restored"
     ]
     assert client._uncertain_approval is None
+
+
+def test_apply_server_internal_error_is_treated_as_uncertain_not_clean(
+    tmp_path: Path,
+) -> None:
+    """A `server_internal_error` on `/v1/apply` is as uncertain as a lost reply.
+
+    `lifecycle.apply()` calls `session.approve()` before ever assembling
+    its response, so a crash inside that assembly reaches this client
+    only after the graph has already committed to `STATE_APPLYING`
+    server-side. Treating a decoded `server_internal_error` response as a
+    clean "nothing was applied" -- this client's own prior behavior --
+    would leave the server stuck there forever; it must be settled the
+    same way a dropped connection already is.
+    """
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def crashed_apply(request: ApplyRequestV1) -> FailedPlanResponseV1:
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1(
+                "server_internal_error",
+                "the server hit an internal error; nothing was applied",
+                True,
+            ),
+        )
+
+    transport.apply_response_factory = crashed_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert live.events == []
+    assert transport.outcome_requests == []
+    assert client._uncertain_approval is not None
+
+    client.copilot("Another preview")
+
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+
+
+def test_outcome_report_server_internal_error_is_retried_not_dropped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `server_internal_error` recording an outcome is retried, not lost.
+
+    The server's own outcome-recording handler can itself crash after
+    decoding the request; that response is exactly as undelivered as a
+    dropped connection, since the graph resume that would have recorded
+    it may never have completed.
+    """
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+    assert client._uncertain_approval is not None
+
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def crashed_once(request: ApplyOutcomeRequestV1) -> FailedPlanResponseV1:
+        """Crash once recording the outcome, then answer normally."""
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return FailedPlanResponseV1(
+                request.request_id,
+                request.session_id,
+                FailureEnvelopeV1(
+                    "server_internal_error",
+                    "the server hit an internal error; nothing was applied",
+                    True,
+                ),
+            )
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", crashed_once)
+
+    client.copilot("Another preview")
+
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+    assert client._uncertain_approval is not None
+    assert live.events == []
+
+    client.copilot("Yet another preview")
+
+    assert client._unreported_outcomes == []
+    assert client._uncertain_approval is None
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
 
 
 @pytest.mark.parametrize("outcome_report_lost", [False, True])
@@ -1538,6 +1860,169 @@ def test_failed_second_apply_keeps_first_plan_rollback_available(
         "applied",
         "restored",
         "rolled_back",
+    ]
+
+
+def test_a_defect_before_a_second_apply_saves_never_halts_on_the_first_apply(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An internal defect before any new save() never halts over an old point.
+
+    Plan A's own successful apply deliberately keeps its retained
+    recovery point around for a later `copilot_rollback` -- `_guarded()`
+    must not mistake that already-retained point for evidence that
+    *this* invocation's own mutation began, or an unrelated defect in a
+    later, entirely separate `copilot_apply` would halt Copilot and tell
+    the user to restore *over* plan A's own real, healthy changes.
+    """
+    first_id = "55555555-5555-4555-8555-555555555555"
+    second_id = "66666666-6666-4666-8666-666666666666"
+    previews = 0
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        nonlocal previews
+        previews += 1
+        plan_id = first_id if previews == 1 else second_id
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    live.commands["copilot_apply"](f"p-{first_id}")
+    first_path = store.retained
+    assert first_path is not None and first_path.exists()
+
+    client.copilot(INTENT)
+    output.clear()
+    monkeypatch.setattr(
+        "pmc_client.command.evaluate_plan",
+        lambda _plan: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    live.commands["copilot_apply"](f"p-{second_id}")
+
+    assert client._halted_recovery is None
+    assert output == [
+        "copilot_apply: internal error (RuntimeError). Nothing was "
+        "applied. Retry; if it keeps happening, restart PyMOL."
+    ]
+    assert store.retained == first_path
+    assert first_path.exists()
+
+
+def test_a_reporting_defect_after_a_verified_apply_never_reverts_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A defect while reporting a settled, successful apply never halts.
+
+    `store.commit()` deliberately changes what `RecoveryStore.retained`
+    holds as part of a *successful* apply settling cleanly. A guard that
+    infers an uncertain mutation from "did retained change during this
+    call" reads that change as evidence of its own doubt, and a later,
+    unrelated defect in reporting the outcome -- after the apply already
+    verified and committed -- would halt Copilot and tell the user to
+    restore over their own just-completed, healthy work.
+    """
+    plan_id = "55555555-5555-4555-8555-555555555555"
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    monkeypatch.setattr(
+        client,
+        "_report_outcome",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    output.clear()
+
+    live.commands["copilot_apply"](f"p-{plan_id}")
+
+    assert client._halted_recovery is None
+    assert client._applied_plan is not None
+    assert client._applied_plan.plan_id == plan_id
+    assert output == [
+        f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}{plan_id} applied. "
+        f"Recovery point retained at {store.retained}.",
+        "copilot_apply: internal error (RuntimeError) after the "
+        "operation itself already completed. Run copilot_health to "
+        "check status; restart PyMOL if it keeps happening.",
+    ]
+
+
+def test_a_reporting_defect_after_a_verified_rollback_is_not_read_as_uncertain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A defect while reporting a settled rollback never halts either.
+
+    The mirror case: `store.consume()` clears `retained` to `None` as
+    part of a *successful*, already-verified rollback settling cleanly.
+    The old "did retained change" guard read that clearing as evidence of
+    safety regardless of cause, which happened to avoid halting here only
+    by coincidence, not because it understood the rollback had actually
+    settled. This proves the flag-based guard reaches the same correct
+    "do not halt" outcome for the right reason.
+    """
+    plan_id = "55555555-5555-4555-8555-555555555555"
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(session),
+        recovery_store=store,
+    )
+    client.copilot(INTENT)
+    live.commands["copilot_apply"](f"p-{plan_id}")
+    assert client._applied_plan is not None
+    output.clear()
+    monkeypatch.setattr(
+        client,
+        "_report_outcome",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    live.commands["copilot_rollback"](f"p-{plan_id}")
+
+    assert client._halted_recovery is None
+    assert client._applied_plan is None
+    assert store.retained is None
+    assert output == [
+        "copilot_rollback: replacing the entire session with the "
+        "pre-apply recovery point; later changes will be discarded.",
+        f"copilot_rollback: plan {PLAN_ID_DISPLAY_PREFIX}{plan_id} "
+        "rolled back and its recovery point was removed.",
+        "copilot_rollback: internal error (RuntimeError) after the "
+        "operation itself already completed. Run copilot_health to "
+        "check status; restart PyMOL if it keeps happening.",
     ]
 
 
@@ -1956,7 +2441,9 @@ def test_copilot_reject_with_a_mismatched_id() -> None:
 
     assert output == [
         f"copilot_reject: plan {PLAN_ID_DISPLAY_PREFIX}not-the-pending-plan "
-        "is not the pending plan"
+        "is not the pending plan "
+        f"(pending: {PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-"
+        "555555555555); reject that, or run copilot again"
     ]
     assert transport.reject_requests == []
 
@@ -2047,6 +2534,12 @@ def test_copilot_reject_transport_failure_reports_bounded_diagnostic() -> None:
                 f"loopback request failed: {request.request_id}"
             )
 
+        def health(self, request: HealthRequestV1) -> HealthResponseV1:
+            """Raise if health is unexpectedly reached in this test."""
+            raise TransportError(
+                f"loopback request failed: {request.request_id}"
+            )
+
     output: list[str] = []
     session = _RecordingSession()
     client, _session = _client(
@@ -2060,8 +2553,9 @@ def test_copilot_reject_transport_failure_reports_bounded_diagnostic() -> None:
     )
 
     assert output == [
-        "copilot_reject unavailable: loopback request failed: "
-        "44444444-4444-4444-8444-444444444444"
+        "copilot_reject: loopback request failed: "
+        "44444444-4444-4444-8444-444444444444. Check that the server is "
+        "running, then try again; run copilot_health for details."
     ]
 
 
@@ -2107,9 +2601,489 @@ def test_copilot_reject_reports_a_non_rejected_terminal() -> None:
     )
 
     assert output == [
-        "copilot_reject failed (expired; retryable): "
-        "the plan's TTL had already passed"
+        "copilot_reject: the plan's TTL had already passed. The plan's "
+        "approval window passed. Run copilot again for a fresh plan."
     ]
+
+
+def test_copilot_reject_keeps_the_pending_plan_on_a_server_internal_error() -> (
+    None
+):
+    """A crashed reject handler is not read as a settled server verdict.
+
+    Unlike every other category `copilot_reject` can receive here, a
+    `server_internal_error` means the server's own reject handler
+    crashed -- it never actually decided the plan was rejected, so it
+    may still be pending there. Clearing `_pending_plan` regardless
+    would tell the user to retry, only for the retry to fail locally
+    with "no pending plan for this session" while the server keeps the
+    plan pending until it expires or is superseded.
+    """
+
+    def crashed_response(request: RejectRequestV1) -> FailedPlanResponseV1:
+        """Build a correlated `server_internal_error` response."""
+        return FailedPlanResponseV1(
+            request_id=request.request_id,
+            session_id=request.session_id,
+            failure=FailureEnvelopeV1(
+                "server_internal_error",
+                "the server hit an internal error; nothing was applied",
+                True,
+            ),
+        )
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], reject_response_factory=crashed_response
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+    client.copilot(INTENT)
+    pending_before = client._pending_plan
+    output.clear()
+
+    client.copilot_reject(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert client._pending_plan == pending_before
+    assert output == [
+        "copilot_reject: the server hit an internal error; nothing was "
+        "applied. The server hit an internal error. Retry; if it keeps "
+        "happening, restart the server and run copilot_health."
+    ]
+
+
+# --- Step 10: literal parsing, usage lines, and the intent length limit --
+
+
+def test_register_sets_copilots_own_parsing_mode_to_literal() -> None:
+    """Only `copilot`'s own entry is rewritten; the id commands stay strict."""
+    session = _RecordingSession()
+    client = CopilotCommandClient(
+        RecordingTransport(validated_response, []),
+        lambda _text: None,
+        probe=_exact_probe(session),
+    )
+
+    client.register(session)
+
+    assert session.keyword["copilot"][4] == _LITERAL_PARSING_MODE
+    for command in ("copilot_apply", "copilot_reject", "copilot_rollback"):
+        assert session.keyword[command][4] != _LITERAL_PARSING_MODE
+
+
+def test_copilot_with_an_empty_intent_prints_usage() -> None:
+    """A bare `copilot` (PyMOL calls this with zero arguments) is refused."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot("")
+
+    assert requests == []
+    assert output == ["copilot: usage: copilot <what you want to do>"]
+
+
+def test_copilot_with_a_whitespace_only_intent_prints_usage() -> None:
+    """Whitespace alone is not a usable intent either."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot("   ")
+
+    assert output == ["copilot: usage: copilot <what you want to do>"]
+
+
+def test_copilot_with_an_over_limit_intent_refuses_before_sending() -> None:
+    """An intent past the protocol's own length limit never reaches submit."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    long_intent = "x" * (MAX_INTENT_LENGTH + 1)
+
+    client.copilot(long_intent)
+
+    assert requests == []
+    assert output == [
+        f"copilot: intent is {len(long_intent)} characters, over the "
+        f"{MAX_INTENT_LENGTH}-character limit. Shorten it and try again."
+    ]
+
+
+def test_copilot_with_exactly_the_limit_is_not_refused() -> None:
+    """The boundary itself is still accepted; only past it is refused."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot("x" * MAX_INTENT_LENGTH)
+
+    assert len(requests) == 1
+    assert requests[0].intent == "x" * MAX_INTENT_LENGTH
+
+
+def test_copilot_apply_with_an_empty_plan_id_prints_usage() -> None:
+    """A bare `copilot_apply` is refused before touching any pending plan."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_apply("")
+
+    assert output == ["copilot_apply: usage: copilot_apply <plan id>"]
+
+
+def test_copilot_reject_with_an_empty_plan_id_prints_usage() -> None:
+    """A bare `copilot_reject` is refused before touching any pending plan."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_reject("")
+
+    assert output == ["copilot_reject: usage: copilot_reject <plan id>"]
+
+
+def test_copilot_rollback_with_an_empty_plan_id_prints_usage() -> None:
+    """A bare `copilot_rollback` is refused before touching any recovery point."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_rollback("")
+
+    assert output == ["copilot_rollback: usage: copilot_rollback <plan id>"]
+
+
+# --- Step 11: copilot_health ------------------------------------------------
+
+
+def test_copilot_health_reports_a_ready_matching_server() -> None:
+    """The golden block for a reachable server with everything matching."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- all match this client\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_an_unavailable_engine() -> None:
+    """The golden block when the server is reachable but its engine is not."""
+
+    def _unavailable_engine(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        return dataclasses.replace(
+            base,
+            engine=EngineHealthV1(
+                state="unavailable",
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                failure_category="engine_unavailable",
+                failure_message="the engine could not be reached",
+            ),
+            model_identity=None,
+        )
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_unavailable_engine
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    unavailable (the engine could not be reached). "
+        "Start Lemonade, then run copilot_health to confirm it is "
+        "reachable before trying again.\n"
+        "  model:     unknown\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- all match this client\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_a_contract_mismatch() -> None:
+    """A single disagreeing contract version gets its own `MISMATCH` line."""
+
+    def _mismatched_snapshot(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        mismatched = dict(base.contract_versions)
+        mismatched["snapshot"] = "2"
+        return dataclasses.replace(base, contract_versions=mismatched)
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_mismatched_snapshot
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- 1 mismatch\n"
+        "    snapshot server 2 / client 1 -- MISMATCH\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_a_missing_contract_key() -> None:
+    """A server build that dropped a contract names it as its own mismatch.
+
+    `HealthResponseV1` no longer requires the server's `contract_versions`
+    key set to equal this client's own: a server that dropped a contract
+    is exactly the disagreement `copilot_health` exists to name, so it
+    must decode and be reported here, not fail the whole response closed.
+    """
+
+    def _missing_snapshot(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        dropped = dict(base.contract_versions)
+        del dropped["snapshot"]
+        return dataclasses.replace(base, contract_versions=dropped)
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_missing_snapshot
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- 1 mismatch\n"
+        "    snapshot server None / client 1 -- MISMATCH\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_an_extra_contract_key() -> None:
+    """A server build that added a contract names it as its own mismatch."""
+
+    def _extra_dataset_key(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        extended = dict(base.contract_versions)
+        extended["dataset"] = "1"
+        return dataclasses.replace(base, contract_versions=extended)
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_extra_dataset_key
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- 1 mismatch\n"
+        "    dataset server 1 / client (unknown to this client) -- MISMATCH\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_the_server_unreachable() -> None:
+    """A connection-level transport failure names the server unreachable."""
+
+    class _UnreachableTransport:
+        def health(self, _request: HealthRequestV1) -> HealthResponseV1:
+            raise TransportError("loopback request failed")
+
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client._transport = cast(PlanTransport, _UnreachableTransport())
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        "  server:    unavailable (loopback request failed. Check that "
+        "the server is running, then try again; run copilot_health for "
+        "details.)\n"
+        "  engine:    unknown\n"
+        "  model:     unknown\n"
+        "  contracts: unknown\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_a_credential_mismatch() -> None:
+    """A 401 names the credential mismatch, not the generic transport action."""
+
+    class _UnauthorizedTransport:
+        def health(self, _request: HealthRequestV1) -> HealthResponseV1:
+            raise TransportError("server rejected request with HTTP 401")
+
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client._transport = cast(PlanTransport, _UnauthorizedTransport())
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        "  server:    unavailable (server rejected request with HTTP "
+        "401. The client and server credentials do not match. Restart "
+        "PyMOL and the server.)\n"
+        "  engine:    unknown\n"
+        "  model:     unknown\n"
+        "  contracts: unknown\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_halted() -> None:
+    """A halted client reports it on `copilot:`, unlike every other line."""
+    output: list[str] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, []),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client._halt("/tmp/example-recovery-point.pse")
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- all match this client\n"
+        "  copilot:   HALTED -- recovery point preserved at "
+        "/tmp/example-recovery-point.pse"
+    ]
+
+
+def test_copilot_health_sends_no_plan_request_and_changes_no_state() -> None:
+    """`copilot_health` never touches `/v1/plan` or the pending plan."""
+    output: list[str] = []
+    requests: list[PlanRequestV1] = []
+    session = _RecordingSession()
+    client, _session = _client(
+        RecordingTransport(validated_response, requests),
+        output.append,
+        probe=_exact_probe(session),
+    )
+    client.copilot(INTENT)
+    pending_before = client._pending_plan
+    assert pending_before is not None
+    requests.clear()
+    session.events.clear()
+    output.clear()
+
+    client.copilot_health()
+
+    assert requests == []
+    assert session.events == []
+    assert client._pending_plan == pending_before
+    assert output[0].startswith("copilot health")
 
 
 if __name__ == "__main__":
