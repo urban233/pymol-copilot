@@ -55,7 +55,13 @@ document, and the first run will show whether anything differs.
    distro with the NVIDIA Container Toolkit. Check with
    `docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi`.
 2. **The repository inside the distro**, not on `/mnt/c`: Bazel and the
-   PyMOL sidecar run there exactly as on `ubuntu-24.04` in CI.
+   PyMOL sidecar run there exactly as on `ubuntu-24.04` in CI. **Copy
+   the frozen split** `data/splits/split-e4599620801af592/` (47 MB,
+   gitignored) from the machine that built it into the same path; do
+   not regenerate it. Its 79 `orient` samples record view fingerprints
+   that differ between macOS and Linux, so a split rebuilt on Linux
+   would hash to another id, and a run refuses any split but the one
+   `docs/dataset/manifest.json` records.
 3. **The engine**: `docker compose -f compose.yaml -f compose.nvidia.yaml
    up -d`, then `./setup.sh cuda`. The first line it prints names the
    device Lemonade reports for the loaded model. The adapter's probe
