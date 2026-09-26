@@ -28,3 +28,16 @@ py_test(
         "//src/pmc_eval:pmc_eval",
     ],
 )
+
+py_test(
+    name = "grade",
+    size = "small",
+    srcs = ["test_grade.py"],
+    main = "test_grade.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
