@@ -1,0 +1,14 @@
+# The committed record of the frozen split: its manifest and datasheet,
+# and after the label audit the filled sheet and its result; history/
+# keeps the same record for every superseded split version. The split
+# itself lives under data/splits/, which is not tracked.
+filegroup(
+    name = "dataset_docs",
+    srcs = glob(
+        ["**/*.json", "**/*.jsonl", "**/*.md"],
+        # Empty only between moving a superseded split into history/ and
+        # freezing its replacement; test_manifest.py fails meanwhile.
+        allow_empty = True,
+    ),
+    visibility = ["//tests/data:__pkg__"],
+)

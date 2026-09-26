@@ -155,9 +155,15 @@ check-unannotated-defs = true
 # resolving scan that both test_errors.py and test_prompt.py use, so
 # master plan items 6 and 13 cannot drift into two different notions of
 # what reaching the shared core means.
+# tests/data/oracle_executor.py and tests/data/split_fixture.py are the
+# same situation for master plan item 15: the fake execution seams and the
+# synthetic repository that the gold-set, split, manifest and audit suites
+# share, so those four cannot drift into different notions of a verified
+# sample.
 search-path = [
     "tests/adversarial",
     "tests/contract",
+    "tests/data",
     "tests/integration",
     "tests/recovery",
     "tools/winstage",

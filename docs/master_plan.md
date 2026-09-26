@@ -100,8 +100,8 @@ Every item carries a **State**. The values are:
 | 11 | Output and diagnostics | Hannah | **ready** | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
 | 12 | End-to-end suite | Hannah | **blocked** | 9 ✓, 10 ✓, 11 | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
-| 14 | Dataset generation | Martin | **ready** | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
-| 15 | Gold set, split, audit | Martin | **blocked** | 14 | 16, 17, 18 |
+| 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
+| 15 | Gold set, split, audit | Martin | **in review** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13 ✓, 14, 15, 9 | 17, 18 |
 | 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
@@ -131,8 +131,8 @@ flowchart LR
   I11["11 · output"]:::ready
   I12["12 · end-to-end suite"]:::blocked
   I13["13 · prompt builder"]:::done
-  I14["14 · dataset"]:::ready
-  I15["15 · gold set"]:::blocked
+  I14["14 · dataset"]:::done
+  I15["15 · gold set"]:::review
   I16["16 · eval and baseline"]:::blocked
   I17["17 · fine-tuning"]:::blocked
   I18["18 · notebook"]:::blocked
@@ -506,7 +506,7 @@ they ever diverge.
 
 ### 14. Dataset generation
 
-**Size:** ~5 days · **State:** ready — blocks 15, 16
+**Size:** ~5 days · **State:** done (PR #45)
 
 ```
 Generalize src/pmc_data/ from the one chain-A/red fixture to the full
@@ -524,7 +524,7 @@ guessed.
 
 ### 15. Gold set, split, audit
 
-**Size:** ~3 days · **State:** blocked on 14
+**Size:** ~3 days · **State:** in review (PR #53) — plan in [plans/09-gold-set-split-audit.md](../plans/09-gold-set-split-audit.md)
 
 ```
 Hand-author a gold set spanning every supported category, with
@@ -535,6 +535,25 @@ test intent. Write the manifest and datasheet — content hash, provenance,
 license record, regeneration config. Spot-check fifty random labels by hand
 and report the observed error rate as a number.
 ```
+
+**Result** (branch `feat/gold-set-split-audit`; see
+[docs/dataset/DATASHEET.md](dataset/DATASHEET.md)):
+
+- **Split version 2, `split-e4599620801af592`** — by source structure, 6
+  of 24 specs held out: 2,389 train, 68 reviewed gold items (the test
+  split), 842 held-out synthetic samples. Every `slice` sample (89) is
+  excluded, after Martin judged the version 1 audit's only wrong label, a
+  `slice` sample, and directed that all of them be dropped.
+- **Observed label error rate, version 2: 0/50** (Wilson 95% interval
+  0%–7.1%). Judged by Claude at Martin's request, calibrated to Martin's
+  version 1 verdicts, so weaker independence than a hand check.
+- **Version 1, judged by Martin: 1/50 = 2.0%** (Wilson 95% interval
+  0.4%–10.5%); kept in `docs/dataset/history/`.
+- Decontamination dropped 68 of 2,457 training candidates as
+  near-duplicates of a gold intent.
+- Item 16 evaluates on `test_gold.jsonl`, with `heldout_synthetic.jsonl`
+  as a secondary structure-generalization figure. Item 17 trains on
+  `train.jsonl` only.
 
 ### 16. Eval harness and untuned baseline
 

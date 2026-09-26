@@ -21,3 +21,17 @@
 # `-text` removes the conversion in both directions, so `core.autocrlf` no
 # longer scrubs CRLF back to LF on the way in -- which is the point, but it
 # means the working tree is now the only place this can go wrong.
+
+# The committed gold set and the frozen split's record (master plan item
+# 15) are hashed the same way: docs/dataset/manifest.json records the
+# SHA-256 of the gold items and samples, and pins the audit sheet's, and
+# tests/data/test_manifest.py checks those digests on every run. CRLF
+# checkouts broke that on windows-2025 exactly as they broke the .pdb
+# fixtures above, so the same rule applies.
+src/pmc_data/gold/*.jsonl -text
+docs/dataset/** -text
+#
+# The manifest also records the SHA-256 of the generation configs it was
+# built from, and tests/data/test_manifest.py checks those against the
+# working tree, so they need the same rule.
+configs/generation/*.json -text

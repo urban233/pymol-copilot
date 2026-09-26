@@ -15,6 +15,11 @@ structure builder, the selection-expression oracle, the sample record,
 the plan taxonomy, the per-category report, and the committed
 conformance slice.
 
+The gold set, split and label audit (master plan item 15): the gold
+record and its committed items, the held-out split, decontamination,
+the manifest and datasheet, and the audit. See "The gold set, split
+and audit" below.
+
 ## Where each claim is settled
 
 The pipeline makes two different kinds of claim, and they are
@@ -113,3 +118,54 @@ the whole corpus were of this kind, and the 0% rejection rate for
 
 Both are needed. The first keeps the corpus honest; the second keeps
 it honest about itself if the first is ever weakened.
+
+## The gold set, split and audit
+
+Item 15 turns the corpus into something an evaluation can rest on. Each
+claim it makes has a test that has been sabotaged -- the property
+broken, the test watched failing, the break reverted.
+
+| Module | What it settles |
+| --- | --- |
+| `test_gold_set.py` | A gold record round-trips; its category is derived from its own plan, never declared; a reference plan the parser or the policy refuses never becomes a candidate. The committed `gold_items.jsonl` covers every supported verb set, verb-term pair and boolean shape, sits only on held-out structures, and never selects nothing or predicts no change. A gold item the oracle and PyMOL disagree on is an error, not a drop. |
+| `test_split.py` | Every structural feature is on both sides of the split, the held-out names exist in the matrix, no structure is on both sides by content, and the held-out set cannot change without a `SPLIT_VERSION` bump. |
+| `test_decontam.py` | The near-duplicate rule, pinned by `testdata/near_duplicate_pairs.jsonl`: hand-labelled pairs, each with the reason for its label. |
+| `test_split_cli.py` | The split build end to end: no held-out structure reaches training, every corpus sample lands exactly once, and each untrustworthy input -- unreviewed or stale gold, an incomplete corpus, broken lineage, a dirty tree -- is refused. |
+| `test_manifest.py` | The validator recomputes every hash and catches a flipped byte or a forged split id; the datasheet states the split's limits. |
+| `test_audit.py` | The audit draw is seeded and training-only, a half-filled sheet is refused, `unsure` is never folded into a count, and the Wilson interval matches independently computed values. |
+
+`oracle_executor.py` and `split_fixture.py` are the shared fakes: a
+child that agrees with the oracle, one that does not, and a small
+synthetic repository the split suites build from. Every sample in it
+is produced by the real `verify_sample` on the real structure matrix,
+so lineage checks see what a real run records.
+
+### Findings worth knowing before changing any of this
+
+- **Decontaminating against templated held-out intents would gut
+  training.** The templates repeat across structures, so counting the
+  held-out corpus's intents as test intents dropped 40% of training on
+  exact match alone and 72% at a character-shingle similarity of 0.7.
+  The gold set is therefore the only test split decontaminated
+  against, and `heldout_synthetic` is reported as structure-held-out
+  only.
+- **Character-shingle similarity cannot treat an entity swap
+  consistently.** It scored `chain A` to `chain B` 0.56 on a short
+  intent and 0.95 on a long one. The rule compares entities exactly
+  and only the remaining words fuzzily.
+- **Selection-kind words and negations are entities.** Treated as
+  ordinary words, `het atoms` matched `polymer atoms` and `everything
+  except chain A` matched `chain A` in the real enumeration.
+- **The synthetic structures are backbone-only.** Gold intents avoid
+  words like "backbone", "side chain" and "ligand pocket", which would
+  select everything or nothing; each non-obvious mapping is recorded in
+  the item's `concept` field.
+- **An orienting plan's resulting fingerprint is platform-dependent.**
+  The view matrix after `orient` reproduced on macOS and differed on
+  ubuntu-24.04 and windows-2025 for four of the six gold `orient` items.
+  The oracle never predicts it, so those samples are graded on selection
+  counts alone, and the gold replay compares fingerprints only where the
+  oracle made a claim. A corpus regenerated on another platform can
+  therefore differ in the recorded `resulting_fingerprint` of its
+  `orient` samples, and only there.
+
