@@ -16,7 +16,7 @@ def test_subsystems_import_from_repository() -> None:
     depend on never reaches this hermetic Python 3.13.13 interpreter.
     """
     assert sys.version_info[:3] == (3, 13, 13)
-    for package_name in ("pmc_core", "pmc_agent", "pmc_data"):
+    for package_name in ("pmc_core", "pmc_agent", "pmc_data", "pmc_eval"):
         module = __import__(package_name)
         assert module.__file__ is not None
         assert Path(module.__file__).parts[-3:] == (

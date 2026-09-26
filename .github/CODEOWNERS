@@ -2,6 +2,7 @@
 /src/pmc_core/ @kullik01
 /src/pmc_agent/ @kullik01
 /src/pmc_data/ @urban233
+/src/pmc_eval/ @urban233
 /src/pmc_train/ @urban233
 
 # Non-build project areas

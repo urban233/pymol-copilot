@@ -31,7 +31,16 @@ py_library(
     ],
     imports = [".."],
     deps = ["//src/pmc_core:pmc_core"],
-    visibility = ["//src/pmc_data:__pkg__", "//src:tests"],
+    # //src/pmc_eval grades a model against the samples this package
+    # stores (docs/master_plan.md item 16). No runtime package gains
+    # access: pmc_eval is itself visible only to its own package and to
+    # tests, and tools/bazel/check_dependency_boundaries.py still forbids
+    # pmc_data in every runtime closure.
+    visibility = [
+        "//src/pmc_data:__pkg__",
+        "//src/pmc_eval:__pkg__",
+        "//src:tests",
+    ],
 )
 
 py_binary(

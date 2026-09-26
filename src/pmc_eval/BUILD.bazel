@@ -1,0 +1,23 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+# The offline evaluation harness (docs/master_plan.md item 16). It drives
+# pmc_agent's request graph and grades against pmc_data's stored samples,
+# so it sits above both and nothing in src may depend on it: visibility
+# is its own package plus tests. It deliberately does not depend on
+# //src/pmc_sidecar -- only the eval_cli binary and the real-PyMOL test
+# do, as with pmc_data's corpus_cli, so the hermetic eval tests never
+# pull the PyMOL wheel in.
+py_library(
+    name = "pmc_eval",
+    srcs = [
+        "__init__.py",
+    ],
+    imports = [".."],
+    deps = [
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+    visibility = ["//src/pmc_eval:__pkg__", "//src:tests"],
+)
