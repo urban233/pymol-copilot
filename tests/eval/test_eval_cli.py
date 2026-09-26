@@ -45,7 +45,7 @@ SAMPLES = tuple(
     if s.sample_id in {"gold_001", "gold_014", "gold_062"}
 )
 
-MODEL_NAME = "user.Llama-3.2-1B-Instruct-Q4_K_M"
+MODEL_NAME = "Llama-3.2-1B-Instruct-Q4_K_M"
 CHECKPOINT = "unsloth/Llama-3.2-1B-Instruct-GGUF:Q4_K_M.gguf"
 IDENTITY = f"{MODEL_NAME}@{CHECKPOINT}"
 LEMONADE_VERSION = "11.9.0"
