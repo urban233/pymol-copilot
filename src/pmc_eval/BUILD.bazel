@@ -11,6 +11,7 @@ py_library(
     name = "pmc_eval",
     srcs = [
         "__init__.py",
+        "prompt.py",
     ],
     imports = [".."],
     deps = [
