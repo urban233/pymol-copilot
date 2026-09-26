@@ -627,15 +627,20 @@ def _run_samples(
             _append(
                 partial / _PARTIAL_TIMINGS, _json_line(result.timings_dict())
             )
+            # Flushed: under `bazel run` stdout is a pipe, and a run
+            # lasts hours, so an unflushed progress line would only
+            # appear at the end.
             print(
                 f"[{number}/{len(ordered)}] {sample.sample_id} "
-                f"{result.final_outcome} ({len(result.attempts)} attempts)"
+                f"{result.final_outcome} ({len(result.attempts)} attempts)",
+                flush=True,
             )
         elif isinstance(result, InfraFailure):
             unscored.append(result)
             print(
                 f"[{number}/{len(ordered)}] {sample.sample_id} UNSCORED "
-                f"{result.category}: {result.message}"
+                f"{result.category}: {result.message}",
+                flush=True,
             )
     if unscored:
         print(

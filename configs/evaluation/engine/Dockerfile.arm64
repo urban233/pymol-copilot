@@ -1,0 +1,34 @@
+# The evaluation engine for Apple Silicon (master plan item 16): Lemonade
+# 11.9.0 built natively for linux/arm64 from Lemonade's own Debian 13
+# package, so llama.cpp runs on the host's own CPU instead of under x86_64
+# emulation. The package needs cpp-httplib 0.41, which Debian 13 carries
+# only in trixie-backports.
+FROM debian:13
+
+# The official image's paths, so both images keep Lemonade's caches and
+# config in the same places and compose.yaml's volume targets fit either.
+ENV HOME=/opt/lemonade \
+    HF_HOME=/opt/lemonade/.cache/huggingface
+RUN mkdir -p /opt/lemonade/.cache/lemonade /opt/lemonade/.config/lemonade
+
+RUN echo "deb http://deb.debian.org/debian trixie-backports main" \
+        > /etc/apt/sources.list.d/trixie-backports.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends -t trixie-backports \
+        libcpp-httplib0.41 \
+    && rm -rf /var/lib/apt/lists/*
+
+ADD https://github.com/lemonade-sdk/lemonade/releases/download/v11.9.0/lemonade-server_11.9.0-debian13_arm64.deb /tmp/lemonade-server.deb
+
+RUN apt-get update \
+    && apt-get install -y /tmp/lemonade-server.deb \
+    && rm -f /tmp/lemonade-server.deb \
+    && rm -rf /var/lib/apt/lists/*
+
+EXPOSE 13305
+
+# lemond takes its cache and config directories as arguments; it does not
+# derive them from HOME.
+CMD ["lemond", "--host", "0.0.0.0", "--port", "13305", \
+     "/opt/lemonade/.cache/lemonade", "/opt/lemonade/.config/lemonade"]

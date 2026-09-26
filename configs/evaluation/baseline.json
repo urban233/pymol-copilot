@@ -13,11 +13,11 @@
     "read_timeout_seconds": 600.0
   },
   "engine_provenance": {
-    "emulation": "linux/amd64 image under emulation on an arm64 host (container uname -m: x86_64)",
+    "emulation": "none (native aarch64)",
     "gguf_sha256": "3f5a22426976ab26cfe84dba63c1d08391717abb1af893e10f1b2968d862dcc1",
     "hf_revision": "b69aef112e9f895e6f98d7ae0949f72ff09aa401",
-    "host": "Apple M2 Pro, macOS 27.0, OrbStack 29.4.0",
-    "image": "ghcr.io/lemonade-sdk/lemonade-server@sha256:3873d3ec672eaebdf4484cf1592daae1ae0f73d0f6377a03f38f931f972ca122",
+    "host": "Darwin 27.0.0 arm64; Apple M2 Pro; OrbStack 29.4.0",
+    "image": "pmc-eval-lemonade@sha256:a976f2a0abedb8c8916fd61e93bb60c7b513f338155676b894729bbb25d75e91 (configs/evaluation/engine/Dockerfile.arm64)",
     "lemonade_version": "11.9.0",
     "llama_cpp_build": "b10723",
     "llamacpp_args": "--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}' --parallel 1"

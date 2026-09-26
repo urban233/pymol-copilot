@@ -42,37 +42,24 @@ baseline compares, only under the exact file that produced it.
 
 ## Setting up the engine
 
-The spike's container rig serves the model (Lemonade 11.9.0, the
-official `linux/amd64` image, llama.cpp `b10723` on CPU):
+The engine runs in Docker; `engine/README.md` has the variants (x86_64
+or WSL2 on CPU, WSL2 with an NVIDIA GPU, native arm64 on Apple Silicon)
+and `engine/setup.sh`, which pulls the model, pins the chat template's
+date and prints the `engine_provenance` to record here. The baseline
+config records the native arm64 engine on an M2 Pro.
 
-```
-docker compose -f tests/discovery/lemonade/compose.yaml up -d
-docker exec lemonade-spike /opt/lemonade/lemonade pull \
-    user.Llama-3.2-1B-Instruct-Q4_K_M \
-    --checkpoint main \
-    unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-Q4_K_M.gguf \
-    --recipe llamacpp
-```
+Two details `setup.sh` takes care of. A model is pulled as `user.<name>`
+but catalogued, loaded and reported as `<name>`, so `model_name` is
+`Llama-3.2-1B-Instruct-Q4_K_M`, without the prefix; with it, the
+adapter's catalog check refuses the model. And the chat template's date
+is pinned to the template's own fallback, `26 Jul 2024`, through
+Lemonade's `llamacpp.args`, so llama-server runs with
+`--chat-template-kwargs {"date_string":"26 Jul 2024"}` and the loaded
+model reports the `llamacpp_args` recorded in `engine_provenance`. Item
+17 must render its training prompts with the same `date_string`.
 
-A model is pulled as `user.<name>` but catalogued, loaded and reported
-as `<name>`, so `model_name` is `Llama-3.2-1B-Instruct-Q4_K_M`, without
-the prefix; with it, the adapter's catalog check refuses the model.
-
-The chat template's date is pinned to the template's own fallback,
-`26 Jul 2024`, for every model Lemonade's llama.cpp loads:
-
-```
-docker exec lemonade-spike /opt/lemonade/lemonade config set \
-    "llamacpp.args=--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}'"
-```
-
-Lemonade then launches llama-server with `--chat-template-kwargs
-{"date_string":"26 Jul 2024"}`, and the loaded model reports
-`llamacpp_args` as recorded in `engine_provenance`. Item 17 must render
-its training prompts with the same `date_string`.
-
-What was established on 2026-09-26 (Apple M2 Pro, macOS 27.0, OrbStack
-29.4.0; the container runs `x86_64` under emulation):
+What was established on 2026-09-26, first with the official image under
+emulation on the same Mac:
 
 - The catalog reports exactly the configured checkpoint, and the file
   Lemonade downloaded is Hugging Face revision
@@ -98,3 +85,22 @@ What was established on 2026-09-26 (Apple M2 Pro, macOS 27.0, OrbStack
   comments, and accepts that path as the model's identity only when the
   loaded model's own launch command names it and it is the configured
   checkpoint's file.
+
+Pilot measurements, 2026-09-26/27:
+
+- **The longest gold prompt is 5,495 tokens** with the chat template
+  (`everything_bonded`, `gold_061`). Loaded at 4096 the server refuses
+  it (`context_length_exceeded`); 8192 and the configured 16384 fit it.
+  The runtime adapter's own default, 4096, therefore cannot serve the
+  largest held-out structure.
+- **Prompt processing** of that prompt, cold: 43 tokens/s (128 s) in the
+  official image under emulation, 238 tokens/s (23 s) in the native
+  arm64 image. Samples on the same structure share its card, and the
+  run orders samples by structure, so the card is processed once per
+  structure and reused from llama-server's prompt cache.
+- **Under the grammar the untuned model does not stop.** In an aborted
+  emulated run, all 36 gold samples it reached hit the 256-token limit:
+  the model repeats commands (`select copilot_name, name 1`, `name 2`,
+  ...) or terms (`chain CB and chain CB and ...`) until it is cut off.
+  That is a result about the base model, reported as `truncated`, and
+  it makes every such sample cost a full 256-token completion.
