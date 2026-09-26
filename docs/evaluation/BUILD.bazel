@@ -1,0 +1,12 @@
+# The offline evaluation's committed record (master plan item 16): its
+# README and pre-registration, and under baseline/ the untuned baseline
+# eval_cli publish writes. Until that is published, baseline/ does not
+# exist and //tests/eval:committed_baseline skips.
+filegroup(
+    name = "evaluation_docs",
+    srcs = glob(
+        ["**/*.json", "**/*.jsonl", "**/*.md"],
+        allow_empty = True,
+    ),
+    visibility = ["//tests/eval:__pkg__"],
+)

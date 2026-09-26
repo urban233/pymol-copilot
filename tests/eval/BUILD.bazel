@@ -142,3 +142,25 @@ py_test(
         "//src/pmc_sidecar:pmc_sidecar",
     ],
 )
+
+# The committed baseline is exactly what its committed samples say, and
+# was measured on the committed split, config and harness. Skips until
+# eval_cli publish writes docs/evaluation/baseline/.
+py_test(
+    name = "committed_baseline",
+    size = "medium",
+    srcs = ["test_committed_baseline.py"],
+    main = "test_committed_baseline.py",
+    data = [
+        "//configs/evaluation:baseline.json",
+        "//docs/dataset:dataset_docs",
+        "//docs/evaluation:evaluation_docs",
+    ],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
