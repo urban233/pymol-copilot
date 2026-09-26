@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-24
+**Written:** 2026-09-16 · **State as of:** 2026-09-27
 
 Every item carries a **State**. The values are:
 
@@ -97,8 +97,8 @@ Every item carries a **State**. The values are:
 | 8 | LangGraph request graph | Hannah | **done** — PR #47 | 0 ✓, 2 ✓, 4 ✓, 6 ✓ | 9, 10, 11, 12 |
 | 9 | Inference abstraction and Lemonade | Hannah | **done** — PR #46 | 0 ✓, 1 ✓, 8 ✓ | 12, 16, 19 |
 | 10 | Approval, apply, recovery | Hannah | **done** — PR #51 | 2 ✓, 3 ✓, 7 ✓, 8 ✓ | 11, 12 |
-| 11 | Output and diagnostics | Hannah | **ready** | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
-| 12 | End-to-end suite | Hannah | **blocked** | 9 ✓, 10 ✓, 11 | 19 |
+| 11 | Output and diagnostics | Hannah | **done** — PR #55 | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
+| 12 | End-to-end suite | Hannah | **ready** | 9 ✓, 10 ✓, 11 ✓ | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **in review** — PR #53 | 14 ✓ | 16, 17, 18 |
@@ -128,8 +128,8 @@ flowchart LR
   I8["8 · request graph"]:::done
   I9["9 · inference"]:::done
   I10["10 · apply and recovery"]:::done
-  I11["11 · output"]:::ready
-  I12["12 · end-to-end suite"]:::blocked
+  I11["11 · output"]:::done
+  I12["12 · end-to-end suite"]:::ready
   I13["13 · prompt builder"]:::done
   I14["14 · dataset"]:::done
   I15["15 · gold set"]:::review
@@ -197,7 +197,12 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   parity test that stands in for a caller today.
 - **Item 10 is merged as PR #51.** It adds the approval handshake, private
   recovery points, live apply, rollback, and real-PyMOL recovery evidence.
-  Item 11 is now ready; item 12 remains blocked only on item 11.
+- **Item 11 is merged as PR #55.** It adds the full preview block, derived
+  warnings and selection counts on the wire, `copilot_health`, and a
+  bounded, actionable message on every client failure path. Item 12 is now
+  ready — nothing in the graph blocks it any more, though its own "server
+  unavailable" scenario still needs the production server entrypoint item
+  11 left unbuilt (see item 12's brief below).
 
 ### Cross-owner hand-offs
 
@@ -460,7 +465,7 @@ a deliberately injected mutation makes the no-mutation check fail.
 
 ### 11. Output and diagnostics
 
-**Size:** ~2 days · **State:** in review
+**Size:** ~2 days · **State:** done (PR #55)
 
 ```
 Make copilot print what the specification promises: plan id and expiry,
@@ -474,7 +479,7 @@ text leaking through an error.
 
 ### 12. End-to-end suite
 
-**Size:** ~3 days · **State:** blocked on 11
+**Size:** ~3 days · **State:** ready
 
 ```
 Write end-to-end scenarios against real headless PyMOL: one intent through
@@ -486,12 +491,12 @@ test proving the suite detects a mutation. Record p50 latency per stage on
 this machine.
 ```
 
-Still blocked on 11 until that item merges, not just passes review. A
-production server entrypoint — process launch, the Lemonade probe falling
-back to `UnavailableEngine` (item 11) when it cannot connect, and the port
-and credential hand-off to PyMOL — is not built yet; this item's own
-"server unavailable" scenario needs one, and sizing it is this item's own
-job, not a silent assumption carried over from item 11.
+Item 11 merged as PR #55. A production server entrypoint — process launch,
+the Lemonade probe falling back to `UnavailableEngine` (item 11) when it
+cannot connect, and the port and credential hand-off to PyMOL — is not
+built yet; this item's own "server unavailable" scenario needs one, and
+sizing it is this item's own job, not a silent assumption carried over
+from item 11.
 
 ---
 
