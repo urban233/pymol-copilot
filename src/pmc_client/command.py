@@ -770,6 +770,18 @@ class CopilotCommandClient:
                 self._unreported_outcomes.append(current)
             self._output(describe_transport("copilot recovery status", error))
             return False
+        if response.failure.category == "server_internal_error":
+            # The server's own outcome-recording handler crashed -- this
+            # report is exactly as undelivered as a dropped connection,
+            # since the graph resume that would have recorded it may
+            # never have completed. Never treat it as settled; retry the
+            # same report later, exactly like a TransportError.
+            if current not in self._unreported_outcomes:
+                self._unreported_outcomes.append(current)
+            self._output(
+                describe_failure("copilot recovery status", response.failure)
+            )
+            return False
         if current in self._unreported_outcomes:
             self._unreported_outcomes.remove(current)
         if (
@@ -1024,6 +1036,20 @@ class CopilotCommandClient:
             self._output(describe_transport("copilot_apply", error))
             return
         if isinstance(response, FailedPlanResponseV1):
+            if response.failure.category == "server_internal_error":
+                # lifecycle.apply() calls session.approve() before ever
+                # assembling this response; approve() may already have
+                # committed the graph to STATE_APPLYING, so this failure
+                # is exactly as uncertain as a dropped connection --
+                # settled later like one, never assumed clean.
+                self._uncertain_approval = pending.plan_id
+                self._output(
+                    bounded(
+                        describe_failure("copilot_apply", response.failure),
+                        max_bytes=MAX_LINE_BYTES,
+                    )
+                )
+                return
             self._uncertain_approval = None
             self._output(
                 bounded(

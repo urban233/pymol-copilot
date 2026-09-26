@@ -174,6 +174,26 @@ def _lifecycle(
     )
 
 
+def test_session_refuses_a_repair_budget_past_the_wire_bound() -> None:
+    """A session cannot be built with a repair budget the wire can't carry.
+
+    `ValidationReportV1.repair_attempts` is bounded by
+    `pmc_core.protocol.MAX_REPAIR_ATTEMPTS`, a fixed wire constant --
+    unlike this session's own `max_repair_attempts`, which used to accept
+    any int. A plan validating past that bound would have made
+    `lifecycle.apply()` raise deep inside response assembly, *after*
+    `session.approve()` already committed the graph to `STATE_APPLYING`,
+    stranding the plan there. Refusing at construction time instead means
+    that misconfiguration is caught immediately, not after a live approval.
+    """
+    with pytest.raises(ValueError, match="repair-attempt bound"):
+        RequestGraphSession(
+            engine=FakeEngine([]),
+            executor=_always_ok_executor,
+            max_repair_attempts=MAX_REPAIR_ATTEMPTS + 1,
+        )
+
+
 def test_a_well_formed_intent_returns_a_correlated_validated_plan() -> None:
     """A validated request produces a passing typed plan response."""
     engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])

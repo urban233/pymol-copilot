@@ -169,6 +169,40 @@ def test_selection_count_is_attached_only_to_its_own_select_line() -> None:
     assert "->" not in color_line
 
 
+def test_a_plan_cannot_define_the_same_selection_name_twice() -> None:
+    """`_preview_block`'s per-name count lookup relies on this invariant.
+
+    `response.validation.selection_counts` carries one post-execution
+    count per selection *name*, matched against `SelectOperation
+    .selection_name` in `_preview_block`'s own per-command loop. That
+    lookup is only ever unambiguous because `ActionPlan.__post_init__`
+    already refuses to construct a plan that defines the same name
+    twice, for every plan this system ever builds -- parsed from model
+    output, repaired, or decoded off the wire, all through the same
+    `pmc_core.parser` functions that end in this same constructor. This
+    proves the invariant directly, so `_preview_block` itself never
+    needs its own defense against a plan shape the type system already
+    forbids.
+    """
+    with pytest.raises(ValueError, match="defined twice"):
+        ActionPlan(
+            operations=(
+                SelectOperation(
+                    selection_name="copilot_s",
+                    expression=SelectionExpression(
+                        clauses=(AndClause(factors=(Factor(ChainTerm("A")),)),)
+                    ),
+                ),
+                SelectOperation(
+                    selection_name="copilot_s",
+                    expression=SelectionExpression(
+                        clauses=(AndClause(factors=(Factor(ChainTerm("B")),)),)
+                    ),
+                ),
+            )
+        )
+
+
 def test_non_empty_warnings_are_each_listed() -> None:
     """Every derived warning is printed, not summarized away."""
     response = _response(

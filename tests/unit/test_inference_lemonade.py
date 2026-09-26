@@ -636,12 +636,27 @@ def _probed_engine(handler: _HANDLER) -> LemonadeEngine:
     return engine
 
 
+def _loaded_health_body(model_name: str = _MODEL) -> dict[str, object]:
+    """Build a healthy body reporting `model_name` as currently loaded.
+
+    Args:
+        model_name: The model name to report loaded, defaulting to this
+            module's own configured `_MODEL`.
+
+    Returns:
+        A JSON-shaped health body `health()` treats as ready.
+    """
+    return {
+        "status": "ok",
+        "version": "11.9.0",
+        "all_models_loaded": [{"model_name": model_name}],
+    }
+
+
 def test_health_reports_ready_when_the_server_answers_healthy() -> None:
     """A healthy server reports ready, naming the probed device."""
     engine = _probed_engine(
-        lambda _request: httpx.Response(
-            200, json={"status": "ok", "version": "11.9.0"}
-        )
+        lambda _request: httpx.Response(200, json=_loaded_health_body())
     )
 
     health = engine.health()
@@ -654,6 +669,34 @@ def test_health_reports_ready_when_the_server_answers_healthy() -> None:
         model_identity=f"{_MODEL}@{_CHECKPOINT}",
         failure=None,
     )
+
+
+def test_health_reports_unavailable_when_the_model_is_no_longer_loaded() -> (
+    None
+):
+    """A healthy server that evicted or never (re)loaded the model.
+
+    Reported ready would be worse than reported unavailable: `copilot
+    _health` would show "ready" while every real completion this engine
+    makes fails with an engine error, since Lemonade itself is up but the
+    configured model is not.
+    """
+    engine = _probed_engine(
+        lambda _request: httpx.Response(
+            200,
+            json={
+                "status": "ok",
+                "version": "11.9.0",
+                "all_models_loaded": [{"model_name": "some-other-model"}],
+            },
+        )
+    )
+
+    health = engine.health()
+
+    assert health.state == HEALTH_ENGINE_UNAVAILABLE
+    assert health.failure is not None
+    assert _MODEL in health.failure.message
 
 
 def test_health_reports_unavailable_when_the_server_is_unreachable() -> None:

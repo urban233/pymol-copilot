@@ -362,13 +362,17 @@ class LemonadeEngine:
         never repeats the grammar canary -- it exists to answer cheaply
         and quickly whether an already-probed engine is still there, using
         `_HEALTH_CHECK_TIMEOUT_SECONDS` rather than this engine's own
-        (much longer) configured read timeout.
+        (much longer) configured read timeout. It does still confirm this
+        engine's own configured model is present in that one response's
+        own `all_models_loaded`: a reachable, healthy server does not by
+        itself mean the model survived a restart or an eviction.
 
         Returns:
             Ready health naming this engine's own probed capabilities when
-            the server answers healthy; unavailable health carrying a
-            bounded typed failure otherwise. Never raises, including when
-            called before this engine has ever been probed.
+            the server answers healthy and still reports the configured
+            model loaded; unavailable health carrying a bounded typed
+            failure otherwise. Never raises, including when called before
+            this engine has ever been probed.
         """
         if self._capabilities is None:
             return EngineHealth(
@@ -426,6 +430,23 @@ class LemonadeEngine:
                 device=None,
                 model_identity=None,
                 failure=_unknown("Lemonade health did not report a version"),
+            )
+        if _loaded_model(health_data, self.model_name) is None:
+            # A reachable, healthy Lemonade server does not imply this
+            # engine's own configured model is still loaded -- a restart
+            # or an eviction can leave the server up while every
+            # completion this engine makes fails with an engine error.
+            # `all_models_loaded` is already in this same response, so
+            # this costs no second request.
+            return EngineHealth(
+                state=HEALTH_ENGINE_UNAVAILABLE,
+                engine="lemonade",
+                engine_version=None,
+                device=None,
+                model_identity=None,
+                failure=_unknown(
+                    f"Lemonade no longer reports {self.model_name} as loaded"
+                ),
             )
         return EngineHealth(
             state=HEALTH_ENGINE_READY,

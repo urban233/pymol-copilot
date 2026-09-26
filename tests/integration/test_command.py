@@ -1427,6 +1427,125 @@ def test_new_preview_settles_a_lost_approval_before_submitting(
     assert client._uncertain_approval is None
 
 
+def test_apply_server_internal_error_is_treated_as_uncertain_not_clean(
+    tmp_path: Path,
+) -> None:
+    """A `server_internal_error` on `/v1/apply` is as uncertain as a lost reply.
+
+    `lifecycle.apply()` calls `session.approve()` before ever assembling
+    its response, so a crash inside that assembly reaches this client
+    only after the graph has already committed to `STATE_APPLYING`
+    server-side. Treating a decoded `server_internal_error` response as a
+    clean "nothing was applied" -- this client's own prior behavior --
+    would leave the server stuck there forever; it must be settled the
+    same way a dropped connection already is.
+    """
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def crashed_apply(request: ApplyRequestV1) -> FailedPlanResponseV1:
+        return FailedPlanResponseV1(
+            request.request_id,
+            request.session_id,
+            FailureEnvelopeV1(
+                "server_internal_error",
+                "the server hit an internal error; nothing was applied",
+                True,
+            ),
+        )
+
+    transport.apply_response_factory = crashed_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+
+    assert live.events == []
+    assert transport.outcome_requests == []
+    assert client._uncertain_approval is not None
+
+    client.copilot("Another preview")
+
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+    assert client._uncertain_approval is None
+
+
+def test_outcome_report_server_internal_error_is_retried_not_dropped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `server_internal_error` recording an outcome is retried, not lost.
+
+    The server's own outcome-recording handler can itself crash after
+    decoding the request; that response is exactly as undelivered as a
+    dropped connection, since the graph resume that would have recorded
+    it may never have completed.
+    """
+    probe_session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+
+    def lost_apply(_request: ApplyRequestV1) -> ValidatedPlanResponseV1:
+        raise TransportError("approval response lost")
+
+    transport.apply_response_factory = lost_apply
+    client, live = _client(
+        transport,
+        lambda _text: None,
+        probe=_exact_probe(probe_session),
+        recovery_store=RecoveryStore(tmp_path),
+    )
+    client.copilot(INTENT)
+    client.copilot_apply(
+        f"{PLAN_ID_DISPLAY_PREFIX}55555555-5555-4555-8555-555555555555"
+    )
+    assert client._uncertain_approval is not None
+
+    original_report = transport.report_apply_outcome
+    attempts = 0
+
+    def crashed_once(request: ApplyOutcomeRequestV1) -> FailedPlanResponseV1:
+        """Crash once recording the outcome, then answer normally."""
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return FailedPlanResponseV1(
+                request.request_id,
+                request.session_id,
+                FailureEnvelopeV1(
+                    "server_internal_error",
+                    "the server hit an internal error; nothing was applied",
+                    True,
+                ),
+            )
+        return original_report(request)
+
+    monkeypatch.setattr(transport, "report_apply_outcome", crashed_once)
+
+    client.copilot("Another preview")
+
+    assert client._unreported_outcomes == [
+        ("55555555-5555-4555-8555-555555555555", "restored")
+    ]
+    assert client._uncertain_approval is not None
+    assert live.events == []
+
+    client.copilot("Yet another preview")
+
+    assert client._unreported_outcomes == []
+    assert client._uncertain_approval is None
+    assert [request.outcome for request in transport.outcome_requests] == [
+        "restored"
+    ]
+
+
 @pytest.mark.parametrize("outcome_report_lost", [False, True])
 def test_close_settles_a_lost_approval_reply(
     tmp_path: Path,

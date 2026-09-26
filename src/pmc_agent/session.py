@@ -64,6 +64,7 @@ from pmc_core.executor import execute
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import MAX_REPAIR_ATTEMPTS as WIRE_MAX_REPAIR_ATTEMPTS
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
 from pmc_core.protocol import StructureSnapshotV1
@@ -173,7 +174,23 @@ class RequestGraphSession:
                 `executor`.
             ttl_seconds: How long a minted plan stays approvable.
             max_repair_attempts: SPECIFICATION.md:640's repair budget.
+
+        Raises:
+            ValueError: If `max_repair_attempts` exceeds
+                `pmc_core.protocol.MAX_REPAIR_ATTEMPTS`. That wire type's
+                own `repair_attempts` field is bounded by that fixed
+                constant; a session configured with a larger budget could
+                validate a plan on an attempt `ValidationReportV1` cannot
+                represent, turning `/v1/apply`'s own response-assembly
+                into a `server_internal_error` after `approve()` has
+                already committed the graph to `STATE_APPLYING`.
         """
+        if max_repair_attempts > WIRE_MAX_REPAIR_ATTEMPTS:
+            raise ValueError(
+                f"max_repair_attempts ({max_repair_attempts}) exceeds the "
+                f"wire protocol's own repair-attempt bound "
+                f"({WIRE_MAX_REPAIR_ATTEMPTS})"
+            )
         self._engine = engine
         self._sessions_guard = threading.Lock()
         self._sessions: dict[str, _SessionSlot] = {}
