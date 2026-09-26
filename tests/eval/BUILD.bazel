@@ -70,3 +70,15 @@ py_test(
         "//src/pmc_eval:pmc_eval",
     ],
 )
+
+py_test(
+    name = "metrics",
+    size = "small",
+    srcs = ["test_metrics.py"],
+    main = "test_metrics.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
