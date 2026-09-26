@@ -116,8 +116,9 @@ done
 bazel run //src/pmc_eval:eval_cli -- publish --runs results/eval-*
 ```
 
-The engine variants, and how to run them on Apple Silicon or on WSL2
-with an NVIDIA GPU, are in `configs/evaluation/engine/README.md`.
+The engine variants are in `configs/evaluation/engine/README.md`,
+with a step-by-step tutorial for running the whole baseline on WSL2
+with an NVIDIA GPU, from installing WSL2 to committing the result.
 
 A run refuses a modified tracked file, a split other than the committed
 one, a sample verified under other contract versions, an unfilled
