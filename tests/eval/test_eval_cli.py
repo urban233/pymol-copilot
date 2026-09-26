@@ -138,12 +138,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _factory(
-    engine: ReferenceEngine,
+    engine: ReferenceEngine, *, llamacpp_args: str = "recorded"
 ) -> Callable[[EngineConfig], ConnectedEngine | EngineFailure]:
     """Wrap a reference model as the CLI's engine factory.
 
     Args:
         engine: The reference model.
+        llamacpp_args: The extra llama.cpp arguments the engine reports.
 
     Returns:
         A factory connecting it.
@@ -152,7 +153,10 @@ def _factory(
     def connect(_config: EngineConfig) -> ConnectedEngine:
         return ConnectedEngine(
             engine=engine,
-            capabilities={"lemonade_version": LEMONADE_VERSION},
+            capabilities={
+                "lemonade_version": LEMONADE_VERSION,
+                "llamacpp_args": llamacpp_args,
+            },
             close=lambda: None,
         )
 
@@ -164,6 +168,7 @@ def _run(
     condition: str = "grammar",
     engine: ReferenceEngine | None = None,
     git: tuple[str, bool] = GIT_CLEAN,
+    llamacpp_args: str = "recorded",
 ) -> int:
     """Run the CLI's `run` subcommand against the synthetic repository.
 
@@ -172,6 +177,7 @@ def _run(
         condition: The condition to run.
         engine: The model; a healthy reference model when None.
         git: The commit and dirty flag.
+        llamacpp_args: The extra llama.cpp arguments the engine reports.
 
     Returns:
         The exit code.
@@ -189,7 +195,7 @@ def _run(
             *extra,
         ],
         git=git,
-        engine_factory=_factory(model),
+        engine_factory=_factory(model, llamacpp_args=llamacpp_args),
         executor=ReferenceExecutor(SAMPLES),
     )
 
@@ -282,6 +288,16 @@ def test_refuses_a_model_identity_mismatch(repo: Path) -> None:
     other = ReferenceEngine(SAMPLES, model_identity="another@model")
 
     assert _run(engine=other) == 1
+    assert not (repo / "results").exists()
+
+
+def test_refuses_an_engine_launched_with_other_arguments(repo: Path) -> None:
+    """A server not pinning the recorded template date refuses the run.
+
+    Args:
+        repo: The synthetic repository root.
+    """
+    assert _run(llamacpp_args="--parallel 1") == 1
     assert not (repo / "results").exists()
 
 

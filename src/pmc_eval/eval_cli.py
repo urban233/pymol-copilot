@@ -52,6 +52,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import EngineFailure
@@ -226,11 +228,46 @@ def connect_engine(config: EngineConfig) -> ConnectedEngine | EngineFailure:
     )
     if isinstance(engine, EngineFailure):
         return engine
+    capabilities = dataclasses.asdict(engine.capabilities)
+    capabilities["llamacpp_args"] = _loaded_llamacpp_args(config)
     return ConnectedEngine(
-        engine=engine,
-        capabilities=dataclasses.asdict(engine.capabilities),
-        close=engine.close,
+        engine=engine, capabilities=capabilities, close=engine.close
     )
+
+
+def _loaded_llamacpp_args(config: EngineConfig) -> str | None:
+    """Read the extra llama.cpp arguments the loaded model runs with.
+
+    They carry the pinned chat-template date (configs/evaluation/
+    README.md), which the adapter's probe does not check. Read from the
+    same local health endpoint the probe just proved, right after it
+    loaded the model.
+
+    Args:
+        config: The connected engine's config.
+
+    Returns:
+        The loaded model's `llamacpp_args`, or None if health does not
+        report them.
+    """
+    try:
+        response = httpx.get(
+            config.base_url.rstrip("/") + "/api/v1/health",
+            timeout=config.connect_timeout_seconds,
+            follow_redirects=False,
+        )
+        health = response.json()
+    except (httpx.HTTPError, ValueError):
+        return None
+    for model in health.get("all_models_loaded", []):
+        if isinstance(model, dict) and model.get("model_name") == (
+            config.model_name
+        ):
+            options = model.get("recipe_options")
+            if isinstance(options, dict):
+                args = options.get("llamacpp_args")
+                return args if isinstance(args, str) else None
+    return None
 
 
 def _digest(material: Mapping[str, Any]) -> str:
@@ -477,13 +514,14 @@ def run_eval(
                 f"the engine is {identity!r}, not the configured "
                 f"{config.engine.model_identity!r}"
             )
-        reported = connected.capabilities.get("lemonade_version")
-        recorded = config.engine_provenance.get("lemonade_version")
-        if reported is not None and reported != recorded:
-            return _refuse(
-                f"Lemonade reports version {reported}, but engine_provenance "
-                f"records {recorded}"
-            )
+        for field in ("lemonade_version", "llamacpp_args"):
+            reported = connected.capabilities.get(field)
+            recorded = config.engine_provenance.get(field)
+            if field in connected.capabilities and reported != recorded:
+                return _refuse(
+                    f"the engine reports {field} {reported!r}, but "
+                    f"engine_provenance records {recorded!r}"
+                )
         failure = _preflight(connected.engine, ordered, condition)
         if failure is not None:
             return _refuse(

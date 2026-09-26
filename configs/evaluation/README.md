@@ -35,9 +35,10 @@ baseline compares, only under the exact file that produced it.
 - `infra_retries` is how often one invocation retries a sample whose
   engine call or sidecar run failed for infrastructure reasons.
 - `engine_provenance` records what the engine's capability probe
-  cannot see. A run refuses to start while any field is null. Fill it
-  in when the engine is set up (below), then commit it: runs also
-  refuse a modified tracked file.
+  cannot see. A run refuses to start while any field is null, and
+  refuses an engine whose Lemonade version or loaded `llamacpp_args`
+  differ from what is recorded. Fill it in when the engine is set up
+  (below), then commit it: runs also refuse a modified tracked file.
 
 ## Setting up the engine
 
@@ -57,6 +58,19 @@ A model is pulled as `user.<name>` but catalogued, loaded and reported
 as `<name>`, so `model_name` is `Llama-3.2-1B-Instruct-Q4_K_M`, without
 the prefix; with it, the adapter's catalog check refuses the model.
 
+The chat template's date is pinned to the template's own fallback,
+`26 Jul 2024`, for every model Lemonade's llama.cpp loads:
+
+```
+docker exec lemonade-spike /opt/lemonade/lemonade config set \
+    "llamacpp.args=--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}'"
+```
+
+Lemonade then launches llama-server with `--chat-template-kwargs
+{"date_string":"26 Jul 2024"}`, and the loaded model reports
+`llamacpp_args` as recorded in `engine_provenance`. Item 17 must render
+its training prompts with the same `date_string`.
+
 What was established on 2026-09-26 (Apple M2 Pro, macOS 27.0, OrbStack
 29.4.0; the container runs `x86_64` under emulation):
 
@@ -68,23 +82,19 @@ What was established on 2026-09-26 (Apple M2 Pro, macOS 27.0, OrbStack
 - Loaded at `ctx_size` 16384, Lemonade launches `llama-server ...
   --ctx-size 16384 --jinja --metrics --parallel 1`: one slot, and the
   model's own Jinja chat template.
-- **That template stamps today's date into every prompt.** Rendered
-  through the server's `/apply-template`, a one-line user message
-  becomes `Cutting Knowledge Date: December 2023` / `Today Date: 26 Sep
-  2026` in a system block, then the message. A run on another day sees
-  another prompt. `llama-server` accepts `--chat-template-kwargs
-  '{"date_string": "..."}'`, which fixes it.
-- **The item 9 adapter cannot yet drive this server.** Its capability
-  probe loads the model and then fails its grammar canary with
-  `malformed SSE framing`: after a cold load the stream opens with an
-  SSE comment, `: ping`, which the SSE format says a client ignores and
-  the adapter refuses. The long prompts here make that keep-alive
-  routine rather than rare. Past it, the stream's `model` field for
-  this model is the GGUF's file path, not the model name, which the
-  adapter's identity check also refuses.
-
-Both of the last two are open decisions for master plan item 16's
-Step 9; nothing has been evaluated yet. The pilot measurements (wall
-time per attempt, which context sizes fit the largest prompt, and how
-many completions differ between two identical runs) follow once they
-are settled.
+- **That template stamps today's date into every prompt** unless it is
+  pinned. Rendered through the server's `/apply-template`, a one-line
+  user message becomes `Cutting Knowledge Date: December 2023` /
+  `Today Date: 26 Sep 2026` in a system block, then the message, so a
+  run on another day would see another prompt. With the setting above
+  it renders `Today Date: 26 Jul 2024` on every day.
+- **The item 9 adapter could not drive this server as merged**, and is
+  fixed on this branch (Martin's decision). Its capability probe failed
+  its grammar canary with `malformed SSE framing`: after a cold load
+  the stream opens with an SSE comment, `: ping`, which the SSE format
+  says a client ignores; the long prompts here make that keep-alive
+  routine. Past it, the stream's `model` field for a pulled model is
+  the GGUF's file path, not the model name. The adapter now skips SSE
+  comments, and accepts that path as the model's identity only when the
+  loaded model's own launch command names it and it is the configured
+  checkpoint's file.

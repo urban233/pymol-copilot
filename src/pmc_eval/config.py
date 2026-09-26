@@ -8,8 +8,9 @@ it.
 
 The `engine_provenance` block records what the engine's own capability
 probe cannot see -- the GGUF file's SHA-256, the Hugging Face revision
-it came from, the llama.cpp build, the container image and the host --
-and is filled in by whoever sets the engine up. A run refuses to start
+it came from, the llama.cpp build and the extra arguments Lemonade
+launches it with (which pin the chat template's date), the container
+image and the host -- and is filled in by whoever sets the engine up. A run refuses to start
 while any of it is missing: a baseline whose model cannot be pinned to
 a file cannot be compared with anything.
 """
@@ -34,6 +35,7 @@ EVAL_SETS = ("test_gold", "heldout_synthetic")
 PROVENANCE_FIELDS = (
     "lemonade_version",
     "llama_cpp_build",
+    "llamacpp_args",
     "image",
     "gguf_sha256",
     "hf_revision",
