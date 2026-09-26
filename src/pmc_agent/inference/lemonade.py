@@ -159,6 +159,11 @@ class EngineCapabilities:
         recipe: The loaded model recipe Lemonade reports.
         context_length: The catalog context length for the selected model.
         grammar_enforced: Always True for a connected engine.
+        served_model_path: The GGUF file the loaded llama-server was
+            launched on, when its launch command names the checkpoint's
+            own file; None otherwise. A model pulled into Lemonade as
+            ``user.<name>`` streams this path, not its name, as each
+            completion's ``model``.
     """
 
     lemonade_version: str
@@ -168,6 +173,7 @@ class EngineCapabilities:
     recipe: str
     context_length: int
     grammar_enforced: bool
+    served_model_path: str | None = None
 
 
 def _failure(category: str, message: str | None) -> EngineFailure:
@@ -262,6 +268,10 @@ class LemonadeEngine:
             read_timeout_seconds, "read_timeout_seconds"
         )
         self._capabilities: EngineCapabilities | None = None
+        # The model ids a streamed completion may report: the configured
+        # name, plus the GGUF path the probe proves the loaded server was
+        # launched on (see `_served_model_path`).
+        self._streamed_model_ids = frozenset({model_name})
         self._owns_client = client is None
         self._client = (
             client
@@ -491,6 +501,13 @@ class LemonadeEngine:
                         )
                     if not line:
                         continue
+                    if line.startswith(":"):
+                        # An SSE comment, which the event-stream format
+                        # says a client ignores. llama-server sends
+                        # ": ping" to keep a stream open while a long
+                        # prompt is still being processed, so it is
+                        # routine, not malformed.
+                        continue
                     if not line.startswith("data:"):
                         return _failure(ENGINE_UNKNOWN, "malformed SSE framing")
                     payload = line.removeprefix("data:").strip()
@@ -502,7 +519,7 @@ class LemonadeEngine:
                     if not isinstance(event, dict):
                         return _failure(ENGINE_UNKNOWN, "malformed SSE event")
                     response_model = event.get("model")
-                    if response_model != self.model_name:
+                    if response_model not in self._streamed_model_ids:
                         return _failure(
                             ENGINE_UNKNOWN,
                             "Lemonade completion returned an unexpected model",
@@ -660,6 +677,41 @@ def _loaded_model(
     return None
 
 
+def _served_model_path(
+    loaded_model: dict[str, object], checkpoint: str
+) -> str | None:
+    """Find the GGUF file a loaded llama-server was launched on.
+
+    A model pulled into Lemonade as ``user.<name>`` streams the path of
+    its GGUF file as every completion's ``model``, where a catalog model
+    streams its name. The path is accepted as that model's identity only
+    when the loaded model's own launch command names it and it is the
+    configured checkpoint's own file, so a completion from any other
+    file is still refused.
+
+    Args:
+        loaded_model: The selected model's loaded-health block.
+        checkpoint: The configured ``<repo>:<file>`` checkpoint.
+
+    Returns:
+        The launched GGUF path, or None when the launch command names no
+        such path or names another file.
+    """
+    command = loaded_model.get("launch_command")
+    if not isinstance(command, list) or "-m" not in command:
+        return None
+    position = command.index("-m") + 1
+    if position >= len(command) or not isinstance(command[position], str):
+        return None
+    path = command[position]
+    _repository, separator, filename = checkpoint.rpartition(":")
+    if not separator or not filename:
+        return None
+    if not path.replace("\\", "/").endswith("/" + filename):
+        return None
+    return path
+
+
 def probe_capabilities(
     engine: LemonadeEngine,
 ) -> EngineCapabilities | EngineFailure:
@@ -758,6 +810,11 @@ def probe_capabilities(
         or recipe_options.get("ctx_size") != engine.context_size
     ):
         return _unknown("Lemonade loaded an unexpected context size")
+    served_model_path = _served_model_path(loaded_model, engine.checkpoint)
+    if served_model_path is not None:
+        engine._streamed_model_ids = frozenset(
+            {engine.model_name, served_model_path}
+        )
 
     canary = engine.complete(
         CompletionRequest(
@@ -785,6 +842,7 @@ def probe_capabilities(
         recipe=recipe,
         context_length=context_length,
         grammar_enforced=True,
+        served_model_path=served_model_path,
     )
 
 
