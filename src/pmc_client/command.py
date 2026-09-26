@@ -76,6 +76,7 @@ from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
+from pmc_core.protocol import HEALTH_CONTRACT_KEYS
 from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_core.protocol import MAX_FIDELITY_MISMATCHES
 from pmc_core.protocol import MAX_INTENT_LENGTH
@@ -514,31 +515,47 @@ def _engine_health_lines(response: HealthResponseV1) -> list[str]:
 def _contracts_lines(response: HealthResponseV1) -> list[str]:
     """Render the `contracts:` summary line and one line per mismatch.
 
+    `HealthResponseV1.contract_versions` is not required to carry exactly
+    this client's own key set: a server build that added or dropped a
+    contract is precisely the disagreement this command exists to name,
+    so a missing or an extra key is reported the same way a differing
+    value is, rather than failing the whole response closed before this
+    function ever runs.
+
     Args:
         response: The server's own health facts.
 
     Returns:
         One summary line, plus one `MISMATCH` line for each contract this
-        client and the responding server disagree on.
+        client and the responding server disagree on -- a differing
+        value, a key the server never sent, or a key this client does not
+        know.
     """
     client_versions = contract_versions()
     server_versions = response.contract_versions
     parts = [f"{key} {client_versions[key]}" for key in _CONTRACT_DISPLAY_ORDER]
-    mismatches = [
+    value_mismatches = [
         key
         for key in _CONTRACT_DISPLAY_ORDER
         if client_versions[key] != server_versions.get(key)
     ]
+    extra_keys = sorted(set(server_versions) - HEALTH_CONTRACT_KEYS)
+    mismatch_count = len(value_mismatches) + len(extra_keys)
     summary = (
         "all match this client"
-        if not mismatches
-        else f"{len(mismatches)} {_plural(len(mismatches), 'mismatch', suffix='es')}"
+        if not mismatch_count
+        else f"{mismatch_count} {_plural(mismatch_count, 'mismatch', suffix='es')}"
     )
     lines = [f"  contracts: {', '.join(parts)} -- {summary}"]
     lines.extend(
         f"    {key} server {server_versions.get(key)} / client "
         f"{client_versions[key]} -- MISMATCH"
-        for key in mismatches
+        for key in value_mismatches
+    )
+    lines.extend(
+        f"    {key} server {server_versions[key]} / client "
+        "(unknown to this client) -- MISMATCH"
+        for key in extra_keys
     )
     return lines
 
@@ -595,6 +612,16 @@ class CopilotCommandClient:
         self._halted_recovery: str | None = None
         self._uncertain_approval: str | None = None
         self._unreported_outcomes: list[tuple[str, str]] = []
+        # Set by copilot_apply/copilot_rollback around their own live
+        # mutating call, read by _guarded's last-resort exception handler.
+        # Neither "was retained changed" nor "is anything retained" can
+        # answer whether *this* invocation is the one in doubt: a
+        # successful apply or rollback deliberately changes what is
+        # retained (or clears it) as part of settling cleanly, and an
+        # unrelated later command's own failure must not read that as
+        # evidence of its own uncertain mutation.
+        self._mutation_started = False
+        self._mutation_settled = False
 
     @property
     def session_id(self) -> str:
@@ -667,49 +694,54 @@ class CopilotCommandClient:
         Args:
             command: The command name, for the fallback message.
             handler: The bound method PyMOL should call for this command.
-            mutating: Whether this command can mutate the live session. A
-                defect caught here from a mutating command cannot tell
-                whether *this* invocation's own mutation already started,
-                so it halts and preserves the recovery point rather than
-                merely reporting nothing was applied -- but only when
-                this call is the one that actually changed which point is
-                retained. A successful `copilot_apply` deliberately keeps
-                its own retained point around for a later
-                `copilot_rollback`; without comparing against what was
-                already retained before this call, a later, unrelated
-                defect would halt Copilot over that earlier, healthy
-                apply's own point, discarding real work the live session
-                never touched.
+            mutating: Whether this command can mutate the live session.
+                `copilot_apply` and `copilot_rollback` set
+                `self._mutation_started`/`self._mutation_settled` around
+                their own live-mutating call, so a defect caught here can
+                tell apart three cases: the mutation never began (nothing
+                was applied), it began and its outcome is still unknown
+                (halt and preserve, since the live session may be
+                mid-change), or it began and finished with a known,
+                consistent outcome before this defect hit -- in which
+                case the defect is in bookkeeping after the fact, not in
+                the mutation itself, and halting would only discard
+                already-completed, verified work.
 
         Returns:
             A callable safe to hand to `cmd.extend`.
         """
 
         def wrapped(argument: str = "") -> None:
-            retained_before = (
-                self._recovery_store.retained
-                if self._recovery_store is not None
-                else None
-            )
+            if mutating:
+                self._mutation_started = False
+                self._mutation_settled = False
             try:
                 handler(argument)
             except Exception as error:
-                retained_after = (
-                    self._recovery_store.retained
-                    if self._recovery_store is not None
-                    else None
-                )
                 if (
                     mutating
-                    and retained_after is not None
-                    and retained_after != retained_before
+                    and self._mutation_started
+                    and not self._mutation_settled
                 ):
-                    self._halt(str(retained_after))
+                    retained = (
+                        self._recovery_store.retained
+                        if self._recovery_store is not None
+                        else None
+                    )
+                    self._halt(str(retained) if retained is not None else None)
                     self._output(
                         f"{command}: internal error "
                         f"({type(error).__name__}). Recovery point "
-                        f"preserved at {retained_after}. Restart PyMOL "
-                        "and load it manually."
+                        f"preserved at {self._halted_recovery}. Restart "
+                        "PyMOL and load it manually."
+                    )
+                elif mutating and self._mutation_settled:
+                    self._output(
+                        f"{command}: internal error "
+                        f"({type(error).__name__}) after the operation "
+                        "itself already completed. Run copilot_health to "
+                        "check status; restart PyMOL if it keeps "
+                        "happening."
                     )
                 else:
                     self._output(
@@ -1108,6 +1140,7 @@ class CopilotCommandClient:
                 "the canonical plan is no longer allowed by local policy",
             )
             return
+        self._mutation_started = True
         outcome = apply_plan(
             self._cmd,
             object_name=object_name,
@@ -1116,6 +1149,12 @@ class CopilotCommandClient:
             store=store,
             dispatcher=self._dispatcher,
         )
+        # apply_plan's own outcome.status is a definite, already-settled
+        # verdict about the live session (applied, restored, restore
+        # failed, or refused before any mutation): everything from here on
+        # is bookkeeping about that known outcome, not a live mutation
+        # still in doubt.
+        self._mutation_settled = True
         self._pending_plan = None
         self._report_apply_result(pending, object_name, outcome, store)
 
@@ -1247,6 +1286,7 @@ class CopilotCommandClient:
             )
         path = store.retained
         assert path is not None
+        self._mutation_started = True
         try:
             store.restore(self._cmd, path)
             mismatches = compare_recovery(
@@ -1263,6 +1303,12 @@ class CopilotCommandClient:
                 f"point preserved at {preserved}. Restart PyMOL and load it manually."
             )
             return
+        # The restore is verified (or its failure already handled and
+        # returned, above): whatever remains -- consuming the recovery
+        # point, clearing local state, reporting the outcome -- is
+        # bookkeeping about an already-settled, known live-session state,
+        # not a mutation still in doubt.
+        self._mutation_settled = True
         if mismatches:
             preserved = store.preserve()
             self._halt(str(preserved))

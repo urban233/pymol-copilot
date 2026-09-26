@@ -1922,6 +1922,110 @@ def test_a_defect_before_a_second_apply_saves_never_halts_on_the_first_apply(
     assert first_path.exists()
 
 
+def test_a_reporting_defect_after_a_verified_apply_never_reverts_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A defect while reporting a settled, successful apply never halts.
+
+    `store.commit()` deliberately changes what `RecoveryStore.retained`
+    holds as part of a *successful* apply settling cleanly. A guard that
+    infers an uncertain mutation from "did retained change during this
+    call" reads that change as evidence of its own doubt, and a later,
+    unrelated defect in reporting the outcome -- after the apply already
+    verified and committed -- would halt Copilot and tell the user to
+    restore over their own just-completed, healthy work.
+    """
+    plan_id = "55555555-5555-4555-8555-555555555555"
+
+    def preview(request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        return dataclasses.replace(validated_response(request), plan_id=plan_id)
+
+    live = _RecordingSession()
+    output: list[str] = []
+    transport = RecordingTransport(preview, [])
+    store = RecoveryStore(tmp_path)
+    client = CopilotCommandClient(
+        transport,
+        output.append,
+        timestamp_factory=lambda: CREATED_AT,
+        probe=_exact_probe(live),
+        recovery_store=store,
+        now_factory=lambda: datetime(2026, 8, 26, 14, 23, tzinfo=UTC),
+    )
+    client.register(live)
+
+    client.copilot(INTENT)
+    monkeypatch.setattr(
+        client,
+        "_report_outcome",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+    output.clear()
+
+    live.commands["copilot_apply"](f"p-{plan_id}")
+
+    assert client._halted_recovery is None
+    assert client._applied_plan is not None
+    assert client._applied_plan.plan_id == plan_id
+    assert output == [
+        f"copilot_apply: plan {PLAN_ID_DISPLAY_PREFIX}{plan_id} applied. "
+        f"Recovery point retained at {store.retained}.",
+        "copilot_apply: internal error (RuntimeError) after the "
+        "operation itself already completed. Run copilot_health to "
+        "check status; restart PyMOL if it keeps happening.",
+    ]
+
+
+def test_a_reporting_defect_after_a_verified_rollback_is_not_read_as_uncertain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A defect while reporting a settled rollback never halts either.
+
+    The mirror case: `store.consume()` clears `retained` to `None` as
+    part of a *successful*, already-verified rollback settling cleanly.
+    The old "did retained change" guard read that clearing as evidence of
+    safety regardless of cause, which happened to avoid halting here only
+    by coincidence, not because it understood the rollback had actually
+    settled. This proves the flag-based guard reaches the same correct
+    "do not halt" outcome for the right reason.
+    """
+    plan_id = "55555555-5555-4555-8555-555555555555"
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(validated_response, [])
+    store = RecoveryStore(tmp_path)
+    client, live = _client(
+        transport,
+        output.append,
+        probe=_exact_probe(session),
+        recovery_store=store,
+    )
+    client.copilot(INTENT)
+    live.commands["copilot_apply"](f"p-{plan_id}")
+    assert client._applied_plan is not None
+    output.clear()
+    monkeypatch.setattr(
+        client,
+        "_report_outcome",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    live.commands["copilot_rollback"](f"p-{plan_id}")
+
+    assert client._halted_recovery is None
+    assert client._applied_plan is None
+    assert store.retained is None
+    assert output == [
+        "copilot_rollback: replacing the entire session with the "
+        "pre-apply recovery point; later changes will be discarded.",
+        f"copilot_rollback: plan {PLAN_ID_DISPLAY_PREFIX}{plan_id} "
+        "rolled back and its recovery point was removed.",
+        "copilot_rollback: internal error (RuntimeError) after the "
+        "operation itself already completed. Run copilot_health to "
+        "check status; restart PyMOL if it keeps happening.",
+    ]
+
+
 @pytest.mark.parametrize("lose_rollback", [False, True])
 def test_rollback_report_does_not_erase_another_plans_unreported_restore(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, lose_rollback: bool
@@ -2788,6 +2892,80 @@ def test_copilot_health_reports_a_contract_mismatch() -> None:
         "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
         "grammar 1, errorEnvelope 1, executor 1 -- 1 mismatch\n"
         "    snapshot server 2 / client 1 -- MISMATCH\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_a_missing_contract_key() -> None:
+    """A server build that dropped a contract names it as its own mismatch.
+
+    `HealthResponseV1` no longer requires the server's `contract_versions`
+    key set to equal this client's own: a server that dropped a contract
+    is exactly the disagreement `copilot_health` exists to name, so it
+    must decode and be reported here, not fail the whole response closed.
+    """
+
+    def _missing_snapshot(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        dropped = dict(base.contract_versions)
+        del dropped["snapshot"]
+        return dataclasses.replace(base, contract_versions=dropped)
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_missing_snapshot
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- 1 mismatch\n"
+        "    snapshot server None / client 1 -- MISMATCH\n"
+        "  copilot:   ready"
+    ]
+
+
+def test_copilot_health_reports_an_extra_contract_key() -> None:
+    """A server build that added a contract names it as its own mismatch."""
+
+    def _extra_dataset_key(request: HealthRequestV1) -> HealthResponseV1:
+        base = _default_health_response(request)
+        extended = dict(base.contract_versions)
+        extended["dataset"] = "1"
+        return dataclasses.replace(base, contract_versions=extended)
+
+    output: list[str] = []
+    session = _RecordingSession()
+    transport = RecordingTransport(
+        validated_response, [], health_response_factory=_extra_dataset_key
+    )
+    client, _session = _client(
+        transport, output.append, probe=_exact_probe(session)
+    )
+
+    client.copilot_health()
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     test-model@test-checkpoint\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- 1 mismatch\n"
+        "    dataset server 1 / client (unknown to this client) -- MISMATCH\n"
         "  copilot:   ready"
     ]
 

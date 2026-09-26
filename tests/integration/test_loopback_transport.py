@@ -933,6 +933,35 @@ def test_health_endpoint_reports_an_unavailable_engine() -> None:
     assert response.model_identity is None
 
 
+def test_health_endpoint_survives_a_differing_contract_key_set_over_the_wire() -> (
+    None
+):
+    """A health response naming a contract this client's build never heard of.
+
+    Still round-trips: the whole point of `/v1/health` is to surface that
+    kind of disagreement, so failing the response closed on it -- as every
+    other V1 type does for its own required fields -- would hide the one
+    thing this type exists to report.
+    """
+
+    def handler(request: HealthRequestV1) -> HealthResponseV1:
+        response = fake_ready_health_handler(request)
+        server_only = dict(response.contract_versions)
+        server_only["dataset"] = "1"
+        del server_only["snapshot"]
+        return dataclasses.replace(response, contract_versions=server_only)
+
+    with LoopbackPlanServer(
+        "secret", validated_response, health_handler=handler
+    ) as server:
+        response = LoopbackPlanClient(server.port, "secret").health(
+            health_request()
+        )
+
+    assert response.contract_versions["dataset"] == "1"
+    assert "snapshot" not in response.contract_versions
+
+
 def test_health_endpoint_is_404_with_no_health_handler_configured() -> None:
     """A server built without a health_handler still 404s the path."""
     with LoopbackPlanServer("secret", validated_response) as server:

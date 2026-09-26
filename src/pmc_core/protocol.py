@@ -1745,8 +1745,14 @@ class HealthResponseV1:
         application_version: `pmc_core.versions.APPLICATION_VERSION` on the
             server build that answered.
         contract_versions: `pmc_core.versions.contract_versions()` on the
-            server build that answered -- exact key set `HEALTH_CONTRACT_KEYS`,
-            string values.
+            server build that answered, string values. Its key set is
+            deliberately *not* required to equal `HEALTH_CONTRACT_KEYS`: a
+            server build that added or dropped a contract is exactly the
+            disagreement `copilot_health` exists to surface, so failing
+            the whole response closed on that difference -- as every other
+            V1 type does -- would hide the one thing this type reports.
+            `pmc_client`'s own `_contracts_lines` names each missing or
+            extra key as its own mismatch instead.
         engine: The engine's own current health.
         model_identity: The engine's model identity when ready; None when
             unavailable.
@@ -1761,17 +1767,13 @@ class HealthResponseV1:
     protocol_version: str = PROTOCOL_VERSION
 
     def __post_init__(self) -> None:
-        """Reject a response with the wrong contract keys or model identity.
+        """Reject a response with malformed contract versions or model identity.
 
         Raises:
-            ValueError: If `contract_versions`'s key set is not exactly
-                `HEALTH_CONTRACT_KEYS`, or `model_identity` disagrees with
-                whether `engine` is ready.
+            ValueError: If any `contract_versions` key or value is not a
+                string, or `model_identity` disagrees with whether
+                `engine` is ready.
         """
-        if set(self.contract_versions) != HEALTH_CONTRACT_KEYS:
-            raise ValueError(
-                "health response has an unexpected contract key set"
-            )
         if not all(
             isinstance(key, str) and isinstance(val, str)
             for key, val in self.contract_versions.items()
