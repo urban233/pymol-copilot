@@ -160,10 +160,13 @@ check-unannotated-defs = true
 # synthetic repository that the gold-set, split, manifest and audit suites
 # share, so those four cannot drift into different notions of a verified
 # sample.
+# tests/eval/fakes.py is the same situation for master plan item 16: the
+# scripted executors and completions every hermetic harness suite shares.
 search-path = [
     "tests/adversarial",
     "tests/contract",
     "tests/data",
+    "tests/eval",
     "tests/integration",
     "tests/recovery",
     "tools/winstage",

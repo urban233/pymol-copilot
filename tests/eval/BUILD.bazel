@@ -1,5 +1,6 @@
 # Tests for the offline evaluation harness (docs/master_plan.md item 16).
 # See README.md for what each module settles.
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
@@ -36,6 +37,34 @@ py_test(
     main = "test_grade.py",
     deps = [
         "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# The scripted executors and completions every hermetic harness suite
+# shares, imported as a bare sibling module.
+py_library(
+    name = "fakes",
+    srcs = ["fakes.py"],
+    imports = ["."],
+    deps = [
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "runner",
+    size = "small",
+    srcs = ["test_runner.py"],
+    main = "test_runner.py",
+    deps = [
+        ":fakes",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
         "//src/pmc_eval:pmc_eval",

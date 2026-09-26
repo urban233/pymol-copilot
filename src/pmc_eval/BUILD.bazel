@@ -13,6 +13,8 @@ py_library(
         "__init__.py",
         "grade.py",
         "prompt.py",
+        "record.py",
+        "runner.py",
         "screen_reasons.py",
     ],
     imports = [".."],
@@ -21,6 +23,8 @@ py_library(
         "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
     ],
     visibility = ["//src/pmc_eval:__pkg__", "//src:tests"],
 )
