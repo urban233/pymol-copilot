@@ -48,13 +48,14 @@ from pmc_core.plan import REPRESENTATION_ALLOWLIST
 from pmc_core.plan import ActionPlan
 from pmc_core.plan import HideOperation
 from pmc_core.plan import ShowOperation
+from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
 from pmc_data.decontam import METHOD
 from pmc_data.decontam import NearDuplicate
+from pmc_data.decontam import drop_counts
 from pmc_data.decontam import find_near_duplicates
 from pmc_data.decontam import normalize_intent
-from pmc_data.decontam import sensitivity
 from pmc_data.decontam import structure_vocabulary
 from pmc_data.gold_set import GoldItem
 from pmc_data.gold_set import reference_plan
@@ -253,7 +254,14 @@ def load_split_config(path: Path) -> SplitConfig:
             the file names a decontamination method this code does not
             implement.
     """
-    data = json.loads(path.read_text(encoding="utf-8"))
+    if not path.is_file():
+        raise InvalidSplitConfigError(f"{path} does not exist")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise InvalidSplitConfigError(f"{path} is not valid JSON") from error
+    if not isinstance(data, Mapping):
+        raise InvalidSplitConfigError(f"{path} must hold a JSON object")
     decontam = _section(data, "decontam")
     audit = _section(data, "audit")
     method = decontam.get("method")
@@ -265,6 +273,25 @@ def load_split_config(path: Path) -> SplitConfig:
     raw_sensitivity = decontam.get("sensitivity")
     if not isinstance(raw_sensitivity, list):
         raise InvalidSplitConfigError("'sensitivity' must be a list")
+    sensitivity_thresholds = tuple(
+        float(_number({"sensitivity": t}, "sensitivity"))
+        for t in raw_sensitivity
+    )
+    # Checked here rather than left to `find_near_duplicates`, so a bad
+    # value is a refusal at load time, not a traceback mid-build; and
+    # unique at the two decimals the manifest keys them by, so no count
+    # silently overwrites another.
+    if any(not 0.0 < t <= 1.0 for t in sensitivity_thresholds):
+        raise InvalidSplitConfigError(
+            f"sensitivity thresholds must be in (0, 1], not "
+            f"{list(sensitivity_thresholds)}"
+        )
+    if len({f"{t:.2f}" for t in sensitivity_thresholds}) != len(
+        sensitivity_thresholds
+    ):
+        raise InvalidSplitConfigError(
+            "sensitivity thresholds must differ at two decimals"
+        )
     threshold = _number(decontam, "threshold")
     if not 0.0 < threshold <= 1.0:
         raise InvalidSplitConfigError(
@@ -295,9 +322,7 @@ def load_split_config(path: Path) -> SplitConfig:
         seed=_integer(data, "seed"),
         decontam_method=method,
         decontam_threshold=float(threshold),
-        decontam_sensitivity=tuple(
-            float(_number({"t": t}, "t")) for t in raw_sensitivity
-        ),
+        decontam_sensitivity=sensitivity_thresholds,
         audit_sample_size=size,
         audit_seed=_integer(audit, "seed"),
         excluded_representations=tuple(sorted(set(representations))),
@@ -334,6 +359,8 @@ class SplitResult:
             exact normalized-intent match alone if the templated
             held-out intents were counted as test intents too. The
             datasheet reports it as the reason they are not.
+        versions: The one set of contract versions every input sample
+            shares.
     """
 
     train: tuple[Sample, ...]
@@ -343,6 +370,7 @@ class SplitResult:
     excluded: tuple[Sample, ...]
     sensitivity: Mapping[str, int]
     template_overlap: int
+    versions: Mapping[str, Any]
 
 
 def _check_gold(items: Sequence[GoldItem], samples: Sequence[Sample]) -> None:
@@ -385,7 +413,37 @@ def _check_gold(items: Sequence[GoldItem], samples: Sequence[Sample]) -> None:
             )
 
 
-def _check_lineage(samples: Sequence[Sample], seed: int) -> None:
+def _single_versions(samples: Sequence[Sample]) -> dict[str, Any]:
+    """Read the one set of contract versions every sample shares.
+
+    Args:
+        samples: Every sample the split is built from.
+
+    Returns:
+        The shared versions.
+
+    Raises:
+        InvalidSplitError: If the samples were made under more than one
+            set of contracts, which would make every downstream number
+            a blend of incompatible prompts.
+    """
+    found = {
+        json.dumps(sample.versions.to_dict(), sort_keys=True)
+        for sample in samples
+    }
+    if len(found) != 1:
+        raise InvalidSplitError(
+            f"samples carry {len(found)} different contract version sets"
+        )
+    return json.loads(found.pop())
+
+
+def _check_lineage(
+    samples: Sequence[Sample],
+    seed: int,
+    specs: Mapping[str, StructureSpec],
+    snapshots: Mapping[str, ObjectSnapshot],
+) -> None:
     """Refuse any sample whose structure is not the one its spec builds.
 
     A sample records its spec and the hash of the structure it ran
@@ -397,16 +455,16 @@ def _check_lineage(samples: Sequence[Sample], seed: int) -> None:
     Args:
         samples: Every sample the split is built from.
         seed: The corpus seed.
+        specs: The matrix's specs at that seed, by id.
+        snapshots: The structure each of those specs builds, by id.
 
     Raises:
         InvalidSplitError: If a sample names an unknown spec, records a
             spec that differs from the matrix's, or records a structure
             hash or digest that the rebuilt spec does not produce.
     """
-    specs = {spec.spec_id: spec for spec in enumerate_structures(seed)}
     expected: dict[str, tuple[str, str]] = {}
-    for spec_id, spec in specs.items():
-        snapshot = build_structure(spec)
+    for spec_id, snapshot in snapshots.items():
         expected[spec_id] = (
             hashlib.sha256(to_json(snapshot).encode("utf-8")).hexdigest(),
             structure_digest(snapshot),
@@ -486,8 +544,9 @@ def build_split(
     Raises:
         InvalidSplitError: If the corpus is incomplete, the gold set is
             unreviewed, stale, misplaced or uses an excluded
-            representation, any sample's lineage is broken, or sample
-            ids collide.
+            representation, any sample's lineage is broken, the samples
+            carry more than one set of contract versions, or sample ids
+            collide.
     """
     if not corpus_complete:
         raise InvalidSplitError(
@@ -495,7 +554,12 @@ def build_split(
             "corpus is not split"
         )
     _check_gold(gold_items, gold_samples)
-    _check_lineage((*corpus, *gold_samples), config.seed)
+    specs = {spec.spec_id: spec for spec in enumerate_structures(config.seed)}
+    snapshots = {
+        spec_id: build_structure(spec) for spec_id, spec in specs.items()
+    }
+    _check_lineage((*corpus, *gold_samples), config.seed, specs, snapshots)
+    versions = _single_versions((*corpus, *gold_samples))
     ids = [s.sample_id for s in (*corpus, *gold_samples)]
     if len(ids) != len(set(ids)):
         raise InvalidSplitError("sample ids are not unique across the inputs")
@@ -521,17 +585,25 @@ def build_split(
     candidates = tuple(
         s for s in kept if side_of(s.structure.spec_id) == SIDE_TRAIN
     )
-    vocabulary = structure_vocabulary(
-        build_structure(spec) for spec in enumerate_structures(config.seed)
-    )
+    vocabulary = structure_vocabulary(snapshots.values())
     train_pairs = [(s.sample_id, s.intent) for s in candidates]
     gold_pairs = [(s.sample_id, s.intent) for s in gold_samples]
-    duplicates = find_near_duplicates(
+    # One pass at the lowest threshold in play gives each sample's best
+    # match; the frozen threshold and every sensitivity count are read
+    # off it, so the intents are compared once rather than twice.
+    matches = find_near_duplicates(
         train_pairs,
         gold_pairs,
-        threshold=config.decontam_threshold,
+        threshold=min(
+            (config.decontam_threshold, *config.decontam_sensitivity)
+        ),
         vocabulary=vocabulary,
     )
+    duplicates = {
+        sample_id: match
+        for sample_id, match in matches.items()
+        if match.score >= config.decontam_threshold
+    }
     held_intents = {normalize_intent(s.intent) for s in heldout}
     return SplitResult(
         train=tuple(s for s in candidates if s.sample_id not in duplicates),
@@ -543,13 +615,9 @@ def build_split(
             if s.sample_id in duplicates
         ),
         excluded=excluded,
-        sensitivity=sensitivity(
-            train_pairs,
-            gold_pairs,
-            thresholds=config.decontam_sensitivity,
-            vocabulary=vocabulary,
-        ),
+        sensitivity=drop_counts(matches, config.decontam_sensitivity),
         template_overlap=sum(
             normalize_intent(s.intent) in held_intents for s in candidates
         ),
+        versions=versions,
     )

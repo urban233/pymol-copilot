@@ -206,12 +206,29 @@ def read_sheet(path: Path) -> list[dict[str, Any]]:
 
     Returns:
         The rows, in file order.
+
+    Raises:
+        InvalidAuditError: If the sheet is missing, or a line is not a
+            JSON object.
     """
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+    if not path.is_file():
+        raise InvalidAuditError(f"{path} does not exist; draw it first")
+    rows: list[dict[str, Any]] = []
+    for number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise InvalidAuditError(
+                f"{path}:{number}: line is not valid JSON"
+            ) from error
+        if not isinstance(row, dict):
+            raise InvalidAuditError(f"{path}:{number}: line is not an object")
+        rows.append(row)
+    return rows
 
 
 def wilson_interval(successes: int, trials: int) -> tuple[float, float]:
@@ -238,7 +255,11 @@ def wilson_interval(successes: int, trials: int) -> tuple[float, float]:
         * math.sqrt(p * (1 - p) / trials + z2 / (4 * trials * trials))
         / denominator
     )
-    return max(0.0, centre - margin), min(1.0, centre + margin)
+    # At the boundaries the bound is exactly 0 or 1; the subtraction
+    # leaves rounding residue such as 7e-18 there instead.
+    low = 0.0 if successes == 0 else max(0.0, centre - margin)
+    high = 1.0 if successes == trials else min(1.0, centre + margin)
+    return low, high
 
 
 @dataclass(frozen=True)
@@ -314,7 +335,9 @@ def score(
             f"{len(blank)} verdicts are blank: {', '.join(blank)}"
         )
     unknown = [
-        row["sample_id"] for row in rows if row["verdict"] not in VERDICTS
+        row["sample_id"]
+        for row in rows
+        if not isinstance(row["verdict"], str) or row["verdict"] not in VERDICTS
     ]
     if unknown:
         raise InvalidAuditError(

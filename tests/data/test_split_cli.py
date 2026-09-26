@@ -11,6 +11,7 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 import dataclasses
 import filecmp
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -267,6 +268,48 @@ def test_the_manifest_and_datasheet_are_published(repo: Repo) -> None:
 
     for name in ("manifest.json", "DATASHEET.md"):
         assert filecmp.cmp(split / name, repo.docs / name, shallow=False)
+
+
+def test_refuses_to_publish_beside_a_superseded_audit(repo: Repo) -> None:
+    """A new split is not published next to the audit of the one before.
+
+    Nothing is left behind either: the staging directory is removed.
+    """
+    stale = repo.docs / "audit"
+    stale.mkdir(parents=True)
+    (stale / "result.json").write_text("{}", encoding="utf-8")
+
+    assert _build(repo) == 1
+    assert not list(repo.out.iterdir())
+    assert not (repo.docs / "manifest.json").exists()
+
+
+def test_regenerating_the_published_split_keeps_its_record(repo: Repo) -> None:
+    """A fresh clone can rebuild the published split without losing its audit.
+
+    The split directory is not committed, so regeneration finds no split
+    on disk but an audited record of the same split in docs. That record
+    is kept as it is rather than refused or overwritten.
+    """
+    assert _build(repo) == 0
+    split = _only_split(repo.out)
+    audit = repo.docs / "audit"
+    audit.mkdir()
+    (audit / "result.json").write_text("{}", encoding="utf-8")
+    (audit / "sheet.jsonl").write_text("{}\n", encoding="utf-8")
+    published = (repo.docs / "manifest.json").read_bytes()
+    shutil.rmtree(split)
+
+    assert _build(repo) == 0
+    regenerated = _only_split(repo.out)
+    assert regenerated.name == split.name
+    assert (repo.docs / "manifest.json").read_bytes() == published
+    assert (audit / "result.json").is_file()
+    # The record is restored into the split as well, so it is not drawn
+    # and scored a second time over the committed audit.
+    assert (regenerated / "manifest.json").read_bytes() == published
+    assert (regenerated / "audit" / "result.json").is_file()
+    assert split_cli.run(["audit", "draw", "--split", str(regenerated)]) == 1
 
 
 if __name__ == "__main__":

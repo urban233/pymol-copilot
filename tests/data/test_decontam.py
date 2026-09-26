@@ -143,6 +143,25 @@ def test_a_malformed_exclusion_is_refused(
         load_split_config(path)
 
 
+@pytest.mark.parametrize("thresholds", [[0.0, 0.5], [0.5, 1.5], [0.5, 0.501]])
+def test_a_bad_sensitivity_threshold_is_refused(
+    tmp_path: Path, thresholds: list[float]
+) -> None:
+    """Sensitivity thresholds are in (0, 1] and distinct as recorded.
+
+    Args:
+        tmp_path: Scratch directory.
+        thresholds: The malformed sensitivity list.
+    """
+    data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    data["decontam"]["sensitivity"] = thresholds
+    path = tmp_path / "split.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(InvalidSplitConfigError, match="sensitivity"):
+        load_split_config(path)
+
+
 def test_normalization_folds_only_what_it_claims() -> None:
     """Case, punctuation, spacing and British spelling fold; nothing else."""
     assert normalize_intent("  Colour Chain-A, RED!  ") == "color chain a red"

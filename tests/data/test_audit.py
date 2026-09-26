@@ -235,5 +235,56 @@ def test_score_is_recorded_and_the_sheet_is_pinned(
         validate_manifest(split)
 
 
+def test_score_refuses_without_a_sheet(built: tuple[Repo, Path]) -> None:
+    """Scoring before drawing is a refusal, not a traceback."""
+    _, split = built
+
+    assert (
+        split_cli.run(
+            ["audit", "score", "--split", str(split), "--auditor", "martin"]
+        )
+        == 1
+    )
+
+
+def test_score_refuses_an_already_audited_split(
+    built: tuple[Repo, Path],
+) -> None:
+    """A second score never overwrites the recorded audit."""
+    repo, split = built
+    assert split_cli.run(["audit", "draw", "--split", str(split)]) == 0
+    _fill(split, [VERDICT_CORRECT] * AUDIT_SIZE)
+    first = ["audit", "score", "--split", str(split), "--auditor", "martin"]
+    assert split_cli.run(first) == 0
+    recorded = (split / "audit" / "result.json").read_bytes()
+
+    again = ["audit", "score", "--split", str(split), "--auditor", "other"]
+    assert split_cli.run(again) == 1
+    assert (split / "audit" / "result.json").read_bytes() == recorded
+    assert (repo.docs / "audit" / "result.json").read_bytes() == recorded
+
+
+def test_score_refuses_to_overwrite_another_splits_record(
+    built: tuple[Repo, Path],
+) -> None:
+    """Scoring a split that docs does not describe leaves docs alone."""
+    repo, split = built
+    assert split_cli.run(["audit", "draw", "--split", str(split)]) == 0
+    _fill(split, [VERDICT_CORRECT] * AUDIT_SIZE)
+    published = repo.docs / "manifest.json"
+    manifest = json.loads(published.read_text("utf-8"))
+    manifest["split_id"] = "0" * 16
+    published.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert (
+        split_cli.run(
+            ["audit", "score", "--split", str(split), "--auditor", "martin"]
+        )
+        == 1
+    )
+    assert not (split / "audit" / "result.json").exists()
+    assert not (repo.docs / "audit").exists()
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))

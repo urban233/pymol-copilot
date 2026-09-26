@@ -907,8 +907,11 @@ def read_samples(path: Path) -> tuple[Sample, ...]:
         The decoded samples, in file order.
 
     Raises:
-        InvalidSampleError: If any line is not a valid sample record.
+        InvalidSampleError: If the file is missing, or any line is not a
+            valid sample record.
     """
+    if not path.is_file():
+        raise InvalidSampleError(f"{path} does not exist")
     samples: list[Sample] = []
     for number, line in enumerate(
         path.read_text(encoding="utf-8").splitlines(), start=1
@@ -916,11 +919,15 @@ def read_samples(path: Path) -> tuple[Sample, ...]:
         if not line.strip():
             continue
         try:
-            samples.append(Sample.from_dict(json.loads(line)))
+            data = json.loads(line)
         except json.JSONDecodeError as error:
             raise InvalidSampleError(
                 f"{path}:{number}: line is not valid JSON"
             ) from error
+        if not isinstance(data, dict):
+            raise InvalidSampleError(f"{path}:{number}: line is not an object")
+        try:
+            samples.append(Sample.from_dict(data))
         except InvalidSampleError as error:
             # Re-raised with the same file:line context the JSON branch
             # already carried. A corpus is thousands of lines long, and

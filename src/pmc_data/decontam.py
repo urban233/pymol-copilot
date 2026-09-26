@@ -369,12 +369,46 @@ def sensitivity(
 
     Returns:
         The drop count keyed by threshold, formatted to two decimals.
+
+    Raises:
+        ValueError: If any threshold is outside (0, 1].
+    """
+    ordered = tuple(thresholds)
+    if not ordered:
+        return {}
+    for threshold in ordered:
+        if not 0.0 < threshold <= 1.0:
+            raise ValueError(f"threshold must be in (0, 1], not {threshold}")
+    # One pass at the lowest threshold records each sample's best score,
+    # and a sample drops at any threshold its best score reaches, so the
+    # intents are split once rather than once per threshold.
+    best = find_near_duplicates(
+        train, gold, threshold=min(ordered), vocabulary=vocabulary
+    )
+    return drop_counts(best, ordered)
+
+
+def drop_counts(
+    matches: Mapping[str, NearDuplicate], thresholds: Iterable[float]
+) -> dict[str, int]:
+    """Count how many of the matches each threshold would drop.
+
+    Each match is a sample's best score, so a sample drops at any
+    threshold its score reaches. The matches must have been found at or
+    below the lowest of the thresholds, or the lower counts come out
+    short.
+
+    Args:
+        matches: Each duplicated sample's best match, as
+            `find_near_duplicates` returns them.
+        thresholds: The thresholds to count at.
+
+    Returns:
+        The drop count keyed by threshold, formatted to two decimals.
     """
     return {
-        f"{threshold:.2f}": len(
-            find_near_duplicates(
-                train, gold, threshold=threshold, vocabulary=vocabulary
-            )
+        f"{threshold:.2f}": sum(
+            match.score >= threshold for match in matches.values()
         )
         for threshold in thresholds
     }

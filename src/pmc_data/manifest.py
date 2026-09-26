@@ -149,9 +149,17 @@ def read_manifest(path: Path) -> dict[str, Any]:
         The manifest.
 
     Raises:
-        InvalidManifestError: If a required field is missing.
+        InvalidManifestError: If the file is missing, is not a JSON
+            object, or lacks a required field.
     """
-    manifest = json.loads(path.read_text(encoding="utf-8"))
+    if not path.is_file():
+        raise InvalidManifestError(f"{path} does not exist")
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise InvalidManifestError(f"{path} is not valid JSON") from error
+    if not isinstance(manifest, dict):
+        raise InvalidManifestError(f"{path} must hold a JSON object")
     missing = [key for key in REQUIRED_FIELDS if key not in manifest]
     provenance = manifest.get("provenance", {})
     missing += [

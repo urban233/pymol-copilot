@@ -311,9 +311,12 @@ def load_gold_items(
         The records, in file order.
 
     Raises:
-        InvalidGoldItemError: If a line is not a valid record, or two
-            records share a gold_id or a normalized intent.
+        InvalidGoldItemError: If the file is missing, a line is not a
+            valid record, or two records share a gold_id or a normalized
+            intent.
     """
+    if not path.is_file():
+        raise InvalidGoldItemError(f"{path} does not exist")
     items: list[GoldItem] = []
     seen_ids: dict[str, int] = {}
     seen_intents: dict[str, int] = {}
@@ -323,11 +326,17 @@ def load_gold_items(
         if not line.strip():
             continue
         try:
-            item = GoldItem.from_dict(json.loads(line))
+            data = json.loads(line)
         except json.JSONDecodeError as error:
             raise InvalidGoldItemError(
                 f"{path}:{number}: line is not valid JSON"
             ) from error
+        if not isinstance(data, dict):
+            raise InvalidGoldItemError(
+                f"{path}:{number}: line is not an object"
+            )
+        try:
+            item = GoldItem.from_dict(data)
         except InvalidGoldItemError as error:
             raise InvalidGoldItemError(f"{path}:{number}: {error}") from error
         if item.gold_id in seen_ids:

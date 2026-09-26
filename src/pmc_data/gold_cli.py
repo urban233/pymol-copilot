@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 
 from pmc_data.gold_set import GoldVerificationError
+from pmc_data.gold_set import InvalidGoldItemError
 from pmc_data.gold_set import load_gold_items
 from pmc_data.gold_set import verify_gold
 from pmc_data.sample import write_samples
@@ -98,7 +99,11 @@ def run(argv: list[str]) -> int:
         nothing is written.
     """
     args = _parse_args(argv)
-    items = load_gold_items(_resolve(args.items))
+    try:
+        items = load_gold_items(_resolve(args.items))
+    except InvalidGoldItemError as error:
+        print(f"REFUSED: {error}", file=sys.stderr)
+        return 1
     unreviewed = [item.gold_id for item in items if not item.reviewed]
     if unreviewed:
         print(
@@ -108,13 +113,19 @@ def run(argv: list[str]) -> int:
         )
         return 1
 
-    config = json.loads(
-        _resolve(args.corpus_config).read_text(encoding="utf-8")
-    )
-    seed = int(config["seed"])
+    config_path = _resolve(args.corpus_config)
+    try:
+        seed = int(json.loads(config_path.read_text(encoding="utf-8"))["seed"])
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        # ValueError covers json.JSONDecodeError and a non-numeric seed.
+        print(
+            f"REFUSED: cannot read a seed from {config_path}: {error!r}",
+            file=sys.stderr,
+        )
+        return 1
     try:
         samples = verify_gold(items, seed=seed, workers=args.workers)
-    except GoldVerificationError as error:
+    except (GoldVerificationError, InvalidGoldItemError) as error:
         print(f"REFUSED: {error}", file=sys.stderr)
         return 1
 

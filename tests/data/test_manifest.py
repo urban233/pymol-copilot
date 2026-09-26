@@ -29,8 +29,11 @@ from pmc_data.manifest import validate_manifest
 from pmc_data.split import HELD_OUT_SPEC_IDS
 from pmc_data.split import SPLIT_VERSION
 
+#: The repository root, as the test sees it.
+ROOT = Path(__file__).resolve().parents[2]
+
 #: The committed record of the frozen split.
-DOCS = Path(__file__).resolve().parents[2] / "docs" / "dataset"
+DOCS = ROOT / "docs" / "dataset"
 
 
 @pytest.fixture
@@ -201,8 +204,9 @@ def test_committed_manifest_matches_the_repo() -> None:
     Editing the gold items or samples, or the held-out set, after the
     split was frozen fails here until the split is rebuilt -- and a
     changed held-out set also needs a SPLIT_VERSION bump, which
-    tests/data/test_split.py pins. This is how "test splits are
-    immutable after inspection begins" is enforced.
+    tests/data/test_split.py pins. So does editing a generation config
+    the manifest records. This is how "test splits are immutable after
+    inspection begins" is enforced.
     """
     manifest = read_manifest(DOCS / "manifest.json")
     provenance = manifest["provenance"]
@@ -217,10 +221,18 @@ def test_committed_manifest_matches_the_repo() -> None:
     assert (DOCS / "DATASHEET.md").read_text("utf-8") == render_datasheet(
         manifest
     )
+    for path, digest in manifest["regeneration"]["configs"].items():
+        assert sha256_of(ROOT / path) == digest, path
     audit = manifest["audit"]
-    if audit is not None:
+    if audit is None:
+        # A superseded split's audit left beside this manifest would
+        # read as this split's.
+        assert not (DOCS / "audit").exists()
+    else:
         sheet = DOCS / "audit" / "sheet.jsonl"
         assert sha256_of(sheet) == audit["sheet_sha256"]
+        result = json.loads((DOCS / "audit" / "result.json").read_text("utf-8"))
+        assert result == audit
 
 
 if __name__ == "__main__":
