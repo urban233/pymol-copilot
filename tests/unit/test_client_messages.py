@@ -44,6 +44,7 @@ def test_every_action_is_a_non_empty_bounded_sentence(category: str) -> None:
         "nön-ascii téxt",
         "",
     ],
+    ids=["one_megabyte", "control_chars", "non_ascii", "empty"],
 )
 def test_describe_failure_stays_within_bounds_for_any_message(
     message: str,
