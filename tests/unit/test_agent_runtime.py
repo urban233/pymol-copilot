@@ -3,6 +3,8 @@
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import pytest
+
 from pmc_agent.runtime import build_engine_client
 from pmc_agent.runtime import build_intent_graph
 
@@ -22,3 +24,7 @@ def test_engine_client_is_configured_but_sends_nothing() -> None:
 
     assert str(client.base_url) == "http://127.0.0.1:8000"
     assert client.timeout.connect == 5.0
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))

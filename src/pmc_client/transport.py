@@ -5,7 +5,6 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 from http import HTTPStatus
 from http.client import HTTPConnection
-from http.client import HTTPException
 from http.client import HTTPResponse
 
 from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
@@ -13,10 +12,13 @@ from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
+from pmc_core.protocol import decode_health_response_json
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import encode_json
 
@@ -32,6 +34,9 @@ REJECT_PATH = "/v1/reject"
 CANCEL_PATH = "/v1/cancel"
 APPLY_PATH = "/v1/apply"
 APPLY_OUTCOME_PATH = "/v1/apply-outcome"
+#: docs/master_plan.md item 11's own `copilot_health` command, redefined
+#: here for the same dependency-boundary reason as the paths above.
+HEALTH_PATH = "/v1/health"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 #: `PlanRequestV1` now carries the full canonical snapshot JSON, not
@@ -201,6 +206,67 @@ class LoopbackPlanClient:
         self._validate_correlation(request, decoded)
         return decoded
 
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Submit a health request and verify its typed correlated response.
+
+        A dedicated method rather than a `_send` call: `HealthResponseV1`
+        is not one of `_send`'s two supported response shapes, and health
+        has no plan or failure envelope to validate beyond correlation.
+
+        Args:
+            request: Typed health request to send to the loopback server.
+
+        Returns:
+            The server's own application, contract, and engine facts.
+
+        Raises:
+            TransportError: If HTTP or protocol validation fails.
+        """
+        payload = encode_json(request).encode("utf-8")
+        connection = HTTPConnection(
+            LOOPBACK_HOST, self._port, timeout=self._timeout_seconds
+        )
+        try:
+            connection.request(
+                "POST",
+                HEALTH_PATH,
+                body=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(payload)),
+                    CREDENTIAL_HEADER: self._credential,
+                },
+            )
+            response = connection.getresponse()
+            if response.status != HTTPStatus.OK:
+                raise TransportError(
+                    f"server rejected request with HTTP {response.status}"
+                )
+            response_payload = self._read_response(response)
+        except TransportError:
+            raise
+        except Exception as error:
+            # docs/master_plan.md item 11: every failure path must be
+            # bounded, never an unhandled exception escaping into PyMOL's
+            # own command dispatch -- widened past the specific transport
+            # exceptions this library documents, since an HTTP client can
+            # raise other things (a malformed response line, an internal
+            # library assertion) that are just as much "the loopback
+            # request failed" from this module's point of view.
+            raise TransportError("loopback request failed") from error
+        finally:
+            connection.close()
+        try:
+            decoded = decode_health_response_json(
+                response_payload.decode("utf-8")
+            )
+        except (ProtocolDecodeError, UnicodeDecodeError) as error:
+            raise TransportError(
+                "server response does not match V1 protocol"
+            ) from error
+        self._validate_correlation(request, decoded)
+        return decoded
+
     def _send(
         self,
         request: PlanRequestV1
@@ -254,7 +320,12 @@ class LoopbackPlanClient:
                     f"server rejected request with HTTP {response.status}"
                 )
             response_payload = self._read_response(response)
-        except (HTTPException, OSError, TimeoutError) as error:
+        except TransportError:
+            raise
+        except Exception as error:
+            # See health()'s own matching except block for why this is
+            # widened past the specific transport exceptions this library
+            # documents.
             raise TransportError("loopback request failed") from error
         finally:
             connection.close()
@@ -280,8 +351,9 @@ class LoopbackPlanClient:
         | RejectRequestV1
         | CancelRequestV1
         | ApplyRequestV1
-        | ApplyOutcomeRequestV1,
-        response: PLAN_RESPONSE,
+        | ApplyOutcomeRequestV1
+        | HealthRequestV1,
+        response: PLAN_RESPONSE | HealthResponseV1,
     ) -> None:
         """Verify that a response belongs to the submitted request.
 

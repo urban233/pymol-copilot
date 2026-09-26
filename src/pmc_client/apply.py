@@ -77,13 +77,19 @@ def apply_plan(
         before = extract(cmd, object_name)
         names_before = tuple(sorted(cmd.get_names("all")))
     except Exception as error:
+        # Never str(error): extract() and get_names() reach real PyMOL
+        # query APIs, and a raised message can carry selection or object
+        # text this module must not put on the console unbounded.
         return ApplyOutcome(
             APPLY_REFUSED,
             None,
             (),
             None,
             None,
-            failure_message=f"could not inspect the pre-apply session: {error}",
+            failure_message=(
+                "could not inspect the pre-apply session "
+                f"(internal error: {type(error).__name__})"
+            ),
         )
     try:
         path = store.save(cmd, plan_id)
@@ -92,8 +98,13 @@ def apply_plan(
     try:
         result = dispatcher(cmd, plan)
     except Exception as error:
+        # Never str(error) either: the dispatcher's own exception can
+        # likewise carry plan or selection text from whichever command was
+        # executing when it raised.
         result = PlanRunResult(STATUS_FAILED, "dispatcher_exception", ())
-        dispatcher_error = str(error)
+        dispatcher_error = (
+            f"the dispatcher raised an internal error: {type(error).__name__}"
+        )
     else:
         dispatcher_error = None
     if result.status == STATUS_OK:
@@ -104,7 +115,10 @@ def apply_plan(
             # post-apply inspection exactly like a command failure: restore
             # and verify the saved whole-session point before reporting.
             result = PlanRunResult(STATUS_FAILED, "post_apply_inspection", ())
-            dispatcher_error = f"post-apply inspection failed: {error}"
+            dispatcher_error = (
+                f"post-apply inspection failed (internal error: "
+                f"{type(error).__name__})"
+            )
         else:
             return ApplyOutcome(
                 APPLY_APPLIED,

@@ -460,7 +460,7 @@ a deliberately injected mutation makes the no-mutation check fail.
 
 ### 11. Output and diagnostics
 
-**Size:** ~2 days · **State:** ready
+**Size:** ~2 days · **State:** in review
 
 ```
 Make copilot print what the specification promises: plan id and expiry,
@@ -485,6 +485,13 @@ unavailable. Every path asserts zero unapproved mutation. Include a sabotage
 test proving the suite detects a mutation. Record p50 latency per stage on
 this machine.
 ```
+
+Still blocked on 11 until that item merges, not just passes review. A
+production server entrypoint — process launch, the Lemonade probe falling
+back to `UnavailableEngine` (item 11) when it cannot connect, and the port
+and credential hand-off to PyMOL — is not built yet; this item's own
+"server unavailable" scenario needs one, and sizing it is this item's own
+job, not a silent assumption carried over from item 11.
 
 ---
 

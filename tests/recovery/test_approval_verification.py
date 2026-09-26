@@ -115,7 +115,11 @@ def test_identity_mismatch_precedes_expiry() -> None:
         entered_plan_id="p-not-the-plan",
     )
 
-    assert verdict.refusal == "plan p-not-the-plan is not the pending plan"
+    assert verdict.refusal == (
+        "plan p-not-the-plan is not the pending plan "
+        "(pending: p-33333333-3333-4333-8333-333333333333); apply that, "
+        "or run copilot again"
+    )
 
 
 def test_refusals_do_not_create_recovery_data_or_call_transport(

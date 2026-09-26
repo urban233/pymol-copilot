@@ -14,6 +14,13 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # and 5) and neither directory exists, so this target is private to its
 # own package again and carries no grant at all.
 py_library(
+    name = "preview_support",
+    srcs = ["preview_support.py"],
+    imports = ["."],
+    visibility = ["//tests:__subpackages__"],
+)
+
+py_library(
     name = "snapshot_support",
     srcs = ["snapshot_support.py"],
     data = [
@@ -35,8 +42,22 @@ py_test(
     main = "test_command.py",
     deps = [
         "@pypi//pytest",
+        ":preview_support",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
+    ],
+)
+
+py_test(
+    name = "failure_messages",
+    size = "small",
+    srcs = ["test_failure_messages.py"],
+    main = "test_failure_messages.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_sidecar:pmc_sidecar",
     ],
 )
 
@@ -95,6 +116,7 @@ py_test(
     main = "test_client_server_command.py",
     deps = [
         "@pypi//pytest",
+        ":preview_support",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_agent/inference:inference",
         "//src/pmc_client:pmc_client",
@@ -122,6 +144,7 @@ py_test(
     deps = [
         "@pypi//pymol_open_source_whl",
         "@pypi//pytest",
+        ":preview_support",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_agent/inference:inference",
         "//src/pmc_client:pmc_client",

@@ -16,6 +16,8 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
+from pmc_core.protocol import HEALTH_ENGINE_READY
 
 
 class FakeEngine:
@@ -34,6 +36,7 @@ class FakeEngine:
         script: Sequence[CompletionResult | EngineFailure],
         *,
         model_identity: str = "fake-engine-v1",
+        health: EngineHealth | None = None,
     ) -> None:
         """Create a fake engine that replays `script` in order.
 
@@ -47,9 +50,24 @@ class FakeEngine:
                 promises, and a scripted result may deliberately disagree
                 with it to test that the graph never trusts the result's
                 own claim over the engine's.
+            health: The value `health()` returns. Defaults to a ready
+                health matching `model_identity`, so a test that does not
+                care about health need not construct one.
         """
         self._script = list(script)
         self._model_identity = model_identity
+        self._health = (
+            health
+            if health is not None
+            else EngineHealth(
+                state=HEALTH_ENGINE_READY,
+                engine="fake",
+                engine_version="fake-1.0",
+                device="cpu",
+                model_identity=model_identity,
+                failure=None,
+            )
+        )
         self._calls: list[CompletionRequest] = []
 
     @property
@@ -100,3 +118,12 @@ class FakeEngine:
         outcome = self._script[len(self._calls)]
         self._calls.append(request)
         return outcome
+
+    def health(self) -> EngineHealth:
+        """Return this fake's configured health.
+
+        Returns:
+            The `EngineHealth` this engine was constructed with, or a
+            ready default matching `model_identity`.
+        """
+        return self._health

@@ -63,12 +63,16 @@ from typing import Protocol
 
 import pytest
 
+from preview_support import find_preview
+from preview_support import plan_id_from
+from preview_support import section
 from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_client.command import register_copilot
+from pmc_client.command import _LITERAL_PARSING_MODE
 from pmc_client.recovery import RecoveryStore
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.executor import REASON_OK
@@ -76,6 +80,7 @@ from pmc_core.executor import STATUS_OK
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import MAX_INTENT_LENGTH
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
@@ -431,7 +436,7 @@ class _SynchronizingExtension:
             callback: Function invoked for the registered command.
         """
 
-        def synchronized(argument: str) -> None:
+        def synchronized(argument: str = "") -> None:
             try:
                 callback(argument)
             finally:
@@ -674,7 +679,7 @@ def test_success_path_applies_then_rolls_back_the_real_session(
 
         after_copilot = capture_session_state(loaded_fixture)
 
-        plan_id = output[1].splitlines()[0].removeprefix("copilot plan: ")
+        plan_id = plan_id_from(output)
         assert _run_copilot_apply(loaded_fixture, finished, plan_id) < (
             INVOCATION_DEADLINE_SECONDS
         )
@@ -692,20 +697,31 @@ def test_success_path_applies_then_rolls_back_the_real_session(
     assert requests[0].snapshot.digest != "sha256:example-chain-a-digest"
     assert requests[0].snapshot.object_name == OBJECT_NAME
 
-    assert len(output) == 7, output
-    assert output[0].startswith("copilot fidelity: exact")
-    assert f"object {OBJECT_NAME}" in output[0]
-    assert output[1].startswith("copilot plan:")
-    assert "NOT applicable" not in output[1]
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert "2 | color red, copilot_selection" in output[1]
-    assert output[2].startswith("copilot checked:")
-    assert output[3].startswith("copilot apply with: copilot_apply ")
-    assert output[4].startswith(f"copilot_apply: plan {plan_id} applied.")
-    assert output[5].startswith(
+    preview = find_preview(output)
+    assert OBJECT_NAME in section(output, "object")
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert "NOT applicable" not in preview
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert "2 | color red, copilot_selection" in section(output, "commands")
+    assert section(output, "checked").startswith("the plan parses")
+    assert section(output, "apply").startswith("copilot_apply ")
+
+    apply_lines = [line for line in output if line.startswith("copilot_apply:")]
+    rollback_lines = [
+        line for line in output if line.startswith("copilot_rollback:")
+    ]
+    assert len(apply_lines) == 1
+    assert apply_lines[0].startswith(f"copilot_apply: plan {plan_id} applied.")
+    assert len(rollback_lines) == 2
+    assert rollback_lines[0].startswith(
         "copilot_rollback: replacing the entire session"
     )
-    assert output[6].endswith("rolled back and its recovery point was removed.")
+    assert rollback_lines[1].endswith(
+        "rolled back and its recovery point was removed."
+    )
+    assert len(output) == 1 + len(apply_lines) + len(rollback_lines), output
     assert_session_unchanged(before, after_copilot)
     assert after_apply != before
     assert_session_unchanged(before, after_rollback)
@@ -743,8 +759,9 @@ def test_typed_rejection_path_reports_bounded_diagnostic(
         server.close()
 
     assert output == [
-        "copilot failed (repair_exhausted; retryable): "
-        "the repair budget was spent with no validated plan"
+        "copilot: the repair budget was spent with no validated plan. "
+        "The model could not produce a valid plan after retrying. "
+        "Rephrase the intent more specifically and run copilot again."
     ]
     assert_session_unchanged(before, after)
 
@@ -779,7 +796,7 @@ def test_unavailable_server_path_reports_bounded_diagnostic(
     assert len(output) == 1, (
         f"expected exactly one bounded diagnostic line, got {output!r}"
     )
-    assert output[0].startswith("copilot unavailable: ")
+    assert output[0].startswith("copilot: loopback request failed")
     assert_session_unchanged(before, after)
 
 
@@ -796,6 +813,193 @@ def test_sabotage_mutation_is_detected_by_state_comparison(
     assert before != after
     with pytest.raises(AssertionError):
         assert_session_unchanged(before, after)
+
+
+# --- Step 10: literal parsing, usage lines, and the intent length limit --
+
+
+def test_literal_parsing_mode_matches_pymol_own_constant(
+    real_pymol: PyMOLCmd,  # noqa: ARG001
+) -> None:
+    """`_LITERAL_PARSING_MODE` must track the pinned wheel's own value.
+
+    `pmc_client.command` duplicates this as a plain int rather than
+    importing `pymol.parsing.LITERAL` (that module has no dependency on
+    `pymol` at all); this proves the duplicate has not drifted from what
+    this exact pinned wheel defines. The `real_pymol` fixture is only
+    depended on for its own `winstage.ensure_importable()` call, which
+    every direct `import pymol` in this module relies on.
+    """
+    from pymol import parsing  # pyrefly: ignore.
+
+    assert _LITERAL_PARSING_MODE == parsing.LITERAL
+
+
+def test_copilot_receives_a_comma_semicolon_and_equals_intent_literally(
+    loaded_fixture: PyMOLCmd,
+) -> None:
+    """A comma, `x=y`, and `;` inside the intent all reach copilot() as text.
+
+    `parsing.STRICT` (PyMOL's own default for every other registered
+    command) would split this intent's comma into two positional
+    arguments, read `y=1` as a keyword argument, and let its `;` end the
+    command early so `orient` ran as a second, genuinely separate PyMOL
+    command. `register()`'s own `parsing.LITERAL` rewrite
+    (docs/master_plan.md item 11) means none of that happens: the whole
+    remainder of the line reaches the server as one intent string, proven
+    here by inspecting the request the real loopback server actually
+    received, and `orient` is never dispatched -- proven by the camera
+    view being bit-for-bit unchanged, since `orient` always recomputes it.
+    """
+    literal_intent = "color chain A red, y=1; orient"
+    requests: list[PlanRequestV1] = []
+    output: list[str] = []
+    lifecycle = _lifecycle()
+
+    def record_lifecycle(
+        request: PlanRequestV1,
+    ) -> ValidatedPlanResponseV1 | FailedPlanResponseV1:
+        """Record a request and return its lifecycle response."""
+        requests.append(request)
+        return lifecycle(request)
+
+    server = LoopbackPlanServer(CREDENTIAL, record_lifecycle)
+    try:
+        server.start()
+        finished = threading.Event()
+        register_copilot(
+            # pyrefly: ignore.  __getattr__ delegates the query surface at
+            # runtime, but pyrefly cannot verify that structurally.
+            _SynchronizingExtension(
+                RealPyMOLCmdExtension(loaded_fixture), finished
+            ),
+            LoopbackPlanClient(server.port, CREDENTIAL),
+            output.append,
+        )
+        view_before = loaded_fixture.get_view()
+
+        elapsed = _run_pymol_command(
+            loaded_fixture, finished, f"copilot {literal_intent}"
+        )
+
+        view_after = loaded_fixture.get_view()
+    finally:
+        server.close()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert len(requests) == 1
+    assert requests[0].intent == literal_intent
+    assert view_after == view_before
+
+
+def test_a_bare_copilot_prints_usage_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """`copilot` with nothing after it prints its usage line, not a traceback.
+
+    This refusal happens before any request would be built, so no server
+    is needed at all; `LoopbackPlanClient` only has to construct cleanly.
+    """
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+
+    elapsed = _run_pymol_command(loaded_fixture, finished, "copilot")
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == ["copilot: usage: copilot <what you want to do>"]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_a_bare_copilot_apply_prints_usage_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """`copilot_apply` with nothing after it prints its usage line."""
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+
+    elapsed = _run_pymol_command(loaded_fixture, finished, "copilot_apply")
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == ["copilot_apply: usage: copilot_apply <plan id>"]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_a_bare_copilot_reject_prints_usage_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """`copilot_reject` with nothing after it prints its usage line."""
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+
+    elapsed = _run_pymol_command(loaded_fixture, finished, "copilot_reject")
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == ["copilot_reject: usage: copilot_reject <plan id>"]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
+
+
+def test_an_over_limit_intent_prints_the_refusal_over_real_pymol(
+    loaded_fixture: PyMOLCmd, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """An intent past the protocol's own limit is refused, not truncated."""
+    output: list[str] = []
+    finished = threading.Event()
+    register_copilot(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _SynchronizingExtension(
+            RealPyMOLCmdExtension(loaded_fixture), finished
+        ),
+        LoopbackPlanClient(1, CREDENTIAL, timeout_seconds=1.0),
+        output.append,
+    )
+    long_intent = "x" * 5000
+
+    elapsed = _run_pymol_command(
+        loaded_fixture, finished, f"copilot {long_intent}"
+    )
+    captured = capfd.readouterr()
+
+    assert elapsed < INVOCATION_DEADLINE_SECONDS
+    assert output == [
+        f"copilot: intent is {len(long_intent)} characters, over the "
+        f"{MAX_INTENT_LENGTH}-character limit. Shorten it and try again."
+    ]
+    assert "Traceback" not in captured.out
+    assert "Traceback" not in captured.err
 
 
 if __name__ == "__main__":

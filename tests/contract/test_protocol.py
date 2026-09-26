@@ -179,12 +179,18 @@ def response() -> ValidatedPlanResponseV1:
         validated_at="2026-08-26T14:22:03.220Z",
         action_plan=fixture_plan(),
         validation=ValidationReportV1(
-            "passed", "sha256:example-chain-a-digest", True, ()
+            "passed",
+            "sha256:example-chain-a-digest",
+            True,
+            (),
+            (SelectionCountV1("copilot_selection", 1020),),
+            0,
         ),
         plan_id="33333333-3333-4333-8333-333333333333",
         snapshot_digest="sha256:example-chain-a-digest",
         expires_at="2026-08-26T14:27:03.220Z",
         model_identity="test-model@test-checkpoint",
+        target_object="one-object-chain-a-v1",
     )
 
 
@@ -312,7 +318,7 @@ def test_validated_response_rejects_mismatched_snapshot_digests() -> None:
     """A response whose plan and report digests disagree is rejected."""
     payload = response().to_dict()
     payload["validation"] = ValidationReportV1(
-        "passed", "sha256:different-digest", True, ()
+        "passed", "sha256:different-digest", True, (), (), 0
     ).to_dict()
 
     with pytest.raises(ProtocolDecodeError, match="snapshot digests"):
@@ -331,12 +337,13 @@ def test_validated_response_accepts_matching_snapshot_digests_from_another_reque
         validated_at=fixture.validated_at,
         action_plan=fixture.action_plan,
         validation=ValidationReportV1(
-            "passed", "sha256:another-request-digest", True, ()
+            "passed", "sha256:another-request-digest", True, (), (), 0
         ),
         plan_id=fixture.plan_id,
         snapshot_digest="sha256:another-request-digest",
         expires_at=fixture.expires_at,
         model_identity=fixture.model_identity,
+        target_object=fixture.target_object,
     )
 
     decoded = ValidatedPlanResponseV1.from_dict(
@@ -386,12 +393,16 @@ def _response_payload_with_command(
             "snapshotDigest": "sha256:example-chain-a-digest",
             "expiresAt": "2026-08-26T14:27:03.220Z",
             "modelIdentity": "test-model@test-checkpoint",
+            "targetObject": "one-object-chain-a-v1",
             "commands": commands,
         },
         "validation": {
             "status": "passed",
             "snapshotDigest": "sha256:example-chain-a-digest",
+            "applicable": True,
             "warnings": [],
+            "selectionCounts": [],
+            "repairAttempts": 0,
         },
     }
 
@@ -1072,9 +1083,11 @@ def test_structure_snapshot_round_trips_its_computed_identity() -> None:
 
 def test_validation_report_round_trips_applicable_both_ways() -> None:
     """`applicable` round-trips true and false independently of status."""
-    applicable_report = ValidationReportV1("passed", "sha256:digest", True, ())
+    applicable_report = ValidationReportV1(
+        "passed", "sha256:digest", True, (), (), 0
+    )
     non_applicable_report = ValidationReportV1(
-        "passed", "sha256:digest", False, ()
+        "passed", "sha256:digest", False, (), (), 0
     )
 
     assert (
@@ -1089,7 +1102,9 @@ def test_validation_report_round_trips_applicable_both_ways() -> None:
 
 def test_validation_report_rejects_a_non_boolean_applicable() -> None:
     """A non-boolean applicable value is rejected, not coerced."""
-    payload = ValidationReportV1("passed", "sha256:digest", True, ()).to_dict()
+    payload = ValidationReportV1(
+        "passed", "sha256:digest", True, (), (), 0
+    ).to_dict()
     payload["applicable"] = "true"
 
     with pytest.raises(ProtocolDecodeError, match="applicable"):

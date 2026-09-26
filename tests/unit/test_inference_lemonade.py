@@ -24,7 +24,11 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
+from pmc_agent.inference.lemonade import EngineCapabilities
 from pmc_agent.inference.lemonade import LemonadeEngine
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
 
 _MODEL = "test-model"
 _CHECKPOINT = "test/checkpoint.gguf"
@@ -603,6 +607,161 @@ def test_hostile_server_errors_are_normalized_before_reaching_history() -> None:
     assert result.category == ENGINE_UNAVAILABLE
     assert len(result.message.encode("ascii")) <= 256
     assert all(0x20 <= ord(char) < 0x7F for char in result.message)
+
+
+def _probed_engine(handler: _HANDLER) -> LemonadeEngine:
+    """Build an engine that already has capabilities, without a real probe.
+
+    `health()` only needs `capabilities.device`; a full multi-step probe
+    is `test_inference_lemonade_probe.py`'s own scope, not this one's.
+
+    Args:
+        handler: The scripted transport response handler `health()` calls.
+
+    Returns:
+        An engine whose `capabilities` are already set.
+    """
+    engine = _engine(handler)
+    engine._set_capabilities(
+        EngineCapabilities(
+            lemonade_version="11.9.0",
+            model_name=_MODEL,
+            checkpoint=_CHECKPOINT,
+            device="cpu",
+            recipe="test-recipe",
+            context_length=4096,
+            grammar_enforced=True,
+        )
+    )
+    return engine
+
+
+def _loaded_health_body(model_name: str = _MODEL) -> dict[str, object]:
+    """Build a healthy body reporting `model_name` as currently loaded.
+
+    Args:
+        model_name: The model name to report loaded, defaulting to this
+            module's own configured `_MODEL`.
+
+    Returns:
+        A JSON-shaped health body `health()` treats as ready.
+    """
+    return {
+        "status": "ok",
+        "version": "11.9.0",
+        "all_models_loaded": [{"model_name": model_name}],
+    }
+
+
+def test_health_reports_ready_when_the_server_answers_healthy() -> None:
+    """A healthy server reports ready, naming the probed device."""
+    engine = _probed_engine(
+        lambda _request: httpx.Response(200, json=_loaded_health_body())
+    )
+
+    health = engine.health()
+
+    assert health == EngineHealth(
+        state=HEALTH_ENGINE_READY,
+        engine="lemonade",
+        engine_version="11.9.0",
+        device="cpu",
+        model_identity=f"{_MODEL}@{_CHECKPOINT}",
+        failure=None,
+    )
+
+
+def test_health_reports_unavailable_when_the_model_is_no_longer_loaded() -> (
+    None
+):
+    """A healthy server that evicted or never (re)loaded the model.
+
+    Reported ready would be worse than reported unavailable: `copilot
+    _health` would show "ready" while every real completion this engine
+    makes fails with an engine error, since Lemonade itself is up but the
+    configured model is not.
+    """
+    engine = _probed_engine(
+        lambda _request: httpx.Response(
+            200,
+            json={
+                "status": "ok",
+                "version": "11.9.0",
+                "all_models_loaded": [{"model_name": "some-other-model"}],
+            },
+        )
+    )
+
+    health = engine.health()
+
+    assert health.state == HEALTH_ENGINE_UNAVAILABLE
+    assert health.failure is not None
+    assert _MODEL in health.failure.message
+
+
+def test_health_reports_unavailable_when_the_server_is_unreachable() -> None:
+    """A stopped server reports unavailable, not a raised exception."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    health = _probed_engine(handler).health()
+
+    assert health.state == HEALTH_ENGINE_UNAVAILABLE
+    assert health.failure is not None
+    assert health.failure.category == ENGINE_UNAVAILABLE
+    assert health.engine_version is None
+    assert health.device is None
+    assert health.model_identity is None
+
+
+def test_health_reports_unavailable_on_a_non_200_response() -> None:
+    """An error status is unavailable, not silently treated as healthy."""
+    health = _probed_engine(
+        lambda _request: httpx.Response(503, content="overloaded")
+    ).health()
+
+    assert health.state == HEALTH_ENGINE_UNAVAILABLE
+    assert health.failure is not None
+    assert health.failure.category == ENGINE_UNAVAILABLE
+
+
+def test_health_reports_unavailable_on_a_missing_status_or_version() -> None:
+    """A malformed health body is unavailable, not guessed at."""
+    missing_status = _probed_engine(
+        lambda _request: httpx.Response(200, json={"version": "11.9.0"})
+    ).health()
+    missing_version = _probed_engine(
+        lambda _request: httpx.Response(200, json={"status": "ok"})
+    ).health()
+
+    assert missing_status.state == HEALTH_ENGINE_UNAVAILABLE
+    assert missing_version.state == HEALTH_ENGINE_UNAVAILABLE
+
+
+def test_health_reports_unavailable_before_any_probe_has_ever_run() -> None:
+    """Calling health() on a never-probed engine never raises."""
+    engine = _engine(lambda _request: httpx.Response(200, json={}))
+
+    health = engine.health()
+
+    assert health.state == HEALTH_ENGINE_UNAVAILABLE
+    assert health.failure is not None
+
+
+def test_health_issues_no_load_or_completion_calls() -> None:
+    """health() never reloads the model or spends a completion call."""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"status": "ok", "version": "11.9.0"})
+
+    _probed_engine(handler).health()
+
+    assert [(request.method, request.url.path) for request in requests] == [
+        ("GET", "/api/v1/health")
+    ]
 
 
 if __name__ == "__main__":

@@ -38,6 +38,8 @@ from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
@@ -94,6 +96,10 @@ class _Transport:
             request.session_id,
             FailureEnvelopeV1("apply_failed_restored", "restored", False),
         )
+
+    def health(self, request: HealthRequestV1) -> HealthResponseV1:
+        """Not exercised by this file's own apply/rollback matrix."""
+        raise AssertionError(f"unexpected health request: {request.request_id}")
 
 
 def _plan() -> ActionPlan:
@@ -195,12 +201,13 @@ def _validated_for(
             validated_at="2026-08-26T14:22:03.123Z",
             action_plan=pending.action_plan,
             validation=ValidationReportV1(
-                "passed", pending.snapshot_digest, True, ()
+                "passed", pending.snapshot_digest, True, (), (), 0
             ),
             plan_id=pending.plan_id,
             snapshot_digest=pending.snapshot_digest,
             expires_at=pending.expires_at,
             model_identity=pending.model_identity,
+            target_object=_OBJECT,
         )
 
     return response
@@ -367,12 +374,13 @@ def test_every_refusal_path_has_zero_live_or_recovery_mutation(
             validated_at="2026-08-26T14:22:03.123Z",
             action_plan=pending.action_plan,
             validation=ValidationReportV1(
-                "passed", pending.snapshot_digest, True, ()
+                "passed", pending.snapshot_digest, True, (), (), 0
             ),
             plan_id=pending.plan_id,
             snapshot_digest=pending.snapshot_digest,
             expires_at=pending.expires_at,
             model_identity="different-model@checkpoint",
+            target_object=_OBJECT,
         )
 
     transport = _Transport(changed_model, _rejected)
@@ -403,6 +411,7 @@ def test_every_refusal_path_has_zero_live_or_recovery_mutation(
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     transport = _Transport(changed_text, _rejected)

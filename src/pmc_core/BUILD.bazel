@@ -15,6 +15,7 @@ py_library(
         "protocol.py",
         "screen.py",
         "snapshot.py",
+        "versions.py",
     ],
     imports = [".."],
     visibility = ["//src:subsystems", "//src:tests"],
