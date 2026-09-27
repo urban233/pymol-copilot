@@ -102,9 +102,9 @@ Every item carries a **State**. The values are:
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
-| 16 | Eval harness and untuned baseline | Martin | **in progress** | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
-| 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15 ✓, 16 | 18, 19 |
-| 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16, 17 | — |
+| 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
+| 17 | Fine-tuning | Martin | **ready** | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
+| 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16 ✓, 17 | — |
 | 19 | Integration | Joint | **blocked** | 12, 17 | — |
 
 ### The graph
@@ -133,8 +133,8 @@ flowchart LR
   I13["13 · prompt builder"]:::done
   I14["14 · dataset"]:::done
   I15["15 · gold set"]:::done
-  I16["16 · eval and baseline"]:::progress
-  I17["17 · fine-tuning"]:::blocked
+  I16["16 · eval and baseline"]:::done
+  I17["17 · fine-tuning"]:::ready
   I18["18 · notebook"]:::blocked
   I19["19 · integration"]:::blocked
 
@@ -203,6 +203,10 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   ready — nothing in the graph blocks it any more, though its own "server
   unavailable" scenario still needs the production server entrypoint item
   11 left unbuilt (see item 12's brief below).
+- **Item 16 is done as PR #58.** It adds the offline eval harness and
+  records the untuned baseline: TaskSuccess 0/68 on `test_gold` under
+  both conditions. Item 17 is now ready; its inherited constraints are
+  noted under item 16 below.
 
 ### Cross-owner hand-offs
 
@@ -226,9 +230,9 @@ The week 1 note below is now more specific:
   proved enforcement with a grammar it wrote itself, `root ::= "Berlin"`, and
   item 9 can do the same. What item 13 supplies is the grammar item 9
   *carries* in production, not something item 9 needs in order to be finished.
-- **Hannah → Martin, still open:** item 9's engine interface is what item 16
-  runs the untuned baseline through — the dashed edge above. It is soft: item
-  16 could drive Lemonade directly and adopt the interface later.
+- **Hannah → Martin: settled.** Item 16 ran the untuned baseline through
+  item 9's engine interface — the dashed edge above — with three adapter
+  fixes recorded under item 16.
 
 With both shared-core hand-offs closed, the only remaining coupling between
 the two developers is items 13 → 9 and 9 → 16. Neither is a prerequisite, and
@@ -569,7 +573,7 @@ and report the observed error rate as a number.
 
 ### 16. Eval harness and untuned baseline
 
-**Size:** ~3 days · **State:** in progress on `feat/eval-harness-baseline` — plan in [plans/11-eval-harness-and-baseline.md](../plans/11-eval-harness-and-baseline.md)
+**Size:** ~3 days · **State:** done (PR #58) — plan in [plans/11-eval-harness-and-baseline.md](../plans/11-eval-harness-and-baseline.md)
 
 ```
 Build the offline eval harness: per sample, generate a plan, parse it,
@@ -628,7 +632,7 @@ rests on.
 
 ### 17. Fine-tuning
 
-**Size:** ~5 days · **State:** blocked on 15, 16
+**Size:** ~5 days · **State:** ready
 
 ```
 Fine-tune in src/pmc_train/, in the separate virtual environment, outside
@@ -643,7 +647,7 @@ result — don't chase it.
 
 ### 18. Notebook
 
-**Size:** ~3 days · **State:** blocked on 14, 15, 16, 17
+**Size:** ~3 days · **State:** blocked on 17
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
