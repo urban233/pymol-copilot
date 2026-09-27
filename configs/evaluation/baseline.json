@@ -13,14 +13,14 @@
     "read_timeout_seconds": 600.0
   },
   "engine_provenance": {
-    "emulation": null,
-    "gguf_sha256": null,
-    "hf_revision": null,
-    "host": null,
-    "image": null,
-    "lemonade_version": null,
-    "llama_cpp_build": null,
-    "llamacpp_args": null
+    "emulation": "none (native x86_64)",
+    "gguf_sha256": "3f5a22426976ab26cfe84dba63c1d08391717abb1af893e10f1b2968d862dcc1",
+    "hf_revision": "b69aef112e9f895e6f98d7ae0949f72ff09aa401",
+    "host": "Linux 5.15.167.4-microsoft-standard-WSL2 x86_64; NVIDIA GeForce RTX 4060, 610.74; WSL2",
+    "image": "ghcr.io/lemonade-sdk/lemonade-server@sha256:3873d3ec672eaebdf4484cf1592daae1ae0f73d0f6377a03f38f931f972ca122",
+    "lemonade_version": "11.9.0",
+    "llama_cpp_build": "b10707",
+    "llamacpp_args": "--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}' --parallel 1"
   },
   "generation": {
     "deadline_seconds": 600.0,

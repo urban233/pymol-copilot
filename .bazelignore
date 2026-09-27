@@ -2,3 +2,6 @@ bazel-bin
 bazel-out
 bazel-testlogs
 src/pmc_train
+.venv
+venv
+env
