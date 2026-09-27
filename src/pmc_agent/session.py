@@ -51,6 +51,7 @@ from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
 from pmc_agent.inference.base import CancelToken
+from pmc_agent.inference.base import EngineHealth
 from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.prompt import PROMPT_BUILDER
 from pmc_agent.prompt import build_default_prompt
@@ -58,13 +59,14 @@ from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import bounded_failure
 from pmc_core.executor import execute
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import MAX_REPAIR_ATTEMPTS as WIRE_MAX_REPAIR_ATTEMPTS
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import FidelityOutcomeV1
-from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import StructureSnapshotV1
 
 DEFAULT_MAX_COMPLETION_TOKENS = 1024
@@ -172,7 +174,24 @@ class RequestGraphSession:
                 `executor`.
             ttl_seconds: How long a minted plan stays approvable.
             max_repair_attempts: SPECIFICATION.md:640's repair budget.
+
+        Raises:
+            ValueError: If `max_repair_attempts` exceeds
+                `pmc_core.protocol.MAX_REPAIR_ATTEMPTS`. That wire type's
+                own `repair_attempts` field is bounded by that fixed
+                constant; a session configured with a larger budget could
+                validate a plan on an attempt `ValidationReportV1` cannot
+                represent, turning `/v1/apply`'s own response-assembly
+                into a `server_internal_error` after `approve()` has
+                already committed the graph to `STATE_APPLYING`.
         """
+        if max_repair_attempts > WIRE_MAX_REPAIR_ATTEMPTS:
+            raise ValueError(
+                f"max_repair_attempts ({max_repair_attempts}) exceeds the "
+                f"wire protocol's own repair-attempt bound "
+                f"({WIRE_MAX_REPAIR_ATTEMPTS})"
+            )
+        self._engine = engine
         self._sessions_guard = threading.Lock()
         self._sessions: dict[str, _SessionSlot] = {}
         self._active_cancellations: dict[str, CancelToken] = {}
@@ -224,6 +243,19 @@ class RequestGraphSession:
         with self._sessions_guard:
             token = self._active_cancellations.get(session_id)
         return token if token is not None else CancelToken()
+
+    def engine_health(self) -> EngineHealth:
+        """Report the engine's own current health.
+
+        docs/master_plan.md item 11: `copilot_health` reads this through
+        `pmc_server.lifecycle` rather than the graph, since health is a
+        property of the engine itself, not of any one request.
+
+        Returns:
+            The engine's current health. Never raises: `InferenceEngine
+            .health()` is itself a total method.
+        """
+        return self._engine.health()
 
     def _acquire_session(self, session_id: str) -> _SessionSlot:
         """Reserve and acquire the serialized-operation slot for a session.
@@ -339,13 +371,11 @@ class RequestGraphSession:
                 # this thread until the client supplies that outcome.
                 return {
                     "status": TERMINAL_FAILED,
-                    "failure": FailureEnvelopeV1(
-                        category="apply_outcome_required",
-                        message=(
-                            "the previous approved plan still awaits its "
-                            "client apply outcome"
-                        ),
-                        retryable=True,
+                    "failure": bounded_failure(
+                        "apply_outcome_required",
+                        "the previous approved plan still awaits its "
+                        "client apply outcome",
+                        True,
                     ),
                 }
             if self._is_pending(session_id):
@@ -381,6 +411,8 @@ class RequestGraphSession:
                 "model_identity": None,
                 "failure": None,
                 "question": None,
+                "selection_counts": (),
+                "sidecar_warnings": (),
                 "completion": None,
             }
             cancel_token = CancelToken()
@@ -469,10 +501,10 @@ class RequestGraphSession:
             if approved_values.get("validation_applicable") is not True:
                 return {
                     "status": TERMINAL_FAILED,
-                    "failure": FailureEnvelopeV1(
-                        category="not_applicable",
-                        message="a non-exact fidelity preview cannot be approved",
-                        retryable=False,
+                    "failure": bounded_failure(
+                        "not_applicable",
+                        "a non-exact fidelity preview cannot be approved",
+                        False,
                     ),
                 }
             if snapshot.next == (STATE_PENDING_APPROVAL,):
@@ -496,6 +528,11 @@ class RequestGraphSession:
                 "model_identity",
                 "snapshot_digest",
                 "validation_applicable",
+                "target_object",
+                "selection_counts",
+                "sidecar_warnings",
+                "attempt",
+                "snapshot_identity",
             ):
                 applying[name] = approved_values[name]
             return applying

@@ -11,12 +11,15 @@ from http.server import ThreadingHTTPServer
 from threading import Thread
 
 from pmc_core.executor import MAX_EXECUTION_REQUEST_BYTES
+from pmc_core.executor import bounded_failure
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import RejectRequestV1
@@ -25,9 +28,11 @@ from pmc_core.protocol import decode_cancel_request_json
 from pmc_core.protocol import decode_apply_outcome_request_json
 from pmc_core.protocol import decode_apply_request_json
 from pmc_core.protocol import decode_execution_request_json
+from pmc_core.protocol import decode_health_request_json
 from pmc_core.protocol import decode_json
 from pmc_core.protocol import decode_reject_request_json
 from pmc_core.protocol import encode_execution_response_json
+from pmc_core.protocol import encode_health_response_json
 from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
@@ -47,6 +52,10 @@ APPLY_OUTCOME_PATH = "/v1/apply-outcome"
 #: with none (every caller before this endpoint existed) returns 404 here,
 #: exactly as it did when this path was not routed at all.
 VALIDATE_PATH = "/v1/validate"
+#: docs/master_plan.md item 11's own `copilot_health` command. Routed only
+#: when a server is constructed with a health_handler, exactly like every
+#: other optional endpoint above.
+HEALTH_PATH = "/v1/health"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 #: `/v1/validate` and (since docs/master_plan.md item 8) `/v1/plan` both
@@ -55,6 +64,14 @@ MAX_MESSAGE_BYTES = 64 * 1024
 #: for both, and for `pmc_client.transport`'s own matching request-side
 #: check. Responses stay on this module's own 64 KiB `MAX_MESSAGE_BYTES`.
 REQUEST_TIMEOUT_SECONDS = 5.0
+
+#: docs/master_plan.md item 11: the category a handler's own unexpected
+#: exception is reported under. A dangerous failure this specific --
+#: something other than this protocol's own typed decode errors escaping
+#: from inside a handler -- must never drop the connection or leak a
+#: traceback; it must still answer with a bounded, typed, retryable
+#: failure so the client has something actionable to report.
+FAILURE_SERVER_INTERNAL_ERROR = "server_internal_error"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +84,7 @@ type APPLY_HANDLER = Callable[[ApplyRequestV1], PLAN_RESPONSE]
 type APPLY_OUTCOME_HANDLER = Callable[
     [ApplyOutcomeRequestV1], FailedPlanResponseV1
 ]
+type HEALTH_HANDLER = Callable[[HealthRequestV1], HealthResponseV1]
 
 # Preserve the original public type-alias names.
 globals()["PlanResponse"] = PLAN_RESPONSE
@@ -87,6 +105,7 @@ class LoopbackPlanServer:
         cancel_handler: CANCEL_HANDLER | None = None,
         apply_handler: APPLY_HANDLER | None = None,
         apply_outcome_handler: APPLY_OUTCOME_HANDLER | None = None,
+        health_handler: HEALTH_HANDLER | None = None,
     ) -> None:
         """Create a server that authenticates requests before decoding JSON.
 
@@ -110,6 +129,9 @@ class LoopbackPlanServer:
                 of an APPLY_PATH request; absent handlers leave it unrouted.
             apply_outcome_handler: Terminal apply-outcome lifecycle invoked
                 after strict decoding of an APPLY_OUTCOME_PATH request.
+            health_handler: `copilot_health`'s own server-side facts,
+                invoked after strict decoding of a HEALTH_PATH request.
+                None -- the default -- routes HEALTH_PATH to 404.
 
         Raises:
             ValueError: If credential is empty.
@@ -123,6 +145,7 @@ class LoopbackPlanServer:
         self._cancel_handler = cancel_handler
         self._apply_handler = apply_handler
         self._apply_outcome_handler = apply_outcome_handler
+        self._health_handler = health_handler
         self._httpd = ThreadingHTTPServer(
             (LOOPBACK_HOST, 0), self._make_request_handler()
         )
@@ -251,7 +274,65 @@ class LoopbackPlanServer:
                 ):
                     self._handle_apply_outcome()
                     return
+                if (
+                    self.path == HEALTH_PATH
+                    and server._health_handler is not None
+                ):
+                    self._handle_health()
+                    return
                 self._send_empty(HTTPStatus.NOT_FOUND)
+
+            def _internal_error_payload(
+                self,
+                *,
+                path: str,
+                request_id: str,
+                session_id: str,
+                error: Exception,
+            ) -> bytes:
+                """Build the bounded fallback response for a handler defect.
+
+                docs/master_plan.md item 11: a handler raising anything
+                beyond this protocol's own typed decode errors is a
+                defect, but the connection must never simply drop -- the
+                caller has no way to distinguish that from a crashed
+                server, and no bounded, actionable message reaches them
+                either. This is what every handler below falls back to
+                instead. Only the exception's type name is logged, never
+                its message or a traceback: an exception raised deep
+                inside `pmc_agent`'s request graph can carry the user's
+                own intent text or a fragment of the canonical plan.
+
+                Args:
+                    path: The endpoint path the exception was raised from.
+                    request_id: The already-decoded request's own
+                        identifier.
+                    session_id: The already-decoded request's own session
+                        identifier.
+                    error: The exception the handler raised.
+
+                Returns:
+                    An encoded `FailedPlanResponseV1` carrying a bounded,
+                    retryable `server_internal_error` failure.
+                """
+                LOGGER.error(
+                    "loopback handler raised %s for path=%s request=%s",
+                    type(error).__name__,
+                    path,
+                    request_id,
+                )
+                return encode_json(
+                    FailedPlanResponseV1(
+                        request_id=request_id,
+                        session_id=session_id,
+                        failure=bounded_failure(
+                            FAILURE_SERVER_INTERNAL_ERROR,
+                            "the server hit an internal error; "
+                            "nothing was applied",
+                            True,
+                        ),
+                    )
+                ).encode("utf-8")
 
             def _handle_plan(self) -> None:
                 """Decode, dispatch, and answer one PLAN_PATH request."""
@@ -275,9 +356,13 @@ class LoopbackPlanServer:
                 try:
                     response = server._handler(request)
                     response_payload = encode_json(response).encode("utf-8")
-                except (ProtocolDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=PLAN_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_validate(self) -> None:
@@ -323,9 +408,13 @@ class LoopbackPlanServer:
                     assert reject_handler is not None
                     response = reject_handler(request)
                     response_payload = encode_json(response).encode("utf-8")
-                except (ProtocolDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=REJECT_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_cancel(self) -> None:
@@ -345,9 +434,13 @@ class LoopbackPlanServer:
                     assert cancel_handler is not None
                     response = cancel_handler(request)
                     response_payload = encode_json(response).encode("utf-8")
-                except (ProtocolDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=CANCEL_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_apply(self) -> None:
@@ -357,14 +450,22 @@ class LoopbackPlanServer:
                     return
                 try:
                     request = decode_apply_request_json(payload.decode("utf-8"))
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
                     handler = server._apply_handler
                     assert handler is not None
                     response_payload = encode_json(handler(request)).encode(
                         "utf-8"
                     )
-                except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
-                    self._send_empty(HTTPStatus.BAD_REQUEST)
-                    return
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=APPLY_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
                 self._send_json(response_payload)
 
             def _handle_apply_outcome(self) -> None:
@@ -376,13 +477,60 @@ class LoopbackPlanServer:
                     request = decode_apply_outcome_request_json(
                         payload.decode("utf-8")
                     )
+                except (ProtocolDecodeError, UnicodeDecodeError):
+                    self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
                     handler = server._apply_outcome_handler
                     assert handler is not None
                     response_payload = encode_json(handler(request)).encode(
                         "utf-8"
                     )
-                except (ProtocolDecodeError, UnicodeDecodeError, ValueError):
+                except Exception as error:
+                    response_payload = self._internal_error_payload(
+                        path=APPLY_OUTCOME_PATH,
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        error=error,
+                    )
+                self._send_json(response_payload)
+
+            def _handle_health(self) -> None:
+                """Decode, dispatch, and answer one HEALTH_PATH request.
+
+                `copilot_health` exists specifically to be usable when
+                something else is wrong, so unlike the plan-bearing
+                endpoints above, a handler defect here answers a plain 500
+                rather than a typed `HealthResponseV1` -- there is no
+                well-formed "health of a broken health check" to report,
+                and the client already treats "server unreachable or
+                erroring" as its own diagnostic fact. Only the exception's
+                type name is logged, never a traceback.
+                """
+                payload = self._authorized_json_body(MAX_MESSAGE_BYTES)
+                if payload is None:
+                    return
+                try:
+                    request = decode_health_request_json(
+                        payload.decode("utf-8")
+                    )
+                except (ProtocolDecodeError, UnicodeDecodeError):
                     self._send_empty(HTTPStatus.BAD_REQUEST)
+                    return
+                try:
+                    handler = server._health_handler
+                    assert handler is not None
+                    response_payload = encode_health_response_json(
+                        handler(request)
+                    ).encode("utf-8")
+                except Exception as error:
+                    LOGGER.error(
+                        "loopback handler raised %s for path=%s request=%s",
+                        type(error).__name__,
+                        HEALTH_PATH,
+                        request.request_id,
+                    )
+                    self._send_empty(HTTPStatus.INTERNAL_SERVER_ERROR)
                     return
                 self._send_json(response_payload)
 

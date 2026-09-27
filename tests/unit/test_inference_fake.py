@@ -14,9 +14,11 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import ENGINE_FAILURE_CATEGORIES
 from pmc_agent.inference.base import ENGINE_TIMEOUT
 from pmc_agent.inference.fake import FakeEngine
 from pmc_core.errors import normalize_message
+from pmc_core.protocol import FAILURE_CATEGORIES
 
 
 def _request(prompt: str = "select chain A") -> CompletionRequest:
@@ -141,6 +143,16 @@ def test_the_package_exports_the_supported_contract() -> None:
     assert isinstance(result, CompletionResult)
     assert result.text == "text"
     assert PUBLIC_STOP_DEADLINE == STOP_DEADLINE
+
+
+def test_every_engine_failure_category_has_a_wire_failure_category() -> None:
+    """`pmc_core.protocol.FAILURE_CATEGORIES` never falls behind this module's.
+
+    That set is hand-listed rather than imported (`pmc_agent` depends on
+    `pmc_core`, not the reverse), so this is the one place both sides are
+    read together.
+    """
+    assert ENGINE_FAILURE_CATEGORIES <= FAILURE_CATEGORIES
 
 
 if __name__ == "__main__":

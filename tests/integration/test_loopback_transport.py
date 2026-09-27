@@ -29,20 +29,27 @@ from pmc_core.plan import Factor
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectionExpression
 from pmc_core.protocol import FIDELITY_EXACT
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
 from pmc_core.protocol import CancelRequestV1
 from pmc_core.protocol import ApplyOutcomeRequestV1
 from pmc_core.protocol import ApplyRequestV1
 from pmc_core.protocol import ContractManifestV1
+from pmc_core.protocol import EngineHealthV1
 from pmc_core.protocol import ExecutionReportV1
 from pmc_core.protocol import ExecutionRequestV1
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import FidelityOutcomeV1
+from pmc_core.protocol import HealthRequestV1
+from pmc_core.protocol import HealthResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import RejectRequestV1
 from pmc_core.protocol import StructureSnapshotV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.protocol import ValidationReportV1
+from pmc_core.versions import APPLICATION_VERSION
+from pmc_core.versions import contract_versions
 from pmc_core.snapshot import DECLARED_UNSUPPORTED
 from pmc_core.snapshot import SNAPSHOT_VERSION
 from pmc_core.snapshot import ObjectSnapshot
@@ -50,6 +57,7 @@ from pmc_core.snapshot import to_json
 from pmc_server.transport import CANCEL_PATH
 from pmc_server.transport import APPLY_OUTCOME_PATH
 from pmc_server.transport import APPLY_PATH
+from pmc_server.transport import HEALTH_PATH
 from pmc_server.transport import MAX_EXECUTION_REQUEST_BYTES
 from pmc_server.transport import REJECT_PATH
 from pmc_server.transport import VALIDATE_PATH
@@ -131,12 +139,13 @@ def validated_response(request: PlanRequestV1) -> ValidatedPlanResponseV1:
             )
         ),
         validation=ValidationReportV1(
-            "passed", "sha256:example-chain-a-digest", True, ()
+            "passed", "sha256:example-chain-a-digest", True, (), (), 0
         ),
         plan_id="33333333-3333-4333-8333-333333333333",
         snapshot_digest="sha256:example-chain-a-digest",
         expires_at="2026-08-26T14:27:03.220Z",
         model_identity="test-model@test-checkpoint",
+        target_object="one-object-chain-a-v1",
     )
 
 
@@ -336,6 +345,44 @@ def test_server_logs_response_metadata_without_request_target(
     assert request_target not in caplog.text
 
 
+@pytest.mark.parametrize(
+    "raised", [AssertionError("boom"), RuntimeError("boom"), KeyError("boom")]
+)
+def test_a_handler_defect_answers_bounded_not_a_dropped_connection(
+    raised: Exception, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A handler exception never drops the connection or leaks a traceback.
+
+    docs/master_plan.md item 11: every failure path must produce a
+    bounded, actionable message -- no tracebacks, no plan text leaking
+    through an error. Before this item, only `ProtocolDecodeError` and
+    `ValueError` were caught here; anything else escaped to
+    `socketserver`'s own handler, which drops the connection with no
+    response at all.
+
+    Args:
+        raised: The exception the handler raises for this case.
+        caplog: Pytest log-capture fixture.
+    """
+
+    def raising_handler(_request: PlanRequestV1) -> ValidatedPlanResponseV1:
+        raise raised
+
+    caplog.set_level(logging.ERROR, logger="pmc_server.transport")
+    request = plan_request()
+    with LoopbackPlanServer("secret", raising_handler) as server:
+        response = LoopbackPlanClient(server.port, "secret").submit(request)
+
+    assert isinstance(response, FailedPlanResponseV1)
+    assert response.request_id == request.request_id
+    assert response.session_id == request.session_id
+    assert response.failure.category == "server_internal_error"
+    assert response.failure.retryable is True
+    assert "Traceback" not in caplog.text
+    assert request.intent not in caplog.text
+    assert type(raised).__name__ in caplog.text
+
+
 def test_client_rejects_response_with_mismatched_correlation() -> None:
     """The client does not accept a typed plan for another request."""
 
@@ -360,6 +407,7 @@ def test_client_rejects_response_with_mismatched_correlation() -> None:
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     with (
@@ -393,6 +441,7 @@ def test_client_rejects_response_with_mismatched_session() -> None:
             snapshot_digest=response.snapshot_digest,
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     with (
@@ -426,11 +475,14 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
                 "sha256:different-snapshot",
                 response.validation.applicable,
                 response.validation.warnings,
+                response.validation.selection_counts,
+                response.validation.repair_attempts,
             ),
             plan_id=response.plan_id,
             snapshot_digest="sha256:different-snapshot",
             expires_at=response.expires_at,
             model_identity=response.model_identity,
+            target_object=response.target_object,
         )
 
     with (
@@ -780,6 +832,180 @@ def test_cancel_endpoint_is_404_with_no_cancel_handler_configured() -> None:
         connection.close()
 
     assert response.status == HTTPStatus.NOT_FOUND
+
+
+def health_request() -> HealthRequestV1:
+    """Build an accepted health-request fixture.
+
+    Returns:
+        A well-formed request for the /v1/health endpoint.
+    """
+    return HealthRequestV1(request_id=REQUEST_ID, session_id=SESSION_ID)
+
+
+def fake_ready_health_handler(request: HealthRequestV1) -> HealthResponseV1:
+    """Answer any health request as though the engine were ready.
+
+    Args:
+        request: The decoded health request.
+
+    Returns:
+        A fixed, correlated, ready health response.
+    """
+    return HealthResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        application_version=APPLICATION_VERSION,
+        contract_versions=dict(contract_versions()),
+        engine=EngineHealthV1(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            failure_category=None,
+            failure_message=None,
+        ),
+        model_identity="fake-engine-v1",
+    )
+
+
+def fake_unavailable_health_handler(
+    request: HealthRequestV1,
+) -> HealthResponseV1:
+    """Answer any health request as though the engine were unavailable.
+
+    Args:
+        request: The decoded health request.
+
+    Returns:
+        A fixed, correlated, unavailable health response.
+    """
+    return HealthResponseV1(
+        request_id=request.request_id,
+        session_id=request.session_id,
+        application_version=APPLICATION_VERSION,
+        contract_versions=dict(contract_versions()),
+        engine=EngineHealthV1(
+            state=HEALTH_ENGINE_UNAVAILABLE,
+            engine="lemonade",
+            engine_version=None,
+            device=None,
+            failure_category="engine_unavailable",
+            failure_message="lemonade could not be reached",
+        ),
+        model_identity=None,
+    )
+
+
+def test_health_endpoint_round_trips_over_loopback() -> None:
+    """A real HTTP round trip through the health handler's own mapping."""
+    with LoopbackPlanServer(
+        "secret", validated_response, health_handler=fake_ready_health_handler
+    ) as server:
+        response = LoopbackPlanClient(server.port, "secret").health(
+            health_request()
+        )
+
+    assert response.request_id == REQUEST_ID
+    assert response.session_id == SESSION_ID
+    assert response.engine.state == HEALTH_ENGINE_READY
+    assert response.contract_versions == dict(contract_versions())
+
+
+def test_health_endpoint_reports_an_unavailable_engine() -> None:
+    """The server stays up and answers even when its engine is down.
+
+    SPECIFICATION.md:609: "Server remains available for diagnostics; no
+    unconstrained fallback." `/v1/plan` still fails for this same server;
+    `/v1/health` is what lets a user tell why.
+    """
+    with LoopbackPlanServer(
+        "secret",
+        validated_response,
+        health_handler=fake_unavailable_health_handler,
+    ) as server:
+        response = LoopbackPlanClient(server.port, "secret").health(
+            health_request()
+        )
+
+    assert response.engine.state == HEALTH_ENGINE_UNAVAILABLE
+    assert response.engine.failure_category == "engine_unavailable"
+    assert response.model_identity is None
+
+
+def test_health_endpoint_survives_a_differing_contract_key_set_over_the_wire() -> (
+    None
+):
+    """A health response naming a contract this client's build never heard of.
+
+    Still round-trips: the whole point of `/v1/health` is to surface that
+    kind of disagreement, so failing the response closed on it -- as every
+    other V1 type does for its own required fields -- would hide the one
+    thing this type exists to report.
+    """
+
+    def handler(request: HealthRequestV1) -> HealthResponseV1:
+        response = fake_ready_health_handler(request)
+        server_only = dict(response.contract_versions)
+        server_only["dataset"] = "1"
+        del server_only["snapshot"]
+        return dataclasses.replace(response, contract_versions=server_only)
+
+    with LoopbackPlanServer(
+        "secret", validated_response, health_handler=handler
+    ) as server:
+        response = LoopbackPlanClient(server.port, "secret").health(
+            health_request()
+        )
+
+    assert response.contract_versions["dataset"] == "1"
+    assert "snapshot" not in response.contract_versions
+
+
+def test_health_endpoint_is_404_with_no_health_handler_configured() -> None:
+    """A server built without a health_handler still 404s the path."""
+    with LoopbackPlanServer("secret", validated_response) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(health_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            HEALTH_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "secret",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.NOT_FOUND
+
+
+def test_health_endpoint_rejects_wrong_credential() -> None:
+    """A wrong credential is refused before the health handler ever runs."""
+    with LoopbackPlanServer(
+        "secret", validated_response, health_handler=fake_ready_health_handler
+    ) as server:
+        connection = HTTPConnection(LOOPBACK_HOST, server.port)
+        body = json.dumps(health_request().to_dict()).encode("utf-8")
+        connection.request(
+            "POST",
+            HEALTH_PATH,
+            body=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                CREDENTIAL_HEADER: "wrong",
+            },
+        )
+        response = connection.getresponse()
+        response.read()
+        connection.close()
+
+    assert response.status == HTTPStatus.UNAUTHORIZED
 
 
 if __name__ == "__main__":

@@ -247,4 +247,4 @@ def test_sabotaged_restore_comparison_refuses_to_consume_the_point(
 
 
 if __name__ == "__main__":
-    raise SystemExit(0)
+    raise SystemExit(pytest.main([__file__]))

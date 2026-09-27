@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Protocol
 
 from pmc_client.fidelity import FidelityOutcome
+from pmc_client.messages import bounded
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import parse_utc_timestamp
@@ -95,34 +96,38 @@ def verify_approval(
     """
     if pending is None:
         return ApprovalVerdict("no pending plan for this session")
+    # entered_plan_id is user-typed and echoed back in every refusal below;
+    # bounding it once here keeps every one of those bounded too, without
+    # repeating the call at each site.
+    entered = bounded(entered_plan_id, max_bytes=64)
     normalized = normalize_plan_id(entered_plan_id)
     if normalized != pending.plan_id:
         return ApprovalVerdict(
-            f"plan {entered_plan_id} is not the pending plan"
+            f"plan {entered} is not the pending plan "
+            f"(pending: {PLAN_ID_DISPLAY_PREFIX}{pending.plan_id}); apply "
+            "that, or run copilot again"
         )
     if pending.session_id != session_id:
-        return ApprovalVerdict(
-            f"plan {entered_plan_id} belongs to a different session"
-        )
+        return ApprovalVerdict(f"plan {entered} belongs to a different session")
     if not pending.applicable:
         return ApprovalVerdict(
-            f"plan {entered_plan_id} is not applicable "
+            f"plan {entered} is not applicable "
             f"({pending.fidelity.status}: {pending.fidelity.reason})"
         )
     try:
         expires_at = parse_utc_timestamp(pending.expires_at)
     except ProtocolDecodeError:
-        return ApprovalVerdict(f"plan {entered_plan_id} has an invalid expiry")
+        return ApprovalVerdict(f"plan {entered} has an invalid expiry")
     if now >= expires_at:
         return ApprovalVerdict(
-            f"plan {entered_plan_id} expired at {pending.expires_at}"
+            f"plan {entered} expired at {pending.expires_at}"
         )
     if live_digest != pending.snapshot_digest:
         return ApprovalVerdict(
-            f"the session changed since plan {entered_plan_id} was made"
+            f"the session changed since plan {entered} was made"
         )
     if pending.contract_manifest != contract_manifest:
         return ApprovalVerdict(
-            f"plan {entered_plan_id} was made under different contract versions"
+            f"plan {entered} was made under different contract versions"
         )
     return ApprovalVerdict(None)

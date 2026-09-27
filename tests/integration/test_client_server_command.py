@@ -10,9 +10,13 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
 
+from preview_support import find_preview
+from preview_support import section
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.inference.unavailable import UnavailableEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_client.command import register_copilot
 from pmc_client.session import extract_live_snapshot
@@ -24,11 +28,13 @@ from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
 from pmc_core.executor import FidelityReport
 from pmc_core.executor import FidelityRequest
+from pmc_core.protocol import PROTOCOL_VERSION
 from pmc_core.protocol import FailedPlanResponseV1
 from pmc_core.protocol import PlanRequestV1
 from pmc_core.protocol import ValidatedPlanResponseV1
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
+from pmc_core.versions import APPLICATION_VERSION
 from pmc_server.lifecycle import RequestGraphLifecycle
 from pmc_server.transport import LoopbackPlanServer
 
@@ -112,6 +118,11 @@ class DisposablePyMOLAdapter:
         default_factory=lambda: {"existing_selection": "blue"}
     )
     atoms: tuple[_FakeAtom, ...] = (_DEFAULT_ATOM,)
+    #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
+    #: `pymol.commanding.extend()` does, so `register()`'s own
+    #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
+    #: entry to rewrite (docs/master_plan.md item 11).
+    keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
         """Register a command callback without changing molecular state.
@@ -121,6 +132,7 @@ class DisposablePyMOLAdapter:
             callback: Function invoked for the registered command.
         """
         self.commands[name] = callback
+        self.keyword[name] = [callback, 0, 0, ",", 11]
 
     def select(self, name: str, expression: str) -> None:
         """Record a selection mutation if the client attempts one.
@@ -380,14 +392,99 @@ def test_public_command_round_trip_renders_without_session_mutation() -> None:
     assert response.session_id == request.session_id
     assert request.snapshot.object_name == OBJECT_NAME
     assert request.snapshot.digest != "sha256:example-chain-a-digest"
-    assert output[0].startswith("copilot fidelity: exact")
-    assert output[1].startswith("copilot plan:")
-    assert "1 | select copilot_selection, chain A" in output[1]
-    assert output[2].startswith("copilot checked:")
-    assert output[3].startswith("copilot apply with: copilot_apply ")
+    assert section(output, "fidelity") == "exact on the declared state scope"
+    assert find_preview(output).startswith("copilot plan ")
+    assert "1 | select copilot_selection, chain A" in section(
+        output, "commands"
+    )
+    assert section(output, "checked").startswith("the plan parses")
+    assert section(output, "apply").startswith("copilot_apply ")
     assert adapter.mutations == []
     assert adapter.selections == original_selections
     assert adapter.colors == original_colors
+
+
+def test_copilot_health_over_real_loopback_with_a_ready_engine() -> None:
+    """`copilot_health` over a real round trip: server, session, engine ready.
+
+    Unlike `tests/integration/test_command.py`'s own golden blocks (a
+    scripted transport double), this drives the real
+    `pmc_server.transport.LoopbackPlanServer`, `RequestGraphLifecycle`,
+    and `RequestGraphSession.engine_health()` -- proving the server side
+    of `/v1/health` is wired end to end, not just the client's own
+    formatting of a response it was handed.
+    """
+    session = RequestGraphSession(
+        engine=FakeEngine([]), executor=_always_ok_executor
+    )
+    lifecycle = RequestGraphLifecycle(session=session)
+    adapter = DisposablePyMOLAdapter()
+    output: list[str] = []
+    with LoopbackPlanServer(
+        "secret", lifecycle, health_handler=lifecycle.health
+    ) as server:
+        register_copilot(
+            adapter,
+            LoopbackPlanClient(server.port, "secret"),
+            output.append,
+            probe=_exact_probe(adapter),
+        )
+        adapter.commands["copilot_health"]("")
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    ready -- fake fake-1.0 on cpu\n"
+        "  model:     fake-engine-v1\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- all match this client\n"
+        "  copilot:   ready"
+    ]
+    assert adapter.mutations == []
+
+
+def test_copilot_health_over_real_loopback_with_an_unavailable_engine() -> None:
+    """`copilot_health` over a real round trip when the engine never connected.
+
+    SPECIFICATION.md:609: the server stays available for diagnostics even
+    when the engine could not be reached at startup;
+    `UnavailableEngine` is what a future entrypoint constructs for exactly
+    that case (docs/master_plan.md item 11).
+    """
+    failure = EngineFailure("engine_unavailable", "lemonade is not running")
+    session = RequestGraphSession(
+        engine=UnavailableEngine(failure), executor=_always_ok_executor
+    )
+    lifecycle = RequestGraphLifecycle(session=session)
+    adapter = DisposablePyMOLAdapter()
+    output: list[str] = []
+    with LoopbackPlanServer(
+        "secret", lifecycle, health_handler=lifecycle.health
+    ) as server:
+        register_copilot(
+            adapter,
+            LoopbackPlanClient(server.port, "secret"),
+            output.append,
+            probe=_exact_probe(adapter),
+        )
+        adapter.commands["copilot_health"]("")
+
+    assert output == [
+        "copilot health\n"
+        f"  client:    application {APPLICATION_VERSION}, protocol "
+        f"{PROTOCOL_VERSION}\n"
+        f"  server:    reachable, application {APPLICATION_VERSION}\n"
+        "  engine:    unavailable (lemonade is not running). Start "
+        "Lemonade, then run copilot_health to confirm it is reachable "
+        "before trying again.\n"
+        "  model:     unknown\n"
+        "  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, "
+        "grammar 1, errorEnvelope 1, executor 1 -- all match this client\n"
+        "  copilot:   ready"
+    ]
+    assert adapter.mutations == []
 
 
 if __name__ == "__main__":

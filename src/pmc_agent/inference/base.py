@@ -34,6 +34,9 @@ import threading
 from dataclasses import dataclass
 from typing import Protocol
 
+from pmc_core.protocol import HEALTH_ENGINE_READY
+from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
+
 #: `CompletionResult.stop_reason`: generation ran to a natural stop.
 STOP_END = "end"
 
@@ -209,6 +212,73 @@ class EngineFailure:
             )
 
 
+@dataclass(frozen=True)
+class EngineHealth:
+    """One engine's own current health, for `copilot_health`.
+
+    docs/master_plan.md item 11. Distinct from `probe_capabilities`'s own
+    one-time startup proof (grammar canary, catalog identity): `health()`
+    is meant to be called again later, cheaply, to answer "is the engine
+    I already probed still there" without repeating the expensive load and
+    canary steps. Exactly one field group is populated, matching `state`,
+    mirroring `pmc_core.protocol.EngineHealthV1`'s own shape -- that wire
+    type is this one's only consumer, so the two are kept structurally
+    parallel on purpose.
+
+    Attributes:
+        state: `pmc_core.protocol.HEALTH_ENGINE_READY` or
+            `HEALTH_ENGINE_UNAVAILABLE`.
+        engine: A stable engine name, e.g. `"lemonade"` or `"fake"`.
+        engine_version: The engine's own reported version, when ready.
+        device: The device the engine is running on, when ready.
+        model_identity: This engine's `model_identity`, when ready.
+        failure: A bounded, typed engine failure, when unavailable.
+    """
+
+    state: str
+    engine: str
+    engine_version: str | None
+    device: str | None
+    model_identity: str | None
+    failure: EngineFailure | None
+
+    def __post_init__(self) -> None:
+        """Reject a state whose field group is not exactly populated.
+
+        Raises:
+            ValueError: If `state` is unrecognized, or the field group for
+                that state is not exactly populated.
+        """
+        if self.state not in {HEALTH_ENGINE_READY, HEALTH_ENGINE_UNAVAILABLE}:
+            raise ValueError(f"unsupported engine health state: {self.state!r}")
+        if self.state == HEALTH_ENGINE_READY:
+            if (
+                self.engine_version is None
+                or self.device is None
+                or self.model_identity is None
+            ):
+                raise ValueError(
+                    "a ready engine health must report version, device, "
+                    "and model identity"
+                )
+            if self.failure is not None:
+                raise ValueError("a ready engine health must carry no failure")
+        else:
+            if self.failure is None:
+                raise ValueError(
+                    "an unavailable engine health must carry a failure"
+                )
+            if (
+                self.engine_version is not None
+                or self.device is not None
+                or self.model_identity is not None
+            ):
+                raise ValueError(
+                    "an unavailable engine health must carry no version, "
+                    "device, or model identity"
+                )
+
+
 class InferenceEngine(Protocol):
     """The narrow, engine-neutral local-inference interface.
 
@@ -245,5 +315,17 @@ class InferenceEngine(Protocol):
 
         Returns:
             The completion, or a typed failure.
+        """
+        ...
+
+    def health(self) -> EngineHealth:
+        """Report this engine's own current health.
+
+        Must never raise, and must not repeat an expensive one-time
+        startup proof (a model load, a grammar canary) -- see
+        `EngineHealth`'s own docstring for why.
+
+        Returns:
+            This engine's current health.
         """
         ...

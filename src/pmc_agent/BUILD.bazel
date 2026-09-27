@@ -8,6 +8,7 @@ py_library(
         "prompt.py",
         "runtime.py",
         "session.py",
+        "warnings.py",
     ],
     imports = [".."],
     deps = [

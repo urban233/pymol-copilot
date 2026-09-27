@@ -68,6 +68,8 @@ from pmc_core.executor import DEFAULT_DEADLINE_SECONDS
 from pmc_core.executor import DEFAULT_MAX_SNAPSHOT_BYTES
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import SelectionCount
+from pmc_core.executor import bounded_failure
 from pmc_core.executor import execute
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_pml
@@ -218,6 +220,16 @@ FAILURE_EXECUTION_PREFIX = "execution_"
 #: `validating`'s own failure category once the repair budget is spent.
 FAILURE_REPAIR_EXHAUSTED = "repair_exhausted"
 
+#: `validating`'s own failure category for a completion the hostile screen
+#: rejected before it was ever parsed. docs/master_plan.md item 11: a
+#: hostile rejection and an ordinary user `copilot_reject` must be
+#: distinguishable to the user, even though both leave `status` at
+#: `TERMINAL_REJECTED` -- this category is carried in `state["failure"]`
+#: alongside that terminal so `pmc_server.lifecycle` can tell the two
+#: apart and report each honestly, instead of the one generic "request
+#: ended: rejected" text every other `rejected` carries.
+FAILURE_HOSTILE_OUTPUT = "hostile_output"
+
 
 def _new_plan_id() -> str:
     """Return a new UUIDv4 plan identifier.
@@ -328,6 +340,17 @@ class RequestState(TypedDict):
             is `failed`; None otherwise.
         question: The bounded, redacted clarification question, when
             `status` is `ask`; None otherwise.
+        selection_counts: The sidecar's own per-selection atom counts from
+            the attempt that validated
+            (`pmc_core.executor.ExecutionReport.selection_counts`), empty
+            before one has. docs/master_plan.md item 11: this is raw
+            evidence, carried unchanged -- deriving a rendered warning from
+            it is `pmc_agent.warnings.derive_warnings`'s job, done once the
+            plan is actually reported, not here.
+        sidecar_warnings: Bounded diagnostic text the executor itself
+            already captured for the attempt that validated
+            (`ExecutionReport.warnings`, such as non-fatal captured child
+            stderr), empty before one has.
         completion: The most recent raw text `generating` received from
             the engine, or None before it has run once. The one field the
             model writes.
@@ -353,6 +376,8 @@ class RequestState(TypedDict):
     model_identity: str | None
     failure: FailureEnvelopeV1 | None
     question: str | None
+    selection_counts: tuple[SelectionCount, ...]
+    sidecar_warnings: tuple[str, ...]
 
     completion: str | None
 
@@ -410,9 +435,7 @@ def _failed(
     return {
         "status": TERMINAL_FAILED,
         "history": (*state["history"], TERMINAL_FAILED),
-        "failure": FailureEnvelopeV1(
-            category=category, message=message, retryable=retryable
-        ),
+        "failure": bounded_failure(category, message, retryable),
     }
 
 
@@ -849,6 +872,12 @@ def _build_validating(
             return {
                 "status": TERMINAL_REJECTED,
                 "history": (*state["history"], TERMINAL_REJECTED),
+                "failure": bounded_failure(
+                    FAILURE_HOSTILE_OUTPUT,
+                    "the model produced a forbidden command form; "
+                    "nothing was run",
+                    False,
+                ),
             }
 
         parsed = parse_pml(completion)
@@ -911,6 +940,13 @@ def _build_validating(
                 "expires_at": _format_timestamp(
                     now + timedelta(seconds=ttl_seconds)
                 ),
+                # docs/master_plan.md item 11: raw evidence only, carried
+                # unchanged from the sidecar that actually ran the parsed
+                # plan -- never from `completion` itself. See
+                # `pmc_agent.warnings.derive_warnings`'s own docstring for
+                # why that purity matters.
+                "selection_counts": report.selection_counts,
+                "sidecar_warnings": report.warnings,
             }
         if report.reason == REASON_COMMAND_FAILURE:
             failing = next(

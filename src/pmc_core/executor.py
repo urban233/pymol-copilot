@@ -72,7 +72,9 @@ from typing import Any
 from pmc_core.errors import ExecutionErrorV1
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import evaluate_plan
+from pmc_core.protocol import MAX_FAILURE_MESSAGE_BYTES
 from pmc_core.protocol import PROTOCOL_VERSION
+from pmc_core.protocol import FailureEnvelopeV1
 from pmc_core.protocol import ProtocolDecodeError
 from pmc_core.protocol import decode_execution_error
 from pmc_core.protocol import encode_plan
@@ -570,6 +572,51 @@ def bounded_diagnostic(value: str, *, maximum_bytes: int) -> str:
         "utf-8", errors="ignore"
     )
     return prefix + _TRUNCATION_MARKER
+
+
+def bounded_failure(
+    category: str, message: str, retryable: bool
+) -> FailureEnvelopeV1:
+    """Build a `FailureEnvelopeV1` that can never fail to construct.
+
+    docs/master_plan.md item 11: every failure path must produce a
+    bounded, actionable message, never a traceback. `FailureEnvelopeV1.
+    __post_init__` already rejects an overlong or unprintable message, so
+    a call site that passed one through unchecked would itself raise --
+    turning a would-be user-facing failure into a second, worse one. This
+    function sanitizes first, so it is safe to call with any string a
+    server or graph node has in hand, including raw exception text this
+    module's own callers must never place on the wire unbounded.
+
+    This function lives in `pmc_core.executor`, not `pmc_core.protocol`,
+    for a dependency-direction reason: `executor` already imports from
+    `protocol` (for `PROTOCOL_VERSION` and friends), so `protocol`
+    importing back from `executor` for this one helper would cycle.
+    `pmc_agent` and `pmc_server` already depend on this module for other
+    reasons, so importing it from here costs them nothing new.
+
+    Args:
+        category: A stable, machine-readable failure category. Not
+            sanitized -- every call site passes one of this system's own
+            fixed category strings, never user or model text.
+        message: A human-readable explanation, of any length or content.
+        retryable: Whether resubmitting a new request could plausibly
+            succeed where this one did not.
+
+    Returns:
+        A `FailureEnvelopeV1` whose `message` is single-line, printable
+        ASCII, and at most `MAX_FAILURE_MESSAGE_BYTES`.
+    """
+    single_line = "".join(
+        character if 0x20 <= ord(character) < 0x7F else "?"
+        for character in message
+    )
+    bounded_message = bounded_diagnostic(
+        single_line, maximum_bytes=MAX_FAILURE_MESSAGE_BYTES
+    )
+    return FailureEnvelopeV1(
+        category=category, message=bounded_message, retryable=retryable
+    )
 
 
 def _stderr_warning(stderr: str) -> tuple[str, ...]:

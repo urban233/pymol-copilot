@@ -37,6 +37,8 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
+from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_agent.session import MAX_OUTCOME_RECEIPTS
@@ -44,6 +46,7 @@ from pmc_core.executor import REASON_OK
 from pmc_core.executor import STATUS_OK
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
+from pmc_core.executor import SelectionCount
 from pmc_core.protocol import FIDELITY_EXACT
 from pmc_core.protocol import FIDELITY_NOT_EXACT
 from pmc_core.protocol import ContractManifestV1
@@ -152,6 +155,17 @@ class _SlowEngine:
             _VALID_COMPLETION, self.model_identity, STOP_END
         )
 
+    def health(self) -> EngineHealth:
+        """Return a fixed ready health; this fake is never actually down."""
+        return EngineHealth(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            model_identity=self.model_identity,
+            failure=None,
+        )
+
 
 class _CancellableEngine:
     """An engine that proves it received a live cancellation token."""
@@ -189,6 +203,17 @@ class _CancellableEngine:
         self.observed_cancellation.set()
         return CompletionResult(
             _VALID_COMPLETION, self.model_identity, STOP_END
+        )
+
+    def health(self) -> EngineHealth:
+        """Return a fixed ready health; this fake is never actually down."""
+        return EngineHealth(
+            state=HEALTH_ENGINE_READY,
+            engine="fake",
+            engine_version="fake-1.0",
+            device="cpu",
+            model_identity=self.model_identity,
+            failure=None,
         )
 
 
@@ -310,6 +335,32 @@ def _submit_in_thread(
     )
 
 
+def _evidence_executor(_request: ExecutionRequest) -> ExecutionReport:
+    """Report success carrying distinctive selection counts and warnings.
+
+    Args:
+        _request: Ignored.
+
+    Returns:
+        A `STATUS_OK` report a benign completion could not have produced
+        itself, so a test reading these fields back from `submit()` and
+        `approve()` proves they came from the executor.
+    """
+    return ExecutionReport(
+        executor_version=1,
+        status=STATUS_OK,
+        reason=REASON_OK,
+        input_digest="sha256:test",
+        resulting_fingerprint="sha256:" + "0" * 64,
+        selection_counts=(SelectionCount("copilot_selection", 7),),
+        command_outcomes=(),
+        child_pid=1234,
+        child_terminated=True,
+        elapsed_seconds=0.01,
+        warnings=("captured stderr",),
+    )
+
+
 def _one_shot_session(
     *, clock: _FakeClock | None = None, ttl_seconds: float = 60.0
 ) -> RequestGraphSession:
@@ -381,6 +432,42 @@ def test_approve_parks_for_one_outcome_and_preserves_plan_facts() -> None:
     assert replay["status"] == STATE_APPLYING
     assert replay["plan"] == applying["plan"]
     assert session.approve(session_id=_SESSION_ID, plan_id="wrong") is None
+
+
+def test_approve_preserves_selection_counts_and_warnings_across_resume() -> (
+    None
+):
+    """The executor's own evidence survives from `submit()` into `approve()`.
+
+    docs/master_plan.md item 11: `pending_approval`'s interrupted
+    checkpoint retains its control fields but not every opaque domain
+    value (see this module's own note on `_pending_details`), which is
+    exactly why `approve()` copies named fields from the cached pending
+    details rather than trusting a fresh checkpoint read alone. This
+    proves `selection_counts` and `sidecar_warnings` are two of those
+    named fields, not silently dropped on resume.
+    """
+    engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
+    session = RequestGraphSession(
+        engine=engine,
+        executor=_evidence_executor,
+        clock=_FakeClock(datetime(2026, 9, 21, tzinfo=UTC)),
+    )
+    pending = session.submit(**_submit_kwargs(request_id="r-1"))
+    assert pending["selection_counts"] == (
+        SelectionCount("copilot_selection", 7),
+    )
+    assert pending["sidecar_warnings"] == ("captured stderr",)
+
+    applying = session.approve(
+        session_id=_SESSION_ID, plan_id=cast(str, pending["plan_id"])
+    )
+
+    assert applying is not None
+    assert applying["selection_counts"] == pending["selection_counts"]
+    assert applying["sidecar_warnings"] == pending["sidecar_warnings"]
+    assert applying["target_object"] == pending["target_object"]
+    assert applying["attempt"] == pending["attempt"]
 
 
 def test_non_applicable_preview_cannot_be_approved() -> None:
