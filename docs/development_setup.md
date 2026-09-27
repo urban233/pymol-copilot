@@ -50,6 +50,47 @@ that a restore could not be verified, it halts and preserves the path it
 prints. Restart PyMOL, then load that exact file manually with PyMOL's `load`
 command; do not continue issuing Copilot commands in the halted process.
 
+## Running the server
+
+`bazel run //src/pmc_server:server` starts the production loopback server
+(docs/master_plan.md item 12): it connects to Lemonade at
+`http://localhost:13305` by default (`--lemonade-base-url` to point it
+elsewhere), and falls back to `UnavailableEngine` -- reported through
+`copilot_health`, never a crash -- if that connection fails. It writes the
+port and an ephemeral credential to `~/.pymol-copilot/session.json` (mode
+0600; `--handoff` to write elsewhere), the same private directory the
+recovery runbook above uses. From a PyMOL session, bootstrap the client
+against a running server with:
+
+```python
+from pmc_client.bootstrap import connect_from_handoff
+from pathlib import Path
+
+connect_from_handoff(
+    cmd, print, path=Path.home() / ".pymol-copilot" / "session.json"
+)
+```
+
+Killing the server never endangers the live session: every command past
+that point reports one bounded `copilot: loopback request failed` line
+(or, if a request was already approved and applying, a queued outcome
+report retried on the next command) rather than raising, and no partial
+recovery state is ever left behind by a request that never reached apply.
+
+## Recording latency
+
+`bazel run //tests/e2e:record_latency -- --repetitions 11` drives the
+scenario 1 happy path against real headless PyMOL and a real loopback
+server (with a scripted engine by default; pass `--lemonade-base-url` to
+time one real `generate` call per repetition against a running Lemonade
+server), and once more through a deliberate mid-apply failure to measure
+recovery. It prints the resulting p50/p95-per-stage table and writes it to
+`results/latency-<platform>-<node>.md` (ignored; regenerate on demand).
+Paste that table into [docs/latency.md](latency.md) under a heading naming
+this machine, alongside any prior machines' own recordings --
+[SPECIFICATION.md:157](../SPECIFICATION.md#L157): *"Report p50 stage
+latency; no fixed pass/fail budget."*
+
 ## Training dependencies
 
 `SPECIFICATION.md:285-286` requires that runtime dependencies coexist with

@@ -1,5 +1,5 @@
-load("@rules_python//python:py_test.bzl", "py_test")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 # The shared real-PyMOL harness for every module in this package: the
 # real_pymol/loaded_fixture fixtures, ConsoleDriver, SessionFingerprint,
@@ -56,6 +56,34 @@ py_test(
     ],
     # Launches real headless PyMOL; excluded from concurrent scheduling
     # for the same reason as every real-PyMOL target in this package.
+    tags = ["exclusive"],
+    deps = [
+        ":scenario_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "server_unavailable_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_server_unavailable_real_pymol.py"],
+    main = "test_server_unavailable_real_pymol.py",
+    data = [
+        "conftest.py",
+        "//tests/integration:two_chain_fixture",
+    ],
+    # Launches real headless PyMOL and spawns a real second process
+    # (the production server entrypoint) that it kills mid-test; excluded
+    # from concurrent scheduling for the same reason as every real-PyMOL
+    # target in this package.
     tags = ["exclusive"],
     deps = [
         ":scenario_support",
