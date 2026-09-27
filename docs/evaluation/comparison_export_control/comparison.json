@@ -1,0 +1,4644 @@
+{
+  "baseline": {
+    "config": "baseline.json",
+    "config_sha256": "16eb7a912db58783495d2859365a32b4d4135afa116a08162deaa7132eda021a",
+    "gguf_sha256": "3f5a22426976ab26cfe84dba63c1d08391717abb1af893e10f1b2968d862dcc1",
+    "git_commit": "0f05b4253738f7f2fc57505e3aa07aea2e29b066",
+    "model_identity": "Llama-3.2-1B-Instruct-Q4_K_M@unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "published": "baseline",
+    "runs": {
+      "heldout_synthetic/grammar": "1b7e2c6dd6d61213",
+      "heldout_synthetic/no-grammar": "69db8b93d1baec7f",
+      "test_gold/grammar": "83609013ef4fe9cb",
+      "test_gold/no-grammar": "44cb1275be891367"
+    }
+  },
+  "candidate": {
+    "config": "export_control.json",
+    "config_sha256": "6de508057e99c80c9afba637e6967254cf8acc7dcc4dd3eec819f9be51ef3acd",
+    "gguf_sha256": "5334a2b3423e317b4c9caf416c1e84de223336f62933ed8aa5b18233b4556948",
+    "git_commit": "6eb4d74a01e6d9470f4d5ca5749d32ffddfbe083",
+    "model_identity": "Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M@/models/export-control/Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M.gguf",
+    "published": "export_control",
+    "runs": {
+      "test_gold/grammar": "39ddfd9293ea77f8",
+      "test_gold/no-grammar": "fe90320b5bba900d"
+    }
+  },
+  "compare_version": 1,
+  "sets": {
+    "test_gold": {
+      "grammar": {
+        "breakouts": {
+          "category": {
+            "color+select+show/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/chain+resn/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/resi/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/chain+resi/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/chain+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/name+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resn/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resn/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+show/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+hetatm/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+name+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+name/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/resn/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/chain+hetatm/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/name/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain+hetatm/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain+name/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/hetatm+resn/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/hetatm/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+hetatm/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+name/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resi/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resn/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "difficulty": {
+            "advanced": {
+              "baseline": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "delta": 0.0
+            },
+            "basic": {
+              "baseline": {
+                "k": 0,
+                "n": 17,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.184318
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 17,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.184318
+                ]
+              },
+              "delta": 0.0
+            },
+            "intermediate": {
+              "baseline": {
+                "k": 0,
+                "n": 32,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.107179
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 32,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.107179
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "shape": {
+            "and": {
+              "baseline": {
+                "k": 0,
+                "n": 9,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.299145
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 9,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.299145
+                ]
+              },
+              "delta": 0.0
+            },
+            "and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "delta": 0.0
+            },
+            "and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "delta": 0.0
+            },
+            "or": {
+              "baseline": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "delta": 0.0
+            },
+            "single": {
+              "baseline": {
+                "k": 0,
+                "n": 38,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.09181
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 38,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.09181
+                ]
+              },
+              "delta": 0.0
+            },
+            "single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "spec": {
+            "altloc_two_residues": {
+              "baseline": {
+                "k": 0,
+                "n": 8,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.324408
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 8,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.324408
+                ]
+              },
+              "delta": 0.0
+            },
+            "everything_bonded": {
+              "baseline": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "delta": 0.0
+            },
+            "insertion_codes_two_chains": {
+              "baseline": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "delta": 0.0
+            },
+            "longer_two_chains": {
+              "baseline": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "delta": 0.0
+            },
+            "three_states": {
+              "baseline": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "delta": 0.0
+            },
+            "two_chains_hetatm": {
+              "baseline": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "term": {
+            "chain": {
+              "baseline": {
+                "k": 0,
+                "n": 29,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.11697
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 29,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.11697
+                ]
+              },
+              "delta": 0.0
+            },
+            "hetatm": {
+              "baseline": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "delta": 0.0
+            },
+            "name": {
+              "baseline": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "delta": 0.0
+            },
+            "resi": {
+              "baseline": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "delta": 0.0
+            },
+            "resn": {
+              "baseline": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "verb_set": {
+            "color": {
+              "baseline": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select": {
+              "baseline": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show": {
+              "baseline": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+show": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide": {
+              "baseline": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select": {
+              "baseline": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show": {
+              "baseline": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select": {
+              "baseline": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "delta": 0.0
+            },
+            "show": {
+              "baseline": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "delta": 0.0
+            }
+          }
+        },
+        "outcomes": {
+          "baseline": {
+            "abstained": 0,
+            "denied_hostile": 0,
+            "denied_policy": 0,
+            "executed_wrong": 0,
+            "execution_failed": 0,
+            "success": 0,
+            "syntax_invalid": 0,
+            "truncated": 68
+          },
+          "candidate": {
+            "abstained": 0,
+            "denied_hostile": 0,
+            "denied_policy": 0,
+            "executed_wrong": 0,
+            "execution_failed": 0,
+            "success": 0,
+            "syntax_invalid": 0,
+            "truncated": 68
+          }
+        },
+        "overall": {
+          "**TaskSuccess**": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Abstention (false)": {
+            "baseline": {
+              "by_construction": true,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "by_construction": true,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Empty selection, executed plans": {
+            "baseline": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "unknown": 0,
+              "wilson": null
+            },
+            "candidate": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "unknown": 0,
+              "wilson": null
+            },
+            "delta": null
+          },
+          "Policy-denied, attempt 1": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Repair to TaskSuccess": {
+            "baseline": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "candidate": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "delta": null
+          },
+          "Repair to a valid plan": {
+            "baseline": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "candidate": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "delta": null
+          },
+          "Syntax-valid, attempt 1": {
+            "baseline": {
+              "k": 7,
+              "n": 68,
+              "rate": 0.102941,
+              "wilson": [
+                0.050766,
+                0.197579
+              ]
+            },
+            "candidate": {
+              "k": 6,
+              "n": 68,
+              "rate": 0.088235,
+              "wilson": [
+                0.041068,
+                0.179438
+              ]
+            },
+            "delta": -0.014706
+          },
+          "TaskSuccess, attempt 1": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "TaskSuccess, fully graded samples": {
+            "baseline": {
+              "k": 0,
+              "n": 62,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.058344
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 62,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.058344
+              ]
+            },
+            "delta": 0.0
+          },
+          "TaskSuccess, non-vacuous samples": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Truncated": {
+            "baseline": {
+              "k": 68,
+              "n": 68,
+              "rate": 1.0,
+              "wilson": [
+                0.946529,
+                1.0
+              ]
+            },
+            "candidate": {
+              "k": 68,
+              "n": 68,
+              "rate": 1.0,
+              "wilson": [
+                0.946529,
+                1.0
+              ]
+            },
+            "delta": 0.0
+          },
+          "— of which hostile screen": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "— of which policy": {
+            "baseline": {
+              "by_construction": true,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "by_construction": true,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          }
+        },
+        "paired_task_success": {
+          "both_succeed": 0,
+          "final_outcome_changed": 0,
+          "mcnemar_exact_p": 1.0,
+          "n": 68,
+          "neither_succeeds": 68,
+          "only_baseline_succeeds": 0,
+          "only_candidate_succeeds": 0
+        }
+      },
+      "no-grammar": {
+        "breakouts": {
+          "category": {
+            "color+select+show/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/chain+resn/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/resi/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/chain+resi/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/chain+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/name+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resn/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select/resn/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+show/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+hetatm/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+name+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+name/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/chain/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/resn/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "color/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/chain+hetatm/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/name/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain+hetatm/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain+name/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/chain/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/hetatm+resn/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/hetatm/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+hetatm/and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+name/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+resi/and": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain+resn/and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/chain/single": {
+              "baseline": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 2,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.65762
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/hetatm/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/name/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resi/or": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resi/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resn/single": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "show/resn/single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "difficulty": {
+            "advanced": {
+              "baseline": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "delta": 0.0
+            },
+            "basic": {
+              "baseline": {
+                "k": 0,
+                "n": 17,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.184318
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 17,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.184318
+                ]
+              },
+              "delta": 0.0
+            },
+            "intermediate": {
+              "baseline": {
+                "k": 0,
+                "n": 32,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.107179
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 32,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.107179
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "shape": {
+            "and": {
+              "baseline": {
+                "k": 0,
+                "n": 9,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.299145
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 9,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.299145
+                ]
+              },
+              "delta": 0.0
+            },
+            "and+not": {
+              "baseline": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "delta": 0.0
+            },
+            "and_or": {
+              "baseline": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "delta": 0.0
+            },
+            "or": {
+              "baseline": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "delta": 0.0
+            },
+            "single": {
+              "baseline": {
+                "k": 0,
+                "n": 38,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.09181
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 38,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.09181
+                ]
+              },
+              "delta": 0.0
+            },
+            "single+not": {
+              "baseline": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "spec": {
+            "altloc_two_residues": {
+              "baseline": {
+                "k": 0,
+                "n": 8,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.324408
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 8,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.324408
+                ]
+              },
+              "delta": 0.0
+            },
+            "everything_bonded": {
+              "baseline": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "delta": 0.0
+            },
+            "insertion_codes_two_chains": {
+              "baseline": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "delta": 0.0
+            },
+            "longer_two_chains": {
+              "baseline": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 14,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.215311
+                ]
+              },
+              "delta": 0.0
+            },
+            "three_states": {
+              "baseline": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "delta": 0.0
+            },
+            "two_chains_hetatm": {
+              "baseline": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "term": {
+            "chain": {
+              "baseline": {
+                "k": 0,
+                "n": 29,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.11697
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 29,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.11697
+                ]
+              },
+              "delta": 0.0
+            },
+            "hetatm": {
+              "baseline": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "delta": 0.0
+            },
+            "name": {
+              "baseline": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "delta": 0.0
+            },
+            "resi": {
+              "baseline": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 15,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.203883
+                ]
+              },
+              "delta": 0.0
+            },
+            "resn": {
+              "baseline": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 19,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.168179
+                ]
+              },
+              "delta": 0.0
+            }
+          },
+          "verb_set": {
+            "color": {
+              "baseline": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 13,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.228095
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select": {
+              "baseline": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+select+show": {
+              "baseline": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 7,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.35433
+                ]
+              },
+              "delta": 0.0
+            },
+            "color+show": {
+              "baseline": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 1,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.793451
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide": {
+              "baseline": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 10,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.277533
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+select": {
+              "baseline": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 5,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.434482
+                ]
+              },
+              "delta": 0.0
+            },
+            "hide+show": {
+              "baseline": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 4,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.489891
+                ]
+              },
+              "delta": 0.0
+            },
+            "orient+select": {
+              "baseline": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 6,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.390334
+                ]
+              },
+              "delta": 0.0
+            },
+            "show": {
+              "baseline": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "candidate": {
+                "k": 0,
+                "n": 12,
+                "rate": 0.0,
+                "wilson": [
+                  0.0,
+                  0.242494
+                ]
+              },
+              "delta": 0.0
+            }
+          }
+        },
+        "outcomes": {
+          "baseline": {
+            "abstained": 0,
+            "denied_hostile": 1,
+            "denied_policy": 0,
+            "executed_wrong": 0,
+            "execution_failed": 0,
+            "success": 0,
+            "syntax_invalid": 0,
+            "truncated": 67
+          },
+          "candidate": {
+            "abstained": 0,
+            "denied_hostile": 0,
+            "denied_policy": 0,
+            "executed_wrong": 0,
+            "execution_failed": 0,
+            "success": 0,
+            "syntax_invalid": 0,
+            "truncated": 68
+          }
+        },
+        "overall": {
+          "**TaskSuccess**": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Abstention (false)": {
+            "baseline": {
+              "by_construction": false,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "by_construction": false,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Empty selection, executed plans": {
+            "baseline": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "unknown": 0,
+              "wilson": null
+            },
+            "candidate": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "unknown": 0,
+              "wilson": null
+            },
+            "delta": null
+          },
+          "Policy-denied, attempt 1": {
+            "baseline": {
+              "k": 1,
+              "n": 68,
+              "rate": 0.014706,
+              "wilson": [
+                0.002601,
+                0.07871
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": -0.014706
+          },
+          "Repair to TaskSuccess": {
+            "baseline": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "candidate": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "delta": null
+          },
+          "Repair to a valid plan": {
+            "baseline": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "candidate": {
+              "k": 0,
+              "n": 0,
+              "rate": null,
+              "wilson": null
+            },
+            "delta": null
+          },
+          "Syntax-valid, attempt 1": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "TaskSuccess, attempt 1": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "TaskSuccess, fully graded samples": {
+            "baseline": {
+              "k": 0,
+              "n": 62,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.058344
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 62,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.058344
+              ]
+            },
+            "delta": 0.0
+          },
+          "TaskSuccess, non-vacuous samples": {
+            "baseline": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          },
+          "Truncated": {
+            "baseline": {
+              "k": 67,
+              "n": 68,
+              "rate": 0.985294,
+              "wilson": [
+                0.92129,
+                0.997399
+              ]
+            },
+            "candidate": {
+              "k": 68,
+              "n": 68,
+              "rate": 1.0,
+              "wilson": [
+                0.946529,
+                1.0
+              ]
+            },
+            "delta": 0.014706
+          },
+          "— of which hostile screen": {
+            "baseline": {
+              "k": 1,
+              "n": 68,
+              "rate": 0.014706,
+              "wilson": [
+                0.002601,
+                0.07871
+              ]
+            },
+            "candidate": {
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": -0.014706
+          },
+          "— of which policy": {
+            "baseline": {
+              "by_construction": true,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "candidate": {
+              "by_construction": true,
+              "k": 0,
+              "n": 68,
+              "rate": 0.0,
+              "wilson": [
+                0.0,
+                0.053471
+              ]
+            },
+            "delta": 0.0
+          }
+        },
+        "paired_task_success": {
+          "both_succeed": 0,
+          "final_outcome_changed": 1,
+          "mcnemar_exact_p": 1.0,
+          "n": 68,
+          "neither_succeeds": 68,
+          "only_baseline_succeeds": 0,
+          "only_candidate_succeeds": 0
+        }
+      }
+    }
+  },
+  "title": "Export-pipeline control against the untuned baseline"
+}

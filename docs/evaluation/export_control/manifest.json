@@ -1,0 +1,61 @@
+{
+  "config_sha256": "6de508057e99c80c9afba637e6967254cf8acc7dcc4dd3eec819f9be51ef3acd",
+  "files": {
+    "test_gold/grammar/report.json": {
+      "bytes": 234141,
+      "records": 11736,
+      "sha256": "089d2a838aba66da5e44a6dba135ebf3b6bbcfc34397e814337c3fe2fb069170"
+    },
+    "test_gold/grammar/run.json": {
+      "bytes": 2527,
+      "records": 54,
+      "sha256": "be9bde7e400fa68b03030d1296faff17c2ab72b6086cdaab75320fa6a7c24f30"
+    },
+    "test_gold/grammar/samples.jsonl": {
+      "bytes": 89341,
+      "records": 68,
+      "sha256": "8daa40b9244152b3220cd7ec62882c2eb3c8d3833d9f4ec6095ec073fabce7a0"
+    },
+    "test_gold/grammar/timings.jsonl": {
+      "bytes": 8267,
+      "records": 68,
+      "sha256": "a0d238feb6a74a8768b6bf0718c73cc22f7ca2a336ff0adc5dd5d9bd7c7d224f"
+    },
+    "test_gold/no-grammar/report.json": {
+      "bytes": 234068,
+      "records": 11736,
+      "sha256": "f4d321e043c130623f41c97a50aa74ae9af23484a842a2b7eebcf3dae194b7f8"
+    },
+    "test_gold/no-grammar/run.json": {
+      "bytes": 2533,
+      "records": 54,
+      "sha256": "30cfcbf01b6c03c10b8271d8d095859019bc3078c75a814bf00bdf27e33deb91"
+    },
+    "test_gold/no-grammar/samples.jsonl": {
+      "bytes": 109883,
+      "records": 68,
+      "sha256": "0dfb85da5b266a1b9372951653cf92071b1a4a6a5550480f51c4e6960c6cfadf"
+    },
+    "test_gold/no-grammar/timings.jsonl": {
+      "bytes": 8481,
+      "records": 68,
+      "sha256": "4fcb9ff536573aa5ca8bbd3546f9d018cf9f141f9f796009e3305ffb515c61ac"
+    }
+  },
+  "git_commit": "6eb4d74a01e6d9470f4d5ca5749d32ffddfbe083",
+  "model_identity": "Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M@/models/export-control/Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M.gguf",
+  "publish_version": 1,
+  "runs": [
+    {
+      "condition": "grammar",
+      "run_id": "39ddfd9293ea77f8",
+      "set": "test_gold"
+    },
+    {
+      "condition": "no-grammar",
+      "run_id": "fe90320b5bba900d",
+      "set": "test_gold"
+    }
+  ],
+  "split_id": "e4599620801af592"
+}
