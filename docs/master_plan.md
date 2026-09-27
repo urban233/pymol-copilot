@@ -596,8 +596,23 @@ rests on.
   SSE keep-alive, the GGUF path a pulled model reports as its
   streamed model id, and the `gpu` device Lemonade reports for a CUDA
   engine (fixed in `src/pmc_agent/inference/lemonade.py`).
-- **Note for item 19:** the longest held-out prompt is 5,495 tokens, so
-  the runtime adapter's default 4096-token context cannot serve it.
+- **Note for item 17:** the base model is now fixed, and the comparison
+  holds everything but the weights fixed (see
+  [docs/evaluation/README.md](evaluation/README.md)). Training's
+  sequence length must cover the longest prompt, 5,495 tokens, plus its
+  target; prompts must be rendered with the chat template's date pinned
+  to `26 Jul 2024`, as the engine renders them; every target ends in a
+  newline; and the tuned model is exported as a Q4_K_M GGUF.
+- **Note for item 19 (Hannah):** four gaps between the runtime and what
+  the baseline measured:
+  - the longest held-out prompt is 5,495 tokens, so the runtime
+    adapter's default 4096-token context cannot serve it;
+  - the graph's default prompt builder is a placeholder, not the
+    training prompt; `pmc_eval.prompt.contract_prompt` is the drop-in
+    replacement;
+  - the graph sends no grammar to the engine;
+  - `parse_pml` rejects a plan without a final newline, which a chat
+    model rarely writes; the harness appends one, the runtime does not.
 
 ### 17. Fine-tuning
 
