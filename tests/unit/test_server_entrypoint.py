@@ -167,7 +167,13 @@ def test_write_handoff_never_chmods_a_pre_existing_directory(
 def test_write_handoff_chmods_a_directory_it_creates_itself(
     tmp_path: Path,
 ) -> None:
-    """A directory `write_handoff` creates fresh is still made private."""
+    """A directory `write_handoff` creates fresh is still made private.
+
+    `--handoff` can name a path under more than one not-yet-existing
+    ancestor (`mkdir(parents=True)` then creates every level in one call),
+    so both the leaf directory and the intermediate one it creates along
+    the way must end up private, not just the leaf.
+    """
     directory = tmp_path / "brand-new" / "nested"
 
     server_main.write_handoff(
@@ -176,6 +182,7 @@ def test_write_handoff_chmods_a_directory_it_creates_itself(
 
     if os.name != "nt":
         assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+        assert stat.S_IMODE(directory.parent.stat().st_mode) == 0o700
 
 
 def test_write_handoff_creates_the_staged_file_already_restricted(
@@ -290,6 +297,43 @@ def test_remove_handoff_if_own_survives_a_racing_replace(
     assert path.exists()
     payload = json.loads(path.read_text())
     assert payload["pid"] == 2222
+
+
+def test_remove_handoff_if_own_never_clobbers_a_third_servers_handoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A third server's handoff, installed mid-restore, is never overwritten.
+
+    Server A owns `claimed` as B's rescued file (B's own pid mismatches A's,
+    so A is about to put B's file back). Right before that restore lands, a
+    third server C starts and writes its own live handoff to `path`. The
+    restore must not clobber C's fresher handoff with B's stale one.
+    """
+    path = tmp_path / "session.json"
+    server_main.write_handoff(path, port=1, credential="a" * 43, pid=1111)
+    server_main.write_handoff(path, port=2, credential="b" * 43, pid=2222)
+    real_link = os.link
+    raced = False
+
+    def racing_link(src: Path, dst: Path) -> None:
+        nonlocal raced
+        if not raced and dst == path:
+            raced = True
+            # Server C installs its own live handoff right here, in the
+            # window between A's rename-away and this restore attempt.
+            server_main.write_handoff(
+                path, port=3, credential="c" * 43, pid=3333
+            )
+        real_link(src, dst)
+
+    monkeypatch.setattr(server_main.os, "link", racing_link)
+
+    server_main.remove_handoff_if_own(path, pid=1111)
+
+    assert raced
+    assert path.exists()
+    payload = json.loads(path.read_text())
+    assert payload["pid"] == 3333
 
 
 def test_remove_handoff_if_own_tolerates_a_missing_file(

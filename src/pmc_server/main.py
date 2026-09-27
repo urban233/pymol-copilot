@@ -24,7 +24,6 @@ recovery points.
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import secrets
@@ -103,16 +102,22 @@ def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
             mode 0600 on a platform that enforces POSIX permissions.
     """
     directory = path.parent
-    # Only chmod a directory this call itself creates: `--handoff` can name
+    # Only chmod directories this call itself creates: `--handoff` can name
     # any path (the current directory, the user's home directory, `/tmp`),
     # and unconditionally chmodding a pre-existing one would either mutate a
     # directory this process does not own or, when it isn't owned by the
     # current user, raise PermissionError and crash the server right after
-    # it started.
-    directory_already_existed = directory.exists()
+    # it started. `mkdir(parents=True)` can create more than one level (e.g.
+    # a `--handoff` under a not-yet-existing grandparent), so every level it
+    # creates is walked and chmodded, not just the immediate parent.
+    created_ancestors = []
+    probe = directory
+    while not probe.exists():
+        created_ancestors.append(probe)
+        probe = probe.parent
     directory.mkdir(parents=True, exist_ok=True)
-    if not directory_already_existed:
-        os.chmod(directory, _DIRECTORY_MODE)
+    for created in created_ancestors:
+        os.chmod(created, _DIRECTORY_MODE)
     payload = json.dumps(
         {
             "host": "127.0.0.1",
@@ -185,8 +190,26 @@ def remove_handoff_if_own(path: Path, *, pid: int) -> None:
     if isinstance(payload, dict) and payload.get("pid") == pid:
         claimed.unlink(missing_ok=True)
     else:
-        with contextlib.suppress(OSError):
-            os.replace(claimed, path)
+        # Restored via `os.link`, not `os.replace`: a *third* server could
+        # have written its own live handoff to `path` in the gap between
+        # this function's rename above and the restore here, and
+        # `os.replace` would silently clobber it. `os.link` only adds a
+        # second directory entry for the same inode and raises
+        # `FileExistsError` instead of overwriting, so a third server's
+        # fresher handoff is left untouched.
+        try:
+            os.link(claimed, path)
+        except FileExistsError:
+            # A third server's own handoff is already live at `path`;
+            # this process's rescued copy is now redundant.
+            claimed.unlink(missing_ok=True)
+        except OSError:
+            # Could not restore `path` for some other reason. Leave the
+            # rescued copy at `claimed` rather than deleting the only
+            # remaining copy of a live server's handoff.
+            pass
+        else:
+            claimed.unlink(missing_ok=True)
 
 
 def serve(
