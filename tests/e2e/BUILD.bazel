@@ -1,3 +1,4 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
@@ -143,6 +144,49 @@ py_test(
         "//tests/integration:preview_support",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_agent/inference:inference",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+        "//tools/winstage:winstage",
+    ],
+)
+
+# p50/p95 latency arithmetic and note rendering (docs/master_plan.md item
+# 12): kept PyMOL-free so it is checked cheaply on every CI run.
+# record_latency.py, which actually drives a real scenario, is the
+# py_binary below, not a test.
+py_library(
+    name = "latency_lib",
+    srcs = ["latency.py"],
+    imports = ["."],
+    visibility = ["//tests/e2e:__pkg__"],
+)
+
+py_test(
+    name = "latency",
+    size = "small",
+    srcs = ["test_latency.py"],
+    main = "test_latency.py",
+    deps = [
+        ":latency_lib",
+        "@pypi//pytest",
+    ],
+)
+
+# Not a test: run by hand (or before a demo) to record this machine's own
+# p50/p95 per stage. Writes results/latency-<platform>-<node>.md (ignored)
+# via BUILD_WORKSPACE_DIRECTORY, the same shape as
+# tests/integration:capture_color_indices, and prints the same table to
+# stdout for pasting into the tracked docs/latency.md.
+py_binary(
+    name = "record_latency",
+    srcs = ["record_latency.py"],
+    main = "record_latency.py",
+    deps = [
+        ":latency_lib",
+        ":scenario_support",
+        "@pypi//pymol_open_source_whl",
+        "//src/pmc_agent:pmc_agent",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",
         "//src/pmc_server:pmc_server",
