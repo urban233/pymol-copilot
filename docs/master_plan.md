@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-27 (item 12 update)
+**Written:** 2026-09-16 · **State as of:** 2026-09-27 (items 12 and 16 done)
 
 Every item carries a **State**. The values are:
 
@@ -98,14 +98,14 @@ Every item carries a **State**. The values are:
 | 9 | Inference abstraction and Lemonade | Hannah | **done** — PR #46 | 0 ✓, 1 ✓, 8 ✓ | 12, 16, 19 |
 | 10 | Approval, apply, recovery | Hannah | **done** — PR #51 | 2 ✓, 3 ✓, 7 ✓, 8 ✓ | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **done** — PR #55 | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
-| 12 | End-to-end suite | Hannah | **in progress** — branch `feat/end-to-end-suite` | 9 ✓, 10 ✓, 11 ✓ | 19 |
+| 12 | End-to-end suite | Hannah | **done** — PR #57 | 9 ✓, 10 ✓, 11 ✓ | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
 | 17 | Fine-tuning | Martin | **ready** | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16 ✓, 17 | — |
-| 19 | Integration | Joint | **blocked** | 12, 17 | — |
+| 19 | Integration | Joint | **blocked** | 12 ✓, 17 | — |
 
 ### The graph
 
@@ -129,7 +129,7 @@ flowchart LR
   I9["9 · inference"]:::done
   I10["10 · apply and recovery"]:::done
   I11["11 · output"]:::done
-  I12["12 · end-to-end suite"]:::progress
+  I12["12 · end-to-end suite"]:::done
   I13["13 · prompt builder"]:::done
   I14["14 · dataset"]:::done
   I15["15 · gold set"]:::done
@@ -200,11 +200,12 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 - **Item 11 is merged as PR #55.** It adds the full preview block, derived
   warnings and selection counts on the wire, `copilot_health`, and a
   bounded, actionable message on every client failure path.
-- **Item 12 is in progress on `feat/end-to-end-suite`.** Its plan
+- **Item 12 is merged as PR #57.** Its plan
   ([plans/12-end-to-end-suite.md](../plans/12-end-to-end-suite.md)) also
-  builds the production server entrypoint (`src/pmc_server/main.py`,
+  built the production server entrypoint (`src/pmc_server/main.py`,
   `src/pmc_client/bootstrap.py`) item 11 left unbuilt, since the "server
-  unavailable" scenario needed a real process to kill.
+  unavailable" scenario needed a real process to kill. Item 19 now waits
+  only on item 17.
 - **Item 16 is done as PR #58.** It adds the offline eval harness and
   records the untuned baseline: TaskSuccess 0/68 on `test_gold` under
   both conditions. Item 17 is now ready; its inherited constraints are
@@ -485,7 +486,7 @@ text leaking through an error.
 
 ### 12. End-to-end suite
 
-**Size:** ~3 days · **State:** ready
+**Size:** ~3 days · **State:** done (PR #57) — plan in [plans/12-end-to-end-suite.md](../plans/12-end-to-end-suite.md)
 
 ```
 Write end-to-end scenarios against real headless PyMOL: one intent through
@@ -502,7 +503,9 @@ the Lemonade probe falling back to `UnavailableEngine` (item 11) when it
 cannot connect, and the port and credential hand-off to PyMOL — is not
 built yet; this item's own "server unavailable" scenario needs one, and
 sizing it is this item's own job, not a silent assumption carried over
-from item 11.
+from item 11. PR #57 built it as `src/pmc_server/main.py` and
+`src/pmc_client/bootstrap.py`, and recorded the per-stage latency in
+[latency.md](latency.md).
 
 ---
 
@@ -666,7 +669,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** blocked on 12, 17
+**Size:** ~3 days · **State:** blocked on 17
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
