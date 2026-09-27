@@ -245,6 +245,53 @@ def test_remove_handoff_if_own_never_deletes_a_second_servers_handoff(
     assert payload["port"] == 2
 
 
+def test_remove_handoff_if_own_survives_a_racing_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second server's own handoff, installed mid-removal, is never deleted.
+
+    A tighter form of Martin's own scenario above: instead of server B
+    overwriting the path before A's removal even starts, B's own
+    `os.replace` lands in the gap a plain read-then-unlink can't close --
+    right after A has renamed its own file out of the way (confirming
+    ownership) but before A has actually deleted anything. A plain
+    `path.unlink()` at that point would delete whatever B just installed;
+    the rename-first fix means A only ever deletes the private copy it
+    already renamed away and re-confirmed as its own.
+    """
+    path = tmp_path / "session.json"
+    server_main.write_handoff(path, port=1, credential="a" * 43, pid=1111)
+    real_replace = os.replace
+    raced = False
+
+    def racing_replace(src: Path, dst: Path) -> None:
+        nonlocal raced
+        real_replace(src, dst)
+        if not raced and src == path:
+            raced = True
+            # Server B installs its own live handoff right here, in the
+            # window remove_handoff_if_own's rename-first fix closes.
+            path.write_text(
+                json.dumps(
+                    {
+                        "host": "127.0.0.1",
+                        "port": 2,
+                        "credential": "b" * 43,
+                        "pid": 2222,
+                    }
+                )
+            )
+
+    monkeypatch.setattr(server_main.os, "replace", racing_replace)
+
+    server_main.remove_handoff_if_own(path, pid=1111)
+
+    assert raced
+    assert path.exists()
+    payload = json.loads(path.read_text())
+    assert payload["pid"] == 2222
+
+
 def test_remove_handoff_if_own_tolerates_a_missing_file(
     tmp_path: Path,
 ) -> None:
@@ -517,6 +564,100 @@ def test_process_is_running_is_false_for_a_dead_process() -> None:
     from pmc_client.bootstrap import _process_is_running
 
     assert not _process_is_running(_dead_pid())
+
+
+def test_windows_process_is_running_is_true_on_access_denied() -> None:
+    """A NULL handle from ERROR_ACCESS_DENIED still means "running".
+
+    Martin's own first scenario: the target runs under a different
+    account or at a higher integrity level, so `OpenProcess` fails, but
+    the process genuinely exists. Treating every `OpenProcess` failure as
+    "gone" would refuse a live server with "no longer running".
+    """
+    from pmc_client.bootstrap import _ERROR_ACCESS_DENIED
+    from pmc_client.bootstrap import _windows_process_is_running
+
+    assert _windows_process_is_running(
+        4242,
+        open_process=lambda _pid: 0,
+        get_exit_code_process=lambda _handle: None,
+        close_handle=lambda _handle: None,
+        get_last_error=lambda: _ERROR_ACCESS_DENIED,
+    )
+
+
+def test_windows_process_is_running_is_false_on_other_open_failures() -> None:
+    """A NULL handle from any other error means the process is gone."""
+    from pmc_client.bootstrap import _windows_process_is_running
+
+    assert not _windows_process_is_running(
+        4242,
+        open_process=lambda _pid: 0,
+        get_exit_code_process=lambda _handle: None,
+        close_handle=lambda _handle: None,
+        get_last_error=lambda: 87,  # ERROR_INVALID_PARAMETER
+    )
+
+
+def test_windows_process_is_running_checks_the_exit_code() -> None:
+    """A valid handle to an already-exited process is still "not running".
+
+    Martin's own second scenario: the target crashed, but some parent (a
+    `Popen` launcher, for instance) still holds its process handle, so
+    `OpenProcess` succeeds even though the process itself is gone.
+    Treating any returned handle as "running" would accept a stale
+    handoff naming a dead port.
+    """
+    from pmc_client.bootstrap import _windows_process_is_running
+
+    closed: list[int] = []
+
+    assert not _windows_process_is_running(
+        4242,
+        open_process=lambda _pid: 99,
+        get_exit_code_process=lambda _handle: 0,  # exited cleanly
+        close_handle=closed.append,
+        get_last_error=lambda: 0,
+    )
+    assert closed == [99]
+
+
+def test_windows_process_is_running_is_true_for_still_active() -> None:
+    """A valid handle whose exit code is STILL_ACTIVE means "running"."""
+    from pmc_client.bootstrap import _STILL_ACTIVE
+    from pmc_client.bootstrap import _windows_process_is_running
+
+    closed: list[int] = []
+
+    assert _windows_process_is_running(
+        4242,
+        open_process=lambda _pid: 99,
+        get_exit_code_process=lambda _handle: _STILL_ACTIVE,
+        close_handle=closed.append,
+        get_last_error=lambda: 0,
+    )
+    assert closed == [99]
+
+
+def test_windows_process_is_running_is_false_when_exit_code_call_fails() -> (
+    None
+):
+    """A failed `GetExitCodeProcess` call is not treated as "running".
+
+    There is nothing left to trust it on.
+    """
+    from pmc_client.bootstrap import _windows_process_is_running
+
+    closed: list[int] = []
+
+    assert not _windows_process_is_running(
+        4242,
+        open_process=lambda _pid: 99,
+        get_exit_code_process=lambda _handle: None,
+        close_handle=closed.append,
+        get_last_error=lambda: 0,
+    )
+    assert closed == [99]
 
 
 def test_connect_from_handoff_refuses_a_non_json_file(tmp_path: Path) -> None:

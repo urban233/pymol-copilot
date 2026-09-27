@@ -67,6 +67,69 @@ def _is_loopback_host(host: str) -> bool:
         return False
 
 
+#: Windows error and status codes `_windows_process_is_running` decides on.
+#: Named here, rather than as bare literals in that function, so a test can
+#: reference the same constants a fake supplies.
+_ERROR_ACCESS_DENIED = 5
+_STILL_ACTIVE = 259
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+
+def _windows_process_is_running(
+    pid: int,
+    *,
+    open_process: Callable[[int], int],
+    get_exit_code_process: Callable[[int], int | None],
+    close_handle: Callable[[int], None],
+    get_last_error: Callable[[], int],
+) -> bool:
+    """Decide process liveness from Windows API results, injected as calls.
+
+    A pure decision, factored out of `_process_is_running`'s Windows
+    branch, so its two failure modes -- an access-denied `OpenProcess`
+    call is not the same as a genuinely gone process, and a valid handle
+    is not by itself proof the process hasn't already exited -- can be
+    exercised with fakes from a non-Windows machine, rather than only
+    trusted by inspection until it runs on real Windows CI.
+
+    Args:
+        pid: The process id to check.
+        open_process: Given `pid`, returns a handle (nonzero on success),
+            wrapping `OpenProcess`.
+        get_exit_code_process: Given a handle, returns the process's exit
+            code, or `None` if the call itself failed, wrapping
+            `GetExitCodeProcess`.
+        close_handle: Closes a handle this function opened.
+        get_last_error: Returns the calling thread's last Windows error
+            code, wrapping `ctypes.get_last_error()`.
+
+    Returns:
+        True if the process still exists and has not exited; False
+        otherwise.
+    """
+    handle = open_process(pid)
+    if not handle:
+        # A process this account cannot even query still exists --
+        # matching the POSIX branch's own `PermissionError` -> True
+        # below, not treating every `OpenProcess` failure as "gone". Only
+        # ERROR_ACCESS_DENIED means that; anything else (for instance
+        # ERROR_INVALID_PARAMETER for an already-recycled pid) means it
+        # genuinely does not.
+        return get_last_error() == _ERROR_ACCESS_DENIED
+    try:
+        exit_code = get_exit_code_process(handle)
+        if exit_code is None:
+            return False
+        # A handle staying valid does not by itself mean the process is
+        # still running -- another process (a `Popen` launcher, for
+        # instance) can keep holding one after its target has already
+        # exited, and comparing the exit code against STILL_ACTIVE is
+        # what actually tells the two cases apart.
+        return exit_code == _STILL_ACTIVE
+    finally:
+        close_handle(handle)
+
+
 def _process_is_running(pid: int) -> bool:
     """Return whether a process with this pid currently exists.
 
@@ -77,9 +140,10 @@ def _process_is_running(pid: int) -> bool:
     `signal.CTRL_C_EVENT`/`CTRL_BREAK_EVENT` specially, and every other
     value, including 0, is passed to `TerminateProcess` -- so probing
     liveness that way would kill the very process being checked, or, once
-    its pid has been recycled, an unrelated one. `OpenProcess` is the
-    Windows-safe equivalent: a handle it returns is closed immediately and
-    never used to signal or terminate anything.
+    its pid has been recycled, an unrelated one. `OpenProcess` and
+    `GetExitCodeProcess` are the Windows-safe equivalent
+    (`_windows_process_is_running`): a handle they return is closed
+    immediately and never used to signal or terminate anything.
 
     Args:
         pid: The process id to check.
@@ -92,7 +156,6 @@ def _process_is_running(pid: int) -> bool:
         import ctypes
         from ctypes import wintypes
 
-        query_limited_information = 0x1000
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.OpenProcess.restype = wintypes.HANDLE
         kernel32.OpenProcess.argtypes = (
@@ -100,11 +163,31 @@ def _process_is_running(pid: int) -> bool:
             wintypes.BOOL,
             wintypes.DWORD,
         )
-        handle = kernel32.OpenProcess(query_limited_information, False, pid)
-        if not handle:
-            return False
-        kernel32.CloseHandle(handle)
-        return True
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.GetExitCodeProcess.argtypes = (
+            wintypes.HANDLE,
+            ctypes.POINTER(wintypes.DWORD),
+        )
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+
+        def _open_process(target_pid: int) -> int:
+            return kernel32.OpenProcess(
+                _PROCESS_QUERY_LIMITED_INFORMATION, False, target_pid
+            )
+
+        def _get_exit_code_process(handle: int) -> int | None:
+            exit_code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                return None
+            return exit_code.value
+
+        return _windows_process_is_running(
+            pid,
+            open_process=_open_process,
+            get_exit_code_process=_get_exit_code_process,
+            close_handle=kernel32.CloseHandle,
+            get_last_error=ctypes.get_last_error,
+        )
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

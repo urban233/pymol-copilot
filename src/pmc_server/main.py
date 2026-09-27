@@ -24,6 +24,7 @@ recovery points.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import secrets
@@ -159,12 +160,33 @@ def remove_handoff_if_own(path: Path, *, pid: int) -> None:
         path: The handoff file to remove.
         pid: This process's own OS process id.
     """
+    # Renamed onto a private, pid-named path first, rather than read then
+    # unlinked in two separate steps: a second server's own `os.replace`
+    # can land in the gap between this function's read and its unlink, and
+    # a plain `path.unlink()` afterward would then delete whatever THAT
+    # server just installed, not the (already-confirmed) file this process
+    # actually read -- exactly the bug this function exists to prevent, one
+    # step later than the check for it. `os.replace` (not `os.rename`) is
+    # atomic and overwrite-safe on both POSIX and Windows: whichever of
+    # this rename and a racing second server's own `os.replace(..., path)`
+    # reaches the filesystem first fully wins, so `claimed` always ends up
+    # holding one complete, uncorrupted file -- either this process's own,
+    # or (if the second server's replace won the race) the second
+    # server's, which is then put back untouched.
+    claimed = path.with_name(f".{path.name}-{pid}.claim")
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        os.replace(path, claimed)
+    except OSError:
         return
+    try:
+        payload = json.loads(claimed.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        payload = None
     if isinstance(payload, dict) and payload.get("pid") == pid:
-        path.unlink(missing_ok=True)
+        claimed.unlink(missing_ok=True)
+    else:
+        with contextlib.suppress(OSError):
+            os.replace(claimed, path)
 
 
 def serve(
