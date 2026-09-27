@@ -1,0 +1,80 @@
+{
+  "adapter": null,
+  "adapter_sha256": null,
+  "base_model": {
+    "repo": "unsloth/Llama-3.2-1B-Instruct",
+    "revision": "5a8abab4a5d6f164389b1079fb721cfab8d7126c"
+  },
+  "check": {
+    "mismatches": {},
+    "ok": true,
+    "reported": {
+      "general.basename": [
+        "None",
+        "'Llama-3.2-1B-Instruct'"
+      ],
+      "general.finetune": [
+        "None",
+        "'Instruct'"
+      ],
+      "general.name": [
+        "'pmc-export-control-Q4_K_M'",
+        "'Llama-3.2-1B-Instruct'"
+      ],
+      "general.quantized_by": [
+        "None",
+        "'Unsloth'"
+      ],
+      "general.repo_url": [
+        "None",
+        "'https://huggingface.co/unsloth'"
+      ],
+      "general.size_label": [
+        "'1.2B'",
+        "'1B'"
+      ],
+      "quantize.imatrix.chunks_count": [
+        "None",
+        "689"
+      ],
+      "quantize.imatrix.dataset": [
+        "None",
+        "'unsloth_calibration_Llama-3.2-1B-Instruct.txt'"
+      ],
+      "quantize.imatrix.entries_count": [
+        "None",
+        "112"
+      ],
+      "quantize.imatrix.file": [
+        "None",
+        "'Llama-3.2-1B-Instruct-GGUF/imatrix_unsloth.dat'"
+      ],
+      "tokenizer.ggml.add_sep_token": [
+        "False",
+        "None"
+      ]
+    },
+    "tensor_mismatches": [],
+    "tensor_type_differences": {}
+  },
+  "config_sha256": "8ac978136d4a2c439fb682f4f5dcf7b74da9416dba373f6f7a53bec01cbae4b8",
+  "file_type": "MOSTLY_Q4_K_M",
+  "gguf": "pmc-export-control-Q4_K_M.gguf",
+  "gguf_bytes": 807693920,
+  "gguf_sha256": "5f4df2964224fb0f1dce72f6c4e9590c2cb37f6f947e731022bf66dc65dd55e3",
+  "llama_cpp": {
+    "commit": "62acc89c26c66076cb72e049f307fbe93b8b9750",
+    "tag": "b10707"
+  },
+  "name": "pmc-export-control",
+  "pipeline": [
+    "no adapter",
+    "save_pretrained (safetensors)",
+    "convert_hf_to_gguf.py --outtype f16",
+    "llama-quantize Q4_K_M (no imatrix)"
+  ],
+  "reference": {
+    "path": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "sha256": "3f5a22426976ab26cfe84dba63c1d08391717abb1af893e10f1b2968d862dcc1"
+  }
+}
