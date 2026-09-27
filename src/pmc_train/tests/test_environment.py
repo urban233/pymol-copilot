@@ -63,7 +63,7 @@ def test_shared_code_imports_under_3_12(module: str) -> None:
 def test_importing_pmc_train_does_not_import_unsloth() -> None:
     """Unsloth is imported lazily, only by a GPU training run."""
     probe = (
-        "import sys, pmc_train;"
+        "import sys, pmc_train, pmc_train.config;"
         "assert 'unsloth' not in sys.modules, 'unsloth imported'"
     )
     subprocess.run(

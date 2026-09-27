@@ -1,0 +1,53 @@
+{
+  "base_model": {
+    "repo": "unsloth/Llama-3.2-1B-Instruct",
+    "revision": "5a8abab4a5d6f164389b1079fb721cfab8d7126c",
+    "safetensors_sha256": "1ff795ff6a07e6a68085d206fb84417da2f083f68391c2843cd2b8ac6df8538f"
+  },
+  "chat_template_date": "26 Jul 2024",
+  "data_seed": 20260928,
+  "export": {
+    "base_gguf": {
+      "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "repo": "unsloth/Llama-3.2-1B-Instruct-GGUF",
+      "revision": "b69aef112e9f895e6f98d7ae0949f72ff09aa401",
+      "sha256": "3f5a22426976ab26cfe84dba63c1d08391717abb1af893e10f1b2968d862dcc1"
+    },
+    "llama_cpp_tag": "b10707",
+    "quantization": "Q4_K_M"
+  },
+  "gradient_checkpointing": "unsloth",
+  "logging_steps": 1,
+  "lora": {
+    "alpha": 32,
+    "dropout": 0.0,
+    "r": 16,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  },
+  "max_seq_length": 16384,
+  "optimizer": {
+    "epochs": 2,
+    "gradient_accumulation_steps": 16,
+    "learning_rate": 0.0002,
+    "lr_scheduler": "cosine",
+    "max_grad_norm": 1.0,
+    "name": "adamw_torch",
+    "per_device_batch_size": 1,
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.0
+  },
+  "precision": "bf16",
+  "seed": 20260927,
+  "split": {
+    "dir": "data/splits/split-e4599620801af592",
+    "split_id": "e4599620801af592"
+  }
+}
