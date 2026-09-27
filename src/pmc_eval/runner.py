@@ -60,6 +60,7 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
 from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.prompt import AttemptFailure
 from pmc_core.card import CARD_VERSION
@@ -222,6 +223,14 @@ class RecordingEngine:
             The inner engine's `model_identity`.
         """
         return self._inner.model_identity
+
+    def health(self) -> EngineHealth:
+        """Return the wrapped engine's health.
+
+        Returns:
+            The inner engine's `health()`.
+        """
+        return self._inner.health()
 
     @property
     def calls(self) -> tuple[CompletionCall, ...]:

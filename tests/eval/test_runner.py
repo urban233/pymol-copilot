@@ -21,6 +21,7 @@ from fakes import ok_report
 from pmc_agent.inference.base import ENGINE_TIMEOUT
 from pmc_agent.inference.base import STOP_LENGTH
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.prompt import AttemptFailure
 from pmc_core.executor import REASON_CHILD_CRASH
@@ -28,6 +29,7 @@ from pmc_core.executor import ExecutionReport
 from pmc_core.plan import ActionPlan
 from pmc_core.policy import PlanDecision
 from pmc_core.policy import PolicyDecision
+from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_data.gold_set import DEFAULT_GOLD_SAMPLES_PATH
 from pmc_data.sample import read_samples
 from pmc_eval.prompt import repair_line
@@ -138,6 +140,21 @@ def test_wrappers_are_transparent() -> None:
     del bare["__interrupt__"], wrapped["__interrupt__"]
     assert wrapped == bare
     assert wrapped_engine.calls == bare_engine.calls
+
+
+def test_the_recording_engine_reports_the_wrapped_engines_health() -> None:
+    """`health()` is the inner engine's own, not the wrapper's."""
+    health = EngineHealth(
+        state=HEALTH_ENGINE_READY,
+        engine="lemonade",
+        engine_version="11.9.0",
+        device="gpu",
+        model_identity="fake-engine-v1",
+        failure=None,
+    )
+    inner = FakeEngine([], health=health)
+
+    assert RecordingEngine(inner, grammar=None).health() is health
 
 
 def test_a_right_plan_is_a_success() -> None:

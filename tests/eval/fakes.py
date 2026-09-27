@@ -17,6 +17,7 @@ from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.base import EngineHealth
 from pmc_core.errors import CATEGORY_UNKNOWN_COLOR
 from pmc_core.errors import ERROR_ENVELOPE_VERSION
 from pmc_core.errors import ExecutionErrorV1
@@ -32,6 +33,7 @@ from pmc_core.executor import ExecutionRequest
 from pmc_core.executor import SelectionCount
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
+from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_data.sample import Sample
 
 
@@ -236,6 +238,21 @@ class ReferenceEngine:
             The identity this engine reports.
         """
         return self._model_identity
+
+    def health(self) -> EngineHealth:
+        """Report a ready engine.
+
+        Returns:
+            A ready health carrying this engine's identity.
+        """
+        return EngineHealth(
+            state=HEALTH_ENGINE_READY,
+            engine="reference",
+            engine_version="test",
+            device="cpu",
+            model_identity=self._model_identity,
+            failure=None,
+        )
 
     @property
     def calls(self) -> tuple[CompletionRequest, ...]:
