@@ -17,9 +17,9 @@ the one process neither may ever reach
 
 from __future__ import annotations
 
-import ipaddress
 import json
 import os
+import stat
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -29,6 +29,7 @@ from pmc_client.command import RegisteredPyMOLSession
 from pmc_client.command import register_copilot
 from pmc_client.messages import bounded
 from pmc_client.recovery import RecoveryStore
+from pmc_client.transport import LOOPBACK_HOST
 from pmc_client.transport import LoopbackPlanClient
 
 #: The largest handoff file this reader will parse. The server writes a
@@ -46,33 +47,16 @@ _CREDENTIAL_ALPHABET = frozenset(
 )
 
 
-def _is_loopback_host(host: str) -> bool:
-    """Return whether one host names the local machine only.
-
-    Args:
-        host: The hostname or address to check.
-
-    Returns:
-        True for `localhost` and a literal loopback IPv4 or IPv6 address;
-        False for anything else, including `0.0.0.0` and every routable
-        address -- non-loopback listening is a configuration error
-        (SPECIFICATION.md:554), and this reader is the last place to
-        catch it, not only the server that wrote the file.
-    """
-    if host == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
-
-
 #: Windows error and status codes `_windows_process_is_running` decides on.
 #: Named here, rather than as bare literals in that function, so a test can
 #: reference the same constants a fake supplies.
 _ERROR_ACCESS_DENIED = 5
 _STILL_ACTIVE = 259
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+#: The largest value `OpenProcess`'s `DWORD` pid argument can carry; a
+#: larger one would raise `ctypes.ArgumentError` rather than return a
+#: liveness answer.
+_MAX_WINDOWS_PID = 0xFFFFFFFF
 
 
 def _windows_process_is_running(
@@ -153,6 +137,8 @@ def _process_is_running(pid: int) -> bool:
         it is owned by the current user); False otherwise.
     """
     if os.name == "nt":
+        if pid > _MAX_WINDOWS_PID:
+            return False
         import ctypes
         from ctypes import wintypes
 
@@ -194,7 +180,10 @@ def _process_is_running(pid: int) -> bool:
         return False
     except PermissionError:
         return True
-    except OSError:
+    except (OSError, OverflowError):
+        # OverflowError: a pid past the platform's `pid_t` range (a
+        # handoff naming, say, 2**40) cannot name any process, and must
+        # not escape into PyMOL's command dispatch.
         return False
     return True
 
@@ -245,21 +234,32 @@ def connect_from_handoff(
         be read or did not validate. Never raises.
     """
     try:
-        size = path.stat().st_size
+        status = path.stat()
     except OSError:
         output(
             "copilot: no PyMOL-Copilot server handoff found at "
             f"{bounded(str(path))}. Start the server first."
         )
         return None
-    if size > MAX_HANDOFF_BYTES:
-        output(
-            f"copilot: the handoff file at {bounded(str(path))} is larger "
-            "than expected and was not read."
-        )
+    oversized = (
+        f"copilot: the handoff file at {bounded(str(path))} is larger "
+        "than expected and was not read."
+    )
+    # A FIFO or device node reports a size of 0 and would block (or never
+    # end) on read, freezing PyMOL's own command thread.
+    if not stat.S_ISREG(status.st_mode) or status.st_size > MAX_HANDOFF_BYTES:
+        output(oversized)
         return None
     try:
-        payload: Any = json.loads(path.read_text(encoding="utf-8"))
+        # One bounded read from one handle, not `read_text` after the
+        # `stat` above: the file can be replaced in between, and
+        # `read_text` itself reads without any limit.
+        with path.open("rb") as handle:
+            raw = handle.read(MAX_HANDOFF_BYTES + 1)
+        if len(raw) > MAX_HANDOFF_BYTES:
+            output(oversized)
+            return None
+        payload: Any = json.loads(raw.decode("utf-8"))
     except (
         OSError,
         UnicodeDecodeError,
@@ -287,7 +287,14 @@ def connect_from_handoff(
     host = payload.get("host")
     port = payload.get("port")
     credential = payload.get("credential")
-    if not isinstance(host, str) or not _is_loopback_host(host):
+    # Exactly the one address `LoopbackPlanClient` actually dials, not
+    # merely any loopback name: `localhost`, `::1`, or `127.0.0.2` would
+    # each pass a looser "is loopback" check, yet the transport would still
+    # connect to 127.0.0.1 and hand this credential to whatever listens
+    # there. Non-loopback listening is a configuration error
+    # (SPECIFICATION.md:554), and this reader is the last place to catch
+    # it, not only the server that wrote the file.
+    if host != LOOPBACK_HOST:
         output(
             "copilot: refusing a handoff naming a non-loopback host. "
             "Restart the server."
@@ -339,5 +346,5 @@ def connect_from_handoff(
         output,
         recovery_store=recovery_store,
     )
-    output(f"copilot: connected to the server on 127.0.0.1:{port}.")
+    output(f"copilot: connected to the server on {LOOPBACK_HOST}:{port}.")
     return client

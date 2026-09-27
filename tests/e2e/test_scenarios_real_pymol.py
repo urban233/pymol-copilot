@@ -28,7 +28,6 @@ Every scenario is proved against `scenario_support.SessionFingerprint`, not
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import os
-from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -54,6 +53,7 @@ from scenario_support import CREDENTIAL
 from scenario_support import FIXTURE_PATH
 from scenario_support import OBJECT_NAME
 from scenario_support import ConsoleDriver
+from scenario_support import FailColorProxy
 from scenario_support import assert_unchanged
 from scenario_support import build_lifecycle
 from scenario_support import capture_fingerprint
@@ -191,8 +191,8 @@ def test_color_on_a_selection_whose_object_was_deleted_does_not_raise(
     That differs from `tests/integration/pymol_error_cases.py`'s own
     `undefined_selection` case, which is a name that was never passed to
     `select()` at all, and does raise. Confirmed here, once, before
-    scenario 2 relies on the alternative: a proxy that raises synthetically
-    for its second command, the same shape as
+    scenario 2 relies on the alternative: `scenario_support.FailColorProxy`,
+    which raises synthetically for its second command, the same shape as
     `tests/recovery/test_apply_real_pymol.py`'s own `_FailColorProxy`.
     """
     loaded_fixture.select("copilot_probe", "chain A")
@@ -206,51 +206,6 @@ def test_color_on_a_selection_whose_object_was_deleted_does_not_raise(
     # pollute a later test's own `copilot_`-prefix name-list assertion.
     loaded_fixture.load(str(FIXTURE_PATH), OBJECT_NAME)
     loaded_fixture.delete("copilot_probe")
-
-
-class _FailColorProxy:
-    """Delegate to real PyMOL except for the second plan operation.
-
-    The same shape as `tests/recovery/test_apply_real_pymol.py`'s own
-    `_FailColorProxy`: command 1 (`select`) still really mutates real
-    PyMOL, so the recovery this scenario proves still has a genuine partial
-    mutation to undo. Only command 2's own failure is synthetic --
-    confirmed necessary, not a shortcut, by
-    `test_color_on_a_selection_whose_object_was_deleted_does_not_raise`
-    above.
-    """
-
-    def __init__(self, cmd: Any) -> None:
-        """Retain the real command module that owns every mutable state.
-
-        Args:
-            cmd: The real PyMOL `cmd` module (or another wrapper of it).
-        """
-        self._cmd = cmd
-
-    def color(self, _color: str, _target: str) -> None:
-        """Fail after the real select operation has already changed PyMOL."""
-        raise RuntimeError("deliberate real-PyMOL mid-plan failure")
-
-    def extend(self, name: str, callback: Callable[[str], None]) -> None:
-        """Forward command registration to the wrapped `cmd`.
-
-        Args:
-            name: Command name to register.
-            callback: Function invoked for the registered command.
-        """
-        self._cmd.extend(name, callback)
-
-    def __getattr__(self, name: str) -> Any:
-        """Forward every other attribute to the wrapped `cmd`.
-
-        Args:
-            name: The attribute name being accessed.
-
-        Returns:
-            The wrapped `cmd`'s own attribute.
-        """
-        return getattr(self._cmd, name)
 
 
 def test_a_mid_apply_failure_is_restored_through_automatic_recovery(
@@ -283,7 +238,7 @@ def test_a_mid_apply_failure_is_restored_through_automatic_recovery(
         apply_handler=lifecycle.apply,
         apply_outcome_handler=lifecycle.report_apply_outcome,
     )
-    proxy = _FailColorProxy(loaded_fixture)
+    proxy = FailColorProxy(loaded_fixture)
     driver = ConsoleDriver(proxy)
     try:
         server.start()

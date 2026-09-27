@@ -14,17 +14,26 @@ from __future__ import annotations
 
 import os
 import sys
+from dataclasses import fields
 from typing import Any
 
 import pytest
 
 from scenario_support import OBJECT_NAME
+from scenario_support import SessionFingerprint
 from scenario_support import assert_unchanged
 from scenario_support import capture_fingerprint
 
 #: One tuple per field `SessionFingerprint` compares: a real mutation of
 #: exactly that field, and nothing else. Order matches the dataclass's own
-#: field order.
+#: field order. Every id but the two `object_names_*` variants names the
+#: one field its mutation must be isolated to; those two (deleting the
+#: object, creating a copy) necessarily move every per-atom field too, so
+#: only `object_names` itself is required to change for them.
+_NOT_ISOLATED = {
+    "object_names_delete": "object_names",
+    "object_names_create": "object_names",
+}
 _MUTATIONS: tuple[tuple[str, Any], ...] = (
     ("object_names", lambda cmd: cmd.select("copilot_leftover", "chain A")),
     ("object_names_delete", lambda cmd: cmd.delete(OBJECT_NAME)),
@@ -97,15 +106,32 @@ _MUTATIONS: tuple[tuple[str, Any], ...] = (
 )
 
 
+def _changed_fields(
+    before: SessionFingerprint, after: SessionFingerprint
+) -> set[str]:
+    """Name every fingerprint field that differs between two captures."""
+    return {
+        field.name
+        for field in fields(SessionFingerprint)
+        if getattr(before, field.name) != getattr(after, field.name)
+    }
+
+
 @pytest.mark.parametrize(
-    "mutate",
-    [mutate for _, mutate in _MUTATIONS],
+    ("case", "mutate"),
+    list(_MUTATIONS),
     ids=[name for name, _ in _MUTATIONS],
 )
 def test_a_real_mutation_of_each_field_trips_the_fingerprint(
-    loaded_fixture: Any, mutate: Any
+    loaded_fixture: Any, case: str, mutate: Any
 ) -> None:
-    """Each field's own real mutation makes `assert_unchanged` raise."""
+    """Each field's own real mutation makes `assert_unchanged` raise.
+
+    And it does so through that field: a mutation that also moved some
+    other field would still trip `assert_unchanged` even if capturing its
+    own named field were broken, so each isolated case checks that its
+    named field is the only one that changed.
+    """
     before = capture_fingerprint(loaded_fixture)
 
     mutate(loaded_fixture)
@@ -113,6 +139,11 @@ def test_a_real_mutation_of_each_field_trips_the_fingerprint(
     after = capture_fingerprint(loaded_fixture)
     with pytest.raises(AssertionError):
         assert_unchanged(before, after)
+    changed = _changed_fields(before, after)
+    if case in _NOT_ISOLATED:
+        assert _NOT_ISOLATED[case] in changed
+    else:
+        assert changed == {case}
 
 
 def test_a_genuine_no_op_never_trips_the_fingerprint(

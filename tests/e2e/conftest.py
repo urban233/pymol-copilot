@@ -11,11 +11,9 @@ an imported name shadowed by a same-named fixture parameter in a different
 scope is flagged by ruff's pyflakes-derived F811 ("redefinition of unused
 name").
 
-`test_scenarios_real_pymol.py` and `test_server_unavailable_real_pymol.py`
-define their own module-scoped `real_pymol` fixture, which simply shadows
-this one for that module, exactly as pytest's fixture-scoping rules intend
--- again mirroring `tests/integration/test_real_pymol_command.py`'s own
-precedent.
+`real_pymol` is module-scoped, and every real-PyMOL module here is its
+own `py_test` target and therefore its own process, so no two modules ever
+share one PyMOL session.
 """
 
 from __future__ import annotations

@@ -189,6 +189,7 @@ py_binary(
         ":latency_lib",
         ":scenario_support",
         "@pypi//pymol_open_source_whl",
+        "//tests/integration:preview_support",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_client:pmc_client",
         "//src/pmc_core:pmc_core",

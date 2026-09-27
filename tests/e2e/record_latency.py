@@ -53,10 +53,12 @@ from pmc_core.executor import probe_fidelity
 from pmc_server.transport import LoopbackPlanServer
 from pmc_sidecar.child import PlanRunResult
 from pmc_sidecar.child import run_plan
+from preview_support import plan_id_from
 from scenario_support import CREDENTIAL
 from scenario_support import FIXTURE_PATH
 from scenario_support import OBJECT_NAME
 from scenario_support import ConsoleDriver
+from scenario_support import FailColorProxy
 from scenario_support import build_lifecycle
 
 import winstage
@@ -270,49 +272,6 @@ class _RestoreOnlyTimedRecoveryStore(RecoveryStore):
             super().restore(cmd, path)
 
 
-class _FailColorProxy:
-    """Delegate to real PyMOL except for the second plan operation.
-
-    The same shape as `tests/e2e/test_scenarios_real_pymol.py`'s own
-    `_FailColorProxy` (itself mirroring
-    `tests/recovery/test_apply_real_pymol.py`'s): command 1 (`select`)
-    still really mutates real PyMOL, so `restore_and_compare` has a real
-    partial mutation to undo.
-    """
-
-    def __init__(self, cmd: Any) -> None:
-        """Retain the real command module that owns every mutable state.
-
-        Args:
-            cmd: The real PyMOL `cmd` module (or another wrapper of it).
-        """
-        self._cmd = cmd
-
-    def color(self, _color: str, _target: str) -> None:
-        """Fail after the real select operation has already changed PyMOL."""
-        raise RuntimeError("deliberate real-PyMOL mid-plan failure")
-
-    def extend(self, name: str, callback: Callable[[str], None]) -> None:
-        """Forward command registration to the wrapped `cmd`.
-
-        Args:
-            name: Command name to register.
-            callback: Function invoked for the registered command.
-        """
-        self._cmd.extend(name, callback)
-
-    def __getattr__(self, name: str) -> Any:
-        """Forward every other attribute to the wrapped `cmd`.
-
-        Args:
-            name: The attribute name being accessed.
-
-        Returns:
-            The wrapped `cmd`'s own attribute.
-        """
-        return getattr(self._cmd, name)
-
-
 def _timed_probe(
     timer: StageTimer, probe: Callable[[Any], Any]
 ) -> Callable[[Any], Any]:
@@ -389,11 +348,7 @@ def _run_happy_path_once(
         )
         client.register(driver)  # pyrefly: ignore.
         preview_total = driver.run(f"copilot {INTENT}")
-        plan_id = next(
-            line.removeprefix("copilot plan ").split(" ", 1)[0]
-            for line in output
-            if line.startswith("copilot plan ")
-        )
+        plan_id = plan_id_from(output)
         apply_total = driver.run(f"copilot_apply {plan_id}")
     finally:
         server.close()
@@ -449,7 +404,7 @@ def _run_failure_path_once(cmd: Any, tmp_path: Path, timer: StageTimer) -> None:
         apply_handler=lifecycle.apply,
         apply_outcome_handler=lifecycle.report_apply_outcome,
     )
-    driver = ConsoleDriver(_FailColorProxy(cmd))
+    driver = ConsoleDriver(FailColorProxy(cmd))
     output: list[str] = []
     try:
         server.start()
@@ -463,11 +418,7 @@ def _run_failure_path_once(cmd: Any, tmp_path: Path, timer: StageTimer) -> None:
             recovery_store=store,
         )
         driver.run(f"copilot {INTENT}")
-        plan_id = next(
-            line.removeprefix("copilot plan ").split(" ", 1)[0]
-            for line in output
-            if line.startswith("copilot plan ")
-        )
+        plan_id = plan_id_from(output)
         driver.run(f"copilot_apply {plan_id}")
     finally:
         server.close()

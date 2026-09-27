@@ -456,38 +456,50 @@ def test_connect_from_handoff_refuses_a_missing_file(tmp_path: Path) -> None:
     assert output[0].startswith("copilot:")
 
 
-_INVALID_HANDOFF_PAYLOADS = [
-    {"host": "0.0.0.0", "port": 1, "credential": "c" * 43},
-    {"host": "10.0.0.5", "port": 1, "credential": "c" * 43},
-    {"host": "localhost", "port": 0, "credential": "c" * 43},
-    {"host": "localhost", "port": 70000, "credential": "c" * 43},
-    {"host": "localhost", "port": 1, "credential": "short"},
+_VALID_HANDOFF: dict[str, object] = {
+    "host": "127.0.0.1",
+    "port": 54321,
+    "credential": "c" * 43,
+    "pid": os.getpid(),
+}
+
+# Each case invalidates exactly one field of an otherwise fully valid
+# handoff -- including a live `pid` -- and names the refusal it must hit,
+# so a case can only pass because *its own* field's check refused it, not
+# because a later check (for instance the missing-pid refusal) happened to
+# catch the payload instead.
+_INVALID_HANDOFF_CASES: list[tuple[str, dict[str, object], str]] = [
+    ("any_host", {"host": "0.0.0.0"}, "non-loopback host"),
+    ("routable_host", {"host": "10.0.0.5"}, "non-loopback host"),
+    # Loopback names the transport would never actually dial: it always
+    # connects to 127.0.0.1, so accepting these would send the credential
+    # to whatever listens there instead.
+    ("localhost_name", {"host": "localhost"}, "non-loopback host"),
+    ("ipv6_loopback", {"host": "::1"}, "non-loopback host"),
+    ("other_ipv4_loopback", {"host": "127.0.0.2"}, "non-loopback host"),
+    ("port_low", {"port": 0}, "invalid port"),
+    ("port_high", {"port": 70000}, "invalid port"),
+    ("short_credential", {"credential": "short"}, "invalid credential"),
     # 43 characters -- at least `_MIN_CREDENTIAL_LENGTH` -- so this case
     # actually reaches and exercises the alphabet check; a short string
     # with a space in it (the original form of this case) was rejected by
     # the length check first, and would still pass even if the alphabet
     # check were removed entirely.
-    {"host": "localhost", "port": 1, "credential": "c" * 42 + "!"},
-]
-_INVALID_HANDOFF_IDS = [
-    "any_host",
-    "routable_host",
-    "port_low",
-    "port_high",
-    "short_credential",
-    "bad_alphabet",
+    ("bad_alphabet", {"credential": "c" * 42 + "!"}, "invalid credential"),
 ]
 
 
 @pytest.mark.parametrize(
-    "payload", _INVALID_HANDOFF_PAYLOADS, ids=_INVALID_HANDOFF_IDS
+    ("override", "refusal"),
+    [(override, refusal) for _, override, refusal in _INVALID_HANDOFF_CASES],
+    ids=[case_id for case_id, _, _ in _INVALID_HANDOFF_CASES],
 )
 def test_connect_from_handoff_refuses_every_invalid_field(
-    tmp_path: Path, payload: dict[str, object]
+    tmp_path: Path, override: dict[str, object], refusal: str
 ) -> None:
     """Each invalid field is refused, with one bounded line and `None`."""
     path = tmp_path / "session.json"
-    path.write_text(json.dumps(payload))
+    path.write_text(json.dumps({**_VALID_HANDOFF, **override}))
     output: list[str] = []
     session = _FakeSession()
 
@@ -498,6 +510,7 @@ def test_connect_from_handoff_refuses_every_invalid_field(
     assert client is None
     assert session.registered == []
     assert len(output) == 1
+    assert refusal in output[0]
 
 
 def _dead_pid() -> int:
@@ -574,6 +587,30 @@ def test_connect_from_handoff_refuses_a_malformed_pid(
     assert client is None
     assert session.registered == []
     assert len(output) == 1
+
+
+def test_connect_from_handoff_refuses_an_out_of_range_pid_without_raising(
+    tmp_path: Path,
+) -> None:
+    """A pid past the platform's pid range is refused, never raised.
+
+    `os.kill(2**40, 0)` raises `OverflowError`, not `OSError`, and
+    `OpenProcess`'s `DWORD` argument raises `ctypes.ArgumentError` -- either
+    would otherwise escape into PyMOL's own command dispatch.
+    """
+    path = tmp_path / "session.json"
+    path.write_text(json.dumps({**_VALID_HANDOFF, "pid": 2**40}))
+    output: list[str] = []
+    session = _FakeSession()
+
+    # pyrefly: ignore.  __getattr__ delegates the query surface at
+    # runtime, but pyrefly cannot verify that structurally.
+    client = connect_from_handoff(session, output.append, path=path)
+
+    assert client is None
+    assert session.registered == []
+    assert len(output) == 1
+    assert "no longer running" in output[0]
 
 
 def test_connect_from_handoff_refuses_a_handoff_missing_a_pid(
@@ -749,13 +786,31 @@ def test_connect_from_handoff_refuses_an_oversized_file(
     path.write_text(
         json.dumps(
             {
-                "host": "localhost",
-                "port": 1,
-                "credential": "c" * 43,
+                **_VALID_HANDOFF,
                 "padding": "x" * (MAX_HANDOFF_BYTES + 1),
             }
         )
     )
+    output: list[str] = []
+
+    # pyrefly: ignore.  __getattr__ delegates the query surface at
+    # runtime, but pyrefly cannot verify that structurally.
+    client = connect_from_handoff(_FakeSession(), output.append, path=path)
+
+    assert client is None
+    assert len(output) == 1
+    assert "larger than expected" in output[0]
+
+
+@pytest.mark.skipif(
+    not hasattr(os, "mkfifo"), reason="named pipes are POSIX-only"
+)
+def test_connect_from_handoff_refuses_a_non_regular_file_without_blocking(
+    tmp_path: Path,
+) -> None:
+    """A FIFO at the handoff path is refused before any read blocks on it."""
+    path = tmp_path / "session.json"
+    os.mkfifo(path)
     output: list[str] = []
 
     # pyrefly: ignore.  __getattr__ delegates the query surface at

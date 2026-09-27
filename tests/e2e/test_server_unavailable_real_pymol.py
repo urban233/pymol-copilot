@@ -10,7 +10,8 @@ here is faked except the Lemonade origin itself, which deliberately names
 a port nothing listens on.
 
 Its own real PyMOL launch, separate from every other module in this
-package: it spawns and kills a real server process and must not share a
+package (`conftest.py`'s module-scoped `real_pymol`, in this target's own
+process): it spawns and kills a real server process and must not share a
 session with `test_scenarios_real_pymol.py`.
 """
 
@@ -27,13 +28,9 @@ import pytest
 
 from pmc_client.bootstrap import connect_from_handoff
 from pmc_client.recovery import RecoveryStore
-from scenario_support import FIXTURE_PATH
-from scenario_support import OBJECT_NAME
 from scenario_support import ConsoleDriver
 from scenario_support import assert_unchanged
 from scenario_support import capture_fingerprint
-
-import winstage
 
 #: A port nothing listens on, so the Lemonade probe is refused immediately
 #: rather than timing out -- keeps this module fast without needing a
@@ -43,20 +40,28 @@ _DEAD_LEMONADE_URL = "http://127.0.0.1:1"
 INTENT = "Color chain A red."
 
 
-def _wait_for_file(path: Path, *, timeout_seconds: float) -> bool:
-    """Poll for a file's existence.
+def _wait_for_file(
+    path: Path, process: subprocess.Popen[str], *, timeout_seconds: float
+) -> bool:
+    """Poll for a file's existence while the process meant to write it lives.
 
     Args:
         path: The file to wait for.
+        process: The process expected to write it. Once it has exited,
+            nothing more will ever appear, so polling stops immediately
+            rather than waiting out the whole deadline.
         timeout_seconds: How long to poll before giving up.
 
     Returns:
-        True once the file exists; False if the deadline passed first.
+        True once the file exists; False if the deadline passed or the
+        process exited first.
     """
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if path.exists():
             return True
+        if process.poll() is not None:
+            break
         time.sleep(0.05)
     return path.exists()
 
@@ -85,42 +90,6 @@ def _spawn_server(handoff_path: Path) -> subprocess.Popen[str]:
         stderr=subprocess.PIPE,
         text=True,
     )
-
-
-@pytest.fixture(scope="module")
-def real_pymol() -> Any:
-    """Launch real headless PyMOL exactly once for this test module.
-
-    Yields:
-        The real PyMOL `cmd` module.
-    """
-    winstage.ensure_importable()
-    import pymol  # pyrefly: ignore.
-    from pymol import cmd  # pyrefly: ignore.
-
-    pymol.finish_launching(["pymol", "-qc"])
-    try:
-        yield cmd
-    finally:
-        cmd.do("quit")
-
-
-@pytest.fixture
-def loaded_fixture(real_pymol: Any) -> Any:
-    """Load the two-chain fixture fresh for one test and clear it after.
-
-    Args:
-        real_pymol: The real PyMOL `cmd` module.
-
-    Yields:
-        The real PyMOL `cmd` module with only the fixture object loaded.
-    """
-    real_pymol.delete("all")
-    real_pymol.load(str(FIXTURE_PATH), OBJECT_NAME)
-    try:
-        yield real_pymol
-    finally:
-        real_pymol.delete("all")
 
 
 def test_a_server_that_was_never_started_reports_one_bounded_line(
@@ -161,7 +130,7 @@ def test_server_up_engine_down_then_killed_mid_session(
     output: list[str] = []
     driver = ConsoleDriver(loaded_fixture)
     try:
-        if not _wait_for_file(handoff, timeout_seconds=15.0):
+        if not _wait_for_file(handoff, process, timeout_seconds=15.0):
             process.kill()
             _, stderr = process.communicate(timeout=10.0)
             raise AssertionError(

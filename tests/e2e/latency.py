@@ -19,16 +19,16 @@ from dataclasses import field
 from time import perf_counter
 from typing import Iterator
 
-#: The stages this item's own brief asks to be timed, in the order the
-#: rendered table lists them. `StageTimer` treats this as the complete,
-#: closed set: an undeclared stage, a stage recorded twice, or a declared
-#: stage never recorded are each a programming error in the harness, not
-#: a silently missing row in the note.
 #: Repetitions `record_latency.py` runs by default: an odd count makes
 #: p50 an exact observed sample, and the first repetition (PyMOL's own
 #: import and page-cache warm-up) is discarded, leaving an even ten.
 DEFAULT_REPETITIONS = 11
 
+#: The stages this item's own brief asks to be timed, in the order the
+#: rendered table lists them. `StageTimer` treats this as the complete,
+#: closed set: an undeclared stage, a stage recorded twice, or a declared
+#: stage never recorded are each a programming error in the harness, not
+#: a silently missing row in the note.
 DECLARED_STAGES: tuple[str, ...] = (
     "fidelity_probe",
     "submit",
@@ -49,6 +49,10 @@ class UndeclaredStageError(ValueError):
 
 class DuplicateStageRecordError(ValueError):
     """Raised when one repetition records the same stage twice."""
+
+
+class MissingStageRecordError(ValueError):
+    """Raised when a repetition ends without accounting for every stage."""
 
 
 @dataclass
@@ -115,7 +119,21 @@ class StageTimer:
         self._seen_this_repetition.add(stage)
 
     def next_repetition(self) -> None:
-        """Start a fresh repetition: every stage may be recorded once more."""
+        """Start a fresh repetition: every stage may be recorded once more.
+
+        Raises:
+            MissingStageRecordError: If a declared stage was neither
+                recorded nor marked not-measured in the repetition ending
+                here -- otherwise its row would silently be computed over
+                fewer samples than the note's own repetition count claims.
+        """
+        missing = [
+            stage
+            for stage in DECLARED_STAGES
+            if stage not in self._seen_this_repetition
+        ]
+        if missing:
+            raise MissingStageRecordError(", ".join(missing))
         self._seen_this_repetition = set()
 
     def mark_not_measured(self, stage: str) -> None:

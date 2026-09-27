@@ -5,7 +5,8 @@ Every real-PyMOL end-to-end module in this directory launches PyMOL once
 (module-scoped `real_pymol`) and reuses this file's `ConsoleDriver`,
 `SessionFingerprint`, and `build_lifecycle` rather than re-deriving them,
 the same way `tests/integration/test_real_pymol_command.py` built its own
-harness in one place.
+harness in one place. `FailColorProxy` is shared the same way, by scenario
+2 and by `record_latency.py`'s own restore measurement.
 
 `SessionFingerprint` is deliberately independent of `pmc_core.snapshot`; see
 this package's own README for why that separation matters. It reads only
@@ -328,6 +329,51 @@ class ConsoleDriver:
             f"{INVOCATION_DEADLINE_SECONDS}s of dispatch"
         )
         return elapsed
+
+
+class FailColorProxy:
+    """Delegate to real PyMOL except for the second plan operation.
+
+    The same shape as `tests/recovery/test_apply_real_pymol.py`'s own
+    `_FailColorProxy`: command 1 (`select`) still really mutates real
+    PyMOL, so the recovery a mid-apply-failure scenario proves still has a
+    genuine partial mutation to undo. Only command 2's own failure is
+    synthetic -- confirmed necessary, not a shortcut, by
+    `test_scenarios_real_pymol.py`'s own
+    `test_color_on_a_selection_whose_object_was_deleted_does_not_raise`.
+    """
+
+    def __init__(self, cmd: Any) -> None:
+        """Retain the real command module that owns every mutable state.
+
+        Args:
+            cmd: The real PyMOL `cmd` module (or another wrapper of it).
+        """
+        self._cmd = cmd
+
+    def color(self, _color: str, _target: str) -> None:
+        """Fail after the real select operation has already changed PyMOL."""
+        raise RuntimeError("deliberate real-PyMOL mid-plan failure")
+
+    def extend(self, name: str, callback: Callable[[str], None]) -> None:
+        """Forward command registration to the wrapped `cmd`.
+
+        Args:
+            name: Command name to register.
+            callback: Function invoked for the registered command.
+        """
+        self._cmd.extend(name, callback)
+
+    def __getattr__(self, name: str) -> Any:
+        """Forward every other attribute to the wrapped `cmd`.
+
+        Args:
+            name: The attribute name being accessed.
+
+        Returns:
+            The wrapped `cmd`'s own attribute.
+        """
+        return getattr(self._cmd, name)
 
 
 def build_lifecycle(

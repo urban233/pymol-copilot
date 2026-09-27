@@ -12,6 +12,7 @@ import pytest
 
 from latency import DECLARED_STAGES
 from latency import DuplicateStageRecordError
+from latency import MissingStageRecordError
 from latency import StageTimer
 from latency import UndeclaredStageError
 from latency import percentile
@@ -92,14 +93,42 @@ def test_stage_timer_rejects_recording_the_same_stage_twice() -> None:
 def test_stage_timer_allows_each_stage_once_per_repetition() -> None:
     """`next_repetition` resets the per-repetition duplicate guard."""
     timer = StageTimer()
-    with timer.measure("submit"):
-        pass
+    for stage in DECLARED_STAGES:
+        with timer.measure(stage):
+            pass
     timer.next_repetition()
 
     with timer.measure("submit"):  # does not raise
         pass
 
-    assert len(timer.samples) == 2
+    assert len(timer.samples) == len(DECLARED_STAGES) + 1
+
+
+def test_stage_timer_rejects_a_repetition_missing_a_declared_stage() -> None:
+    """A declared stage never recorded is a programming error, not a gap."""
+    timer = StageTimer()
+    for stage in DECLARED_STAGES:
+        if stage != "outcome_report":
+            with timer.measure(stage):
+                pass
+
+    with pytest.raises(MissingStageRecordError, match="outcome_report"):
+        timer.next_repetition()
+
+
+def test_stage_timer_accepts_a_stage_marked_not_measured() -> None:
+    """`mark_not_measured` accounts for a stage without adding a sample."""
+    timer = StageTimer()
+    for stage in DECLARED_STAGES:
+        if stage == "generate":
+            timer.mark_not_measured(stage)
+        else:
+            with timer.measure(stage):
+                pass
+
+    timer.next_repetition()  # does not raise
+
+    assert len(timer.samples) == len(DECLARED_STAGES) - 1
 
 
 def test_render_note_lists_every_declared_stage_in_order() -> None:

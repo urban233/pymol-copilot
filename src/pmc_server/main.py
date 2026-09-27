@@ -47,6 +47,7 @@ from pmc_agent.inference.lemonade import connect_lemonade
 from pmc_agent.inference.unavailable import UnavailableEngine
 from pmc_agent.session import RequestGraphSession
 from pmc_server.lifecycle import RequestGraphLifecycle
+from pmc_server.transport import LOOPBACK_HOST
 from pmc_server.transport import LoopbackPlanServer
 
 #: Where the handoff file lives by default, relative to a root (the
@@ -88,7 +89,14 @@ def build_engine(
     return result
 
 
-def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
+def write_handoff(
+    path: Path,
+    *,
+    port: int,
+    credential: str,
+    pid: int,
+    host: str = LOOPBACK_HOST,
+) -> None:
     """Write the port and credential PyMOL needs, atomically and private.
 
     Args:
@@ -96,6 +104,7 @@ def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
         port: The server's bound loopback port.
         credential: The ephemeral per-run credential.
         pid: This server process's OS process id.
+        host: The server's bound loopback address.
 
     Raises:
         RuntimeError: If the written file cannot be verified to have
@@ -120,7 +129,7 @@ def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
         os.chmod(created, _DIRECTORY_MODE)
     payload = json.dumps(
         {
-            "host": "127.0.0.1",
+            "host": host,
             "port": port,
             "credential": credential,
             "pid": pid,
@@ -264,12 +273,13 @@ def serve(
         server.start()
         write_handoff(
             handoff_path,
+            host=server.host,
             port=server.port,
             credential=credential,
             pid=os.getpid(),
         )
         print(
-            f"pymol-copilot server listening on 127.0.0.1:{server.port}; "
+            f"pymol-copilot server listening on {server.host}:{server.port}; "
             f"handoff written to {handoff_path}"
         )
         if ready is not None:
@@ -284,6 +294,12 @@ def serve(
     finally:
         server.close()
         remove_handoff_if_own(handoff_path, pid=os.getpid())
+        # A proven `LemonadeEngine` owns an `httpx.Client` of its own;
+        # `UnavailableEngine` holds nothing to release, and the
+        # `InferenceEngine` protocol itself does not declare `close`.
+        close_engine = getattr(engine, "close", None)
+        if callable(close_engine):
+            close_engine()
 
 
 def main(argv: Sequence[str] | None = None) -> int:
