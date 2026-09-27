@@ -77,7 +77,11 @@ case "$checkpoint" in
     # A GGUF exported by src/pmc_train/export.py, mounted read-only by
     # compose.local-model.yaml. Lemonade serves the files of its
     # extra_models_dir in place, under their own names, so nothing is
-    # copied or downloaded: point it at the file's directory.
+    # copied or downloaded: point it at the file's directory. Lemonade
+    # rescans the directory only when the setting changes, so step
+    # through the mount's root first, or a file exported since the last
+    # setting would stay undiscovered.
+    lemonade config set "extra_models_dir=/models" >&2
     lemonade config set "extra_models_dir=$(dirname "$checkpoint")" >&2
     ;;
   *)
