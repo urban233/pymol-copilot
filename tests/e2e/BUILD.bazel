@@ -1,0 +1,45 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+load("@rules_python//python:py_library.bzl", "py_library")
+
+# The shared real-PyMOL harness for every module in this package: the
+# real_pymol/loaded_fixture fixtures, ConsoleDriver, SessionFingerprint,
+# build_lifecycle, and the real/fake fidelity probe helpers. Every
+# real-PyMOL target below depends on it and lists conftest.py in data, the
+# same arrangement tests/integration:snapshot_support uses.
+py_library(
+    name = "scenario_support",
+    srcs = ["scenario_support.py"],
+    imports = ["."],
+    visibility = ["//tests/e2e:__pkg__"],
+    deps = [
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
+    name = "harness",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_harness.py"],
+    main = "test_harness.py",
+    data = [
+        "conftest.py",
+        "//tests/integration:two_chain_fixture",
+    ],
+    # Launches real headless PyMOL, which supports one finish_launching per
+    # interpreter; excluded from concurrent scheduling for the same reason
+    # as every real-PyMOL target in tests/integration and tests/recovery.
+    tags = ["exclusive"],
+    deps = [
+        ":scenario_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//tools/winstage:winstage",
+    ],
+)
