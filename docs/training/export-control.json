@@ -18,7 +18,7 @@
         "'Instruct'"
       ],
       "general.name": [
-        "'pmc-export-control-Q4_K_M'",
+        "'Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M'",
         "'Llama-3.2-1B-Instruct'"
       ],
       "general.quantized_by": [
@@ -59,14 +59,14 @@
   },
   "config_sha256": "8ac978136d4a2c439fb682f4f5dcf7b74da9416dba373f6f7a53bec01cbae4b8",
   "file_type": "MOSTLY_Q4_K_M",
-  "gguf": "pmc-export-control-Q4_K_M.gguf",
-  "gguf_bytes": 807693920,
-  "gguf_sha256": "5f4df2964224fb0f1dce72f6c4e9590c2cb37f6f947e731022bf66dc65dd55e3",
+  "gguf": "Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M.gguf",
+  "gguf_bytes": 807693952,
+  "gguf_sha256": "5334a2b3423e317b4c9caf416c1e84de223336f62933ed8aa5b18233b4556948",
   "llama_cpp": {
     "commit": "62acc89c26c66076cb72e049f307fbe93b8b9750",
     "tag": "b10707"
   },
-  "name": "pmc-export-control",
+  "name": "Llama-3.2-1B-Instruct-pmc-export-control",
   "pipeline": [
     "no adapter",
     "save_pretrained (safetensors)",

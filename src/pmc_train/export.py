@@ -51,6 +51,12 @@ from pmc_train.train import sha256_file
 #: The file name the engine will serve, per export.
 GGUF_NAME = "{name}-Q4_K_M.gguf"
 
+#: How every exported model's name begins. The Llama 3.2 Community
+#: License requires a model trained or fine-tuned from Llama materials,
+#: once distributed, to carry "Llama" at the beginning of its name
+#: (docs/training/README.md, "License").
+MODEL_PREFIX = "Llama-3.2-1B-Instruct"
+
 
 class ExportCheckError(RuntimeError):
     """The exported GGUF differs from the baseline's where it must not."""
@@ -293,7 +299,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             root,
             out,
             adapter=None,
-            name="pmc-export-control",
+            name=f"{MODEL_PREFIX}-pmc-export-control",
         )
     else:
         run = args.run.resolve()
@@ -303,7 +309,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             root,
             out,
             adapter=run / "adapter",
-            name=f"pmc-{run.name}",
+            name=f"{MODEL_PREFIX}-pmc-{run.name}",
         )
     print(json.dumps(record, indent=2, sort_keys=True))
 
