@@ -235,6 +235,41 @@ class _TimedRecoveryStore(RecoveryStore):
             super().restore(cmd, path)
 
 
+class _RestoreOnlyTimedRecoveryStore(RecoveryStore):
+    """A real `RecoveryStore`, timing only its own `restore` call.
+
+    Used for the one dedicated failure-path run below, not the happy-path
+    repetitions: that run's own `save()` belongs to a different scenario
+    (a plan that always fails mid-execution), not one of the
+    `recovery_save` stage's `repetitions` normal-apply samples. Recording
+    it under that same stage name -- `_TimedRecoveryStore` above times
+    both calls -- would silently add one extra sample taken under
+    different conditions, so `recovery_save`'s reported p50/p95 would be
+    computed over `repetitions` samples while the note claims
+    `repetitions - 1`.
+    """
+
+    def __init__(self, root: Path, timer: StageTimer) -> None:
+        """Wrap a real recovery store for restore-only timing.
+
+        Args:
+            root: Forwarded to `RecoveryStore`.
+            timer: Where to record `restore`'s own elapsed time.
+        """
+        super().__init__(root)
+        self._timer = timer
+
+    def restore(self, cmd: Any, path: Path) -> None:
+        """Time one whole-session restore and its own comparison.
+
+        Args:
+            cmd: Forwarded unchanged.
+            path: Forwarded unchanged.
+        """
+        with self._timer.measure("restore_and_compare"):
+            super().restore(cmd, path)
+
+
 class _FailColorProxy:
     """Delegate to real PyMOL except for the second plan operation.
 
@@ -418,7 +453,7 @@ def _run_failure_path_once(cmd: Any, tmp_path: Path, timer: StageTimer) -> None:
     output: list[str] = []
     try:
         server.start()
-        store = _TimedRecoveryStore(tmp_path, timer)
+        store = _RestoreOnlyTimedRecoveryStore(tmp_path, timer)
         register_copilot(
             # pyrefly: ignore.  __getattr__ delegates the query surface at
             # runtime, but pyrefly cannot verify that structurally.

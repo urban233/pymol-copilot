@@ -123,8 +123,15 @@ def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
     )
     staged = directory / f".{path.name}-{uuid.uuid4().hex}.tmp"
     try:
-        staged.write_text(payload, encoding="utf-8")
-        os.chmod(staged, _FILE_MODE)
+        # Created already-restricted, via `os.open`'s own `mode` argument,
+        # rather than written with `Path.write_text` and chmodded
+        # afterward: the latter creates the file at the platform's default
+        # (typically world-readable) mode first, leaving a window in
+        # which another local user could read the live credential before
+        # this process narrows it.
+        fd = os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL, _FILE_MODE)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
         if (
             os.name != "nt"
             and stat.S_IMODE(staged.stat().st_mode) != _FILE_MODE

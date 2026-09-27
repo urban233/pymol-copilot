@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -64,6 +65,55 @@ def _is_loopback_host(host: str) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
+
+
+def _process_is_running(pid: int) -> bool:
+    """Return whether a process with this pid currently exists.
+
+    Never signals or otherwise affects the process. On POSIX,
+    `os.kill(pid, 0)` is the standard liveness probe -- sending signal 0
+    performs no action beyond the existence and permission checks. That
+    trick does not carry over to Windows: Windows' `os.kill` only treats
+    `signal.CTRL_C_EVENT`/`CTRL_BREAK_EVENT` specially, and every other
+    value, including 0, is passed to `TerminateProcess` -- so probing
+    liveness that way would kill the very process being checked, or, once
+    its pid has been recycled, an unrelated one. `OpenProcess` is the
+    Windows-safe equivalent: a handle it returns is closed immediately and
+    never used to signal or terminate anything.
+
+    Args:
+        pid: The process id to check.
+
+    Returns:
+        True if a process with this pid currently exists (whether or not
+        it is owned by the current user); False otherwise.
+    """
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        query_limited_information = 0x1000
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.OpenProcess.argtypes = (
+            wintypes.DWORD,
+            wintypes.BOOL,
+            wintypes.DWORD,
+        )
+        handle = kernel32.OpenProcess(query_limited_information, False, pid)
+        if not handle:
+            return False
+        kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
 
 
 def _valid_credential(value: object) -> bool:
@@ -174,6 +224,25 @@ def connect_from_handoff(
         output(
             "copilot: the handoff file named an invalid credential. "
             "Restart the server."
+        )
+        return None
+    pid = payload.get("pid")
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        output(
+            "copilot: the handoff file named an invalid process id. "
+            "Restart the server."
+        )
+        return None
+    if not _process_is_running(pid):
+        # A handoff a SIGKILLed server, a Windows `terminate()`, or a power
+        # loss left behind: without this, its port and credential would
+        # still be accepted, and either fail confusingly later or, worse,
+        # reach a different, unrelated local process that has since bound
+        # the same now-recycled ephemeral port.
+        output(
+            f"copilot: the server named in the handoff file at "
+            f"{bounded(str(path))} is no longer running. Restart the "
+            "server."
         )
         return None
 

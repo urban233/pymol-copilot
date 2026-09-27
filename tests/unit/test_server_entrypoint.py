@@ -12,6 +12,8 @@ import inspect
 import json
 import os
 import stat
+import subprocess
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -174,6 +176,37 @@ def test_write_handoff_chmods_a_directory_it_creates_itself(
 
     if os.name != "nt":
         assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+
+
+def test_write_handoff_creates_the_staged_file_already_restricted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The staged file is created at mode 0600 directly, not chmodded after.
+
+    `Path.write_text` creates a file at the platform's default (typically
+    world-readable) mode first, and only a later `os.chmod` narrows it --
+    leaving a window in which another local user could read the live
+    credential before this process gets to that `chmod` call. `os.open`'s
+    own `mode` argument applies atomically at creation, closing that
+    window entirely, so nothing calling `os.open` here should ever pass a
+    wider mode than `_FILE_MODE`.
+    """
+    if os.name == "nt":
+        pytest.skip("POSIX file mode semantics only")
+    seen_modes: list[int] = []
+    real_open = os.open
+
+    def recording_open(path: Path, flags: int, mode: int = 0o777) -> int:
+        seen_modes.append(mode)
+        return real_open(path, flags, mode)
+
+    monkeypatch.setattr(server_main.os, "open", recording_open)
+
+    server_main.write_handoff(
+        tmp_path / "session.json", port=1, credential="c" * 43, pid=1
+    )
+
+    assert seen_modes == [server_main._FILE_MODE]
 
 
 def test_remove_handoff_if_own_removes_a_file_this_process_wrote(
@@ -376,6 +409,116 @@ def test_connect_from_handoff_refuses_every_invalid_field(
     assert len(output) == 1
 
 
+def _dead_pid() -> int:
+    """Return a pid guaranteed not to name a running process.
+
+    Spawns a trivial child and waits for it: on every platform this repo
+    targets, `Popen.wait()` reaps the child before returning, so its pid
+    cannot still be running -- and is exceedingly unlikely to have been
+    recycled by the time this function returns.
+    """
+    process = subprocess.Popen([sys.executable, "-c", "pass"])
+    process.wait(timeout=10.0)
+    return process.pid
+
+
+def test_connect_from_handoff_refuses_a_handoff_naming_a_dead_process(
+    tmp_path: Path,
+) -> None:
+    """A handoff naming a pid that is no longer running is refused.
+
+    Martin's own scenario: a handoff left behind by a SIGKILLed server, a
+    Windows `terminate()`, or a power loss. Accepting it anyway would
+    report "connected" to a server that is not there, or, once the same
+    ephemeral port has been rebound by an unrelated local process, send
+    that process the credential and the session snapshot.
+    """
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps(
+            {
+                "host": "127.0.0.1",
+                "port": 54321,
+                "credential": "c" * 43,
+                "pid": _dead_pid(),
+            }
+        )
+    )
+    output: list[str] = []
+    session = _FakeSession()
+
+    # pyrefly: ignore.  __getattr__ delegates the query surface at
+    # runtime, but pyrefly cannot verify that structurally.
+    client = connect_from_handoff(session, output.append, path=path)
+
+    assert client is None
+    assert session.registered == []
+    assert len(output) == 1
+    assert "no longer running" in output[0]
+
+
+@pytest.mark.parametrize("pid", [0, -1, "54321", 3.5, True])
+def test_connect_from_handoff_refuses_a_malformed_pid(
+    tmp_path: Path, pid: object
+) -> None:
+    """A pid that is not a positive int is refused, never probed."""
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps(
+            {
+                "host": "127.0.0.1",
+                "port": 54321,
+                "credential": "c" * 43,
+                "pid": pid,
+            }
+        )
+    )
+    output: list[str] = []
+    session = _FakeSession()
+
+    # pyrefly: ignore.  __getattr__ delegates the query surface at
+    # runtime, but pyrefly cannot verify that structurally.
+    client = connect_from_handoff(session, output.append, path=path)
+
+    assert client is None
+    assert session.registered == []
+    assert len(output) == 1
+
+
+def test_connect_from_handoff_refuses_a_handoff_missing_a_pid(
+    tmp_path: Path,
+) -> None:
+    """A handoff with no `pid` field at all is refused, not treated as valid."""
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps({"host": "127.0.0.1", "port": 54321, "credential": "c" * 43})
+    )
+    output: list[str] = []
+    session = _FakeSession()
+
+    # pyrefly: ignore.  __getattr__ delegates the query surface at
+    # runtime, but pyrefly cannot verify that structurally.
+    client = connect_from_handoff(session, output.append, path=path)
+
+    assert client is None
+    assert session.registered == []
+    assert len(output) == 1
+
+
+def test_process_is_running_is_true_for_this_process() -> None:
+    """The current process is, trivially, itself running."""
+    from pmc_client.bootstrap import _process_is_running
+
+    assert _process_is_running(os.getpid())
+
+
+def test_process_is_running_is_false_for_a_dead_process() -> None:
+    """A pid known to have already exited is reported as not running."""
+    from pmc_client.bootstrap import _process_is_running
+
+    assert not _process_is_running(_dead_pid())
+
+
 def test_connect_from_handoff_refuses_a_non_json_file(tmp_path: Path) -> None:
     """A file that is not JSON is refused, not raised."""
     path = tmp_path / "session.json"
@@ -444,7 +587,14 @@ def test_connect_from_handoff_registers_on_a_valid_file(
     """A fully valid handoff registers every command and reports success."""
     path = tmp_path / "session.json"
     path.write_text(
-        json.dumps({"host": "127.0.0.1", "port": 54321, "credential": "c" * 43})
+        json.dumps(
+            {
+                "host": "127.0.0.1",
+                "port": 54321,
+                "credential": "c" * 43,
+                "pid": os.getpid(),
+            }
+        )
     )
     output: list[str] = []
     session = _FakeSession()
@@ -473,7 +623,14 @@ def test_connect_from_handoff_forwards_an_injected_recovery_store(
     """
     path = tmp_path / "session.json"
     path.write_text(
-        json.dumps({"host": "127.0.0.1", "port": 54321, "credential": "c" * 43})
+        json.dumps(
+            {
+                "host": "127.0.0.1",
+                "port": 54321,
+                "credential": "c" * 43,
+                "pid": os.getpid(),
+            }
+        )
     )
     output: list[str] = []
     store = RecoveryStore(tmp_path)
