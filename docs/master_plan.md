@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-27
+**Written:** 2026-09-16 · **State as of:** 2026-09-27 (item 12 update)
 
 Every item carries a **State**. The values are:
 
@@ -98,7 +98,7 @@ Every item carries a **State**. The values are:
 | 9 | Inference abstraction and Lemonade | Hannah | **done** — PR #46 | 0 ✓, 1 ✓, 8 ✓ | 12, 16, 19 |
 | 10 | Approval, apply, recovery | Hannah | **done** — PR #51 | 2 ✓, 3 ✓, 7 ✓, 8 ✓ | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **done** — PR #55 | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
-| 12 | End-to-end suite | Hannah | **ready** | 9 ✓, 10 ✓, 11 ✓ | 19 |
+| 12 | End-to-end suite | Hannah | **in progress** — branch `feat/end-to-end-suite` | 9 ✓, 10 ✓, 11 ✓ | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **in review** — PR #53 | 14 ✓ | 16, 17, 18 |
@@ -129,7 +129,7 @@ flowchart LR
   I9["9 · inference"]:::done
   I10["10 · apply and recovery"]:::done
   I11["11 · output"]:::done
-  I12["12 · end-to-end suite"]:::ready
+  I12["12 · end-to-end suite"]:::progress
   I13["13 · prompt builder"]:::done
   I14["14 · dataset"]:::done
   I15["15 · gold set"]:::review
@@ -199,10 +199,12 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   recovery points, live apply, rollback, and real-PyMOL recovery evidence.
 - **Item 11 is merged as PR #55.** It adds the full preview block, derived
   warnings and selection counts on the wire, `copilot_health`, and a
-  bounded, actionable message on every client failure path. Item 12 is now
-  ready — nothing in the graph blocks it any more, though its own "server
-  unavailable" scenario still needs the production server entrypoint item
-  11 left unbuilt (see item 12's brief below).
+  bounded, actionable message on every client failure path.
+- **Item 12 is in progress on `feat/end-to-end-suite`.** Its plan
+  ([plans/12-end-to-end-suite.md](../plans/12-end-to-end-suite.md)) also
+  builds the production server entrypoint (`src/pmc_server/main.py`,
+  `src/pmc_client/bootstrap.py`) item 11 left unbuilt, since the "server
+  unavailable" scenario needed a real process to kill.
 
 ### Cross-owner hand-offs
 

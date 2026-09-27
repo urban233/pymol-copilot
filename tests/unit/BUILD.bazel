@@ -1,6 +1,22 @@
 load("@rules_python//python:py_test.bzl", "py_test")
 
 py_test(
+    name = "server_entrypoint",
+    size = "small",
+    srcs = ["test_server_entrypoint.py"],
+    main = "test_server_entrypoint.py",
+    deps = [
+        "@pypi//httpx",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)
+
+py_test(
     name = "command_preview",
     size = "small",
     srcs = ["test_command_preview.py"],
