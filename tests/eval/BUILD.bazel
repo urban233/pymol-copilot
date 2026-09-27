@@ -155,7 +155,7 @@ py_test(
     srcs = ["test_committed_baseline.py"],
     main = "test_committed_baseline.py",
     data = [
-        "//configs/evaluation:baseline.json",
+        "//configs/evaluation:configs",
         "//docs/dataset:dataset_docs",
         "//docs/evaluation:evaluation_docs",
     ],
@@ -178,6 +178,26 @@ py_test(
     data = ["//configs/evaluation:configs"],
     deps = [
         "@pypi//pytest",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# Item 17's comparison: paired by sample, an exact McNemar test, every
+# breakout side by side, and a refusal of anything but the model
+# differing. Built from the committed baseline's own runs.
+py_test(
+    name = "compare",
+    size = "medium",
+    srcs = ["test_compare.py"],
+    main = "test_compare.py",
+    data = [
+        "//configs/evaluation:configs",
+        "//docs/evaluation:evaluation_docs",
+    ],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
         "//src/pmc_eval:pmc_eval",
     ],
 )
