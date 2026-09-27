@@ -545,7 +545,7 @@ guessed.
 
 ### 15. Gold set, split, audit
 
-**Size:** ~3 days · **State:** in review (PR #53) — plan in [plans/09-gold-set-split-audit.md](../plans/09-gold-set-split-audit.md)
+**Size:** ~3 days · **State:** done (PR #53) — plan in [plans/09-gold-set-split-audit.md](../plans/09-gold-set-split-audit.md)
 
 ```
 Hand-author a gold set spanning every supported category, with
@@ -557,7 +557,7 @@ license record, regeneration config. Spot-check fifty random labels by hand
 and report the observed error rate as a number.
 ```
 
-**Result** (branch `feat/gold-set-split-audit`; see
+**Result** (PR #53; see
 [docs/dataset/DATASHEET.md](dataset/DATASHEET.md)):
 
 - **Split version 2, `split-e4599620801af592`** — by source structure, 6
