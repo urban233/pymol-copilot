@@ -60,6 +60,7 @@ from transformers import TrainingArguments
 from pmc_data.sample import Sample
 from pmc_train.collate import CompletionCollator
 from pmc_train.collate import ExampleDataset
+from pmc_train.collate import example_item
 from pmc_train.config import DEFAULT_CONFIG
 from pmc_train.config import TrainConfig
 from pmc_train.config import config_sha256
@@ -274,6 +275,11 @@ class CompletionTrainer(Trainer):
             **kwargs: Passed to `Trainer`.
         """
         super().__init__(*args, **kwargs)
+        # compute_loss divides by the accumulated step's supervised-token
+        # count itself. Saying so makes the trainer compute that count
+        # and not divide again by the accumulation steps, whatever the
+        # (possibly Unsloth-patched) model's forward signature suggests.
+        self.model_accepts_loss_kwargs = True
         self.eot_id = eot_id
         self.checked_batches = 0
         self.supervised_tokens = 0
@@ -299,10 +305,19 @@ class CompletionTrainer(Trainer):
             The loss.
 
         Raises:
-            ValueError: If outputs are requested.
+            ValueError: If outputs are requested, or an accumulated step
+                arrives without its supervised-token count.
         """
         if return_outputs:
             raise ValueError("completion_loss returns no model outputs")
+        if (
+            num_items_in_batch is None
+            and self.args.gradient_accumulation_steps > 1
+        ):
+            raise ValueError(
+                "the trainer passed no supervised-token count for an"
+                " accumulated step; the loss would be a mean of means"
+            )
         self.supervised_tokens += assert_batch_masked(inputs, self.eot_id)
         self.checked_batches += 1
         self.normalized_by_items = num_items_in_batch is not None
@@ -314,6 +329,48 @@ class CompletionTrainer(Trainer):
         return completion_loss(
             hidden, causal.lm_head, inputs["labels"], num_items_in_batch
         )
+
+
+def cross_check_loss(
+    model: Any, batch: dict[str, torch.Tensor], device: torch.device
+) -> dict[str, float]:
+    """Compare the completion loss with the model's own loss on one batch.
+
+    Both are the mean next-token cross-entropy over the supervised
+    positions, so they must agree up to the model's precision. This runs
+    through the model the trainer actually holds (Unsloth's, in the real
+    run), so a patched forward that disagrees with the decoder-plus-head
+    path `CompletionTrainer` uses stops the run before it trains.
+
+    Args:
+        model: The PEFT model.
+        batch: A short collated batch.
+        device: The device the model is on.
+
+    Returns:
+        Both losses and their relative difference.
+
+    Raises:
+        ValueError: If they differ by more than 2%.
+    """
+    causal = _causal_lm(model)
+    inputs = {
+        key: batch[key].to(device)
+        for key in ("input_ids", "attention_mask", "labels")
+    }
+    with torch.no_grad():
+        reference = float(causal(**inputs).loss)
+        hidden = causal.model(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+        ).last_hidden_state
+        ours = float(completion_loss(hidden, causal.lm_head, inputs["labels"]))
+    difference = abs(ours - reference) / max(abs(reference), 1e-12)
+    if difference > 2e-2:
+        raise ValueError(
+            f"completion loss {ours} differs from the model's {reference}"
+        )
+    return {"completion": ours, "model": reference, "relative": difference}
 
 
 class LossLog(TrainerCallback):
@@ -566,6 +623,12 @@ def train(
         callbacks=[log],
         eot_id=end_of_turn_id(tokenizer),
     )
+    shortest = min(examples, key=lambda e: (len(e.input_ids), e.sample_id))
+    cross_check = cross_check_loss(
+        trainer.model,
+        CompletionCollator(tokenizer.pad_token_id)([example_item(shortest)]),
+        trainer.args.device,
+    )
     if cuda:
         torch.cuda.reset_peak_memory_stats()
     started = datetime.datetime.now(tz=datetime.UTC)
@@ -622,6 +685,7 @@ def train(
                 trainer.normalized_by_items
             ),
         },
+        "loss_cross_check": cross_check,
         "started": started.isoformat(),
         "finished": finished.isoformat(),
         "versions": _versions(),

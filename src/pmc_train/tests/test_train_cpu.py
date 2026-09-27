@@ -162,6 +162,13 @@ def test_every_trained_batch_was_mask_checked(run: RunResult) -> None:
     assert run.manifest["examples_visited"] == 8
     assert masking["batches_checked"] == 3 * 8
     assert masking["supervised_tokens"] > 0
+    assert masking["loss_normalized_by_items_in_accumulated_step"] is True
+
+
+def test_the_losses_were_cross_checked_before_training(run: RunResult) -> None:
+    """The trained loss matched the model's own loss on one batch."""
+    check = run.manifest["loss_cross_check"]
+    assert check["relative"] < 1e-5
 
 
 def test_loss_is_logged_every_step(run: RunResult) -> None:
