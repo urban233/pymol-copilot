@@ -507,23 +507,28 @@ def render_markdown(
                 }
             )
             lines += [f"### TaskSuccess by {title}", ""]
+            # A key one condition's run lacks is shown as `n/a` there
+            # rather than failing the whole render.
+            groups = {
+                c: by_condition[c]["breakouts"][breakout] for c in conditions
+            }
             lines += _table(
                 [title.capitalize(), "n", *conditions],
                 (
                     [
                         f"`{key}`",
                         str(
-                            by_condition[conditions[0]]["breakouts"][breakout][
-                                key
-                            ]["n"]
+                            next(
+                                groups[c][key]["n"]
+                                for c in conditions
+                                if key in groups[c]
+                            )
                         ),
                     ]
                     + [
-                        _format_rate(
-                            by_condition[c]["breakouts"][breakout][key][
-                                "task_success"
-                            ]
-                        )
+                        _format_rate(groups[c][key]["task_success"])
+                        if key in groups[c]
+                        else "n/a"
                         for c in conditions
                     ]
                     for key in keys

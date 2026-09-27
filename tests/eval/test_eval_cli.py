@@ -382,6 +382,74 @@ def test_resume_skips_finished_samples(repo: Path) -> None:
     ]
 
 
+def _interrupted(repo: Path) -> Path:
+    """Leave a partial run with gold_014 unscored, as a crash would.
+
+    Args:
+        repo: The synthetic repository root.
+
+    Returns:
+        The partial run directory.
+    """
+    down = ReferenceEngine(
+        SAMPLES,
+        model_identity=IDENTITY,
+        unavailable_for=frozenset({"gold_014"}),
+    )
+    assert _run(engine=down) == 1
+    (partial,) = (repo / "results").glob(".eval-*.partial")
+    return partial
+
+
+def _final_ids(repo: Path) -> list[str]:
+    """List the sample ids of the one finished run.
+
+    Args:
+        repo: The synthetic repository root.
+
+    Returns:
+        Every sample id its samples.jsonl holds, in order.
+    """
+    (final,) = _finished(repo)
+    lines = (final / "samples.jsonl").read_text("utf-8").splitlines()
+    return [json.loads(line)["sample_id"] for line in lines]
+
+
+def test_resume_after_a_torn_final_line(repo: Path) -> None:
+    """A torn checkpoint line is rerun, not glued onto the next record.
+
+    Args:
+        repo: The synthetic repository root.
+    """
+    partial = _interrupted(repo)
+    with (partial / "samples.partial.jsonl").open("a", encoding="utf-8") as f:
+        f.write('{"sample_id":"gold_014","attem')
+
+    assert _run("--resume") == 0
+
+    assert _final_ids(repo) == ["gold_001", "gold_014", "gold_062"]
+
+
+def test_resume_reruns_a_sample_whose_timings_were_lost(repo: Path) -> None:
+    """A record checkpointed without its timings does not wedge the run.
+
+    Args:
+        repo: The synthetic repository root.
+    """
+    partial = _interrupted(repo)
+    timings = partial / "timings.partial.jsonl"
+    kept = [
+        line
+        for line in timings.read_text("utf-8").splitlines(keepends=True)
+        if json.loads(line)["sample_id"] != "gold_001"
+    ]
+    timings.write_text("".join(kept), encoding="utf-8")
+
+    assert _run("--resume") == 0
+
+    assert _final_ids(repo) == ["gold_001", "gold_014", "gold_062"]
+
+
 def test_rerun_is_byte_identical(repo: Path) -> None:
     """The same run, written twice, is the same bytes; timings aside.
 

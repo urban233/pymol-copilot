@@ -259,7 +259,10 @@ def _loaded_llamacpp_args(config: EngineConfig) -> str | None:
         health = response.json()
     except (httpx.HTTPError, ValueError):
         return None
-    for model in health.get("all_models_loaded", []):
+    if not isinstance(health, dict):
+        return None
+    loaded = health.get("all_models_loaded")
+    for model in loaded if isinstance(loaded, list) else []:
         if isinstance(model, dict) and model.get("model_name") == (
             config.model_name
         ):
@@ -329,12 +332,21 @@ def _json_line(data: Mapping[str, Any]) -> str:
 def _append(path: Path, line: str) -> None:
     """Append one line and make it durable before moving on.
 
+    A run killed mid-write can leave the file ending in a torn line with
+    no newline; the new line is started on a line of its own, so it is
+    never glued onto that fragment and lost with it.
+
     Args:
         path: The file.
         line: The line to append.
     """
+    torn = False
+    if path.is_file() and path.stat().st_size > 0:
+        with path.open("rb") as existing:
+            existing.seek(-1, os.SEEK_END)
+            torn = existing.read(1) != b"\n"
     with path.open("a", encoding="utf-8", newline="\n") as handle:
-        handle.write(line)
+        handle.write(("\n" if torn else "") + line)
         handle.flush()
         os.fsync(handle.fileno())
 
@@ -603,10 +615,13 @@ def _run_samples(
             ),
         },
     )
+    # A sample is done only once both its record and its timings are
+    # checkpointed: a run killed between the two appends would otherwise
+    # skip the sample forever and `_finalize` would never accept the run.
     done = {
         record["sample_id"]
         for record in _read_lines(partial / _PARTIAL_SAMPLES)
-    }
+    } & {row["sample_id"] for row in _read_lines(partial / _PARTIAL_TIMINGS)}
     unscored: list[InfraFailure] = []
     for number, sample in enumerate(ordered, start=1):
         if sample.sample_id in done:
@@ -668,9 +683,12 @@ def _finalize(
         The process exit code.
     """
     by_id: dict[str, SampleRecord] = {}
-    for data in _read_lines(partial / _PARTIAL_SAMPLES):
-        record = SampleRecord.from_dict(data)
-        by_id[record.sample_id] = record
+    try:
+        for data in _read_lines(partial / _PARTIAL_SAMPLES):
+            record = SampleRecord.from_dict(data)
+            by_id[record.sample_id] = record
+    except InvalidRecordError as error:
+        return _refuse(f"{_relative(partial)}: {error}")
     timings = {
         row["sample_id"]: row for row in _read_lines(partial / _PARTIAL_TIMINGS)
     }
@@ -732,7 +750,9 @@ def read_run(
             .splitlines()
         ]
         recomputed = aggregate(records, condition=run["identity"]["condition"])
-    except (json.JSONDecodeError, KeyError, InvalidRecordError) as error:
+    # ValueError covers a torn JSON line, an invalid record, and
+    # `aggregate` refusing a duplicated sample or a foreign condition.
+    except (KeyError, TypeError, ValueError) as error:
         raise InvalidRunError(f"{directory}: {error}") from error
     if recomputed != report:
         raise InvalidRunError(
@@ -888,6 +908,15 @@ def run_publish(args: argparse.Namespace, git: tuple[str, bool]) -> int:
         values = {run["identity"][field] for run, _, _ in runs.values()}
         if len(values) != 1:
             return _refuse(f"the runs disagree on {field}: {sorted(values)}")
+    # The grid and BASELINE.md's bounds come from this config, so it must
+    # be the one the runs were made under.
+    config_sha256 = sha256_of(_resolve(args.config))
+    recorded = next(iter(runs.values()))[0]["identity"]["config_sha256"]
+    if recorded != config_sha256:
+        return _refuse(
+            f"the runs were made under config {recorded}, not "
+            f"{_relative(_resolve(args.config))} ({config_sha256})"
+        )
     ordered = dict(sorted(runs.items()))
 
     out = _resolve(args.out)
