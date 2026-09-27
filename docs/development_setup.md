@@ -116,9 +116,19 @@ the PEP 695 `type` statement, is itself 3.12+. Code `pmc_train` imports from
 To create the training environment and install its locked dependencies:
 
 ```text
-uv venv --python 3.12 .venv-train
+uv venv --python 3.12 --managed-python .venv-train
 source .venv-train/bin/activate
 uv pip install -r requirements-train.txt
+```
+
+`--managed-python` matters: Triton, which Unsloth's kernels run on,
+compiles a small C helper against `Python.h` the first time it touches
+the GPU, and a distribution's Python 3.12 (Ubuntu 24.04's, say) ships
+without its headers unless `python3.12-dev` is installed. uv's own
+CPython build includes them. The training tests run with:
+
+```text
+PYTHONPATH=src .venv-train/bin/pytest src/pmc_train/tests
 ```
 
 To update the training dependency set, edit `requirements-train.in` and

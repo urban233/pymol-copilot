@@ -145,7 +145,7 @@ SHA-256 and records are committed. Nothing is uploaded.
 ## Reproducing the run
 
 ```
-uv venv --python 3.12 .venv-train && uv pip install -p .venv-train -r requirements-train.txt
+uv venv --python 3.12 --managed-python .venv-train && uv pip install -p .venv-train -r requirements-train.txt
 PYTHONPATH=src .venv-train/bin/pytest src/pmc_train/tests
 src/pmc_train/build_llama_cpp.sh
 PYTHONPATH=src .venv-train/bin/python -m pmc_train.train --smoke 5     # gated
