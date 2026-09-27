@@ -45,6 +45,29 @@ py_test(
 )
 
 py_test(
+    name = "fingerprint_sabotage",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_fingerprint_sabotage.py"],
+    main = "test_fingerprint_sabotage.py",
+    data = [
+        "conftest.py",
+        "//tests/integration:two_chain_fixture",
+    ],
+    # Launches real headless PyMOL, which supports one finish_launching per
+    # interpreter; excluded from concurrent scheduling for the same reason
+    # as every real-PyMOL target in this package.
+    tags = ["exclusive"],
+    deps = [
+        ":scenario_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
     name = "denied_command_real_pymol",
     size = "large",
     timeout = "moderate",
