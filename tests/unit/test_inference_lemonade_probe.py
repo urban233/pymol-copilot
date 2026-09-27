@@ -595,7 +595,11 @@ def _streamed(text: str, *, model: str) -> httpx.Response:
 
 
 def _pulled_handler(
-    *, launch_path: str, streamed_model: str, later: tuple[str, ...] = ()
+    *,
+    launch_path: str,
+    streamed_model: str,
+    later: tuple[str, ...] = (),
+    checkpoint: str = _PULLED_CHECKPOINT,
 ) -> _HANDLER:
     """Script a probe of a pulled model, then any later completions.
 
@@ -603,19 +607,20 @@ def _pulled_handler(
         launch_path: The GGUF path the loaded model's launch command names.
         streamed_model: The `model` the canary stream reports.
         later: The `model` each later completion stream reports.
+        checkpoint: The checkpoint the catalog and health report.
 
     Returns:
         A handler for health, catalog, load, health, the canary, and the
         later completions, in order.
     """
-    health = _health(checkpoint=_PULLED_CHECKPOINT)
+    health = _health(checkpoint=checkpoint)
     loaded = health["all_models_loaded"]
     assert isinstance(loaded, list)
     loaded[0]["launch_command"] = ["llama-server", "-m", launch_path, "--jinja"]
     responses = iter(
         (
             httpx.Response(200, json={"status": "ok", "version": "11.9.0"}),
-            httpx.Response(200, json=_catalog(checkpoint=_PULLED_CHECKPOINT)),
+            httpx.Response(200, json=_catalog(checkpoint=checkpoint)),
             httpx.Response(200, json={"status": "success"}),
             httpx.Response(200, json=health),
             _streamed("pmc-grammar-probe-ok", model=streamed_model),
@@ -625,11 +630,14 @@ def _pulled_handler(
     return lambda _request: next(responses)
 
 
-def _connect_pulled(handler: _HANDLER) -> LemonadeEngine | EngineFailure:
+def _connect_pulled(
+    handler: _HANDLER, checkpoint: str = _PULLED_CHECKPOINT
+) -> LemonadeEngine | EngineFailure:
     """Connect to a scripted pulled model.
 
     Args:
         handler: The scripted responses.
+        checkpoint: The configured checkpoint.
 
     Returns:
         The connected engine or its first typed failure.
@@ -637,7 +645,7 @@ def _connect_pulled(handler: _HANDLER) -> LemonadeEngine | EngineFailure:
     return connect_lemonade(
         base_url=_BASE_URL,
         model_name=_MODEL,
-        checkpoint=_PULLED_CHECKPOINT,
+        checkpoint=checkpoint,
         client=_client(handler),
     )
 
@@ -683,6 +691,47 @@ def test_a_launch_command_naming_another_file_is_not_trusted() -> None:
     result = _connect_pulled(
         _pulled_handler(launch_path=other, streamed_model=other)
     )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+
+
+#: A local GGUF Lemonade serves in place from its `extra_models_dir`,
+#: whose checkpoint is its own absolute path (master plan item 17).
+_LOCAL_CHECKPOINT = "/models/export-control/local.gguf"
+
+
+def test_a_local_gguf_served_in_place_connects() -> None:
+    """A local file's launched path, equal to its checkpoint, is its identity."""
+    handler = _pulled_handler(
+        launch_path=_LOCAL_CHECKPOINT,
+        streamed_model=_LOCAL_CHECKPOINT,
+        later=(_LOCAL_CHECKPOINT,),
+        checkpoint=_LOCAL_CHECKPOINT,
+    )
+    engine = _connect_pulled(handler, _LOCAL_CHECKPOINT)
+
+    assert isinstance(engine, LemonadeEngine)
+    assert engine.capabilities.served_model_path == _LOCAL_CHECKPOINT
+    completion = engine.complete(
+        CompletionRequest(
+            prompt="p", grammar=None, max_tokens=8, deadline_seconds=5.0
+        ),
+        cancel=CancelToken(),
+    )
+    assert not isinstance(completion, EngineFailure)
+
+
+def test_a_local_gguf_launched_from_another_path_is_refused() -> None:
+    """The same file name in another directory is not the checkpoint."""
+    other = "/elsewhere/local.gguf"
+    handler = _pulled_handler(
+        launch_path=other,
+        streamed_model=other,
+        checkpoint=_LOCAL_CHECKPOINT,
+    )
+
+    result = _connect_pulled(handler, _LOCAL_CHECKPOINT)
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_UNKNOWN
