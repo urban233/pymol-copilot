@@ -45,6 +45,32 @@ py_test(
 )
 
 py_test(
+    name = "denied_command_real_pymol",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_denied_command_real_pymol.py"],
+    main = "test_denied_command_real_pymol.py",
+    data = [
+        "conftest.py",
+        "//tests/integration:two_chain_fixture",
+    ],
+    # Launches real headless PyMOL; excluded from concurrent scheduling
+    # for the same reason as every real-PyMOL target in this package.
+    tags = ["exclusive"],
+    deps = [
+        ":scenario_support",
+        "@pypi//pymol_open_source_whl",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_client:pmc_client",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+        "//tools/winstage:winstage",
+    ],
+)
+
+py_test(
     name = "scenarios_real_pymol",
     size = "large",
     timeout = "long",
