@@ -87,16 +87,21 @@ if [ "$(uname -s)" = Darwin ]; then
   host="$host; $(sysctl -n machdep.cpu.brand_string)"
 fi
 launched() {
+  # Only the configured model's launch command: another loaded model
+  # (an embedder, say) would otherwise add its own binary or GGUF path.
   printf '%s' "$health" | python3 -c '
 import json, sys
 health = json.load(sys.stdin)
 for model in health.get("all_models_loaded", []):
+    if model.get("model_name") != sys.argv[2]:
+        continue
     command = model.get("launch_command") or []
     if sys.argv[1] == "binary":
         print(command[0])
     elif "-m" in command:
         print(command[command.index("-m") + 1])
-' "$1"
+    break
+' "$1" "$model_name"
 }
 model_path="$(launched model)"
 gguf_sha256="$(docker exec "$container" sha256sum "$model_path" | cut -d' ' -f1)"
