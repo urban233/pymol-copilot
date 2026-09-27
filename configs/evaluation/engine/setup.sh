@@ -6,8 +6,12 @@
 #
 #   configs/evaluation/engine/setup.sh cpu     # CPU, any variant
 #   configs/evaluation/engine/setup.sh cuda    # compose.nvidia.yaml
+#   configs/evaluation/engine/setup.sh cuda --config \
+#       configs/evaluation/finetuned.json      # + compose.local-model.yaml
 #
-# It pulls the model configs/evaluation/baseline.json names, pins the
+# It pulls the model the config (configs/evaluation/baseline.json by
+# default) names -- or, for a GGUF exported under results/ (master plan
+# item 17), serves it in place from the read-only mount -- pins the
 # chat template's date, installs the CUDA llama.cpp build when asked,
 # loads the model exactly as the adapter's probe will, and prints the
 # `engine_provenance` block to paste into baseline.json -- together with
@@ -20,16 +24,29 @@ backend="${1:-cpu}"
 case "$backend" in
   cpu | cuda) ;;
   *)
-    echo "usage: $0 [cpu|cuda]" >&2
+    echo "usage: $0 [cpu|cuda] [--config <config.json>]" >&2
     exit 2
     ;;
+esac
+config="configs/evaluation/baseline.json"
+if [ "${2:-}" = "--config" ]; then
+  config="${3:?--config needs a file}"
+fi
+root="$(cd "$(dirname "$0")/../../.." && pwd)"
+case "$config" in
+  /*) ;;
+  *) config="$root/$config" ;;
 esac
 
 container="${PMC_EVAL_CONTAINER:-pmc-eval-lemonade}"
 base_url="${PMC_LEMONADE_BASE_URL:-http://localhost:13305}"
-model_name="Llama-3.2-1B-Instruct-Q4_K_M"
-checkpoint="unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-Q4_K_M.gguf"
-context_size=16384
+# The model the config names (item 16's baseline.json by default, or an
+# item 17 config for a locally exported GGUF).
+read -r model_name checkpoint context_size < <(python3 -c '
+import json, sys
+engine = json.load(open(sys.argv[1]))["engine"]
+print(engine["model_name"], engine["checkpoint"], engine["context_size"])
+' "$config")
 # The Llama 3.2 template's own fallback date. Item 17 must render its
 # training prompts with the same date_string.
 template_args="--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}'"
@@ -55,8 +72,19 @@ curl -sf -m 3 "$base_url/api/v1/health" >/dev/null || {
 if [ "$backend" = cuda ]; then
   lemonade backends install llamacpp:cuda >&2
 fi
-lemonade pull "user.$model_name" --checkpoint main "$checkpoint" \
-  --recipe llamacpp >&2
+case "$checkpoint" in
+  /models/*)
+    # A GGUF exported by src/pmc_train/export.py, mounted read-only by
+    # compose.local-model.yaml. Lemonade serves the files of its
+    # extra_models_dir in place, under their own names, so nothing is
+    # copied or downloaded: point it at the file's directory.
+    lemonade config set "extra_models_dir=$(dirname "$checkpoint")" >&2
+    ;;
+  *)
+    lemonade pull "user.$model_name" --checkpoint main "$checkpoint" \
+      --recipe llamacpp >&2
+    ;;
+esac
 lemonade config set "llamacpp.args=$template_args" >&2
 
 # Load as the adapter's probe does, so health reports what a run will see.
@@ -134,7 +162,13 @@ provenance = {
         else f"{container_arch} container under emulation on {host_arch}"
     ),
     "gguf_sha256": os.environ["GGUF_SHA256"],
-    "hf_revision": revision.group(1) if revision else None,
+    "hf_revision": (
+        revision.group(1)
+        if revision
+        else "none (local GGUF; identity is gguf_sha256)"
+        if os.environ["MODEL_PATH"].startswith("/models/")
+        else None
+    ),
     "host": os.environ["HOST"],
     "image": os.environ["DIGEST"],
     "lemonade_version": health.get("version"),
