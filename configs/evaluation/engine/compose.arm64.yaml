@@ -1,0 +1,16 @@
+# Override: build and run Lemonade natively for linux/arm64 on Apple
+# Silicon, instead of the official linux/amd64 image under emulation.
+services:
+  lemonade:
+    image: pmc-eval-lemonade:11.9.0-arm64
+    build:
+      context: .
+      dockerfile: Dockerfile.arm64
+    platform: linux/arm64
+    volumes:
+      - lemonade-arm64:/opt/lemonade/.cache/lemonade
+      - llama-arm64:/opt/lemonade/llama
+
+volumes:
+  lemonade-arm64:
+  llama-arm64:

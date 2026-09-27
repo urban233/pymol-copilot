@@ -14,6 +14,8 @@ from pmc_agent.inference.base import ENGINE_REFUSED_GRAMMAR
 from pmc_agent.inference.base import ENGINE_TIMEOUT
 from pmc_agent.inference.base import ENGINE_UNAVAILABLE
 from pmc_agent.inference.base import ENGINE_UNKNOWN
+from pmc_agent.inference.base import CancelToken
+from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.lemonade import EngineCapabilities
 from pmc_agent.inference.lemonade import LemonadeEngine
@@ -535,6 +537,155 @@ def test_non_grammar_canary_failures_keep_their_category(
 
     assert isinstance(result, EngineFailure)
     assert result.category == expected_category
+
+
+@pytest.mark.parametrize("backend", ["cuda", "vulkan", "rocm", "metal"])
+def test_a_gpu_backend_accepts_lemonades_gpu_device(backend: str) -> None:
+    """Lemonade reports a GPU-loaded model as "gpu", not by its backend.
+
+    Args:
+        backend: A GPU backend requested at load time.
+    """
+    engine = _connect(_happy_handler(device="gpu"), backend=backend)
+
+    assert isinstance(engine, LemonadeEngine)
+
+
+@pytest.mark.parametrize("backend", ["cuda", "vulkan", "rocm", "metal"])
+def test_a_gpu_backend_refuses_a_cpu_device(backend: str) -> None:
+    """A GPU backend that fell back to the CPU is not what was asked for.
+
+    Args:
+        backend: A GPU backend requested at load time.
+    """
+    result = _connect(_happy_handler(device="cpu"), backend=backend)
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+
+
+#: A checkpoint in Lemonade's `<repo>:<file>` form, as a model pulled
+#: into Lemonade as `user.<name>` carries it, and the file the loaded
+#: llama-server was launched on for it.
+_PULLED_CHECKPOINT = "owner/repo:model.gguf"
+_SERVED_PATH = "/cache/hub/models--owner--repo/snapshots/abc/model.gguf"
+
+
+def _streamed(text: str, *, model: str) -> httpx.Response:
+    """Build a stopped completion stream reporting a given model id.
+
+    Args:
+        text: The completion text.
+        model: The `model` every event reports.
+
+    Returns:
+        The streamed response.
+    """
+    events = [
+        {"model": model, "choices": [{"delta": {"content": text}}]},
+        {"model": model, "choices": [{"delta": {}, "finish_reason": "stop"}]},
+    ]
+    return httpx.Response(
+        200,
+        content=b"".join(
+            f"data: {json.dumps(event)}\n\n".encode() for event in events
+        )
+        + b"data: [DONE]\n\n",
+    )
+
+
+def _pulled_handler(
+    *, launch_path: str, streamed_model: str, later: tuple[str, ...] = ()
+) -> _HANDLER:
+    """Script a probe of a pulled model, then any later completions.
+
+    Args:
+        launch_path: The GGUF path the loaded model's launch command names.
+        streamed_model: The `model` the canary stream reports.
+        later: The `model` each later completion stream reports.
+
+    Returns:
+        A handler for health, catalog, load, health, the canary, and the
+        later completions, in order.
+    """
+    health = _health(checkpoint=_PULLED_CHECKPOINT)
+    loaded = health["all_models_loaded"]
+    assert isinstance(loaded, list)
+    loaded[0]["launch_command"] = ["llama-server", "-m", launch_path, "--jinja"]
+    responses = iter(
+        (
+            httpx.Response(200, json={"status": "ok", "version": "11.9.0"}),
+            httpx.Response(200, json=_catalog(checkpoint=_PULLED_CHECKPOINT)),
+            httpx.Response(200, json={"status": "success"}),
+            httpx.Response(200, json=health),
+            _streamed("pmc-grammar-probe-ok", model=streamed_model),
+            *(_streamed("color red, chain A\n", model=m) for m in later),
+        )
+    )
+    return lambda _request: next(responses)
+
+
+def _connect_pulled(handler: _HANDLER) -> LemonadeEngine | EngineFailure:
+    """Connect to a scripted pulled model.
+
+    Args:
+        handler: The scripted responses.
+
+    Returns:
+        The connected engine or its first typed failure.
+    """
+    return connect_lemonade(
+        base_url=_BASE_URL,
+        model_name=_MODEL,
+        checkpoint=_PULLED_CHECKPOINT,
+        client=_client(handler),
+    )
+
+
+def test_a_pulled_model_streaming_its_own_gguf_path_connects() -> None:
+    """The path the probe proved the server was launched on is its identity."""
+    engine = _connect_pulled(
+        _pulled_handler(
+            launch_path=_SERVED_PATH,
+            streamed_model=_SERVED_PATH,
+            later=(_SERVED_PATH,),
+        )
+    )
+
+    assert isinstance(engine, LemonadeEngine)
+    assert engine.capabilities.served_model_path == _SERVED_PATH
+    completion = engine.complete(
+        CompletionRequest(
+            prompt="p", grammar=None, max_tokens=8, deadline_seconds=5.0
+        ),
+        cancel=CancelToken(),
+    )
+    assert not isinstance(completion, EngineFailure)
+    assert completion.text == "color red, chain A\n"
+
+
+def test_a_stream_naming_another_file_is_refused() -> None:
+    """Only the launched file is accepted, never any path at all."""
+    result = _connect_pulled(
+        _pulled_handler(
+            launch_path=_SERVED_PATH, streamed_model="/cache/other.gguf"
+        )
+    )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+
+
+def test_a_launch_command_naming_another_file_is_not_trusted() -> None:
+    """A server launched on a different file cannot vouch for its path."""
+    other = "/cache/hub/models--owner--repo/snapshots/abc/other.gguf"
+
+    result = _connect_pulled(
+        _pulled_handler(launch_path=other, streamed_model=other)
+    )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
 
 
 if __name__ == "__main__":

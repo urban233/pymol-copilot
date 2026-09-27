@@ -596,6 +596,28 @@ def test_malformed_sse_framing_is_unknown() -> None:
     assert result.category == ENGINE_UNKNOWN
 
 
+def test_an_sse_comment_is_ignored() -> None:
+    """llama-server's ": ping" keep-alive is a comment, not a bad frame."""
+    response = httpx.Response(
+        200,
+        content=b": ping\n\n"
+        + _event(content="hello")
+        + b": ping\n\n"
+        + _event(finish_reason="stop")
+        + _done(),
+    )
+
+    result = _engine(lambda _request: response).complete(
+        _request(), cancel=CancelToken()
+    )
+
+    assert result == CompletionResult(
+        text="hello",
+        model_identity=f"{_MODEL}@{_CHECKPOINT}",
+        stop_reason=STOP_END,
+    )
+
+
 def test_hostile_server_errors_are_normalized_before_reaching_history() -> None:
     """An error body is bounded, printable, and cannot preserve control bytes."""
     hostile = ("x" * 900) + "\x00\x01\n\x1b"

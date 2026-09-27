@@ -1,0 +1,166 @@
+# Tests for the offline evaluation harness (docs/master_plan.md item 16).
+# See README.md for what each module settles.
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "prompt",
+    size = "small",
+    srcs = ["test_prompt.py"],
+    main = "test_prompt.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+py_test(
+    name = "screen_reasons",
+    size = "small",
+    srcs = ["test_screen_reasons.py"],
+    main = "test_screen_reasons.py",
+    deps = [
+        "//tests/adversarial:denied_forms_corpus",
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+py_test(
+    name = "grade",
+    size = "small",
+    srcs = ["test_grade.py"],
+    main = "test_grade.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# The scripted executors and completions every hermetic harness suite
+# shares, imported as a bare sibling module.
+py_library(
+    name = "fakes",
+    srcs = ["fakes.py"],
+    imports = ["."],
+    deps = [
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)
+
+py_test(
+    name = "runner",
+    size = "small",
+    srcs = ["test_runner.py"],
+    main = "test_runner.py",
+    deps = [
+        ":fakes",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+py_test(
+    name = "metrics",
+    size = "small",
+    srcs = ["test_metrics.py"],
+    main = "test_metrics.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+py_test(
+    name = "eval_cli",
+    size = "medium",
+    srcs = ["test_eval_cli.py"],
+    main = "test_eval_cli.py",
+    deps = [
+        ":fakes",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# The grader against real PyMOL: every gold sample's own reference plan,
+# and a deliberately wrong answer of each kind, run through the whole
+# harness with a fresh pmc_sidecar.child per attempt.
+py_test(
+    name = "reference_model_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_reference_model_real_pymol.py"],
+    main = "test_reference_model_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        ":fakes",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# Opt-in evidence against a real local Lemonade server: skipped unless
+# PMC_LEMONADE_BASE_URL names one, which is the only host value this
+# target receives.
+py_test(
+    name = "lemonade_real",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_lemonade_real.py"],
+    main = "test_lemonade_real.py",
+    data = ["//configs/evaluation:baseline.json"],
+    env_inherit = ["PMC_LEMONADE_BASE_URL"],
+    tags = ["external"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_sidecar:pmc_sidecar",
+    ],
+)
+
+# The committed baseline is exactly what its committed samples say, and
+# was measured on the committed split, config and harness. Skips until
+# eval_cli publish writes docs/evaluation/baseline/.
+py_test(
+    name = "committed_baseline",
+    size = "medium",
+    srcs = ["test_committed_baseline.py"],
+    main = "test_committed_baseline.py",
+    data = [
+        "//configs/evaluation:baseline.json",
+        "//docs/dataset:dataset_docs",
+        "//docs/evaluation:evaluation_docs",
+    ],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)

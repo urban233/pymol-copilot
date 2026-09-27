@@ -1,0 +1,38 @@
+# The evaluation engine (master plan item 16): Lemonade 11.9.0 serving the
+# model configs/evaluation/baseline.json names, on the loopback port the
+# config points at. See README.md in this directory for which variant to
+# run where; setup.sh then prepares the model and prints the provenance.
+#
+#   x86_64 Linux or WSL2, CPU:
+#     docker compose -f compose.yaml up -d
+#   x86_64 Linux or WSL2, NVIDIA GPU:
+#     docker compose -f compose.yaml -f compose.nvidia.yaml up -d
+#   Apple Silicon, native arm64 CPU:
+#     docker compose -f compose.yaml -f compose.arm64.yaml up -d --build
+name: pmc-eval-engine
+
+services:
+  lemonade:
+    image: ghcr.io/lemonade-sdk/lemonade-server:v11.9.0
+    container_name: pmc-eval-lemonade
+    ports:
+      # Loopback only: the adapter refuses any non-local origin anyway.
+      - "127.0.0.1:13305:13305"
+    volumes:
+      # Downloaded model files: architecture-independent, shared by every
+      # variant.
+      - huggingface:/opt/lemonade/.cache/huggingface
+      # Server config, including the pinned chat-template date setup.sh
+      # sets.
+      - config:/opt/lemonade/.config/lemonade
+      # Downloaded llama.cpp builds: per architecture, so compose.arm64.yaml
+      # gives them volumes of their own.
+      - lemonade:/opt/lemonade/.cache/lemonade
+      - llama:/opt/lemonade/llama
+    restart: unless-stopped
+
+volumes:
+  huggingface:
+  config:
+  lemonade:
+  llama:

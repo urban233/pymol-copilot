@@ -1,0 +1,13 @@
+# Override: give the engine every NVIDIA GPU, for x86_64 Linux or WSL2
+# with the NVIDIA Container Toolkit (Docker Desktop's WSL2 backend ships
+# it). Run setup.sh with the `cuda` backend afterwards, and set
+# engine.backend to "cuda" in configs/evaluation/baseline.json.
+services:
+  lemonade:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

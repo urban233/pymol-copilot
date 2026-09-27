@@ -35,3 +35,10 @@ docs/dataset/** -text
 # built from, and tests/data/test_manifest.py checks those against the
 # working tree, so they need the same rule.
 configs/generation/*.json -text
+#
+# The published evaluation baseline (master plan item 16) is the same
+# again: docs/evaluation/baseline/manifest.json records every file's
+# SHA-256, each run records its config's, and
+# tests/eval/test_committed_baseline.py checks both.
+docs/evaluation/** -text
+configs/evaluation/*.json -text

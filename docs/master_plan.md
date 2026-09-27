@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-27 (item 12 update)
+**Written:** 2026-09-16 · **State as of:** 2026-09-27 (items 12 and 16 done)
 
 Every item carries a **State**. The values are:
 
@@ -98,14 +98,14 @@ Every item carries a **State**. The values are:
 | 9 | Inference abstraction and Lemonade | Hannah | **done** — PR #46 | 0 ✓, 1 ✓, 8 ✓ | 12, 16, 19 |
 | 10 | Approval, apply, recovery | Hannah | **done** — PR #51 | 2 ✓, 3 ✓, 7 ✓, 8 ✓ | 11, 12 |
 | 11 | Output and diagnostics | Hannah | **done** — PR #55 | 6 ✓, 7 ✓, 8 ✓, 10 ✓ | 12 |
-| 12 | End-to-end suite | Hannah | **in progress** — branch `feat/end-to-end-suite` | 9 ✓, 10 ✓, 11 ✓ | 19 |
+| 12 | End-to-end suite | Hannah | **done** — PR #57 | 9 ✓, 10 ✓, 11 ✓ | 19 |
 | 13 | Prompt builder | Martin | **done** — PR #41 | 2 ✓, 5 ✓ | 14, 16 |
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
-| 15 | Gold set, split, audit | Martin | **in review** — PR #53 | 14 ✓ | 16, 17, 18 |
-| 16 | Eval harness and untuned baseline | Martin | **blocked** | 4 ✓, 13 ✓, 14, 15, 9 | 17, 18 |
-| 17 | Fine-tuning | Martin | **blocked** | 0 ✓, 1 ✓, 15, 16 | 18, 19 |
-| 18 | Notebook | Martin | **blocked** | 14, 15, 16, 17 | — |
-| 19 | Integration | Joint | **blocked** | 12, 17 | — |
+| 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
+| 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
+| 17 | Fine-tuning | Martin | **ready** | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
+| 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16 ✓, 17 | — |
+| 19 | Integration | Joint | **blocked** | 12 ✓, 17 | — |
 
 ### The graph
 
@@ -129,12 +129,12 @@ flowchart LR
   I9["9 · inference"]:::done
   I10["10 · apply and recovery"]:::done
   I11["11 · output"]:::done
-  I12["12 · end-to-end suite"]:::progress
+  I12["12 · end-to-end suite"]:::done
   I13["13 · prompt builder"]:::done
   I14["14 · dataset"]:::done
-  I15["15 · gold set"]:::review
-  I16["16 · eval and baseline"]:::blocked
-  I17["17 · fine-tuning"]:::blocked
+  I15["15 · gold set"]:::done
+  I16["16 · eval and baseline"]:::done
+  I17["17 · fine-tuning"]:::ready
   I18["18 · notebook"]:::blocked
   I19["19 · integration"]:::blocked
 
@@ -200,11 +200,16 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 - **Item 11 is merged as PR #55.** It adds the full preview block, derived
   warnings and selection counts on the wire, `copilot_health`, and a
   bounded, actionable message on every client failure path.
-- **Item 12 is in progress on `feat/end-to-end-suite`.** Its plan
+- **Item 12 is merged as PR #57.** Its plan
   ([plans/12-end-to-end-suite.md](../plans/12-end-to-end-suite.md)) also
-  builds the production server entrypoint (`src/pmc_server/main.py`,
+  built the production server entrypoint (`src/pmc_server/main.py`,
   `src/pmc_client/bootstrap.py`) item 11 left unbuilt, since the "server
-  unavailable" scenario needed a real process to kill.
+  unavailable" scenario needed a real process to kill. Item 19 now waits
+  only on item 17.
+- **Item 16 is done as PR #58.** It adds the offline eval harness and
+  records the untuned baseline: TaskSuccess 0/68 on `test_gold` under
+  both conditions. Item 17 is now ready; its inherited constraints are
+  noted under item 16 below.
 
 ### Cross-owner hand-offs
 
@@ -228,9 +233,9 @@ The week 1 note below is now more specific:
   proved enforcement with a grammar it wrote itself, `root ::= "Berlin"`, and
   item 9 can do the same. What item 13 supplies is the grammar item 9
   *carries* in production, not something item 9 needs in order to be finished.
-- **Hannah → Martin, still open:** item 9's engine interface is what item 16
-  runs the untuned baseline through — the dashed edge above. It is soft: item
-  16 could drive Lemonade directly and adopt the interface later.
+- **Hannah → Martin: settled.** Item 16 ran the untuned baseline through
+  item 9's engine interface — the dashed edge above — with three adapter
+  fixes recorded under item 16.
 
 With both shared-core hand-offs closed, the only remaining coupling between
 the two developers is items 13 → 9 and 9 → 16. Neither is a prerequisite, and
@@ -481,7 +486,7 @@ text leaking through an error.
 
 ### 12. End-to-end suite
 
-**Size:** ~3 days · **State:** ready
+**Size:** ~3 days · **State:** done (PR #57) — plan in [plans/12-end-to-end-suite.md](../plans/12-end-to-end-suite.md)
 
 ```
 Write end-to-end scenarios against real headless PyMOL: one intent through
@@ -498,7 +503,9 @@ the Lemonade probe falling back to `UnavailableEngine` (item 11) when it
 cannot connect, and the port and credential hand-off to PyMOL — is not
 built yet; this item's own "server unavailable" scenario needs one, and
 sizing it is this item's own job, not a silent assumption carried over
-from item 11.
+from item 11. PR #57 built it as `src/pmc_server/main.py` and
+`src/pmc_client/bootstrap.py`, and recorded the per-stage latency in
+[latency.md](latency.md).
 
 ---
 
@@ -538,7 +545,7 @@ guessed.
 
 ### 15. Gold set, split, audit
 
-**Size:** ~3 days · **State:** in review (PR #53) — plan in [plans/09-gold-set-split-audit.md](../plans/09-gold-set-split-audit.md)
+**Size:** ~3 days · **State:** done (PR #53) — plan in [plans/09-gold-set-split-audit.md](../plans/09-gold-set-split-audit.md)
 
 ```
 Hand-author a gold set spanning every supported category, with
@@ -550,7 +557,7 @@ license record, regeneration config. Spot-check fifty random labels by hand
 and report the observed error rate as a number.
 ```
 
-**Result** (branch `feat/gold-set-split-audit`; see
+**Result** (PR #53; see
 [docs/dataset/DATASHEET.md](dataset/DATASHEET.md)):
 
 - **Split version 2, `split-e4599620801af592`** — by source structure, 6
@@ -571,7 +578,7 @@ and report the observed error rate as a number.
 
 ### 16. Eval harness and untuned baseline
 
-**Size:** ~3 days · **State:** blocked on 9, 14, 15
+**Size:** ~3 days · **State:** done (PR #58) — plan in [plans/11-eval-harness-and-baseline.md](../plans/11-eval-harness-and-baseline.md)
 
 ```
 Build the offline eval harness: per sample, generate a plan, parse it,
@@ -583,9 +590,54 @@ fine-tuning exists. That baseline is what the entire evaluation argument
 rests on.
 ```
 
+**Progress** (see [docs/evaluation/README.md](evaluation/README.md)):
+
+- The harness is built and tested: `src/pmc_eval/` drives the runtime's
+  own request graph with the training prompt, grades against the stored
+  assertions (a correct plan scores 68/68 gold samples through real
+  PyMOL), and `eval_cli` runs, resumes and publishes. The primary
+  endpoint is pre-registered in
+  [docs/evaluation/PREREGISTRATION.md](evaluation/PREREGISTRATION.md).
+- **Base model fixed for item 17:** Llama-3.2-1B-Instruct, Q4_K_M GGUF.
+- **The untuned baseline is recorded** in
+  [docs/evaluation/baseline/BASELINE.md](evaluation/baseline/BASELINE.md),
+  run on Martin's WSL2 machine with an RTX 4060 using the engine rig in
+  [configs/evaluation/engine/](../configs/evaluation/engine/README.md).
+  **TaskSuccess on `test_gold` is 0/68 under both conditions** (Wilson
+  95% 0.0–5.3%), and 0/842 on `heldout_synthetic`. Attempt-1
+  syntax-valid: 0/68 without the grammar, 7/68 (10.3%) with it.
+  Nearly every sample is `truncated` at the 256-token limit: with the
+  grammar the model loops over commands, without it the model copies
+  the structure card from the prompt. Engine determinism: 0 of 68 gold
+  samples differ on a rerun under either condition.
+- Setting the engine up found and fixed four things, recorded in
+  [configs/evaluation/README.md](../configs/evaluation/README.md): the
+  model's chat template stamped today's date into every prompt (now
+  pinned), and the item 9 Lemonade adapter refused the server's `: ping`
+  SSE keep-alive, the GGUF path a pulled model reports as its
+  streamed model id, and the `gpu` device Lemonade reports for a CUDA
+  engine (fixed in `src/pmc_agent/inference/lemonade.py`).
+- **Note for item 17:** the base model is now fixed, and the comparison
+  holds everything but the weights fixed (see
+  [docs/evaluation/README.md](evaluation/README.md)). Training's
+  sequence length must cover the longest prompt, 5,495 tokens, plus its
+  target; prompts must be rendered with the chat template's date pinned
+  to `26 Jul 2024`, as the engine renders them; every target ends in a
+  newline; and the tuned model is exported as a Q4_K_M GGUF.
+- **Note for item 19 (Hannah):** four gaps between the runtime and what
+  the baseline measured:
+  - the longest held-out prompt is 5,495 tokens, so the runtime
+    adapter's default 4096-token context cannot serve it;
+  - the graph's default prompt builder is a placeholder, not the
+    training prompt; `pmc_eval.prompt.contract_prompt` is the drop-in
+    replacement;
+  - the graph sends no grammar to the engine;
+  - `parse_pml` rejects a plan without a final newline, which a chat
+    model rarely writes; the harness appends one, the runtime does not.
+
 ### 17. Fine-tuning
 
-**Size:** ~5 days · **State:** blocked on 15, 16
+**Size:** ~5 days · **State:** ready
 
 ```
 Fine-tune in src/pmc_train/, in the separate virtual environment, outside
@@ -600,7 +652,7 @@ result — don't chase it.
 
 ### 18. Notebook
 
-**Size:** ~3 days · **State:** blocked on 14, 15, 16, 17
+**Size:** ~3 days · **State:** blocked on 17
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
@@ -617,7 +669,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** blocked on 12, 17
+**Size:** ~3 days · **State:** blocked on 17
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end

@@ -124,7 +124,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyrefly]
-project-includes = ["src/pmc_client", "src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/winstage"]
+project-includes = ["src/pmc_client", "src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_eval", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/winstage"]
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true
@@ -160,11 +160,14 @@ check-unannotated-defs = true
 # synthetic repository that the gold-set, split, manifest and audit suites
 # share, so those four cannot drift into different notions of a verified
 # sample.
+# tests/eval/fakes.py is the same situation for master plan item 16: the
+# scripted executors and completions every hermetic harness suite shares.
 search-path = [
     "tests/adversarial",
     "tests/contract",
     "tests/data",
     "tests/e2e",
+    "tests/eval",
     "tests/integration",
     "tests/recovery",
     "tools/winstage",
