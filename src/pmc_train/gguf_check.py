@@ -45,7 +45,16 @@ MUST_MATCH = (
 ARCHITECTURE_PREFIX = "llama."
 
 #: Metadata key prefixes that describe how a file was made, reported only.
+#: Every other key -- every `tokenizer.*` key included, since flags such
+#: as `add_bos_token` change what the model is fed -- must match.
 PROVENANCE_PREFIXES = ("general.", "quantize.", "split.")
+
+#: Key values that are equal in effect though not in bytes, each with the
+#: reason. Llama 3 has no separator token, so llama.cpp adds none whether
+#: the flag is written as false or left out.
+EQUIVALENT: dict[str, tuple[Any, ...]] = {
+    "tokenizer.ggml.add_sep_token": (False, None),
+}
 
 
 @dataclass(frozen=True)
@@ -55,9 +64,12 @@ class CheckResult:
     Attributes:
         mismatches: Keys that must match but differ, with both values
             summarized.
-        reported: Keys that differ but only describe provenance.
+        reported: Keys that differ but only describe provenance, or
+            differ only in bytes (`EQUIVALENT`).
         tensor_mismatches: Tensors whose name or shape differs.
-        tensor_type_differences: Tensors quantized to another type.
+        tensor_type_differences: Tensors quantized to another type; any
+            of them fails the check, since the same quantization must
+            keep each tensor at the same precision.
     """
 
     mismatches: dict[str, tuple[str, str]]
@@ -72,7 +84,11 @@ class CheckResult:
         Returns:
             True when the export may be evaluated against the baseline.
         """
-        return not self.mismatches and not self.tensor_mismatches
+        return (
+            not self.mismatches
+            and not self.tensor_mismatches
+            and not self.tensor_type_differences
+        )
 
     def to_json(self) -> dict[str, Any]:
         """Serialize the result.
@@ -154,10 +170,11 @@ def compare(candidate: Path, reference: Path) -> CheckResult:
         if mine == other:
             continue
         pair = (_summary(mine), _summary(other))
+        equivalent = EQUIVALENT.get(key, ())
         if key in MUST_MATCH or key.startswith(ARCHITECTURE_PREFIX):
             mismatches[key] = pair
-        elif key.startswith(PROVENANCE_PREFIXES) or key.startswith(
-            "tokenizer."
+        elif key.startswith(PROVENANCE_PREFIXES) or (
+            mine in equivalent and other in equivalent
         ):
             reported[key] = pair
         else:

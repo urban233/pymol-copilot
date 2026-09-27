@@ -23,6 +23,9 @@ def _write(
     shape: tuple[int, int] = (4, 8),
     imatrix: str | None = None,
     name: str = "model",
+    add_bos: bool | None = None,
+    add_sep: bool | None = None,
+    tensor_dtype: type = numpy.float32,
 ) -> Path:
     """Write a tiny GGUF with the metadata the check reads.
 
@@ -34,6 +37,9 @@ def _write(
         shape: Its one tensor's shape.
         imatrix: An importance-matrix file name to record, if any.
         name: Its general name.
+        add_bos: The add-BOS flag to write, if any.
+        add_sep: The add-separator flag to write, if any.
+        tensor_dtype: Its one tensor's type.
 
     Returns:
         The path.
@@ -49,8 +55,12 @@ def _write(
     writer.add_eos_token_id(1)
     if imatrix is not None:
         writer.add_string("quantize.imatrix.file", imatrix)
+    if add_bos is not None:
+        writer.add_add_bos_token(add_bos)
+    if add_sep is not None:
+        writer.add_add_sep_token(add_sep)
     writer.add_tensor(
-        "token_embd.weight", numpy.zeros(shape, dtype=numpy.float32)
+        "token_embd.weight", numpy.zeros(shape, dtype=tensor_dtype)
     )
     writer.write_header_to_file()
     writer.write_kv_data_to_file()
@@ -101,3 +111,40 @@ def test_provenance_is_reported_not_refused(tmp_path: Path) -> None:
     )
     assert result.ok
     assert set(result.reported) == {"general.name", "quantize.imatrix.file"}
+
+
+def test_a_tokenizer_flag_difference_is_refused(tmp_path: Path) -> None:
+    """A different add-BOS flag changes what the model sees: refused."""
+    result = compare(
+        _write(tmp_path / "a.gguf", add_bos=False),
+        _write(tmp_path / "b.gguf", add_bos=True),
+    )
+    assert not result.ok
+    assert "tokenizer.ggml.add_bos_token" in result.mismatches
+
+
+def test_a_separator_flag_written_false_equals_one_left_out(
+    tmp_path: Path,
+) -> None:
+    """Llama 3 has no separator: false and absent are the same."""
+    result = compare(
+        _write(tmp_path / "a.gguf", add_sep=False), _write(tmp_path / "b.gguf")
+    )
+    assert result.ok
+    assert "tokenizer.ggml.add_sep_token" in result.reported
+    refused = compare(
+        _write(tmp_path / "c.gguf", add_sep=True), _write(tmp_path / "d.gguf")
+    )
+    assert not refused.ok
+
+
+def test_a_tensor_type_difference_is_refused(tmp_path: Path) -> None:
+    """A tensor kept at another precision fails the check."""
+    result = compare(
+        _write(tmp_path / "a.gguf", tensor_dtype=numpy.float16),
+        _write(tmp_path / "b.gguf"),
+    )
+    assert not result.ok
+    assert result.tensor_type_differences == {
+        "token_embd.weight": ("F16", "F32")
+    }

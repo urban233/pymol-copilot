@@ -68,14 +68,25 @@ SHARED_IDENTITY = (
     "limit",
 )
 
-#: The engine-capability fields two compared runs must share.
+#: The engine-capability fields two compared runs must share, as each
+#: run's probe recorded them.
 SHARED_CAPABILITIES = (
     "context_length",
     "device",
     "grammar_enforced",
-    "lemonade_version",
     "llamacpp_args",
     "recipe",
+)
+
+#: The engine-provenance fields two compared runs must share, as each run
+#: recorded them: everything but the model's own file.
+SHARED_PROVENANCE = (
+    "emulation",
+    "host",
+    "image",
+    "lemonade_version",
+    "llama_cpp_build",
+    "llamacpp_args",
 )
 
 
@@ -197,6 +208,11 @@ def _check_pair(
     for field in SHARED_CAPABILITIES:
         if ours["engine_capabilities"].get(field) != theirs[
             "engine_capabilities"
+        ].get(field):
+            raise ComparisonError(f"{key}: the engines differ in {field}")
+    for field in SHARED_PROVENANCE:
+        if ours["engine_provenance"].get(field) != theirs[
+            "engine_provenance"
         ].get(field):
             raise ComparisonError(f"{key}: the engines differ in {field}")
     if ours["git_dirty"] or theirs["git_dirty"]:

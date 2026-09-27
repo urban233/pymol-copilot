@@ -192,6 +192,14 @@ def test_every_category_is_set_side_by_side(tmp_path: Path) -> None:
             "context_length",
         ),
         (lambda i: i.update(git_dirty=True), "dirty"),
+        (
+            lambda i: i["engine_provenance"].update(lemonade_version="11.10.0"),
+            "lemonade_version",
+        ),
+        (
+            lambda i: i["engine_provenance"].update(llama_cpp_build="b1"),
+            "llama_cpp_build",
+        ),
     ],
 )
 def test_a_run_differing_beyond_the_model_is_refused(
