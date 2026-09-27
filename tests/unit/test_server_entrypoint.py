@@ -802,15 +802,18 @@ def test_connect_from_handoff_refuses_an_oversized_file(
     assert "larger than expected" in output[0]
 
 
-@pytest.mark.skipif(
-    not hasattr(os, "mkfifo"), reason="named pipes are POSIX-only"
-)
 def test_connect_from_handoff_refuses_a_non_regular_file_without_blocking(
     tmp_path: Path,
 ) -> None:
     """A FIFO at the handoff path is refused before any read blocks on it."""
     path = tmp_path / "session.json"
-    os.mkfifo(path)
+    # A decorator skips execution but leaves the body visible to Windows
+    # type checking, where os.mkfifo does not exist. Guard it here so both
+    # pytest and the type checker recognize the platform restriction.
+    if sys.platform != "win32":
+        os.mkfifo(path)
+    else:
+        pytest.skip("named pipes are POSIX-only")
     output: list[str] = []
 
     # pyrefly: ignore.  __getattr__ delegates the query surface at
