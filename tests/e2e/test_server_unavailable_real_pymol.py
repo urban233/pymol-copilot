@@ -220,6 +220,17 @@ def test_server_up_engine_down_then_killed_mid_session(
         if process.poll() is None:
             process.kill()
             process.wait(timeout=10.0)
+        # Popen's own stdout/stderr pipes are never closed just because
+        # the child exited -- they stay open file objects in this
+        # process until explicitly closed or garbage-collected. Closing
+        # them here, rather than leaving that to GC, avoids a
+        # ResourceWarning at an unpredictable later point (observed as a
+        # real, intermittent pytest failure on Windows CI, since this
+        # repository's own filterwarnings turns every warning into one).
+        if process.stdout is not None and not process.stdout.closed:
+            process.stdout.close()
+        if process.stderr is not None and not process.stderr.closed:
+            process.stderr.close()
     assert not (tmp_path / ".pymol-copilot" / "recovery").exists()
 
 
