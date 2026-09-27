@@ -925,8 +925,11 @@ def probe_capabilities(
         return _unknown("Lemonade health did not report the loaded model")
     if loaded_model.get("checkpoint") != engine.checkpoint:
         return _unknown("Lemonade loaded an unexpected checkpoint")
+    # Lemonade reports any llama.cpp GPU backend's device as "gpu".
     expected_device = (
-        "gpu" if engine.backend in ("cuda", "vulkan") else engine.backend
+        "gpu"
+        if engine.backend in ("cuda", "vulkan", "rocm", "metal")
+        else engine.backend
     )
     if loaded_model.get("device") != expected_device:
         return _unknown("Lemonade loaded an unexpected device")

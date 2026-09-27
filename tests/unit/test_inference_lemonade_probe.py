@@ -539,7 +539,7 @@ def test_non_grammar_canary_failures_keep_their_category(
     assert result.category == expected_category
 
 
-@pytest.mark.parametrize("backend", ["cuda", "vulkan"])
+@pytest.mark.parametrize("backend", ["cuda", "vulkan", "rocm", "metal"])
 def test_a_gpu_backend_accepts_lemonades_gpu_device(backend: str) -> None:
     """Lemonade reports a GPU-loaded model as "gpu", not by its backend.
 
@@ -551,7 +551,7 @@ def test_a_gpu_backend_accepts_lemonades_gpu_device(backend: str) -> None:
     assert isinstance(engine, LemonadeEngine)
 
 
-@pytest.mark.parametrize("backend", ["cuda", "vulkan"])
+@pytest.mark.parametrize("backend", ["cuda", "vulkan", "rocm", "metal"])
 def test_a_gpu_backend_refuses_a_cpu_device(backend: str) -> None:
     """A GPU backend that fell back to the CPU is not what was asked for.
 
