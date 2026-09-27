@@ -127,3 +127,17 @@ arguments, and each then prints a usage line rather than raising.
 literal string, never split into PyMOL argument syntax; an intent past
 `pmc_core.protocol.MAX_INTENT_LENGTH` is refused before a request is ever
 built.
+
+## Bootstrapping from the production server
+
+`pmc_client.bootstrap.connect_from_handoff` is the client's own entry
+point once `src/pmc_server/main.py` (docs/master_plan.md item 12) is
+running as a real process: it reads that process's handoff file, refuses
+it unless the host is loopback, the port is in range, and the credential
+has a plausible shape, then builds a `LoopbackPlanClient` and calls
+`register_copilot`. A refusal is one bounded console line and `None`,
+never a raised exception into PyMOL's own command dispatch — the same
+contract every registered command in this module already follows. This
+module must never import `pmc_agent` or anything that reaches LangGraph:
+it runs inside PyMOL's own interpreter, the one process neither may ever
+reach (`tools/bazel/check_dependency_boundaries.py`).

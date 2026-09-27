@@ -166,6 +166,7 @@ search-path = [
     "tests/adversarial",
     "tests/contract",
     "tests/data",
+    "tests/e2e",
     "tests/eval",
     "tests/integration",
     "tests/recovery",

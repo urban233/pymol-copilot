@@ -13,6 +13,17 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # was for; both prototypes are now promoted (docs/master_plan.md items 4
 # and 5) and neither directory exists, so this target is private to its
 # own package again and carries no grant at all.
+# The two-chain fixture PDB, shared with //tests/e2e so the two real-PyMOL
+# suites cannot disagree about what "the fixture" is. Bazel's glob cannot
+# reach across a package boundary, so the dependency is spelled as this
+# filegroup rather than as a relative path -- the same pattern
+# //tests/contract:pymol_error_corpus already uses.
+filegroup(
+    name = "two_chain_fixture",
+    srcs = ["testdata/two_chain_fixture.pdb"],
+    visibility = ["//tests/e2e:__pkg__"],
+)
+
 py_library(
     name = "preview_support",
     srcs = ["preview_support.py"],
