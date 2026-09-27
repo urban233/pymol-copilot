@@ -51,11 +51,10 @@ From a Windows machine with an NVIDIA GPU to a committed baseline under
 item 17 trains here, and the tuned model must be evaluated on the same
 engine as the base model.
 
-Not yet run end to end on such a machine: the harness, the engine and
-the adapter are proved on macOS, and the steps below are what WSL2,
-Docker and Lemonade document. Step 5's first output line is the one
-thing still unverified; if it is not what it should be, stop there and
-report it.
+Run end to end on 2026-09-27 on WSL2 with an RTX 4060, producing the
+committed baseline. The one surprise was step 5's device line: Lemonade
+reports a GPU-loaded model as `gpu`, not `cuda`, and the adapter's probe
+now accepts that.
 
 ### 1. Windows: WSL2, the NVIDIA driver and Docker
 
@@ -175,15 +174,15 @@ model (about 800 MB), pins the chat template's date, loads the model at
 a 16384-token context, and prints two things:
 
 ```text
-engine.backend = "cuda"; loaded device = "cuda"
+engine.backend = "cuda"; loaded device = "gpu"
 "engine_provenance": { ... }
 ```
 
-**Check the first line.** The adapter's capability probe requires the
-device Lemonade reports for the loaded model to equal `engine.backend`.
-If it says anything but `cuda` (for example `cpu`, meaning the GPU was
-not used), stop here and report the line together with the output of
-`curl -s localhost:13305/api/v1/health`.
+**Check the first line.** Lemonade reports a model loaded on the GPU
+as device `gpu`, which the adapter's capability probe accepts for the
+`cuda` and `vulkan` backends. If it says anything else (for example
+`cpu`, meaning the GPU was not used), stop here and report the line
+together with the output of `curl -s localhost:13305/api/v1/health`.
 
 If `setup.sh` cannot reach `http://localhost:13305`, check
 `docker ps` shows `pmc-eval-lemonade` running, then try the mirrored
@@ -300,7 +299,7 @@ headline figures are the `test_gold` TaskSuccess rows of
 | --- | --- |
 | `nvidia-smi` fails inside Ubuntu | The Windows driver is missing or too old; update it on Windows, then `wsl --shutdown`. |
 | `could not select device driver "nvidia"` | Docker cannot see the GPU: enable WSL integration in Docker Desktop, or install the NVIDIA Container Toolkit. |
-| `the engine did not connect: engine_unknown: lemonade loaded an unexpected device` | Lemonade reports the loaded device as something other than `cuda`; see step 5. |
+| `the engine did not connect: engine_unknown: lemonade loaded an unexpected device` | Lemonade reports the loaded device as something other than `gpu`; see step 5. |
 | `the engine did not connect: engine_unavailable` | Lemonade is not reachable: `docker ps`, `curl -s localhost:13305/api/v1/health`, then mirrored networking. |
 | `the engine reports llamacpp_args ...` | The template date is not pinned as recorded: rerun `./setup.sh cuda`. |
 | `the longest prompt does not complete` | The model is not loaded at the 16384-token context; rerun `./setup.sh cuda`. |

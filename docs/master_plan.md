@@ -578,17 +578,24 @@ rests on.
   endpoint is pre-registered in
   [docs/evaluation/PREREGISTRATION.md](evaluation/PREREGISTRATION.md).
 - **Base model fixed for item 17:** Llama-3.2-1B-Instruct, Q4_K_M GGUF.
-- **The baseline has not run yet; it runs next on Martin's WSL2 machine
-  with an NVIDIA GPU**, using the engine rig in
+- **The untuned baseline is recorded** in
+  [docs/evaluation/baseline/BASELINE.md](evaluation/baseline/BASELINE.md),
+  run on Martin's WSL2 machine with an RTX 4060 using the engine rig in
   [configs/evaluation/engine/](../configs/evaluation/engine/README.md).
-  Setting the engine up found and fixed three things, recorded in
+  **TaskSuccess on `test_gold` is 0/68 under both conditions** (Wilson
+  95% 0.0–5.3%), and 0/842 on `heldout_synthetic`. Attempt-1
+  syntax-valid: 0/68 without the grammar, 7/68 (10.3%) with it.
+  Nearly every sample is `truncated` at the 256-token limit: with the
+  grammar the model loops over commands, without it the model copies
+  the structure card from the prompt. Engine determinism: 0 of 68 gold
+  samples differ on a rerun under either condition.
+- Setting the engine up found and fixed four things, recorded in
   [configs/evaluation/README.md](../configs/evaluation/README.md): the
   model's chat template stamped today's date into every prompt (now
   pinned), and the item 9 Lemonade adapter refused the server's `: ping`
-  SSE keep-alive and the GGUF path a pulled model reports as its
-  streamed model id (fixed in `src/pmc_agent/inference/lemonade.py`).
-- Pilots on the Mac found that under the grammar the untuned model loops
-  until it hits the token limit, on every gold sample reached so far.
+  SSE keep-alive, the GGUF path a pulled model reports as its
+  streamed model id, and the `gpu` device Lemonade reports for a CUDA
+  engine (fixed in `src/pmc_agent/inference/lemonade.py`).
 - **Note for item 19:** the longest held-out prompt is 5,495 tokens, so
   the runtime adapter's default 4096-token context cannot serve it.
 

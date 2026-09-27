@@ -49,9 +49,9 @@ date and prints the `engine_provenance` to record here.
 
 **The baseline runs on a WSL2 machine with an NVIDIA GPU**, the machine
 item 17 trains on: `engine.backend` is `cuda`, and `engine_provenance`
-is deliberately empty until `engine/setup.sh cuda` fills it in on that
-machine, so no run can start with another machine's record. The Mac
-measurements below come from the pilot.
+is the record `engine/setup.sh cuda` printed on that machine (an RTX
+4060 under WSL2). The Mac measurements below come from the pilot; the
+baseline's own follow them.
 
 Two details `setup.sh` takes care of. A model is pulled as `user.<name>`
 but catalogued, loaded and reported as `<name>`, so `model_name` is
@@ -112,3 +112,19 @@ Pilot measurements, 2026-09-26/27:
   pilot on the native arm64 engine gave the same outcome for all 41
   gold samples it reached, at about 20 s per sample; it was stopped to
   run the baseline on the NVIDIA machine instead.
+
+Baseline measurements, WSL2 with an RTX 4060, 2026-09-27:
+
+- **Lemonade reports a GPU-loaded model's device as `gpu`**, not as the
+  backend's name, so the adapter's probe refused the `cuda` engine; it
+  now accepts `gpu` for the `cuda` and `vulkan` backends.
+- **The engine is deterministic:** rerunning both gold runs gave the
+  same completions for all 68 samples under each condition.
+- **Pace:** median engine time per attempt 1.5 s without the grammar,
+  2.9 s (gold) and 12.8 s (held-out) with it. The four runs took about
+  3 h 15 min, the held-out grammar run 2 h 24 min of that.
+- **Without the grammar the untuned model does not stop either.** It
+  opens with "Here are the PyMOL commands..." and copies the structure
+  card from the prompt into a code block until it is cut off; the few
+  that stop are screened as hostile. With the grammar, every sample
+  loops until the 256-token limit, as in the pilots.

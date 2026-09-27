@@ -6,7 +6,8 @@ how, and what a later comparison against its baseline must hold fixed.
 **Code:** [`src/pmc_eval/`](../../src/pmc_eval/) · **Config:**
 [`configs/evaluation/baseline.json`](../../configs/evaluation/baseline.json)
 · **Primary endpoint:** [PREREGISTRATION.md](PREREGISTRATION.md) ·
-**Baseline:** `baseline/` (published by `eval_cli publish`; not yet run)
+**Baseline:** [`baseline/BASELINE.md`](baseline/BASELINE.md) (published by
+`eval_cli publish`, 2026-09-27)
 
 ## What one sample goes through
 
