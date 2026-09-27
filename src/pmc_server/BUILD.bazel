@@ -1,3 +1,4 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 
 py_library(
@@ -5,6 +6,7 @@ py_library(
     srcs = [
         "__init__.py",
         "lifecycle.py",
+        "main.py",
         "transport.py",
         "validation.py",
     ],
@@ -18,11 +20,20 @@ py_library(
     # RequestGraphLifecycle only translates between pmc_agent.session
     # .RequestGraphSession's own result mapping and this protocol's typed
     # wire responses -- every state, transition, and terminal the graph can
-    # reach belongs to pmc_agent.graph, never to this package.
+    # reach belongs to pmc_agent.graph, never to this package. main.py
+    # (item 12) is the production entrypoint that builds and starts both.
     deps = [
+        "@pypi//httpx",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",
         "//src/pmc_sidecar:pmc_sidecar",
     ],
     visibility = ["//src/pmc_server:__pkg__", "//src:tests"],
+)
+
+py_binary(
+    name = "server",
+    srcs = ["main.py"],
+    main = "main.py",
+    deps = [":pmc_server"],
 )
