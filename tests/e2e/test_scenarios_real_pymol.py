@@ -27,6 +27,7 @@ Every scenario is proved against `scenario_support.SessionFingerprint`, not
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import os
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
@@ -144,11 +145,14 @@ def test_one_intent_through_preview_approve_and_apply(
         sorted((*before.object_names, "copilot_selection"))
     )
 
-    # 5. Exactly one recovery point exists, with the expected permissions.
+    # 5. Exactly one recovery point exists, with the expected permissions
+    #    on POSIX (Windows relies on the user profile ACL instead, the
+    #    same distinction pmc_client.recovery's own module documents).
     recovery_dir = tmp_path / ".pymol-copilot" / "recovery"
     points = list(recovery_dir.glob(f"plan-{normalize_plan_id(plan_id)}.pse"))
     assert len(points) == 1
-    assert oct(points[0].stat().st_mode & 0o777) == oct(0o600)
+    if os.name != "nt":
+        assert oct(points[0].stat().st_mode & 0o777) == oct(0o600)
 
     # 6. The server-side request was recorded exactly once, and a later
     #    copilot invocation is not blocked on an unconfirmed outcome.
@@ -437,7 +441,6 @@ def test_stale_plan_expiry_is_rejected_before_querying_pymol(
 
 
 if __name__ == "__main__":
-    import os
     import sys
 
     # Real PyMOL's headless launch leaves behind cleanup that can complete

@@ -212,11 +212,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--handoff",
         type=Path,
-        default=Path.home() / DEFAULT_HANDOFF_PATH,
-        help="Where to write the port/credential handoff file.",
+        default=None,
+        help=(
+            "Where to write the port/credential handoff file "
+            "(default: ~/.pymol-copilot/session.json)."
+        ),
     )
     args = parser.parse_args(argv)
-    serve(base_url=args.lemonade_base_url, handoff_path=args.handoff)
+    # Resolved here, not as the argument's own default: Path.home() raises
+    # on a platform or sandbox with no resolvable home directory (observed
+    # on Windows CI), and that must not happen merely from registering
+    # this argument -- only when its value is actually needed, which never
+    # happens when a caller supplies --handoff explicitly.
+    handoff = (
+        args.handoff
+        if args.handoff is not None
+        else Path.home() / DEFAULT_HANDOFF_PATH
+    )
+    serve(base_url=args.lemonade_base_url, handoff_path=handoff)
     return 0
 
 
