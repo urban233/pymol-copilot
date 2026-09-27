@@ -182,6 +182,9 @@ py_binary(
     name = "record_latency",
     srcs = ["record_latency.py"],
     main = "record_latency.py",
+    data = [
+        "//tests/integration:two_chain_fixture",
+    ],
     deps = [
         ":latency_lib",
         ":scenario_support",

@@ -23,6 +23,7 @@ from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.unavailable import UnavailableEngine
 from pmc_client.bootstrap import connect_from_handoff
 from pmc_client.command import CopilotCommandClient
+from pmc_client.recovery import RecoveryStore
 from pmc_client.transport import LoopbackPlanClient
 from pmc_core.protocol import HealthRequestV1
 
@@ -132,6 +133,61 @@ def test_write_handoff_is_private_and_names_the_real_port(
     assert payload["port"] == 54321
     assert payload["host"] == "127.0.0.1"
     assert payload["credential"] == "c" * 43
+
+
+def test_remove_handoff_if_own_removes_a_file_this_process_wrote(
+    tmp_path: Path,
+) -> None:
+    """A handoff file naming this process's own pid is removed."""
+    path = tmp_path / "session.json"
+    server_main.write_handoff(path, port=1, credential="c" * 43, pid=4242)
+
+    server_main.remove_handoff_if_own(path, pid=4242)
+
+    assert not path.exists()
+
+
+def test_remove_handoff_if_own_never_deletes_a_second_servers_handoff(
+    tmp_path: Path,
+) -> None:
+    """A second server overwriting the same path is never deleted.
+
+    Not by the first server's own shutdown. Martin's own scenario:
+    server A is running; server B starts and
+    overwrites the same (most often default, unspecified `--handoff`)
+    path with its own port and credential; A is then stopped. A's own
+    shutdown must not delete B's live handoff, or a client reading it
+    afterward finds nothing even though a real server is still up.
+    """
+    path = tmp_path / "session.json"
+    server_main.write_handoff(path, port=1, credential="a" * 43, pid=1111)
+
+    server_main.write_handoff(path, port=2, credential="b" * 43, pid=2222)
+    server_main.remove_handoff_if_own(path, pid=1111)
+
+    assert path.exists()
+    payload = json.loads(path.read_text())
+    assert payload["pid"] == 2222
+    assert payload["port"] == 2
+
+
+def test_remove_handoff_if_own_tolerates_a_missing_file(
+    tmp_path: Path,
+) -> None:
+    """No file at the path is not an error -- there is nothing to remove."""
+    server_main.remove_handoff_if_own(tmp_path / "missing.json", pid=1)
+
+
+def test_remove_handoff_if_own_tolerates_a_malformed_file(
+    tmp_path: Path,
+) -> None:
+    """A file that is not valid JSON is left alone, never raised on."""
+    path = tmp_path / "session.json"
+    path.write_text("not json at all")
+
+    server_main.remove_handoff_if_own(path, pid=1)
+
+    assert path.exists()
 
 
 def test_serve_starts_and_writes_the_handoff_with_an_unavailable_engine(
@@ -254,6 +310,27 @@ def test_connect_from_handoff_refuses_a_non_json_file(tmp_path: Path) -> None:
     assert len(output) == 1
 
 
+def test_connect_from_handoff_refuses_deeply_nested_json_without_raising(
+    tmp_path: Path,
+) -> None:
+    """Deeply nested JSON is refused, not raised.
+
+    `json.loads`'s own recursive-descent parser raises `RecursionError`
+    for input like this -- comfortably under `MAX_HANDOFF_BYTES` -- which
+    is not `json.JSONDecodeError` and was not caught here before.
+    """
+    path = tmp_path / "session.json"
+    path.write_text("[" * 3000)
+    output: list[str] = []
+
+    # pyrefly: ignore.  __getattr__ delegates the query surface at
+    # runtime, but pyrefly cannot verify that structurally.
+    client = connect_from_handoff(_FakeSession(), output.append, path=path)
+
+    assert client is None
+    assert len(output) == 1
+
+
 def test_connect_from_handoff_refuses_an_oversized_file(
     tmp_path: Path,
 ) -> None:
@@ -301,6 +378,37 @@ def test_connect_from_handoff_registers_on_a_valid_file(
     assert "copilot_apply" in session.registered
     assert "copilot_health" in session.registered
     assert any("connected" in line for line in output)
+
+
+def test_connect_from_handoff_forwards_an_injected_recovery_store(
+    tmp_path: Path,
+) -> None:
+    """A caller-supplied recovery store reaches the registered client.
+
+    Without this, a test pointed at a real handoff file has no way to
+    root recovery points anywhere but the real user's home directory --
+    the same gap Martin's own review found: a regression that wrote one
+    would land in `~/.pymol-copilot/recovery`, invisible to a test
+    watching its own `tmp_path`.
+    """
+    path = tmp_path / "session.json"
+    path.write_text(
+        json.dumps({"host": "127.0.0.1", "port": 54321, "credential": "c" * 43})
+    )
+    output: list[str] = []
+    store = RecoveryStore(tmp_path)
+
+    client = connect_from_handoff(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        _FakeSession(),
+        output.append,
+        path=path,
+        recovery_store=store,
+    )
+
+    assert isinstance(client, CopilotCommandClient)
+    assert client._recovery_store is store
 
 
 def test_client_closure_never_reaches_langgraph_or_httpx() -> None:

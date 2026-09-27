@@ -27,6 +27,7 @@ from pmc_client.command import CopilotCommandClient
 from pmc_client.command import RegisteredPyMOLSession
 from pmc_client.command import register_copilot
 from pmc_client.messages import bounded
+from pmc_client.recovery import RecoveryStore
 from pmc_client.transport import LoopbackPlanClient
 
 #: The largest handoff file this reader will parse. The server writes a
@@ -88,6 +89,7 @@ def connect_from_handoff(
     *,
     path: Path,
     timeout_seconds: float | None = None,
+    recovery_store: RecoveryStore | None = None,
 ) -> CopilotCommandClient | None:
     """Read the server's handoff file and register Copilot if it is valid.
 
@@ -97,6 +99,13 @@ def connect_from_handoff(
             success or refusal alike.
         path: Where to look for the handoff file.
         timeout_seconds: Forwarded to `LoopbackPlanClient`, when given.
+        recovery_store: Forwarded to `register_copilot`. Defaults to the
+            real per-session recovery lifecycle rooted at the user's own
+            home directory; a test injects one rooted elsewhere so a
+            recovery point a regression wrote can actually be observed,
+            rather than landing in the real `~/.pymol-copilot/recovery`
+            where nothing watching a test's own `tmp_path` would ever see
+            it.
 
     Returns:
         The registered command client, or `None` if the handoff could not
@@ -118,7 +127,18 @@ def connect_from_handoff(
         return None
     try:
         payload: Any = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+    ):
+        # RecursionError: json.loads's own recursive-descent parser raises
+        # it for deeply nested input (observed with ~3000 levels of `[`,
+        # comfortably under MAX_HANDOFF_BYTES) -- this module's own
+        # docstring promises never to raise into PyMOL's command dispatch,
+        # and that promise must hold for a malformed handoff file, not
+        # only for a merely oversized or non-JSON one.
         output(
             f"copilot: the handoff file at {bounded(str(path))} could not "
             "be read. Restart the server."
@@ -165,6 +185,7 @@ def connect_from_handoff(
         cmd,
         LoopbackPlanClient(port, credential, **transport_kwargs),
         output,
+        recovery_store=recovery_store,
     )
     output(f"copilot: connected to the server on 127.0.0.1:{port}.")
     return client

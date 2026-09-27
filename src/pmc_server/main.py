@@ -128,6 +128,30 @@ def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
         raise
 
 
+def remove_handoff_if_own(path: Path, *, pid: int) -> None:
+    """Remove the handoff file only if it still names this process.
+
+    Two server processes can point at the same path (most often the
+    default, unspecified `--handoff`): a second instance started while
+    the first is still running -- or after it crashed without cleaning
+    up -- overwrites the file with its own port and credential. If the
+    first instance's own shutdown then unlinked the file unconditionally,
+    it would delete the second instance's own live handoff instead of its
+    own, and a client reading it afterward would find nothing, even
+    though a real server is still up.
+
+    Args:
+        path: The handoff file to remove.
+        pid: This process's own OS process id.
+    """
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        return
+    if isinstance(payload, dict) and payload.get("pid") == pid:
+        path.unlink(missing_ok=True)
+
+
 def serve(
     *,
     base_url: str = DEFAULT_BASE_URL,
@@ -187,7 +211,7 @@ def serve(
         own_stop.wait()
     finally:
         server.close()
-        handoff_path.unlink(missing_ok=True)
+        remove_handoff_if_own(handoff_path, pid=os.getpid())
 
 
 def main(argv: Sequence[str] | None = None) -> int:

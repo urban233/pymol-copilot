@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from pmc_client.bootstrap import connect_from_handoff
+from pmc_client.recovery import RecoveryStore
 from scenario_support import FIXTURE_PATH
 from scenario_support import OBJECT_NAME
 from scenario_support import ConsoleDriver
@@ -136,6 +137,11 @@ def test_a_server_that_was_never_started_reports_one_bounded_line(
         driver,
         output.append,
         path=tmp_path / "session.json",
+        # Without this, the recovery-directory assertion below checks a
+        # path a real RecoveryStore (rooted at the real Path.home()) would
+        # never write to at all -- it would pass whether or not a
+        # regression actually created one.
+        recovery_store=RecoveryStore(tmp_path),
     )
 
     after = capture_fingerprint(loaded_fixture)
@@ -162,9 +168,17 @@ def test_server_up_engine_down_then_killed_mid_session(
                 f"server never wrote its handoff file; stderr: {stderr}"
             )
 
-        # pyrefly: ignore.  __getattr__ delegates the query surface at
-        # runtime, but pyrefly cannot verify that structurally.
-        client = connect_from_handoff(driver, output.append, path=handoff)
+        client = connect_from_handoff(
+            # pyrefly: ignore.  __getattr__ delegates the query surface at
+            # runtime, but pyrefly cannot verify that structurally.
+            driver,
+            output.append,
+            path=handoff,
+            # Same reason as the never-started test above: without this,
+            # the recovery-directory assertion at the end of this test
+            # checks a path nothing here would ever write to.
+            recovery_store=RecoveryStore(tmp_path),
+        )
         assert client is not None
         assert any("connected" in line for line in output)
 

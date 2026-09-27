@@ -39,7 +39,11 @@ from latency import DEFAULT_REPETITIONS
 from latency import StageTimer
 from latency import render_note
 from pmc_agent.inference.base import STOP_END
+from pmc_agent.inference.base import CancelToken
+from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import CompletionResult
+from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.lemonade import connect_lemonade
 from pmc_client.command import CopilotCommandClient
 from pmc_client.command import register_copilot
 from pmc_client.recovery import RecoveryStore
@@ -65,6 +69,72 @@ _HAPPY_COMPLETION = (
     "show spheres, copilot_selection\n"
     "orient copilot_selection\n"
 )
+
+
+def _literal_grammar(text: str) -> str:
+    """Build a GBNF grammar that forces exactly one literal completion.
+
+    The same technique the Lemonade capability spike proved
+    (`root ::= "Berlin"`) for a real engine's own grammar-canary probe:
+    a real model's output is otherwise unpredictable, but `generate`'s
+    own timing needs a genuine round trip, and the rest of this harness
+    needs the exact scripted plan text to stay deterministic. Forcing the
+    grammar, rather than trusting the model's own free output, is what
+    makes both true at once.
+
+    Args:
+        text: The exact text the grammar must force.
+
+    Returns:
+        A one-rule GBNF grammar accepting only `text`.
+    """
+    escaped = (
+        text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+    )
+    return f'root ::= "{escaped}"'
+
+
+def _time_one_real_generate(timer: StageTimer, base_url: str) -> None:
+    """Time exactly one real Lemonade completion.
+
+    Forced to the canonical plan text. Connects fresh, times one
+    grammar-forced `complete()` call, and closes
+    the connection -- never reused across repetitions, matching every
+    other real-process stage this harness measures. Raises loudly rather
+    than silently skipping if Lemonade cannot be reached or does not honor
+    the forcing grammar: a latency run that claims to have measured
+    `generate` must have actually done so.
+
+    Args:
+        timer: Where to record `generate`'s own elapsed time.
+        base_url: The real, reachable Lemonade origin.
+
+    Raises:
+        RuntimeError: If Lemonade cannot be reached, or its own output
+            under the forcing grammar does not match the expected text.
+    """
+    engine = connect_lemonade(base_url=base_url)
+    if isinstance(engine, EngineFailure):
+        raise RuntimeError(
+            f"could not connect to Lemonade at {base_url}: "
+            f"{engine.category}: {engine.message}"
+        )
+    try:
+        request = CompletionRequest(
+            prompt=INTENT,
+            grammar=_literal_grammar(_HAPPY_COMPLETION),
+            max_tokens=256,
+            deadline_seconds=30.0,
+        )
+        with timer.measure("generate"):
+            result = engine.complete(request, cancel=CancelToken())
+    finally:
+        engine.close()
+    if isinstance(result, EngineFailure) or result.text != _HAPPY_COMPLETION:
+        raise RuntimeError(
+            "real Lemonade did not reproduce the expected canonical plan "
+            f"text under a forcing grammar: {result!r}"
+        )
 
 
 class _TimedTransport:
@@ -318,6 +388,8 @@ def _run_happy_path_once(
     timer.mark_not_measured("restore_and_compare")
     if engine_url is None:
         timer.mark_not_measured("generate")
+    else:
+        _time_one_real_generate(timer, engine_url)
 
 
 def _run_failure_path_once(cmd: Any, tmp_path: Path, timer: StageTimer) -> None:

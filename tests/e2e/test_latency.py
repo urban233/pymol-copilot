@@ -37,6 +37,20 @@ def test_percentile_uses_nearest_rank_for_an_even_count() -> None:
     assert percentile(values, 95) == 4.0
 
 
+def test_percentile_does_not_round_a_half_rank_to_even() -> None:
+    """Nearest-rank is `ceil(q/100 * n)`, never Python's own `round()`.
+
+    `round()` rounds a half to even (Python 3's own banker's rounding),
+    which silently returns the wrong sample whenever `q/100 * n` lands on
+    a half-integer. `percentile([1, 2, 3, 4, 5], 50)` must be the true
+    median, 3.0 -- `round(2.5)` is 2, one rank too low; `ceil(2.5)` is 3.
+    With 9 samples, `round(4.5)` is 4 (again rounding to even), one rank
+    below the correct 5th value `ceil(4.5) = 5` names.
+    """
+    assert percentile([1.0, 2.0, 3.0, 4.0, 5.0], 50) == 3.0
+    assert percentile([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0], 50) == 5.0
+
+
 def test_percentile_rejects_an_empty_sample_set() -> None:
     """An empty sample set has no percentile to report."""
     with pytest.raises(ValueError, match="empty"):

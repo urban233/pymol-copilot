@@ -11,6 +11,7 @@ measurement with it.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -151,7 +152,12 @@ def percentile(values: Sequence[float], q: float) -> float:
     if not values:
         raise ValueError("percentile of an empty sample set is undefined")
     ordered = sorted(values)
-    rank = max(1, round(q / 100 * len(ordered)))
+    # Nearest-rank is ceil(q/100 * n), not round(): round() rounds a half
+    # to even (Python 3's own banker's rounding), which silently returns
+    # the wrong sample whenever q/100 * n lands on a half-integer --
+    # percentile([1, 2, 3, 4, 5], 50) must be 3 (the true median), but
+    # round(2.5) is 2, one rank too low.
+    rank = max(1, math.ceil(q / 100 * len(ordered)))
     return ordered[min(rank, len(ordered)) - 1]
 
 
