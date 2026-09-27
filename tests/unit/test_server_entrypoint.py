@@ -8,6 +8,7 @@ Lemonade call goes through `httpx.MockTransport`.
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import stat
@@ -135,6 +136,46 @@ def test_write_handoff_is_private_and_names_the_real_port(
     assert payload["credential"] == "c" * 43
 
 
+def test_write_handoff_never_chmods_a_pre_existing_directory(
+    tmp_path: Path,
+) -> None:
+    """A directory `--handoff` already points into is left untouched.
+
+    Martin's own scenario: `--handoff session.json` (the current working
+    directory), `--handoff ~/session.json` (the home directory), and
+    `--handoff /tmp/pmc.json` (a directory the current user does not own)
+    must never have their mode changed -- unconditionally chmodding a
+    directory this call did not create either mutates a directory it does
+    not own, or, when the current user does not own it, raises
+    `PermissionError` and crashes the server right after it started.
+    """
+    directory = tmp_path / "already-exists"
+    directory.mkdir()
+    if os.name != "nt":
+        directory.chmod(0o751)
+
+    server_main.write_handoff(
+        directory / "session.json", port=1, credential="c" * 43, pid=1
+    )
+
+    if os.name != "nt":
+        assert stat.S_IMODE(directory.stat().st_mode) == 0o751
+
+
+def test_write_handoff_chmods_a_directory_it_creates_itself(
+    tmp_path: Path,
+) -> None:
+    """A directory `write_handoff` creates fresh is still made private."""
+    directory = tmp_path / "brand-new" / "nested"
+
+    server_main.write_handoff(
+        directory / "session.json", port=1, credential="c" * 43, pid=1
+    )
+
+    if os.name != "nt":
+        assert stat.S_IMODE(directory.stat().st_mode) == 0o700
+
+
 def test_remove_handoff_if_own_removes_a_file_this_process_wrote(
     tmp_path: Path,
 ) -> None:
@@ -188,6 +229,40 @@ def test_remove_handoff_if_own_tolerates_a_malformed_file(
     server_main.remove_handoff_if_own(path, pid=1)
 
     assert path.exists()
+
+
+def test_serve_installs_signal_handlers_before_starting_the_server() -> None:
+    """Signal handlers are installed before `server.start()`, not after.
+
+    A SIGTERM arriving between `server.start()`/`write_handoff` and signal
+    registration would use Python's default action and kill the process
+    without ever running `serve`'s own `finally`, leaving a handoff file
+    behind that names a port and credential nothing is listening on
+    anymore. A real race like that can't be exercised deterministically
+    without introducing timing-dependent flakiness, so this is checked
+    structurally instead: `signal.signal` must appear, in source order,
+    before `server.start()`.
+    """
+    source = inspect.getsource(server_main.serve)
+    assert source.index("signal.signal(signal.SIGINT") < source.index(
+        "server.start()"
+    )
+
+
+def test_serve_waits_on_a_timed_loop_not_an_untimed_wait() -> None:
+    """The stop-wait is a timed loop, not a single untimed `Event.wait()`.
+
+    On Windows (Python 3.13), an untimed `Event.wait()` blocks on a lock
+    acquire that cannot be interrupted, so the SIGINT handler installed
+    above never actually runs while the main thread is parked there, and
+    Ctrl+C cannot stop the server. Checked structurally, for the same
+    reason as the signal-ordering test above: this is a platform-specific
+    behavior difference a hermetic, single-platform suite cannot reproduce
+    directly.
+    """
+    source = inspect.getsource(server_main.serve)
+    assert "own_stop.wait()" not in source
+    assert "own_stop.wait(timeout=" in source
 
 
 def test_serve_starts_and_writes_the_handoff_with_an_unavailable_engine(
@@ -263,7 +338,12 @@ _INVALID_HANDOFF_PAYLOADS = [
     {"host": "localhost", "port": 0, "credential": "c" * 43},
     {"host": "localhost", "port": 70000, "credential": "c" * 43},
     {"host": "localhost", "port": 1, "credential": "short"},
-    {"host": "localhost", "port": 1, "credential": "c c c c c c c"},
+    # 43 characters -- at least `_MIN_CREDENTIAL_LENGTH` -- so this case
+    # actually reaches and exercises the alphabet check; a short string
+    # with a space in it (the original form of this case) was rejected by
+    # the length check first, and would still pass even if the alphabet
+    # check were removed entirely.
+    {"host": "localhost", "port": 1, "credential": "c" * 42 + "!"},
 ]
 _INVALID_HANDOFF_IDS = [
     "any_host",

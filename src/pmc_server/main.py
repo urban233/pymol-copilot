@@ -102,8 +102,16 @@ def write_handoff(path: Path, *, port: int, credential: str, pid: int) -> None:
             mode 0600 on a platform that enforces POSIX permissions.
     """
     directory = path.parent
+    # Only chmod a directory this call itself creates: `--handoff` can name
+    # any path (the current directory, the user's home directory, `/tmp`),
+    # and unconditionally chmodding a pre-existing one would either mutate a
+    # directory this process does not own or, when it isn't owned by the
+    # current user, raise PermissionError and crash the server right after
+    # it started.
+    directory_already_existed = directory.exists()
     directory.mkdir(parents=True, exist_ok=True)
-    os.chmod(directory, _DIRECTORY_MODE)
+    if not directory_already_existed:
+        os.chmod(directory, _DIRECTORY_MODE)
     payload = json.dumps(
         {
             "host": "127.0.0.1",
@@ -186,6 +194,20 @@ def serve(
         health_handler=lifecycle.health,
     )
     own_stop = stop if stop is not None else threading.Event()
+    if stop is None:
+
+        def _handle_signal(signum: int, frame: FrameType | None) -> None:
+            del signum, frame
+            own_stop.set()
+
+        # Installed before the server actually starts, not after the
+        # handoff is written: a SIGTERM arriving in between would
+        # otherwise use Python's default action and kill the process
+        # without running the `finally` below, leaving a handoff file
+        # behind that names a port and credential nothing is listening on
+        # anymore.
+        signal.signal(signal.SIGINT, _handle_signal)
+        signal.signal(signal.SIGTERM, _handle_signal)
     try:
         server.start()
         write_handoff(
@@ -200,15 +222,13 @@ def serve(
         )
         if ready is not None:
             ready(server.port)
-        if stop is None:
-
-            def _handle_signal(signum: int, frame: FrameType | None) -> None:
-                del signum, frame
-                own_stop.set()
-
-            signal.signal(signal.SIGINT, _handle_signal)
-            signal.signal(signal.SIGTERM, _handle_signal)
-        own_stop.wait()
+        # A timed, looping wait, not a single call with no timeout at all:
+        # on Windows (Python 3.13), an untimed `Event.wait` blocks on a
+        # lock acquire that cannot be interrupted, so the SIGINT handler
+        # above never actually runs while the main thread is parked here,
+        # and Ctrl+C cannot stop the server.
+        while not own_stop.wait(timeout=0.5):
+            pass
     finally:
         server.close()
         remove_handoff_if_own(handoff_path, pid=os.getpid())

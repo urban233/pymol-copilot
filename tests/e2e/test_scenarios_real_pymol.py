@@ -104,8 +104,30 @@ def test_one_intent_through_preview_approve_and_apply(
         plan_id = plan_id_from(output)
         driver.run(f"copilot_apply {plan_id}")
         after_apply = capture_fingerprint(loaded_fixture)
+        apply_output = list(output)
+
+        # 6a. The server-side request was recorded exactly once:
+        #     `copilot_apply` uses its own separate `apply_handler`, so
+        #     approving and applying a plan does not generate a second
+        #     lifecycle request. Checked before the follow-up preview
+        #     below, which legitimately adds a second one of its own.
+        assert len(requests) == 1
+
+        # 6b. Copilot is not blocked on an unconfirmed apply outcome: a
+        #     fresh preview still comes back. Checked here, before the
+        #     server closes, not after -- the same reasoning as scenario
+        #     2's own `still_works` check: a `copilot` call issued once
+        #     the server is already closed fails on the loopback
+        #     connection for an unrelated reason, and the follow-up
+        #     request would never reach the real handler at all.
+        output.clear()
+        driver.run(f"copilot {INTENT}")
+        still_works = find_preview(output)
     finally:
         server.close()
+
+    output = apply_output
+    assert still_works
 
     # 1. Preview mutated nothing, including the view.
     assert_unchanged(before, after_preview)
@@ -153,15 +175,6 @@ def test_one_intent_through_preview_approve_and_apply(
     assert len(points) == 1
     if os.name != "nt":
         assert oct(points[0].stat().st_mode & 0o777) == oct(0o600)
-
-    # 6. The server-side request was recorded exactly once, and a later
-    #    copilot invocation is not blocked on an unconfirmed outcome.
-    assert len(requests) == 1
-    output.clear()
-    driver.run(f"copilot {INTENT}")
-    assert not any(
-        "previous apply outcome is still unconfirmed" in line for line in output
-    )
 
 
 def test_color_on_a_selection_whose_object_was_deleted_does_not_raise(
