@@ -539,6 +539,31 @@ def test_non_grammar_canary_failures_keep_their_category(
     assert result.category == expected_category
 
 
+@pytest.mark.parametrize("backend", ["cuda", "vulkan"])
+def test_a_gpu_backend_accepts_lemonades_gpu_device(backend: str) -> None:
+    """Lemonade reports a GPU-loaded model as "gpu", not by its backend.
+
+    Args:
+        backend: A GPU backend requested at load time.
+    """
+    engine = _connect(_happy_handler(device="gpu"), backend=backend)
+
+    assert isinstance(engine, LemonadeEngine)
+
+
+@pytest.mark.parametrize("backend", ["cuda", "vulkan"])
+def test_a_gpu_backend_refuses_a_cpu_device(backend: str) -> None:
+    """A GPU backend that fell back to the CPU is not what was asked for.
+
+    Args:
+        backend: A GPU backend requested at load time.
+    """
+    result = _connect(_happy_handler(device="cpu"), backend=backend)
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+
+
 #: A checkpoint in Lemonade's `<repo>:<file>` form, as a model pulled
 #: into Lemonade as `user.<name>` carries it, and the file the loaded
 #: llama-server was launched on for it.
