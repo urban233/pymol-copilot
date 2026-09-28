@@ -101,7 +101,12 @@ ungated mirror whose `model.safetensors` is byte-identical to Meta's
   materializes its 14k x 128k logits. It is proven equal to the standard
   masked loss, and it is cross-checked against the Unsloth model's own
   loss before every run. Every batch is checked for masking as it
-  reaches the loss.
+  reaches the loss. Under Unsloth the hidden states come from Unsloth's
+  own causal-LM forward (`pmc_train.train.final_hidden`): its patched
+  decoder, called on its own, is not causal, and the first GPU smoke
+  attempt's cross-check refused to train on it (1.27 against the
+  model's own 6.42 on the shortest example; plain Hugging Face gives
+  6.45 both ways).
 - **Length.** The longest training example is 13,946 tokens; 425 exceed
   8,192, all from the two largest training structures. Sequences run to
   16,384 tokens, the evaluation context, so no sample is dropped or

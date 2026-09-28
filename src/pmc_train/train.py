@@ -38,6 +38,7 @@ import datetime
 import hashlib
 import importlib.metadata
 import json
+import os
 import platform
 import random
 import shutil
@@ -80,6 +81,10 @@ DEFAULT_OUT = Path("results")
 
 #: The version of `run.json`'s layout.
 RUN_VERSION = 1
+
+#: Makes Unsloth's causal-LM forward return its final hidden states in
+#: place of logits (see `final_hidden`).
+UNSLOTH_HIDDEN = "UNSLOTH_RETURN_HIDDEN_STATES"
 
 BACKENDS = ("unsloth", "hf")
 
@@ -263,15 +268,60 @@ def _causal_lm(model: Any) -> Any:
     return model.get_base_model() if hasattr(model, "get_base_model") else model
 
 
+def final_hidden(
+    causal: Any,
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    backend: str,
+) -> torch.Tensor:
+    """Run the decoder and return its final, normalized hidden states.
+
+    With plain Hugging Face that is the decoder's own output. Unsloth's
+    patched decoder is not causal when called on its own: its causal
+    mask is built and passed in by Unsloth's causal-LM forward, so a
+    direct call lets every position attend to the ones after it (the
+    GPU smoke run's loss cross-check caught this). Under Unsloth the
+    states are therefore taken from that forward itself, which returns
+    them in place of logits when `UNSLOTH_RETURN_HIDDEN_STATES` is set,
+    and still materializes no logits.
+
+    Args:
+        causal: The causal language model.
+        input_ids: `[batch, length]` token ids.
+        attention_mask: `[batch, length]`, 0 at padding.
+        backend: `unsloth` or `hf`.
+
+    Returns:
+        `[batch, length, width]` hidden states.
+    """
+    if backend != "unsloth":
+        return causal.model(
+            input_ids=input_ids, attention_mask=attention_mask
+        ).last_hidden_state
+    previous = os.environ.get(UNSLOTH_HIDDEN)
+    os.environ[UNSLOTH_HIDDEN] = "1"
+    try:
+        return causal(input_ids=input_ids, attention_mask=attention_mask).logits
+    finally:
+        if previous is None:
+            del os.environ[UNSLOTH_HIDDEN]
+        else:
+            os.environ[UNSLOTH_HIDDEN] = previous
+
+
 class CompletionTrainer(Trainer):
     """A `Trainer` whose loss is `completion_loss`, on checked batches."""
 
-    def __init__(self, *args: Any, eot_id: int, **kwargs: Any) -> None:
-        """Remember the end-of-turn token for the masking check.
+    def __init__(
+        self, *args: Any, eot_id: int, backend: str, **kwargs: Any
+    ) -> None:
+        """Remember the end-of-turn token and the backend.
 
         Args:
             *args: Passed to `Trainer`.
             eot_id: The end-of-turn token id.
+            backend: `unsloth` or `hf`, which decides how the hidden
+                states are taken (`final_hidden`).
             **kwargs: Passed to `Trainer`.
         """
         super().__init__(*args, **kwargs)
@@ -281,6 +331,7 @@ class CompletionTrainer(Trainer):
         # (possibly Unsloth-patched) model's forward signature suggests.
         self.model_accepts_loss_kwargs = True
         self.eot_id = eot_id
+        self.backend = backend
         self.checked_batches = 0
         self.supervised_tokens = 0
         self.normalized_by_items = False
@@ -322,17 +373,19 @@ class CompletionTrainer(Trainer):
         self.checked_batches += 1
         self.normalized_by_items = num_items_in_batch is not None
         causal = _causal_lm(self.accelerator.unwrap_model(model))
-        hidden = causal.model(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-        ).last_hidden_state
+        hidden = final_hidden(
+            causal, inputs["input_ids"], inputs["attention_mask"], self.backend
+        )
         return completion_loss(
             hidden, causal.lm_head, inputs["labels"], num_items_in_batch
         )
 
 
 def cross_check_loss(
-    model: Any, batch: dict[str, torch.Tensor], device: torch.device
+    model: Any,
+    batch: dict[str, torch.Tensor],
+    device: torch.device,
+    backend: str,
 ) -> dict[str, float]:
     """Compare the completion loss with the model's own loss on one batch.
 
@@ -346,6 +399,7 @@ def cross_check_loss(
         model: The PEFT model.
         batch: A short collated batch.
         device: The device the model is on.
+        backend: `unsloth` or `hf`.
 
     Returns:
         Both losses and their relative difference.
@@ -360,10 +414,9 @@ def cross_check_loss(
     }
     with torch.no_grad():
         reference = float(causal(**inputs).loss)
-        hidden = causal.model(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-        ).last_hidden_state
+        hidden = final_hidden(
+            causal, inputs["input_ids"], inputs["attention_mask"], backend
+        )
         ours = float(completion_loss(hidden, causal.lm_head, inputs["labels"]))
     difference = abs(ours - reference) / max(abs(reference), 1e-12)
     if difference > 2e-2:
@@ -622,12 +675,14 @@ def train(
         data_collator=CompletionCollator(tokenizer.pad_token_id),
         callbacks=[log],
         eot_id=end_of_turn_id(tokenizer),
+        backend=backend,
     )
     shortest = min(examples, key=lambda e: (len(e.input_ids), e.sample_id))
     cross_check = cross_check_loss(
         trainer.model,
         CompletionCollator(tokenizer.pad_token_id)([example_item(shortest)]),
         trainer.args.device,
+        backend,
     )
     if cuda:
         torch.cuda.reset_peak_memory_stats()

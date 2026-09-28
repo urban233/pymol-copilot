@@ -12,8 +12,10 @@ config, a dirty tree is refused, and a seed fixes the result.
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import json
+import os
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -26,10 +28,12 @@ from pmc_train.config import DEFAULT_CONFIG
 from pmc_train.config import TrainConfig
 from pmc_train.config import config_sha256
 from pmc_train.examples import end_of_turn_id
+from pmc_train.train import UNSLOTH_HIDDEN
 from pmc_train.train import DirtyTreeError
 from pmc_train.train import RunExistsError
 from pmc_train.train import RunResult
 from pmc_train.train import ensure_clean
+from pmc_train.train import final_hidden
 from pmc_train.train import train
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -236,3 +240,45 @@ def test_a_dirty_tree_is_refused(tmp_path: Path) -> None:
     (tmp_path / "tracked.txt").write_text("two\n", encoding="utf-8")
     with pytest.raises(DirtyTreeError):
         ensure_clean(tmp_path)
+
+
+class _FakeUnslothCausal:
+    """Stands in for Unsloth's causal LM: hidden states only on request."""
+
+    def __init__(self) -> None:
+        """Record nothing yet."""
+        self.seen: list[str | None] = []
+
+    def __call__(
+        self, *, input_ids: torch.Tensor, attention_mask: torch.Tensor
+    ) -> Any:
+        """Return hidden states in `logits` when the variable asks for them.
+
+        Args:
+            input_ids: The token ids.
+            attention_mask: The attention mask.
+
+        Returns:
+            An object whose `logits` holds a marker tensor.
+        """
+        del attention_mask
+        flag = os.environ.get(UNSLOTH_HIDDEN)
+        self.seen.append(flag)
+        value = 1.0 if flag == "1" else -1.0
+        return SimpleNamespace(logits=torch.full((*input_ids.shape, 2), value))
+
+
+def test_unsloth_hidden_states_come_from_the_causal_forward() -> None:
+    """Under Unsloth, the causal-LM forward (with its causal mask) is used.
+
+    Calling Unsloth's decoder directly would drop the causal mask it is
+    given by that forward; `final_hidden` must never do so, and must
+    leave the environment as it found it.
+    """
+    causal = _FakeUnslothCausal()
+    ids = torch.zeros((1, 3), dtype=torch.long)
+    before = os.environ.get(UNSLOTH_HIDDEN)
+    hidden = final_hidden(causal, ids, torch.ones_like(ids), "unsloth")
+    assert causal.seen == ["1"]
+    assert bool((hidden == 1.0).all())
+    assert os.environ.get(UNSLOTH_HIDDEN) == before
