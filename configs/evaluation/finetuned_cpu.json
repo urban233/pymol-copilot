@@ -19,7 +19,7 @@
     "host": "Linux 5.15.167.4-microsoft-standard-WSL2 x86_64; NVIDIA GeForce RTX 4060, 610.74; WSL2",
     "image": "ghcr.io/lemonade-sdk/lemonade-server@sha256:3873d3ec672eaebdf4484cf1592daae1ae0f73d0f6377a03f38f931f972ca122",
     "lemonade_version": "11.9.0",
-    "llama_cpp_build": null,
+    "llama_cpp_build": "b10723",
     "llamacpp_args": "--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}' --parallel 1"
   },
   "generation": {
