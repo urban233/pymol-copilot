@@ -273,9 +273,10 @@ def _pairing(
         "only_baseline_succeeds": only_baseline,
         "only_candidate_succeeds": only_candidate,
         "neither_succeeds": neither,
-        "mcnemar_exact_p": round(
-            mcnemar_exact(only_baseline, only_candidate), 12
-        ),
+        # Not rounded: with hundreds of discordant pairs the p-value is
+        # far below any fixed number of decimals, and rounding would
+        # report it as exactly 0.
+        "mcnemar_exact_p": mcnemar_exact(only_baseline, only_candidate),
         "final_outcome_changed": flipped,
     }
 

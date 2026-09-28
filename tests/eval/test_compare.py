@@ -379,5 +379,11 @@ def test_publish_refuses_a_missing_run_of_the_named_sets(
     assert code != 0
 
 
+def test_a_tiny_p_value_is_not_rounded_to_zero() -> None:
+    """842 discordant pairs give about 1e-253, not 0."""
+    p = mcnemar_exact(0, 842)
+    assert 0 < p < 1e-250
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
