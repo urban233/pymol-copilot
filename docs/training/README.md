@@ -163,9 +163,95 @@ run.
 
 ## Runs on CPU
 
-*Filled in after the run.*
+*Filled in after the run.* The fine-tuned GGUF served by Lemonade's CPU
+backend (`configs/evaluation/finetuned_cpu.json`; that backend's own
+llama.cpp build is `b10723`) on the WSL2 machine's CPU, an **AMD Ryzen 5
+3400G** (4 cores, 8 threads), for the first 10 `test_gold` samples under
+each condition (`eval_cli run --limit 10`, runs `eval-017258f94820861c`
+and `eval-3694158a347d3ce0`, kept in `results/`):
+
+| Condition | Engine time per attempt, median | Slowest attempt | Same samples on the RTX 4060, median |
+| --- | --- | --- | --- |
+| no-grammar | 3.6 s | 38.8 s | 0.18 s |
+| grammar | 2.7 s | 13.7 s | 0.57 s |
+
+- The slowest attempts are the cold prefill of a structure card not yet
+  in llama-server's prompt cache; samples on the same structure reuse it.
+- llama-server's resident memory peaked at about 2.0 GB, with the 16k
+  context.
+- These are latency pilots on 10 samples, not quality figures; the
+  quality figures are the GPU runs below. A limited run is never
+  published.
+
+The 3400G has **Radeon Vega integrated graphics**, so this machine
+could test the iGPU route (Lemonade's `llamacpp:vulkan` backend) later.
+That was not done here: under WSL2 the iGPU is reached only through
+Windows' own Vulkan-on-D3D12 layer, and Martin chose to measure the CPU
+and state the iGPU as unproven for this item.
 
 ## Result
 
-*Filled in after the evaluation. Whatever it shows, including no
-difference or a worse fine-tune, is reported here.*
+*Filled in after the evaluation.* The pre-registered comparison
+([PREREGISTRATION.md](../evaluation/PREREGISTRATION.md)): TaskSuccess on
+`test_gold`, paired by sample against the untuned baseline, with an exact
+two-sided McNemar test, for each condition. Full tables, every rate and
+every breakout down to the category:
+[../evaluation/comparison/COMPARISON.md](../evaluation/comparison/COMPARISON.md).
+
+**The fine-tune beats the baseline under both conditions.**
+
+| `test_gold` (68) | Baseline | Fine-tuned | Only fine-tuned succeeds | Only baseline succeeds | McNemar exact p |
+| --- | --- | --- | --- | --- | --- |
+| no-grammar | 0/68 (0.0%, 0.0–5.3%) | **19/68 (27.9%, 18.7–39.6%)** | 19 | 0 | 3.8e-6 |
+| grammar | 0/68 (0.0%, 0.0–5.3%) | **32/68 (47.1%, 35.7–58.8%)** | 32 | 0 | 4.7e-10 |
+
+Intervals are Wilson 95%.
+
+- **It learned to stop.** No completion is truncated any more, where
+  almost every baseline completion ran to the 256-token limit.
+- **Under the grammar every plan parses** (68/68 syntax-valid on the
+  first attempt, against 7/68), and 32 are right. The other 36 run and
+  change the wrong state. 26 of them use the right verbs with the wrong
+  selection:
+  - an everyday name turned into an invented atom name ("the alpha
+    carbons" as `name ALPH` rather than `name CA`, "the waters" as
+    `name WAT` rather than `resn HOH`);
+  - "chains A and B" read as `chain A and chain B` rather than `or`;
+  - a qualifier such as "of chain A" dropped;
+  - a colour changed ("sand" as `gold`).
+
+  The other 10 add or swap a command ("make the zinc ions magenta" as
+  `show mesh, name ZN`). A plan that skips a `select` the reference
+  makes also fails, because TaskSuccess compares selection counts.
+- **Without the grammar the model often keeps the user's own word for
+  the verb.** "make the zinc ions magenta" becomes `make magenta, ...`,
+  and likewise "colour" and "paint". Of the 49 samples that still fail,
+  the first attempt was:
+  - an unknown verb in 22;
+  - an invalid selection in 16;
+  - another syntax error in 3;
+  - an unsupported colour in 1;
+  - screened as hostile (an apostrophe) in 2;
+  - a plan that ran but was wrong in 5.
+
+  The graph's repairs rarely help: 1 of 43 repaired samples reaches
+  TaskSuccess.
+- **`heldout_synthetic`** (secondary; 842 samples on the six held-out
+  structures): 0/842 → **842/842** under both conditions (99.5–100%).
+  Its intents come from the same templates as the training intents, so
+  this shows the model generalizes to structures it never saw. It does
+  not show generalization to how people phrase requests; the
+  hand-written gold set measures that, and is the primary endpoint for
+  that reason.
+- **The export pipeline is not the cause.** The untuned weights,
+  exported the same way, score 0/68 under both conditions, as the
+  baseline does
+  ([comparison_export_control](../evaluation/comparison_export_control/COMPARISON.md)).
+
+**Limits.** This is one run with one seed and no ablation, as the
+specification allows. Most gold categories hold one or two items, so
+the per-category rows are descriptive only. The runtime does not yet
+send the grammar, the condition where the fine-tune does best, nor the
+training prompt (master plan item 19). The gap to close next is
+language generalization: the training intents are templated, and the
+model's gold failures are paraphrases it has not seen.
