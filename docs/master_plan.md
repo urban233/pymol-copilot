@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-27 (items 12 and 16 done)
+**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12 and 16 done; item 17 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -103,7 +103,7 @@ Every item carries a **State**. The values are:
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
-| 17 | Fine-tuning | Martin | **ready** | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
+| 17 | Fine-tuning | Martin | **in progress** — `feat/fine-tuning` | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
 | 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16 ✓, 17 | — |
 | 19 | Integration | Joint | **blocked** | 12 ✓, 17 | — |
 
@@ -134,7 +134,7 @@ flowchart LR
   I14["14 · dataset"]:::done
   I15["15 · gold set"]:::done
   I16["16 · eval and baseline"]:::done
-  I17["17 · fine-tuning"]:::ready
+  I17["17 · fine-tuning"]:::progress
   I18["18 · notebook"]:::blocked
   I19["19 · integration"]:::blocked
 
@@ -210,6 +210,11 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   records the untuned baseline: TaskSuccess 0/68 on `test_gold` under
   both conditions. Item 17 is now ready; its inherited constraints are
   noted under item 16 below.
+- **Item 17 is trained and evaluated on `feat/fine-tuning`**, pull
+  request pending. The fine-tune lifts TaskSuccess on `test_gold` from
+  0/68 to 19/68 without the grammar and to 32/68 with it (exact McNemar
+  p = 3.8e-6 and 4.7e-10); the result and its limits are under item 17
+  below.
 
 ### Cross-owner hand-offs
 
@@ -637,7 +642,7 @@ rests on.
 
 ### 17. Fine-tuning
 
-**Size:** ~5 days · **State:** ready
+**Size:** ~5 days · **State:** in progress (`feat/fine-tuning`) — plan in [plans/13-fine-tuning.md](../plans/13-fine-tuning.md)
 
 ```
 Fine-tune in src/pmc_train/, in the separate virtual environment, outside
@@ -649,6 +654,49 @@ Afterwards re-run the eval harness and compare per category against the
 recorded baseline. If the fine-tune doesn't beat the baseline, report that
 result — don't chase it.
 ```
+
+**Progress** (plan in [plans/13-fine-tuning.md](../plans/13-fine-tuning.md);
+see [docs/training/README.md](training/README.md)):
+
+- **Base model:** kept as item 16 fixed it, Llama-3.2-1B-Instruct at
+  Q4_K_M; why, its license terms and the unproven iGPU route are
+  recorded in docs/training/README.md. The training weights are Meta's
+  (the ungated Unsloth mirror, byte-identical `model.safetensors`).
+- **Method:** completion-only LoRA with Unsloth, one committed config
+  (`configs/training/lora-v1.json`), seeds 20260927 and 20260928, no
+  sweep. A tensor-level test proves every prompt position gets exactly
+  zero gradient; the training render is byte- and token-identical to
+  the engine's. Every GPU run went through Martin's explicit consent.
+- **Run:** 299 optimizer steps, 2 h 25 min on the RTX 4060; every one of
+  4,778 batches mask-checked. The GPU smoke run's loss cross-check first
+  caught Unsloth's decoder running without its causal mask when called
+  directly; that was fixed before any step trained.
+- **Export:** llama.cpp `b10707`, Q4_K_M, checked against the baseline's
+  GGUF. An export-pipeline control (the untuned weights through the same
+  pipeline) matches the baseline: 0/68 under both conditions.
+- **Result on `test_gold`** (primary, pre-registered, paired exact
+  McNemar), in [docs/evaluation/comparison/COMPARISON.md](evaluation/comparison/COMPARISON.md):
+  - no-grammar: 0/68 → **19/68** (27.9%, 18.7–39.6%), p = 3.8e-6;
+  - grammar: 0/68 → **32/68** (47.1%, 35.7–58.8%), p = 4.7e-10.
+- **`heldout_synthetic`** (secondary): 0/842 → 842/842 under both
+  conditions. Its intents come from the training templates, so this is
+  generalization to unseen structures, not to natural phrasing.
+- **What still fails:** without the grammar the model often copies the
+  user's verb ("make", "colour", "paint"); with it, every plan parses and
+  36 of 68 run but are wrong (for example `name ZN` for "zinc ions").
+- **Note for item 18:** the evidence lives in docs/training/ (config,
+  run records, export records) and docs/evaluation/{export_control,
+  finetuned,comparison,comparison_export_control}/.
+- **Note for item 19 (Hannah):** the trained model is the local file
+  `results/train-e6c6c4dd8f6caaf9/export/Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf`
+  (SHA-256 `6c5c76a0…`, in docs/training/runs/), handed over out of
+  band and never uploaded. Lemonade serves it in place through
+  `extra_models_dir` (configs/evaluation/engine/compose.local-model.yaml
+  and `setup.sh --config configs/evaluation/finetuned.json`), and the
+  adapter now accepts such a local checkpoint. The four runtime gaps
+  noted under item 16 still apply, and matter more now: the model was
+  trained on `contract_prompt`'s prompt, a 16384 context, and scored
+  best under the grammar the runtime graph does not yet send.
 
 ### 18. Notebook
 
