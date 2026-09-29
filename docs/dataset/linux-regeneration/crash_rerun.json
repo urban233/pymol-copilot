@@ -1,0 +1,47 @@
+{
+  "method": "each crashed attempt re-run alone, one PyMOL child at a time, from plan_attempts(20260921, 4000) at its own index",
+  "reruns": [
+    {
+      "category": "color+select+show/chain+resn/and",
+      "outcome": "kept",
+      "sample_id": "bonded_backbone_00010",
+      "seconds": 3.5
+    },
+    {
+      "category": "hide/hetatm/single+not",
+      "outcome": "kept",
+      "sample_id": "everything_bonded_00097",
+      "seconds": 3.3
+    },
+    {
+      "category": "color/resn/single",
+      "outcome": "kept",
+      "sample_id": "longer_chain_00504",
+      "seconds": 5.3
+    },
+    {
+      "category": "color+select+show/resn/single",
+      "outcome": "kept",
+      "sample_id": "single_chain_hetatm_01213",
+      "seconds": 1.2
+    },
+    {
+      "category": "color/resi/single",
+      "outcome": "kept",
+      "sample_id": "four_chains_01242",
+      "seconds": 5.1
+    },
+    {
+      "category": "hide/hetatm/single+not",
+      "outcome": "kept",
+      "sample_id": "everything_bonded_01283",
+      "seconds": 5.3
+    },
+    {
+      "category": "color+select+show/name/single",
+      "outcome": "kept",
+      "sample_id": "two_chains_01351",
+      "seconds": 4.2
+    }
+  ]
+}

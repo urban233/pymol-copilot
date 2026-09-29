@@ -12,5 +12,9 @@ filegroup(
     ),
     # tests/eval checks that the committed baseline was measured on this
     # exact split (docs/master_plan.md item 16).
-    visibility = ["//tests/data:__pkg__", "//tests/eval:__pkg__"],
+    visibility = [
+        "//tests/data:__pkg__",
+        "//tests/eval:__pkg__",
+        "//tests/notebook:__pkg__",
+    ],
 )

@@ -1,0 +1,619 @@
+{"category":"color+select+show/chain+polymer/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"four_chains_00008","status":"unsupported"}
+{"category":"color+select+show/chain+resn/and","detail":"child_crash","difficulty":"advanced","reason":"child_crash","sample_id":"bonded_backbone_00010","status":"failed"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_small_00015","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_two_chains_00019","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_states_00023","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_states_00024","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_00040","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_00055","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_00070","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_00085","status":"unsupported"}
+{"category":"hide/hetatm/single+not","detail":"child_crash","difficulty":"intermediate","reason":"child_crash","sample_id":"everything_bonded_00097","status":"failed"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_00100","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_00115","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_00119","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_00120","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_two_chains_00121","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_00122","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"hetatm_and_states_00123","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00124","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_two_chains_00125","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_00126","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_00127","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_small_00128","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_00129","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_00130","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_00131","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_00132","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_00133","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:nonbonded","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_00145","status":"unsupported"}
+{"category":"color+select+show/chain+polymer/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_two_chains_00157","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_and_hetatm_00164","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_states_00168","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_states_00172","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"single_chain_hetatm_00173","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_00189","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_00204","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_00219","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00234","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_00249","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_00264","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_00268","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_00269","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_two_chains_00270","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_00271","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00272","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_00273","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_00274","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_00275","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_00276","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_backbone_00277","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_00278","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_00279","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00280","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_00281","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_00282","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_00294","status":"unsupported"}
+{"category":"color+select+show/chain+polymer/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_00306","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"hetatm_and_states_00313","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_bonded_00317","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_backbone_00321","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_two_chains_00322","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_00338","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_00353","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_00368","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_00383","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_00398","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_00413","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_00417","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_00418","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_four_chains_00419","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_00420","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_00421","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_00422","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_00423","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_00424","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_00425","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_00426","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_00427","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_00428","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_00429","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_00430","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_00431","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_00443","status":"unsupported"}
+{"category":"color+select+show/chain+polymer/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"three_chains_00455","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_hetatm_00462","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"single_chain_hetatm_00466","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_00470","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"three_chains_00471","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_00487","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_00502","status":"unsupported"}
+{"category":"color/resn/single","detail":"child_crash","difficulty":"basic","reason":"child_crash","sample_id":"longer_chain_00504","status":"failed"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_00517","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_00532","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_00547","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_00562","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_00566","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_00567","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"hetatm_and_states_00568","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_00569","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_two_chains_00570","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_00571","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_00572","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_00573","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_00574","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_two_residues_00575","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_00576","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_00577","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_00578","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_00579","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_00580","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_00592","status":"unsupported"}
+{"category":"color+select+show/chain+polymer/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_two_chains_00604","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_four_chains_00611","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_three_chains_00615","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_chain_00619","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_pair_00620","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_00636","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_00651","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_00666","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_00681","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_00696","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_00711","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_00715","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_00716","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"three_chains_00717","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_00718","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_hetatm_00719","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_00720","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_00721","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_00722","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_00723","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"three_chains_00724","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_00725","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_00726","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_00727","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_00728","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_00729","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_00741","status":"unsupported"}
+{"category":"color+select+show/chain+polymer/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00753","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_hetatm_00760","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_pair_00764","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"minimal_single_chain_00768","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00769","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_00785","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_00800","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_00815","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_00830","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_00845","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_00860","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_00864","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_00865","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_00866","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_00867","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_four_chains_00868","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_00869","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_00870","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_00871","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_00872","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"hetatm_and_states_00873","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_00874","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_00875","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_00876","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_00877","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_00878","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_00890","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_bonded_00908","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"three_states_00911","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_two_residues_00915","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_two_residues_00916","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_00932","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_00947","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_00962","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_00977","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_00992","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_states_01007","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_01011","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_states_01012","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_hetatm_01013","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_01014","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"four_chains_01015","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_01016","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01017","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_01018","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_01019","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"single_chain_hetatm_01020","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01021","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_01022","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_01023","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_01024","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_01025","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_01037","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_three_chains_01055","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"three_chains_01058","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"three_states_01062","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_three_chains_01063","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_01079","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_01094","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01109","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_01124","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_01139","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_01154","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_01158","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_01159","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01160","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_01161","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"three_chains_01162","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_01163","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_01164","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_01165","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_01166","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_four_chains_01167","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_01168","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_01169","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01170","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_01171","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_01172","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_01184","status":"unsupported"}
+{"category":"color+select+show/hetatm+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"single_chain_hetatm_01202","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_and_hetatm_01205","status":"unsupported"}
+{"category":"color+select+show/polymer+resn/single+not","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_pair_01209","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_hetatm_01210","status":"unsupported"}
+{"category":"color+select+show/resn/single","detail":"child_crash","difficulty":"advanced","reason":"child_crash","sample_id":"single_chain_hetatm_01213","status":"failed"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_01226","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01241","status":"unsupported"}
+{"category":"color/resi/single","detail":"child_crash","difficulty":"basic","reason":"child_crash","sample_id":"four_chains_01242","status":"failed"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_01256","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_01271","status":"unsupported"}
+{"category":"hide/hetatm/single+not","detail":"child_crash","difficulty":"intermediate","reason":"child_crash","sample_id":"everything_bonded_01283","status":"failed"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_01286","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_01301","status":"unsupported"}
+{"category":"orient/chain+hetatm/and+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_01305","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_01306","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_small_01307","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_two_chains_01308","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_bonded_01309","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_01310","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_01311","status":"unsupported"}
+{"category":"orient/hetatm/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_01312","status":"unsupported"}
+{"category":"orient/hetatm/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_01313","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_and_hetatm_01314","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_01315","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01316","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_01317","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_01318","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_01319","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_01331","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_hetatm_01348","status":"unsupported"}
+{"category":"color+select+show/name/single","detail":"child_crash","difficulty":"advanced","reason":"child_crash","sample_id":"two_chains_01351","status":"failed"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"three_states_01352","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_01368","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_01383","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_01395","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_states_01407","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:slice","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_01422","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_01434","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_01438","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"four_chains_01439","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_01440","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_two_chains_01441","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_01442","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_01443","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"minimal_single_chain_01444","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_01445","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_01446","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_01447","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_01448","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_01449","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_01461","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_01478","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_chain_01482","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_01498","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_01513","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_01525","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_01537","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_01552","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_01564","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_01568","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_three_chains_01569","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_states_01570","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_three_chains_01571","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_01572","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_01573","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_states_01574","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_01575","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_01576","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_01577","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_01578","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_01579","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_01591","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_backbone_01608","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_01612","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_01628","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_01643","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_01655","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_two_chains_01667","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_01682","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_01694","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_01698","status":"unsupported"}
+{"category":"orient/chain+name/and_or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_bonded_01699","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_01700","status":"unsupported"}
+{"category":"orient/chain/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_small_01701","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_01702","status":"unsupported"}
+{"category":"orient/chain/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_01703","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_chain_01704","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_01705","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_01706","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_01707","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_01708","status":"unsupported"}
+{"category":"orient/resn/single+not","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_states_01709","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_01721","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01735","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_small_01739","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_01754","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_01769","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_01778","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_01786","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_01800","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_01809","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_01812","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_01813","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_01814","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_bonded_01815","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_01816","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_01817","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_01818","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_01819","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_01831","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_01845","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"minimal_single_chain_01849","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_01864","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01879","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_01888","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_01896","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_01910","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_01919","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_01922","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_01923","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_01924","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_codes_two_chains_01925","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_01926","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_01927","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_01928","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_01929","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_01941","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_states_01955","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_states_01959","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_01974","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_01989","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_states_01998","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_02006","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_02020","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_02029","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_02032","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_02033","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_02034","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_two_chains_02035","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_02036","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02037","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_02038","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02039","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_02051","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"four_chains_02064","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_hetatm_02068","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_02083","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_02098","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_02107","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_02115","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_02129","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_02138","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_02141","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_02142","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_02143","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_three_chains_02144","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_02145","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_02146","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_02147","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02148","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_02160","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_four_chains_02173","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"four_chains_02177","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_02192","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_02207","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_two_chains_02216","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_02224","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_02238","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_02247","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_02250","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_02251","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_02252","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_02253","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_02254","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_02255","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_02256","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_02257","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_02269","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_hetatm_02282","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_two_chains_02286","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_02301","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_02316","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_02325","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_02333","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:nonbonded","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_02347","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_02356","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_02359","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_02360","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_02361","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"three_states_02362","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02363","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_02364","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_02365","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02366","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02378","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_two_residues_02390","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"hetatm_and_states_02394","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_02409","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_02424","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_02433","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_02441","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:nonbonded","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_02452","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_02461","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_02464","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_02465","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_02466","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"four_chains_02467","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_02468","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_02469","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02470","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_02471","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02483","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"hetatm_and_states_02495","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_four_chains_02499","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_hetatm_02514","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02529","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_02538","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_02546","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02557","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_02566","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_02569","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_02570","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_02571","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_states_02572","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_02573","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_02574","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_02575","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02576","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_02588","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"minimal_single_chain_02600","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_backbone_02604","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_02619","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_02634","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_02643","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_02651","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_02662","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_two_chains_02671","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_02674","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"four_chains_02675","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_02676","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"bonded_two_chains_02677","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_02678","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_02679","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_02680","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_02681","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_02693","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_small_02705","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"everything_bonded_02709","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_02724","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_02739","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_four_chains_02748","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"minimal_single_chain_02756","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_02767","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_02776","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_two_chains_02779","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_two_residues_02780","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_02781","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_and_hetatm_02782","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_02783","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_02784","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_02785","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_02786","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_02798","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_chain_02810","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_02814","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_states_02829","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02844","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_02853","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_small_02861","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_02872","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_02881","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_02884","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_02885","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_02886","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"altloc_pair_02887","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_02888","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_02889","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_02890","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_02891","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_02903","status":"unsupported"}
+{"category":"color+select+show/name+polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"longer_two_chains_02915","status":"unsupported"}
+{"category":"color+select+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"advanced","reason":"not_gradable","sample_id":"insertion_and_hetatm_02919","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_states_02934","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_02949","status":"unsupported"}
+{"category":"hide+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"bonded_backbone_02958","status":"unsupported"}
+{"category":"hide+show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_02966","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_02977","status":"unsupported"}
+{"category":"orient+select/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_and_hetatm_02986","status":"unsupported"}
+{"category":"orient/chain+name/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_three_chains_02989","status":"unsupported"}
+{"category":"orient/chain+resn/and","detail":"unsupported: camera_view","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_02990","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_02991","status":"unsupported"}
+{"category":"orient/name+resn/or","detail":"unsupported: camera_view","difficulty":"advanced","reason":"not_gradable","sample_id":"two_chains_hetatm_02992","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_02993","status":"unsupported"}
+{"category":"orient/polymer/single","detail":"unsupported: polymer_classification, camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_02994","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_bonded_02995","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_02996","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_03008","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_chain_03028","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03043","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_03063","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_03071","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_03072","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_03073","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_03074","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03086","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_03106","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_03121","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_chain_03141","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_03149","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_03150","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_03151","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_03152","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_03164","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"everything_bonded_03184","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_03199","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_03219","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_03226","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_03227","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03228","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_03229","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_03241","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_two_chains_03261","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_03276","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_03296","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_03303","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_03304","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03305","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_03306","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_03318","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"hetatm_and_states_03338","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_03353","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:nonbonded","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_03373","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_03380","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_03381","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_03382","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_03383","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_03395","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_03415","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_03430","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_03450","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_03457","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_03458","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"single_chain_hetatm_03459","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_03460","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_03472","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_03492","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_03507","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:slice","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_03524","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_03531","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_03532","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_03533","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_pair_03534","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_03546","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"two_chains_03566","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_03581","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03598","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03605","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_03606","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03607","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"longer_two_chains_03608","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_03620","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_codes_03640","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_chains_03655","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:ellipsoids","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_03672","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_two_residues_03679","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_03680","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_03681","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_03682","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_03694","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"insertion_and_hetatm_03714","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_03729","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_03746","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_two_chains_03753","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_03754","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_03755","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_two_chains_03756","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_hetatm_03768","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"three_chains_03788","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_03803","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"minimal_single_chain_03820","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"four_chains_03827","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"everything_small_03828","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_03829","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_states_03830","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification, unobservable_representation:volume","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_03842","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"altloc_pair_03862","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_four_chains_03877","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_hetatm_03894","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_03901","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"hetatm_and_states_03902","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_03903","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"bonded_backbone_03904","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"altloc_and_states_03916","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"single_chain_hetatm_03932","status":"unsupported"}
+{"category":"color/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"everything_three_chains_03944","status":"unsupported"}
+{"category":"hide/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"three_states_03961","status":"unsupported"}
+{"category":"orient/chain/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_and_hetatm_03968","status":"unsupported"}
+{"category":"orient/name/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_03969","status":"unsupported"}
+{"category":"orient/resi/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"insertion_codes_03970","status":"unsupported"}
+{"category":"orient/resn/single","detail":"unsupported: camera_view","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_03971","status":"unsupported"}
+{"category":"show/polymer/single","detail":"unsupported: polymer_classification","difficulty":"basic","reason":"not_gradable","sample_id":"two_chains_03980","status":"unsupported"}
+{"category":"color+select/polymer/single","detail":"unsupported: polymer_classification","difficulty":"intermediate","reason":"not_gradable","sample_id":"longer_two_chains_03996","status":"unsupported"}
