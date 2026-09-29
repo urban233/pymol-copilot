@@ -683,7 +683,12 @@ if RUN_DEMO:
 # %% [markdown]
 # The preview shows the plan, how many atoms each selection matched when
 # the plan was rehearsed in a separate PyMOL process, and what was
-# checked. Nothing in the session has changed yet. The user approves it:
+# checked. Nothing in the session has changed yet. (The model selected the
+# zinc by atom name, `name ZN`, where the gold plan uses the residue name,
+# `resn ZN`; on this structure both match the same two atoms, which is why
+# the evaluation scored it right. Lines such as `cmd.sync() timed out`
+# are PyMOL's own messages when run inside a notebook kernel; the commands
+# still complete, as the outputs show.) The user approves it:
 
 # %%
 if RUN_DEMO:

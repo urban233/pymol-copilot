@@ -217,7 +217,8 @@ def start_server(arguments: Sequence[str], handoff: Path) -> subprocess.Popen:
 
     Args:
         arguments: Its command-line flags.
-        handoff: Where it writes its port and credential.
+        handoff: Where it writes its port and credential; its log is
+            written beside it, as `server.log`.
 
     Returns:
         The server process.
@@ -226,6 +227,9 @@ def start_server(arguments: Sequence[str], handoff: Path) -> subprocess.Popen:
         RuntimeError: If it exits or writes no handoff within 10 minutes.
     """
     handoff.unlink(missing_ok=True)
+    # The server's own log (its startup line, LangGraph's notices) goes to
+    # a file beside the handoff, not into the notebook's output.
+    log = (handoff.parent / "server.log").open("w", encoding="utf-8")
     process = subprocess.Popen(
         [
             sys.executable,
@@ -236,6 +240,8 @@ def start_server(arguments: Sequence[str], handoff: Path) -> subprocess.Popen:
             str(handoff),
         ],
         env={**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", "")},
+        stdout=log,
+        stderr=subprocess.STDOUT,
     )
     deadline = time.monotonic() + 600
     while not handoff.exists():
