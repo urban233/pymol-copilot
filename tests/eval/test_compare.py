@@ -371,12 +371,36 @@ def test_publish_refuses_a_missing_run_of_the_named_sets(
             str(BASELINE_CONFIG),
             "--out",
             str(tmp_path / "x"),
+            "--kind",
+            "export-control",
             "--sets",
             "test_gold",
         ],
         git=GIT_CLEAN,
     )
     assert code != 0
+    assert not (tmp_path / "x").exists()
+
+
+def test_publish_refuses_a_partial_baseline(tmp_path: Path) -> None:
+    """The baseline is always published over its config's whole grid."""
+    runs = [run for run in _baseline_runs() if "/test_gold/" in run]
+    code = eval_cli.run(
+        [
+            "publish",
+            "--runs",
+            *runs,
+            "--config",
+            str(BASELINE_CONFIG),
+            "--out",
+            str(tmp_path / "x"),
+            "--sets",
+            "test_gold",
+        ],
+        git=GIT_CLEAN,
+    )
+    assert code != 0
+    assert not (tmp_path / "x").exists()
 
 
 def test_a_tiny_p_value_is_not_rounded_to_zero() -> None:

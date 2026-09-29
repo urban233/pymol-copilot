@@ -14,8 +14,13 @@
 # place; a checkout at any other commit is refused.
 set -euo pipefail
 
+# Override both together: a tag is only trusted at its own commit.
 tag="${PMC_LLAMA_CPP_TAG:-b10707}"
-commit="62acc89c26c66076cb72e049f307fbe93b8b9750"
+commit="${PMC_LLAMA_CPP_COMMIT:-62acc89c26c66076cb72e049f307fbe93b8b9750}"
+if [ -n "${PMC_LLAMA_CPP_TAG:-}" ] && [ -z "${PMC_LLAMA_CPP_COMMIT:-}" ]; then
+  echo "PMC_LLAMA_CPP_TAG needs PMC_LLAMA_CPP_COMMIT, its commit" >&2
+  exit 2
+fi
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 dir="$root/.train-tools/llama.cpp-$tag"
 
@@ -31,5 +36,5 @@ fi
 cmake -S "$dir" -B "$dir/build" -DCMAKE_BUILD_TYPE=Release \
   -DGGML_CUDA=OFF -DLLAMA_CURL=OFF -DLLAMA_BUILD_SERVER=OFF \
   -DLLAMA_BUILD_TESTS=OFF >/dev/null
-cmake --build "$dir/build" --target llama-quantize -j "$(nproc)" >/dev/null
+cmake --build "$dir/build" --target llama-quantize -j "$(nproc 2>/dev/null || sysctl -n hw.ncpu)" >/dev/null
 echo "$dir"

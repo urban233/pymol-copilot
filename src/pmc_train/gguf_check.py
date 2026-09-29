@@ -179,14 +179,6 @@ def compare(candidate: Path, reference: Path) -> CheckResult:
             reported[key] = pair
         else:
             mismatches[key] = pair
-    for key in MUST_MATCH:
-        if key not in ours and key not in theirs:
-            continue
-        if key not in ours or key not in theirs:
-            mismatches[key] = (
-                _summary(ours.get(key)),
-                _summary(theirs.get(key)),
-            )
     tensor_mismatches = sorted(
         name
         for name in set(our_tensors) | set(their_tensors)

@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from pmc_data.manifest import sha256_of
+
 #: The one committed training config.
 DEFAULT_CONFIG = Path("configs") / "training" / "lora-v1.json"
 
@@ -356,6 +358,16 @@ def parse_config(data: Mapping[str, Any]) -> TrainConfig:
         ("logging_steps", config.logging_steps),
     ):
         _positive(value, key)
+    # The trainer reads a warmup value of 1 or more as a step count, not
+    # a ratio (`TrainingArguments.warmup_steps`), so a ratio must be < 1.
+    for key, value in (
+        ("warmup_ratio", config.optimizer.warmup_ratio),
+        ("dropout", config.lora.dropout),
+    ):
+        if not 0 <= value < 1:
+            raise InvalidConfigError(f"{key!r} must be in [0, 1)")
+    if config.optimizer.weight_decay < 0:
+        raise InvalidConfigError("'weight_decay' must not be negative")
     if config.precision not in ("bf16", "fp32"):
         raise InvalidConfigError("'precision' must be 'bf16' or 'fp32'")
     return config
@@ -394,7 +406,7 @@ def config_sha256(path: Path) -> str:
     Returns:
         The hex SHA-256 digest.
     """
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return sha256_of(path)
 
 
 def run_id(config_sha: str, split_id: str, commit: str) -> str:

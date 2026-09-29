@@ -694,9 +694,12 @@ def train(
 
     visited_tokens = sum(len(example.input_ids) for example in visited)
     trained_steps = trainer.state.global_step
+    # Each optimizer step consumes `accumulation` batches of
+    # `per_device_batch_size` examples each.
+    per_step = accumulation * config.optimizer.per_device_batch_size
     trained_tokens = sum(
         len(example.input_ids)
-        for example in visited[: trained_steps * accumulation]
+        for example in visited[: trained_steps * per_step]
     )
     timings: dict[str, Any] = {
         "wall_seconds": wall,

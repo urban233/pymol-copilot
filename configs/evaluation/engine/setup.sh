@@ -31,6 +31,14 @@ esac
 config="configs/evaluation/baseline.json"
 if [ "${2:-}" = "--config" ]; then
   config="${3:?--config needs a file}"
+  shift 3
+else
+  shift $(($# > 0 ? 1 : 0))
+fi
+if [ "$#" -gt 0 ]; then
+  # Anything else would otherwise silently prepare the baseline's model.
+  echo "usage: $0 [cpu|cuda] [--config <config.json>]" >&2
+  exit 2
 fi
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
 case "$config" in

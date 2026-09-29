@@ -216,24 +216,35 @@ def export(
         raise FileExistsError(f"{out} already exists")
     llama_cpp = llama_cpp_dir(root, config)
     weights = weights or base_weights_path(config)
-    reference = reference or reference_gguf(config)
+    if reference is None:
+        # reference_gguf has just verified the file against this digest.
+        reference = reference_gguf(config)
+        reference_sha256 = config.export.base_gguf.sha256
+    else:
+        reference_sha256 = sha256_file(reference)
     out.mkdir(parents=True)
-    merged = out / "merged-hf"
-    save_merged(weights, adapter, merged, load_base)
-    gguf = convert_and_quantize(
-        llama_cpp,
-        merged,
-        out / GGUF_NAME.format(name=name),
-        config.export.quantization,
-    )
-    shutil.rmtree(merged)
-    result = compare(gguf, reference)
-    commit = subprocess.run(
-        ["git", "-C", str(llama_cpp), "rev-parse", "HEAD"],
-        capture_output=True,
-        check=True,
-        text=True,
-    ).stdout.strip()
+    try:
+        merged = out / "merged-hf"
+        save_merged(weights, adapter, merged, load_base)
+        gguf = convert_and_quantize(
+            llama_cpp,
+            merged,
+            out / GGUF_NAME.format(name=name),
+            config.export.quantization,
+        )
+        shutil.rmtree(merged)
+        result = compare(gguf, reference)
+        commit = subprocess.run(
+            ["git", "-C", str(llama_cpp), "rev-parse", "HEAD"],
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout.strip()
+    except BaseException:
+        # A failed stage leaves no half-written export behind to block a
+        # retry (or to be served from the read-only mount).
+        shutil.rmtree(out, ignore_errors=True)
+        raise
     record: dict[str, Any] = {
         "name": name,
         "gguf": gguf.name,
@@ -262,7 +273,7 @@ def export(
             "convert_hf_to_gguf.py --outtype f16",
             f"llama-quantize {config.export.quantization} (no imatrix)",
         ],
-        "reference": {"path": reference.name, "sha256": sha256_file(reference)},
+        "reference": {"path": reference.name, "sha256": reference_sha256},
         "check": result.to_json(),
     }
     (out / "export.json").write_text(

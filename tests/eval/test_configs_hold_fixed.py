@@ -14,25 +14,20 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import json
 from pathlib import Path
-from typing import Any
 
 import pytest
 
+from pmc_eval.compare import ALLOWED_CONFIG_KEYS
+from pmc_eval.compare import config_differences
 from pmc_eval.config import load_config
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIGS = ROOT / "configs" / "evaluation"
 BASELINE = CONFIGS / "baseline.json"
 
-#: What any item 17 config may change: the model under evaluation.
-MODEL_KEYS = frozenset(
-    {
-        ("engine", "model_name"),
-        ("engine", "checkpoint"),
-        ("engine_provenance", "gguf_sha256"),
-        ("engine_provenance", "hf_revision"),
-    }
-)
+#: What any item 17 config may change: the model under evaluation, the
+#: same leaves `eval_cli compare` lets two compared configs differ in.
+MODEL_KEYS = ALLOWED_CONFIG_KEYS
 
 #: What a config for a CPU engine may change besides: where it runs.
 #: Its llama.cpp build is the CPU backend's own, reported as found.
@@ -48,27 +43,6 @@ CPU_KEYS = frozenset(
 OTHERS = sorted(path for path in CONFIGS.glob("*.json") if path != BASELINE)
 
 
-def _flatten(
-    data: dict[str, Any], prefix: tuple[str, ...] = ()
-) -> dict[tuple[str, ...], Any]:
-    """Flatten a config to its leaf values.
-
-    Args:
-        data: A decoded config.
-        prefix: The path to `data`.
-
-    Returns:
-        Each leaf's value, by its path of keys.
-    """
-    leaves: dict[tuple[str, ...], Any] = {}
-    for key, value in data.items():
-        if isinstance(value, dict):
-            leaves.update(_flatten(value, (*prefix, key)))
-        else:
-            leaves[(*prefix, key)] = value
-    return leaves
-
-
 def _differences(path: Path) -> set[tuple[str, ...]]:
     """Name the leaves a config changes relative to the baseline's.
 
@@ -78,13 +52,10 @@ def _differences(path: Path) -> set[tuple[str, ...]]:
     Returns:
         The paths of every leaf added, removed or changed.
     """
-    ours = _flatten(json.loads(path.read_text(encoding="utf-8")))
-    theirs = _flatten(json.loads(BASELINE.read_text(encoding="utf-8")))
-    return {
-        key
-        for key in set(ours) | set(theirs)
-        if ours.get(key, KeyError) != theirs.get(key, KeyError)
-    }
+    return config_differences(
+        json.loads(path.read_text(encoding="utf-8")),
+        json.loads(BASELINE.read_text(encoding="utf-8")),
+    )
 
 
 def test_item_17_configs_exist() -> None:

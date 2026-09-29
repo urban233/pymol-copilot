@@ -114,6 +114,10 @@ def test_unknown_field_is_refused(where: tuple[str, ...]) -> None:
         (("lora", "target_modules"), []),
         (("max_seq_length",), 0),
         (("precision",), "fp16"),
+        (("optimizer", "warmup_ratio"), 1.0),
+        (("optimizer", "warmup_ratio"), -0.1),
+        (("lora", "dropout"), 1.0),
+        (("optimizer", "weight_decay"), -0.01),
     ],
 )
 def test_bad_value_is_refused(path: tuple[str, ...], value: object) -> None:

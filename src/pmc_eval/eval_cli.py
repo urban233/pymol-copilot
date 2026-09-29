@@ -931,6 +931,10 @@ def run_publish(args: argparse.Namespace, git: tuple[str, bool]) -> int:
         if key in runs:
             return _refuse(f"two runs of {key[0]} under {key[1]}")
         runs[key] = (run, report, directory)
+    if args.sets and args.kind == "baseline":
+        # Item 16's baseline, which every comparison rests on, is always
+        # published over its config's whole grid.
+        return _refuse("--sets is for item 17's publications only")
     sets = args.sets or list(config.sets)
     if not set(sets) <= set(config.sets):
         return _refuse(f"--sets must name only {list(config.sets)}")
