@@ -245,13 +245,26 @@ def export(
         # retry (or to be served from the read-only mount).
         shutil.rmtree(out, ignore_errors=True)
         raise
+    if not result.ok:
+        # Nor does a failed check: its GGUF must not be servable from the
+        # mount. The check's result travels in the error.
+        shutil.rmtree(out, ignore_errors=True)
+        raise ExportCheckError(json.dumps(result.to_json(), indent=2))
     record: dict[str, Any] = {
         "name": name,
         "gguf": gguf.name,
         "gguf_sha256": sha256_file(gguf),
         "gguf_bytes": gguf.stat().st_size,
         "file_type": file_type_name(gguf),
-        "adapter": str(adapter) if adapter else None,
+        "adapter": (
+            (
+                adapter.relative_to(root).as_posix()
+                if adapter.is_relative_to(root)
+                else str(adapter)
+            )
+            if adapter
+            else None
+        ),
         "adapter_sha256": (
             {
                 path.name: sha256_file(path)
@@ -279,9 +292,28 @@ def export(
     (out / "export.json").write_text(
         json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    if not result.ok:
-        raise ExportCheckError(json.dumps(result.to_json(), indent=2))
     return record
+
+
+def _verify_adapter(run: Path) -> None:
+    """Refuse an adapter that is not the one its run recorded.
+
+    Args:
+        run: The training run directory.
+
+    Raises:
+        SystemExit: If an adapter file was added, removed or changed
+            since the run wrote `run.json`.
+    """
+    recorded = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    adapter = run / "adapter"
+    actual = {
+        path.name: sha256_file(path)
+        for path in sorted(adapter.iterdir())
+        if path.is_file()
+    }
+    if actual != recorded.get("adapter_sha256"):
+        raise SystemExit(f"{adapter} is not the adapter {run.name} recorded")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -314,6 +346,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     else:
         run = args.run.resolve()
+        _verify_adapter(run)
         out = args.out or run / "export"
         record = export(
             (root / args.config).resolve(),

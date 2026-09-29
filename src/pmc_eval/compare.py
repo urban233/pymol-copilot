@@ -165,7 +165,7 @@ RunReader = Callable[
 
 
 def _published_runs(
-    directory: Path, read_run: RunReader
+    directory: Path, manifest: Mapping[str, Any], read_run: RunReader
 ) -> dict[
     tuple[str, str], tuple[dict[str, Any], list[SampleRecord], dict[str, Any]]
 ]:
@@ -173,12 +173,12 @@ def _published_runs(
 
     Args:
         directory: A directory `eval_cli publish` wrote.
+        manifest: Its decoded `manifest.json`.
         read_run: Reads and checks one run directory.
 
     Returns:
         Each (set, condition)'s run.json, records and report.
     """
-    manifest = json.loads((directory / "manifest.json").read_text("utf-8"))
     runs = {}
     for entry in manifest["runs"]:
         key = (entry["set"], entry["condition"])
@@ -307,6 +307,7 @@ def compare(
         ComparisonError: If the two differ in anything but the model.
     """
     configs = {}
+    manifests = {}
     for name, directory, path in (
         ("baseline", baseline_dir, baseline_config),
         ("candidate", candidate_dir, candidate_config),
@@ -315,6 +316,7 @@ def compare(
         if manifest["config_sha256"] != sha256_of(path):
             raise ComparisonError(f"the {name} was not run under {path.name}")
         configs[name] = json.loads(path.read_text(encoding="utf-8"))
+        manifests[name] = manifest
     changed = config_differences(configs["baseline"], configs["candidate"])
     if not changed <= ALLOWED_CONFIG_KEYS:
         raise ComparisonError(
@@ -323,8 +325,12 @@ def compare(
                 ".".join(key) for key in sorted(changed - ALLOWED_CONFIG_KEYS)
             )
         )
-    baseline_runs = _published_runs(baseline_dir, read_run)
-    candidate_runs = _published_runs(candidate_dir, read_run)
+    baseline_runs = _published_runs(
+        baseline_dir, manifests["baseline"], read_run
+    )
+    candidate_runs = _published_runs(
+        candidate_dir, manifests["candidate"], read_run
+    )
     missing = sorted(set(candidate_runs) - set(baseline_runs))
     if missing:
         raise ComparisonError(f"the baseline has no run of {missing}")

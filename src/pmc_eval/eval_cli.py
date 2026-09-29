@@ -1118,13 +1118,22 @@ def run_compare(args: argparse.Namespace) -> int:
     except (ComparisonError, InvalidRunError) as error:
         return _refuse(str(error))
     comparison["title"] = args.title
-    out.mkdir(parents=True)
-    write_json(out / "comparison.json", comparison)
-    (out / "COMPARISON.md").write_text(
-        render_comparison(comparison, args.title),
-        encoding="utf-8",
-        newline="\n",
-    )
+    # Written aside and renamed into place, like a publication, so a
+    # failure leaves no half-written comparison to block a retry.
+    out.parent.mkdir(parents=True, exist_ok=True)
+    staging = out.parent / f".comparison.{secrets.token_hex(4)}.incomplete"
+    staging.mkdir()
+    try:
+        write_json(staging / "comparison.json", comparison)
+        (staging / "COMPARISON.md").write_text(
+            render_comparison(comparison, args.title),
+            encoding="utf-8",
+            newline="\n",
+        )
+        staging.replace(out)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     print(f"WROTE {_relative(out)}")
     return 0
 

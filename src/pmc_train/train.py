@@ -334,7 +334,9 @@ class CompletionTrainer(Trainer):
         self.backend = backend
         self.checked_batches = 0
         self.supervised_tokens = 0
-        self.normalized_by_items = False
+        # Whether every checked batch was normalized by its accumulated
+        # step's count; None until a batch is checked.
+        self.normalized_by_items: bool | None = None
 
     def compute_loss(
         self,
@@ -371,7 +373,9 @@ class CompletionTrainer(Trainer):
             )
         self.supervised_tokens += assert_batch_masked(inputs, self.eot_id)
         self.checked_batches += 1
-        self.normalized_by_items = num_items_in_batch is not None
+        self.normalized_by_items = (num_items_in_batch is not None) and (
+            self.normalized_by_items is not False
+        )
         causal = _causal_lm(self.accelerator.unwrap_model(model))
         hidden = final_hidden(
             causal, inputs["input_ids"], inputs["attention_mask"], self.backend
@@ -622,6 +626,8 @@ def train(
         visited: list[Example] = sorted(
             examples, key=lambda e: (-len(e.input_ids), e.sample_id)
         )[:smoke]
+        # One sample per optimizer step, whatever the config's batch size.
+        batch_size = 1
         accumulation = 1
         steps = len(visited)
     else:
@@ -629,6 +635,7 @@ def train(
             len(examples), config.data_seed, config.optimizer.epochs
         )
         visited = [examples[index] for index in order]
+        batch_size = config.optimizer.per_device_batch_size
         accumulation = config.optimizer.gradient_accumulation_steps
         steps = max_steps or -1
 
@@ -645,7 +652,7 @@ def train(
     cuda = torch.cuda.is_available() and not use_cpu
     arguments = TrainingArguments(
         output_dir=str(partial / "trainer"),
-        per_device_train_batch_size=config.optimizer.per_device_batch_size,
+        per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=accumulation,
         learning_rate=config.optimizer.learning_rate,
         lr_scheduler_type=config.optimizer.lr_scheduler,
@@ -696,7 +703,7 @@ def train(
     trained_steps = trainer.state.global_step
     # Each optimizer step consumes `accumulation` batches of
     # `per_device_batch_size` examples each.
-    per_step = accumulation * config.optimizer.per_device_batch_size
+    per_step = accumulation * batch_size
     trained_tokens = sum(
         len(example.input_ids)
         for example in visited[: trained_steps * per_step]
