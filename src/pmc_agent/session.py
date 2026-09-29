@@ -148,6 +148,7 @@ class RequestGraphSession:
         validation_deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
         ttl_seconds: float = PLAN_TTL_SECONDS,
         max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
+        grammar: str | None = None,
     ) -> None:
         """Compile the request graph and prepare an empty lock table.
 
@@ -174,6 +175,7 @@ class RequestGraphSession:
                 `executor`.
             ttl_seconds: How long a minted plan stays approvable.
             max_repair_attempts: SPECIFICATION.md:640's repair budget.
+            grammar: The grammar sent with every completion, or None.
 
         Raises:
             ValueError: If `max_repair_attempts` exceeds
@@ -225,6 +227,7 @@ class RequestGraphSession:
             ttl_seconds=ttl_seconds,
             max_repair_attempts=max_repair_attempts,
             cancel_token_source=self._active_cancel_token,
+            grammar=grammar,
         ).compile(checkpointer=self._checkpointer)
 
     def _active_cancel_token(self, session_id: str) -> CancelToken:
