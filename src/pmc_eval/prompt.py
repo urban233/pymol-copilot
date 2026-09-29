@@ -24,7 +24,7 @@ import hashlib
 
 from pmc_agent.prompt import AttemptFailure
 from pmc_agent.prompt import PromptInputs
-from pmc_core.prompt import build_for_runtime
+from pmc_agent.prompt import build_training_prompt
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
@@ -83,8 +83,9 @@ def contract_prompt(inputs: PromptInputs) -> str:
         The training prompt, followed by one `repair_line` per earlier
         failure, oldest first.
     """
-    prompt = build_for_runtime(inputs.snapshot, inputs.intent).text()
-    return prompt + "".join(repair_line(error) for error in inputs.errors)
+    # The runtime's own builder since item 18; `repair_line` is kept here,
+    # worded identically, because REPAIR_PROMPT_VERSION versions it.
+    return build_training_prompt(inputs)
 
 
 def snapshot_for(sample: Sample) -> ObjectSnapshot:

@@ -16,6 +16,13 @@ request's own contract manifest, and the literal intent into a bounded
 prompt. Building item 13's real prompt or grammar here would be work item
 13 deletes; this module's only job is to give the graph a seam item 13 can
 be dropped into without a graph change.
+
+Item 13 has since landed, and `build_training_prompt` is that seam
+filled: the prompt the local model was fine-tuned on (item 17), which
+the offline evaluation sends too (`pmc_eval.prompt.contract_prompt`).
+The graph's default is still the placeholder; `pmc_server.main
+--prompt training` selects the real one (item 18), and item 19 decides
+which the runtime uses by default.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -25,6 +32,7 @@ from dataclasses import dataclass
 
 from pmc_core.card import CARD_VERSION
 from pmc_core.card import render_for_runtime
+from pmc_core.prompt import build_for_runtime
 from pmc_core.protocol import ContractManifestV1
 from pmc_core.snapshot import ObjectSnapshot
 
@@ -114,6 +122,30 @@ def _error_line(error: AttemptFailure) -> str:
         f"previous attempt failed ({error.source}, {where}): "
         f"{error.category}: {error.message}\n"
     )
+
+
+def build_training_prompt(inputs: PromptInputs) -> str:
+    """Build the prompt the local model was fine-tuned on, a `PROMPT_BUILDER`.
+
+    A first attempt's prompt is exactly `pmc_core.prompt.build_for_runtime`'s
+    text, the same bytes every training sample's `prompt_text` holds. A
+    repair appends one line per earlier failure after the intent, oldest
+    first, worded as `_error_line` words them, so the structure card
+    stays a cacheable prefix.
+
+    `inputs.contract_manifest` is not rendered: `build_for_runtime`
+    stamps the prompt's own contract versions, and the graph's
+    `preparing` node refuses any request whose manifest is not the
+    current one before a prompt is ever built.
+
+    Args:
+        inputs: The request's own prompt inputs.
+
+    Returns:
+        The training prompt, then one line per earlier failure.
+    """
+    prompt = build_for_runtime(inputs.snapshot, inputs.intent).text()
+    return prompt + "".join(_error_line(error) for error in inputs.errors)
 
 
 def build_default_prompt(inputs: PromptInputs) -> str:
