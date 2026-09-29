@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import secrets
 import signal
@@ -125,6 +126,29 @@ class GenerationOptions:
     grammar: bool = False
     max_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
     deadline_seconds: float = DEFAULT_GENERATION_DEADLINE_SECONDS
+
+    def __post_init__(self) -> None:
+        """Refuse bounds every completion request would refuse.
+
+        `CompletionRequest` rejects the same values, but only once a
+        request is being generated: checked here, a bad flag stops the
+        server before it loads a model or writes its handoff, rather than
+        failing every request it later serves.
+
+        Raises:
+            ValueError: If `prompt` is not a `PROMPT_BUILDERS` key, if
+                `max_tokens` is not positive, or if `deadline_seconds` is
+                not positive and finite.
+        """
+        if self.prompt not in PROMPT_BUILDERS:
+            raise ValueError(f"unknown prompt builder: {self.prompt!r}")
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be positive")
+        if (
+            not math.isfinite(self.deadline_seconds)
+            or self.deadline_seconds <= 0
+        ):
+            raise ValueError("deadline_seconds must be positive and finite")
 
 
 def build_engine(
@@ -450,6 +474,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=generation_defaults.deadline_seconds,
     )
     args = parser.parse_args(argv)
+    try:
+        generation = GenerationOptions(
+            prompt=args.prompt,
+            grammar=args.grammar,
+            max_tokens=args.max_tokens,
+            deadline_seconds=args.generation_deadline_seconds,
+        )
+    except ValueError as error:
+        parser.error(str(error))
     # Resolved here, not as the argument's own default: Path.home() raises
     # on a platform or sandbox with no resolvable home directory (observed
     # on Windows CI), and that must not happen merely from registering
@@ -470,12 +503,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             context_size=args.context_size,
             read_timeout_seconds=args.read_timeout_seconds,
         ),
-        generation=GenerationOptions(
-            prompt=args.prompt,
-            grammar=args.grammar,
-            max_tokens=args.max_tokens,
-            deadline_seconds=args.generation_deadline_seconds,
-        ),
+        generation=generation,
     )
     return 0
 

@@ -174,10 +174,13 @@ class ConsoleDriver:
         """
 
         def synchronized(argument: str = "") -> None:
+            # The event of the `run` this call belongs to: a command that
+            # outlived its deadline must not release a later `run`.
+            finished = self._finished
             try:
                 callback(argument)
             finally:
-                self._finished.set()
+                finished.set()
 
         self._cmd.extend(name, synchronized)
 
@@ -204,10 +207,10 @@ class ConsoleDriver:
         Raises:
             TimeoutError: If it did not finish within the deadline.
         """
-        self._finished.clear()
+        finished = self._finished = threading.Event()
         started = time.monotonic()
         self._cmd.do(command_line)
-        if not self._finished.wait(self._deadline):
+        if not finished.wait(self._deadline):
             raise TimeoutError(f"{command_line!r} did not finish")
         return time.monotonic() - started
 
@@ -239,7 +242,6 @@ def start_server(arguments: Sequence[str], handoff: Path) -> subprocess.Popen:
             "--handoff",
             str(handoff),
         ],
-        env={**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", "")},
         stdout=log,
         stderr=subprocess.STDOUT,
     )
@@ -249,7 +251,10 @@ def start_server(arguments: Sequence[str], handoff: Path) -> subprocess.Popen:
     while not handoff.exists():
         if process.poll() is not None or time.monotonic() > deadline:
             process.kill()
-            raise RuntimeError("the server did not start")
+            process.wait()
+            raise RuntimeError(
+                f"the server did not start; see {handoff.parent / 'server.log'}"
+            )
         time.sleep(0.5)
     return process
 
@@ -265,6 +270,7 @@ def stop_server(process: subprocess.Popen) -> None:
         process.wait(timeout=30)
     except subprocess.TimeoutExpired:
         process.kill()
+        process.wait()
 
 
 def package_versions(names: Iterable[str]) -> list[tuple[str, str]]:

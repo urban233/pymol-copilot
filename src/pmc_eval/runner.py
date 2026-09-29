@@ -6,9 +6,9 @@ sidecar and repair loop. It compiles `pmc_agent.graph`'s request graph,
 exactly as the unit tests do, and wraps three of its seams:
 
 - the engine, so the grammar can be sent under the `grammar` condition
-  (the graph itself always sends none), so a missing final newline can
-  be appended before the graph sees a completion, and so every request
-  and raw completion is kept;
+  (the graph is built without its own `grammar`), so a missing final
+  newline can be appended before the graph sees a completion, and so
+  every request and raw completion is kept;
 - the executor, so every sidecar report is kept;
 - the plan-id source and clock, so a run is deterministic.
 

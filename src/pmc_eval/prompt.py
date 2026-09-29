@@ -14,8 +14,12 @@ rather than before: the card is by far the longest part of the prompt
 and is shared by every sample on the same structure, so keeping it a
 prefix lets the engine's prompt cache reuse it across repairs.
 
-The failure-line wording is a copy of `pmc_agent.prompt._error_line`,
-not an import of it. `tests/eval/test_prompt.py` fails if the two drift.
+Since item 18, `contract_prompt` delegates to the runtime's own
+`pmc_agent.prompt.build_training_prompt`, so the lines it sends are
+`pmc_agent.prompt._error_line`'s. `repair_line` stays here as the
+versioned statement of that wording (`REPAIR_PROMPT_VERSION`):
+`tests/eval/test_prompt.py` fails if the runtime's wording drifts from
+it, and a deliberate change updates both and bumps the version.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -47,8 +51,10 @@ class BrokenLineageError(ValueError):
 def repair_line(failure: AttemptFailure) -> str:
     """Render one earlier failure as one prompt line.
 
-    Worded exactly as `pmc_agent.prompt._error_line` words it, so a
-    repair prompt tells the model the same thing the runtime's would.
+    Worded exactly as `pmc_agent.prompt._error_line` words it. It is not
+    what `contract_prompt` sends (that is `_error_line` itself); it is the
+    wording `REPAIR_PROMPT_VERSION` versions, which the tests hold the
+    runtime to.
 
     Args:
         failure: The earlier attempt's failure evidence.

@@ -279,6 +279,27 @@ def test_main_refuses_an_unknown_prompt(
         server_main.main(["--prompt", "few-shot", "--handoff", "unused.json"])
 
 
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--max-tokens", "0"],
+        ["--generation-deadline-seconds", "0"],
+        ["--generation-deadline-seconds", "nan"],
+    ],
+)
+def test_main_refuses_bounds_no_completion_accepts(
+    monkeypatch: pytest.MonkeyPatch, flags: list[str]
+) -> None:
+    """A bound every request would refuse stops the server at startup."""
+    started: list[object] = []
+    monkeypatch.setattr(
+        server_main, "serve", lambda **kwargs: started.append(kwargs)
+    )
+    with pytest.raises(SystemExit):
+        server_main.main([*flags, "--handoff", "unused.json"])
+    assert started == []
+
+
 def test_serve_gives_the_session_the_chosen_prompt_and_grammar(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
