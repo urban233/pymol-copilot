@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12 and 16 done; item 17 in progress)
+**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12, 16 and 17 done)
 
 Every item carries a **State**. The values are:
 
@@ -103,9 +103,9 @@ Every item carries a **State**. The values are:
 | 14 | Dataset generation | Martin | **done** — PR #45 | 2 ✓, 4 ✓, 5 ✓, 13 ✓ | 15, 16 |
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
-| 17 | Fine-tuning | Martin | **in progress** — `feat/fine-tuning` | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
-| 18 | Notebook | Martin | **blocked** | 14 ✓, 15 ✓, 16 ✓, 17 | — |
-| 19 | Integration | Joint | **blocked** | 12 ✓, 17 | — |
+| 17 | Fine-tuning | Martin | **done** — PR #59 | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
+| 18 | Notebook | Martin | **ready** | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
+| 19 | Integration | Joint | **ready** | 12 ✓, 17 ✓ | — |
 
 ### The graph
 
@@ -134,9 +134,9 @@ flowchart LR
   I14["14 · dataset"]:::done
   I15["15 · gold set"]:::done
   I16["16 · eval and baseline"]:::done
-  I17["17 · fine-tuning"]:::progress
-  I18["18 · notebook"]:::blocked
-  I19["19 · integration"]:::blocked
+  I17["17 · fine-tuning"]:::done
+  I18["18 · notebook"]:::ready
+  I19["19 · integration"]:::ready
 
   I2 --> I4
   I3 --> I4
@@ -210,11 +210,10 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   records the untuned baseline: TaskSuccess 0/68 on `test_gold` under
   both conditions. Item 17 is now ready; its inherited constraints are
   noted under item 16 below.
-- **Item 17 is trained and evaluated on `feat/fine-tuning`**, pull
-  request pending. The fine-tune lifts TaskSuccess on `test_gold` from
+- **Item 17 is done as PR #59.** The fine-tune lifts TaskSuccess on `test_gold` from
   0/68 to 19/68 without the grammar and to 32/68 with it (exact McNemar
   p = 3.8e-6 and 4.7e-10); the result and its limits are under item 17
-  below.
+  below. Items 18 and 19 are now ready.
 
 ### Cross-owner hand-offs
 
@@ -642,7 +641,7 @@ rests on.
 
 ### 17. Fine-tuning
 
-**Size:** ~5 days · **State:** in progress (`feat/fine-tuning`) — plan in [plans/13-fine-tuning.md](../plans/13-fine-tuning.md)
+**Size:** ~5 days · **State:** done (PR #59) — plan in [plans/13-fine-tuning.md](../plans/13-fine-tuning.md)
 
 ```
 Fine-tune in src/pmc_train/, in the separate virtual environment, outside
@@ -700,7 +699,7 @@ see [docs/training/README.md](training/README.md)):
 
 ### 18. Notebook
 
-**Size:** ~3 days · **State:** blocked on 17
+**Size:** ~3 days · **State:** ready
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
@@ -717,7 +716,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** blocked on 17
+**Size:** ~3 days · **State:** ready
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
