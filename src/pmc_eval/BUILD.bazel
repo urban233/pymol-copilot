@@ -12,6 +12,7 @@ py_library(
     name = "pmc_eval",
     srcs = [
         "__init__.py",
+        "compare.py",
         "config.py",
         "grade.py",
         "metrics.py",

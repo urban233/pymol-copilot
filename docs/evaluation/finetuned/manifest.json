@@ -1,0 +1,111 @@
+{
+  "config_sha256": "be73d76d2ef2baa47d1681dee0fb711f48ce14e6924bd5513ab7374c82763058",
+  "files": {
+    "heldout_synthetic/grammar/report.json": {
+      "bytes": 373373,
+      "records": 18750,
+      "sha256": "59f88673496ccece6bc0af1050b6f9a8b477e0c42ec44116e025e2a696a1024c"
+    },
+    "heldout_synthetic/grammar/run.json": {
+      "bytes": 2624,
+      "records": 54,
+      "sha256": "f943eae829a639cc1d4034e3bd9dac2b1aa0cf685a209929d0fa164f384c7236"
+    },
+    "heldout_synthetic/grammar/samples.jsonl": {
+      "bytes": 1061273,
+      "records": 842,
+      "sha256": "0f32bad4683540a512e70c34fdd773f2731971df764acc60a7f97f33c4284add"
+    },
+    "heldout_synthetic/grammar/timings.jsonl": {
+      "bytes": 127767,
+      "records": 842,
+      "sha256": "d8ee7f8ff39cfe8339997195f7f6123a89ea743390b2e87a127f3326bfb83e7c"
+    },
+    "heldout_synthetic/no-grammar/report.json": {
+      "bytes": 374564,
+      "records": 18800,
+      "sha256": "d564311f7d113787265a3a8bbc206563a8b91180843e2251d5c28d4f71c1ca38"
+    },
+    "heldout_synthetic/no-grammar/run.json": {
+      "bytes": 2630,
+      "records": 54,
+      "sha256": "051da3064353c2349f33c88617f37ee6331e40a2913a2feaa09a83acc313f721"
+    },
+    "heldout_synthetic/no-grammar/samples.jsonl": {
+      "bytes": 1065025,
+      "records": 842,
+      "sha256": "ce0f14345af4e43df5b31c4e92cc20c4e5c1cb3140891a70c4167e62e0772859"
+    },
+    "heldout_synthetic/no-grammar/timings.jsonl": {
+      "bytes": 130379,
+      "records": 842,
+      "sha256": "f4e1899b63f40f820119d4708668f08ce610758448e285fc78f01dc87cf67755"
+    },
+    "test_gold/grammar/report.json": {
+      "bytes": 239405,
+      "records": 12024,
+      "sha256": "56d920a74550fd467a589a7b2266ea3874b77268f0d94e0839baacf4b4cbd4d8"
+    },
+    "test_gold/grammar/run.json": {
+      "bytes": 2607,
+      "records": 54,
+      "sha256": "b01b385258d4b5e637882058cb4a7fadb1f93b5f7ddfe04b5194a5c9edc7b07f"
+    },
+    "test_gold/grammar/samples.jsonl": {
+      "bytes": 82954,
+      "records": 68,
+      "sha256": "11145ce04df9b7578925f2f27344b0a017ae928d7d0435aecd0832ad7e729b5f"
+    },
+    "test_gold/grammar/timings.jsonl": {
+      "bytes": 9218,
+      "records": 68,
+      "sha256": "0487cb7486e6404736895e09923d72919de9bd84324aa3da0e664b0bdbab49b3"
+    },
+    "test_gold/no-grammar/report.json": {
+      "bytes": 245612,
+      "records": 12334,
+      "sha256": "033028ac7bcf1bbad068479b674764b36db4cc4446b6b3862bb9b9ef22c60e4b"
+    },
+    "test_gold/no-grammar/run.json": {
+      "bytes": 2613,
+      "records": 54,
+      "sha256": "e53ae36510bff0ac2110587345f9ce79cf00b99049e1a730d7a458b43e00de2b"
+    },
+    "test_gold/no-grammar/samples.jsonl": {
+      "bytes": 91171,
+      "records": 68,
+      "sha256": "9644ee0e733570b2a8fbc318902f399a3bb9cd3eeb4321226877cd177aa53a66"
+    },
+    "test_gold/no-grammar/timings.jsonl": {
+      "bytes": 14142,
+      "records": 68,
+      "sha256": "238ca6e45d5ea652fdb88265feeb5d77cc9ff182bc9245e9afcb609c1e7e73c5"
+    }
+  },
+  "git_commit": "927b80fdde8f4c89194eb29a0bc95a6fd2903182",
+  "model_identity": "Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M@/models/train-e6c6c4dd8f6caaf9/export/Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf",
+  "publish_version": 1,
+  "runs": [
+    {
+      "condition": "grammar",
+      "run_id": "064e76dfa54c95b6",
+      "set": "heldout_synthetic"
+    },
+    {
+      "condition": "no-grammar",
+      "run_id": "3dbe1f39cdda9cc8",
+      "set": "heldout_synthetic"
+    },
+    {
+      "condition": "grammar",
+      "run_id": "336241b5be5f2270",
+      "set": "test_gold"
+    },
+    {
+      "condition": "no-grammar",
+      "run_id": "aa6be962585b3329",
+      "set": "test_gold"
+    }
+  ],
+  "split_id": "e4599620801af592"
+}

@@ -75,6 +75,9 @@ from pmc_data.sample import InvalidSampleError
 from pmc_data.sample import Sample
 from pmc_data.sample import current_versions
 from pmc_data.sample import read_samples
+from pmc_eval.compare import ComparisonError
+from pmc_eval.compare import compare as compare_published
+from pmc_eval.compare import render_markdown as render_comparison
 from pmc_eval.config import EngineConfig
 from pmc_eval.config import EvalConfig
 from pmc_eval.config import InvalidConfigError
@@ -115,6 +118,35 @@ RUN_FILES = ("run.json", "samples.jsonl", "report.json", "timings.jsonl")
 
 #: The version of the published layout and its manifest.
 PUBLISH_VERSION = 1
+
+#: What a published directory can hold, each with its page's file name,
+#: title and opening paragraph. `baseline` is item 16's, and publishing
+#: it is unchanged; the others are item 17's.
+PUBLISH_KINDS: dict[str, tuple[str, str, str]] = {
+    "baseline": (
+        "BASELINE.md",
+        "Untuned baseline",
+        "The untuned base model, evaluated by the offline harness "
+        "(docs/master_plan.md item 16) before any fine-tuning existed.",
+    ),
+    "finetuned": (
+        "REPORT.md",
+        "Fine-tuned model",
+        "The fine-tuned model (docs/master_plan.md item 17), evaluated by "
+        "the same harness under the same config as the untuned baseline, "
+        "except for the model. The comparison is in "
+        "[../comparison/COMPARISON.md](../comparison/COMPARISON.md).",
+    ),
+    "export-control": (
+        "REPORT.md",
+        "Export-pipeline control",
+        "The untuned base weights exported through item 17's own "
+        "convert-and-quantize pipeline (docs/training/README.md), "
+        "evaluated like the baseline. It measures what that pipeline "
+        "changes before any fine-tuning; it is not the pre-registered "
+        "comparison.",
+    ),
+}
 
 _PARTIAL_SAMPLES = "samples.partial.jsonl"
 _PARTIAL_TIMINGS = "timings.partial.jsonl"
@@ -786,24 +818,26 @@ def latency(directory: Path) -> dict[str, float | None]:
 def _baseline_markdown(
     runs: Mapping[tuple[str, str], tuple[dict[str, Any], dict[str, Any], Path]],
     config: EvalConfig,
+    kind: str = "baseline",
 ) -> str:
-    """Render the published baseline's front page.
+    """Render a published evaluation's front page.
 
     Args:
         runs: Each (set, condition)'s run.json, report and directory.
         config: The evaluation config the runs were made under.
+        kind: Which `PUBLISH_KINDS` entry this is.
 
     Returns:
         The Markdown text.
     """
+    _, title, opening = PUBLISH_KINDS[kind]
     first = next(iter(runs.values()))[0]["identity"]
     provenance = first["engine_provenance"]
     capabilities = first["engine_capabilities"]
     lines = [
-        "# Untuned baseline",
+        f"# {title}",
         "",
-        "The untuned base model, evaluated by the offline harness "
-        "(docs/master_plan.md item 16) before any fine-tuning existed. "
+        f"{opening} "
         "Metric definitions: [../README.md](../README.md). Primary "
         "endpoint, fixed before these runs: "
         "[../PREREGISTRATION.md](../PREREGISTRATION.md).",
@@ -897,7 +931,14 @@ def run_publish(args: argparse.Namespace, git: tuple[str, bool]) -> int:
         if key in runs:
             return _refuse(f"two runs of {key[0]} under {key[1]}")
         runs[key] = (run, report, directory)
-    expected = {(s, c) for s in config.sets for c in config.conditions}
+    if args.sets and args.kind == "baseline":
+        # Item 16's baseline, which every comparison rests on, is always
+        # published over its config's whole grid.
+        return _refuse("--sets is for item 17's publications only")
+    sets = args.sets or list(config.sets)
+    if not set(sets) <= set(config.sets):
+        return _refuse(f"--sets must name only {list(config.sets)}")
+    expected = {(s, c) for s in sets for c in config.conditions}
     if set(runs) != expected:
         return _refuse(
             f"publish needs exactly one run of each of {sorted(expected)}; "
@@ -959,8 +1000,8 @@ def run_publish(args: argparse.Namespace, git: tuple[str, bool]) -> int:
                 "files": files,
             },
         )
-        (staging / "BASELINE.md").write_text(
-            _baseline_markdown(ordered, config),
+        (staging / PUBLISH_KINDS[args.kind][0]).write_text(
+            _baseline_markdown(ordered, config, args.kind),
             encoding="utf-8",
             newline="\n",
         )
@@ -1002,6 +1043,22 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     publish.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     publish.add_argument("--out", type=Path, default=DEFAULT_PUBLISHED)
     publish.add_argument("--allow-dirty", action="store_true")
+    publish.add_argument(
+        "--kind", choices=sorted(PUBLISH_KINDS), default="baseline"
+    )
+    publish.add_argument("--sets", nargs="+", default=None)
+
+    compare = commands.add_parser(
+        "compare", help="compare a published model with the baseline"
+    )
+    compare.add_argument("--baseline", type=Path, default=DEFAULT_PUBLISHED)
+    compare.add_argument("--baseline-config", type=Path, default=DEFAULT_CONFIG)
+    compare.add_argument("--candidate", type=Path, required=True)
+    compare.add_argument("--candidate-config", type=Path, required=True)
+    compare.add_argument("--out", type=Path, required=True)
+    compare.add_argument(
+        "--title", default="Fine-tuned model against the untuned baseline"
+    )
     args = parser.parse_args(argv)
     if args.command == "run" and args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
@@ -1033,7 +1090,52 @@ def run(
         return run_eval(
             args, git=state, engine_factory=engine_factory, executor=executor
         )
+    if args.command == "compare":
+        return run_compare(args)
     return run_publish(args, state)
+
+
+def run_compare(args: argparse.Namespace) -> int:
+    """Compare a published model with the published baseline.
+
+    Args:
+        args: The parsed `compare` arguments.
+
+    Returns:
+        The process exit code.
+    """
+    out = _resolve(args.out)
+    if out.exists():
+        return _refuse(f"{_relative(out)} already exists")
+    try:
+        comparison = compare_published(
+            _resolve(args.baseline),
+            _resolve(args.candidate),
+            _resolve(args.baseline_config),
+            _resolve(args.candidate_config),
+            read_run,
+        )
+    except (ComparisonError, InvalidRunError) as error:
+        return _refuse(str(error))
+    comparison["title"] = args.title
+    # Written aside and renamed into place, like a publication, so a
+    # failure leaves no half-written comparison to block a retry.
+    out.parent.mkdir(parents=True, exist_ok=True)
+    staging = out.parent / f".comparison.{secrets.token_hex(4)}.incomplete"
+    staging.mkdir()
+    try:
+        write_json(staging / "comparison.json", comparison)
+        (staging / "COMPARISON.md").write_text(
+            render_comparison(comparison, args.title),
+            encoding="utf-8",
+            newline="\n",
+        )
+        staging.replace(out)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
+    print(f"WROTE {_relative(out)}")
+    return 0
 
 
 if __name__ == "__main__":

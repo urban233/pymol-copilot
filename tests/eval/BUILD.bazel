@@ -129,8 +129,11 @@ py_test(
     timeout = "long",
     srcs = ["test_lemonade_real.py"],
     main = "test_lemonade_real.py",
-    data = ["//configs/evaluation:baseline.json"],
-    env_inherit = ["PMC_LEMONADE_BASE_URL"],
+    data = ["//configs/evaluation:configs"],
+    env_inherit = [
+        "PMC_EVAL_CONFIG",
+        "PMC_LEMONADE_BASE_URL",
+    ],
     tags = ["external"],
     deps = [
         "@pypi//pytest",
@@ -152,13 +155,47 @@ py_test(
     srcs = ["test_committed_baseline.py"],
     main = "test_committed_baseline.py",
     data = [
-        "//configs/evaluation:baseline.json",
+        "//configs/evaluation:configs",
         "//docs/dataset:dataset_docs",
         "//docs/evaluation:evaluation_docs",
     ],
     deps = [
         "@pypi//pytest",
         "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# Every item 17 evaluation config differs from the baseline's only in
+# the model under evaluation (and, for a CPU config, where it runs).
+py_test(
+    name = "configs_hold_fixed",
+    size = "small",
+    srcs = ["test_configs_hold_fixed.py"],
+    main = "test_configs_hold_fixed.py",
+    data = ["//configs/evaluation:configs"],
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# Item 17's comparison: paired by sample, an exact McNemar test, every
+# breakout side by side, and a refusal of anything but the model
+# differing. Built from the committed baseline's own runs.
+py_test(
+    name = "compare",
+    size = "medium",
+    srcs = ["test_compare.py"],
+    main = "test_compare.py",
+    data = [
+        "//configs/evaluation:configs",
+        "//docs/evaluation:evaluation_docs",
+    ],
+    deps = [
+        "@pypi//pytest",
         "//src/pmc_data:pmc_data",
         "//src/pmc_eval:eval_cli",
         "//src/pmc_eval:pmc_eval",

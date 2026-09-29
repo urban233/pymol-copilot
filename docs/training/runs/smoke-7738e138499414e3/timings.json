@@ -1,0 +1,9 @@
+{
+  "optimizer_steps": 5,
+  "peak_gpu_memory_bytes": 4090684928,
+  "peak_gpu_reserved_bytes": 4355784704,
+  "projected_full_run_seconds": 10490.993659665164,
+  "tokens_per_second": 2122.146740551035,
+  "tokens_trained": 69709,
+  "wall_seconds": 32.848341101002006
+}

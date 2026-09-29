@@ -238,3 +238,8 @@ __marimo__/
 
 # Code Review
 code_review
+
+# Training environment and pinned toolchain (master plan item 17).
+.venv-train/
+/.train-tools/
+/unsloth_compiled_cache/

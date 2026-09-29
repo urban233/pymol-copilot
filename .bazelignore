@@ -5,3 +5,6 @@ src/pmc_train
 .venv
 venv
 env
+.venv-train
+.train-tools
+unsloth_compiled_cache

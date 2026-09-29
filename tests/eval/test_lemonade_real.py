@@ -2,7 +2,8 @@
 """Opt-in: the harness against a real local Lemonade server and PyMOL.
 
 Skipped unless `PMC_LEMONADE_BASE_URL` names a local Lemonade origin
-serving the model `configs/evaluation/baseline.json` names. Two gold
+serving the model `configs/evaluation/baseline.json` names -- or the
+one the committed config `PMC_EVAL_CONFIG` names. Two gold
 samples run under each condition, end to end: the engine's capability
 probe, the request graph, the real sidecar and the grader. This proves
 the pieces a hermetic test fakes -- the engine and the sidecar -- fit
@@ -32,9 +33,14 @@ from pmc_eval.runner import run_sample
 
 _BASE_URL_ENVIRONMENT_VARIABLE = "PMC_LEMONADE_BASE_URL"
 
+#: Names another committed config than the baseline's, relative to the
+#: repository root (item 17's `configs/evaluation/export_control.json`,
+#: say), to smoke-test the model that config names instead.
+_CONFIG_ENVIRONMENT_VARIABLE = "PMC_EVAL_CONFIG"
+
 #: The committed config, a data dependency of this target.
-CONFIG = Path(__file__).resolve().parents[2] / (
-    "configs/evaluation/baseline.json"
+CONFIG = Path(__file__).resolve().parents[2] / os.environ.get(
+    _CONFIG_ENVIRONMENT_VARIABLE, "configs/evaluation/baseline.json"
 )
 
 #: A short gold prompt, and the longest one (everything_bonded, about

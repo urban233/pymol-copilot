@@ -1,1 +1,10 @@
 exports_files(["baseline.json"])
+
+# Every evaluation config: the baseline's and item 17's, which
+# //tests/eval:configs_hold_fixed checks differ from it only in the
+# model under evaluation.
+filegroup(
+    name = "configs",
+    srcs = glob(["*.json"]),
+    visibility = ["//tests/eval:__pkg__"],
+)

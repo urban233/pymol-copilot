@@ -1,0 +1,54 @@
+{
+  "identity": {
+    "condition": "grammar",
+    "config_sha256": "6de508057e99c80c9afba637e6967254cf8acc7dcc4dd3eec819f9be51ef3acd",
+    "engine_capabilities": {
+      "checkpoint": "/models/export-control/Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M.gguf",
+      "context_length": 16384,
+      "device": "cuda",
+      "grammar_enforced": true,
+      "lemonade_version": "11.9.0",
+      "llamacpp_args": "--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}' --parallel 1",
+      "model_name": "Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M",
+      "recipe": "llamacpp",
+      "served_model_path": "/models/export-control/Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M.gguf"
+    },
+    "engine_provenance": {
+      "emulation": "none (native x86_64)",
+      "gguf_sha256": "5334a2b3423e317b4c9caf416c1e84de223336f62933ed8aa5b18233b4556948",
+      "hf_revision": "none (local GGUF; identity is gguf_sha256)",
+      "host": "Linux 5.15.167.4-microsoft-standard-WSL2 x86_64; NVIDIA GeForce RTX 4060, 610.74; WSL2",
+      "image": "ghcr.io/lemonade-sdk/lemonade-server@sha256:3873d3ec672eaebdf4484cf1592daae1ae0f73d0f6377a03f38f931f972ca122",
+      "lemonade_version": "11.9.0",
+      "llama_cpp_build": "b10707",
+      "llamacpp_args": "--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}' --parallel 1"
+    },
+    "git_commit": "6eb4d74a01e6d9470f4d5ca5749d32ffddfbe083",
+    "git_dirty": false,
+    "grader_version": 1,
+    "grammar_sha256": "9ebd2621082a0021fc4f1c86be69ffb8b2cf9e7ac2ecc25eb0c301b2c87d3994",
+    "harness_version": 1,
+    "limit": null,
+    "model_identity": "Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M@/models/export-control/Llama-3.2-1B-Instruct-pmc-export-control-Q4_K_M.gguf",
+    "normalization": "append-missing-final-newline",
+    "pymol_wheel": "pymol-open-source-whl==3.2.0.2",
+    "repair_prompt_version": 1,
+    "report_version": 1,
+    "set": "test_gold",
+    "set_sha256": "82db3e8a55331f5fd72cac3a7f6ee890eca4ab23ef5dddc9bb3581c2b8fc7c92",
+    "split_id": "e4599620801af592",
+    "versions": {
+      "card_version": 1,
+      "executor_version": 1,
+      "grammar_version": 1,
+      "policy_version": 1,
+      "prompt_version": 1,
+      "protocol_version": "1",
+      "pymol_version": "3.2.0a",
+      "snapshot_version": 1
+    }
+  },
+  "regeneration": "bazel run //src/pmc_eval:eval_cli -- run --config configs/evaluation/export_control.json --split data/splits/split-e4599620801af592 --set test_gold --condition grammar",
+  "run_id": "39ddfd9293ea77f8",
+  "samples": 68
+}

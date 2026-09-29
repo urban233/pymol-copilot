@@ -1,0 +1,13 @@
+# Override: make locally exported GGUFs visible to the engine (master
+# plan item 17). The fine-tuned model and the export-pipeline control
+# are exported under the repository's results/ (src/pmc_train/export.py),
+# and are never uploaded anywhere; this mounts that directory read-only
+# at /models, from which setup.sh registers the configured file.
+# Lemonade and its image are unchanged.
+#
+#   docker compose -f compose.yaml -f compose.nvidia.yaml \
+#     -f compose.local-model.yaml up -d
+services:
+  lemonade:
+    volumes:
+      - ${PMC_LOCAL_MODELS:-../../../results}:/models:ro

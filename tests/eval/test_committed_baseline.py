@@ -3,7 +3,9 @@
 
 `docs/evaluation/baseline/` is the untuned model's result, measured
 before any fine-tuning existed (master plan item 16), and item 17's
-comparison rests on it. This suite keeps it honest in four ways:
+comparison rests on it. This suite keeps it, and item 17's own
+publications (the export-pipeline control and the fine-tuned model)
+and comparisons, honest in five ways:
 
 - every published file still has the digest the manifest recorded;
 - every report is recomputed from its samples, so no rate can be edited
@@ -15,7 +17,8 @@ comparison rests on it. This suite keeps it honest in four ways:
 - the baseline was measured on the committed split, under the committed
   config and today's harness, grader, repair-prompt and report versions.
   Changing any of them fails this suite until the base model is run
-  again.
+  again;
+- every committed comparison is exactly what its two publications give.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -33,6 +36,8 @@ from pmc_core.screen import SCREEN_HOSTILE
 from pmc_core.screen import screen_completion
 from pmc_data.manifest import file_record
 from pmc_data.manifest import sha256_of
+from pmc_eval.compare import compare
+from pmc_eval.compare import render_markdown as render_comparison
 from pmc_eval.eval_cli import read_run
 from pmc_eval.grade import GRADER_VERSION
 from pmc_eval.metrics import REPORT_VERSION
@@ -47,49 +52,91 @@ from pmc_eval.runner import NORMALIZATION
 from pmc_eval.screen_reasons import hostile_reasons
 
 ROOT = Path(__file__).resolve().parents[2]
-BASELINE = ROOT / "docs" / "evaluation" / "baseline"
+EVALUATION = ROOT / "docs" / "evaluation"
 DATASET_MANIFEST = ROOT / "docs" / "dataset" / "manifest.json"
-CONFIG = ROOT / "configs" / "evaluation" / "baseline.json"
+CONFIGS = ROOT / "configs" / "evaluation"
+
+#: Every published evaluation, and the config it must have been run
+#: under: item 16's baseline, and item 17's export-pipeline control and
+#: fine-tuned model. Each is checked once `eval_cli publish` has written
+#: it; until then its cases are simply absent.
+PUBLICATIONS = {
+    "baseline": CONFIGS / "baseline.json",
+    "export_control": CONFIGS / "export_control.json",
+    "finetuned": CONFIGS / "finetuned.json",
+}
+PUBLISHED = {
+    name: EVALUATION / name
+    for name in PUBLICATIONS
+    if (EVALUATION / name / "manifest.json").is_file()
+}
+BASELINE = EVALUATION / "baseline"
 
 #: Until `eval_cli publish` writes the baseline there is nothing to
 #: check, and every test here skips; from then on each one holds.
-PUBLISHED = (BASELINE / "manifest.json").is_file()
 pytestmark = pytest.mark.skipif(
-    not PUBLISHED, reason="no baseline published under docs/evaluation/"
+    "baseline" not in PUBLISHED,
+    reason="no baseline published under docs/evaluation/",
 )
 
-MANIFEST: dict[str, Any] = (
-    json.loads((BASELINE / "manifest.json").read_text(encoding="utf-8"))
-    if PUBLISHED
-    else {"files": {}, "runs": []}
-)
-RUNS = [BASELINE / run["set"] / run["condition"] for run in MANIFEST["runs"]]
+#: The pages `eval_cli publish` writes beside the manifest.
+PAGES = {"manifest.json", "BASELINE.md", "REPORT.md"}
+
+
+def _manifest(directory: Path) -> dict[str, Any]:
+    """Read a published directory's manifest.
+
+    Args:
+        directory: The published directory.
+
+    Returns:
+        Its manifest.
+    """
+    return json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+
+
+#: Every published run: its publication's name and its directory.
+RUNS = [
+    (name, directory / run["set"] / run["condition"])
+    for name, directory in PUBLISHED.items()
+    for run in _manifest(directory)["runs"]
+]
+RUN_DIRS = [run for _, run in RUNS]
 
 
 def _ids(runs: list[Path]) -> list[str]:
-    """Name parametrized cases after their set and condition.
+    """Name parametrized cases after their publication, set and condition.
 
     Args:
         runs: The run directories.
 
     Returns:
-        `<set>/<condition>` for each.
+        `<publication>/<set>/<condition>` for each.
     """
-    return [f"{run.parent.name}/{run.name}" for run in runs]
+    return [
+        f"{run.parent.parent.name}/{run.parent.name}/{run.name}" for run in runs
+    ]
 
 
-def test_manifest_digests_hold() -> None:
-    """Every published file is byte for byte what was published."""
-    assert set(MANIFEST["files"]) == {
-        path.relative_to(BASELINE).as_posix()
-        for path in BASELINE.rglob("*")
-        if path.is_file() and path.name not in {"manifest.json", "BASELINE.md"}
+@pytest.mark.parametrize("name", sorted(PUBLISHED))
+def test_manifest_digests_hold(name: str) -> None:
+    """Every published file is byte for byte what was published.
+
+    Args:
+        name: The publication.
+    """
+    directory = PUBLISHED[name]
+    manifest = _manifest(directory)
+    assert set(manifest["files"]) == {
+        path.relative_to(directory).as_posix()
+        for path in directory.rglob("*")
+        if path.is_file() and path.name not in PAGES
     }
-    for name, record in MANIFEST["files"].items():
-        assert file_record(BASELINE / name) == record, name
+    for relative, record in manifest["files"].items():
+        assert file_record(directory / relative) == record, relative
 
 
-@pytest.mark.parametrize("run", RUNS, ids=_ids(RUNS))
+@pytest.mark.parametrize("run", RUN_DIRS, ids=_ids(RUN_DIRS))
 def test_report_recomputes_from_samples(run: Path) -> None:
     """A report is exactly what its samples aggregate to.
 
@@ -125,7 +172,7 @@ def _check_attempt(attempt: AttemptRecord) -> None:
         assert parsed.render_pml() == attempt.plan_pml
 
 
-@pytest.mark.parametrize("run", RUNS, ids=_ids(RUNS))
+@pytest.mark.parametrize("run", RUN_DIRS, ids=_ids(RUN_DIRS))
 def test_stored_completions_reclassify_identically(run: Path) -> None:
     """Today's screen and parser still read every completion the same way.
 
@@ -139,18 +186,21 @@ def test_stored_completions_reclassify_identically(run: Path) -> None:
             _check_attempt(attempt)
 
 
-@pytest.mark.parametrize("run", RUNS, ids=_ids(RUNS))
-def test_baseline_is_on_the_committed_split_and_config(run: Path) -> None:
-    """The baseline was measured on today's split, config and harness.
+@pytest.mark.parametrize(("name", "run"), RUNS, ids=_ids(RUN_DIRS))
+def test_baseline_is_on_the_committed_split_and_config(
+    name: str, run: Path
+) -> None:
+    """Each publication was measured on today's split, config and harness.
 
     Args:
+        name: The publication.
         run: One published run directory.
     """
     identity = read_run(run)[0]["identity"]
     dataset = json.loads(DATASET_MANIFEST.read_text(encoding="utf-8"))
 
     assert identity["split_id"] == dataset["split_id"]
-    assert identity["config_sha256"] == sha256_of(CONFIG)
+    assert identity["config_sha256"] == sha256_of(PUBLICATIONS[name])
     assert identity["limit"] is None
     assert identity["git_dirty"] is False
     assert (
@@ -166,6 +216,38 @@ def test_baseline_is_on_the_committed_split_and_config(run: Path) -> None:
         REPORT_VERSION,
         NORMALIZATION,
     )
+
+
+#: Every committed comparison `eval_cli compare` wrote.
+COMPARISONS = sorted(
+    path.parent for path in EVALUATION.glob("*/comparison.json")
+)
+
+
+@pytest.mark.parametrize(
+    "directory", COMPARISONS, ids=[path.name for path in COMPARISONS]
+)
+def test_comparison_recomputes_from_the_publications(directory: Path) -> None:
+    """A comparison is exactly what its two publications give.
+
+    Args:
+        directory: A committed comparison.
+    """
+    committed = json.loads(
+        (directory / "comparison.json").read_text(encoding="utf-8")
+    )
+    title = committed.pop("title")
+    sides = committed["baseline"], committed["candidate"]
+    recomputed = compare(
+        EVALUATION / sides[0]["published"],
+        EVALUATION / sides[1]["published"],
+        CONFIGS / sides[0]["config"],
+        CONFIGS / sides[1]["config"],
+        read_run,
+    )
+    assert recomputed == committed
+    page = (directory / "COMPARISON.md").read_text(encoding="utf-8")
+    assert page == render_comparison(committed, title)
 
 
 if __name__ == "__main__":

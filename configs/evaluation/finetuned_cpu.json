@@ -1,0 +1,37 @@
+{
+  "conditions": [
+    "no-grammar",
+    "grammar"
+  ],
+  "engine": {
+    "backend": "cpu",
+    "base_url": "http://localhost:13305",
+    "checkpoint": "/models/train-e6c6c4dd8f6caaf9/export/Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf",
+    "connect_timeout_seconds": 5.0,
+    "context_size": 16384,
+    "model_name": "Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M",
+    "read_timeout_seconds": 600.0
+  },
+  "engine_provenance": {
+    "emulation": "none (native x86_64)",
+    "gguf_sha256": "6c5c76a01291b5fed836cb4a4df2e52fdf95c43906087480858520ccb128bdbd",
+    "hf_revision": "none (local GGUF; identity is gguf_sha256)",
+    "host": "Linux 5.15.167.4-microsoft-standard-WSL2 x86_64; NVIDIA GeForce RTX 4060, 610.74; WSL2",
+    "image": "ghcr.io/lemonade-sdk/lemonade-server@sha256:3873d3ec672eaebdf4484cf1592daae1ae0f73d0f6377a03f38f931f972ca122",
+    "lemonade_version": "11.9.0",
+    "llama_cpp_build": "b10723",
+    "llamacpp_args": "--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}' --parallel 1"
+  },
+  "generation": {
+    "deadline_seconds": 600.0,
+    "max_tokens": 256
+  },
+  "infra_retries": 2,
+  "sets": [
+    "test_gold",
+    "heldout_synthetic"
+  ],
+  "sidecar": {
+    "deadline_seconds": 30.0
+  }
+}

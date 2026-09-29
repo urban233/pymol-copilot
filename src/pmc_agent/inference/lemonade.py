@@ -814,9 +814,14 @@ def _served_model_path(
     configured checkpoint's own file, so a completion from any other
     file is still refused.
 
+    A local GGUF that Lemonade serves in place from its
+    ``extra_models_dir`` (item 17's exports) has its absolute path as
+    its checkpoint. Its launched path must then be exactly that path.
+
     Args:
         loaded_model: The selected model's loaded-health block.
-        checkpoint: The configured ``<repo>:<file>`` checkpoint.
+        checkpoint: The configured ``<repo>:<file>`` checkpoint, or the
+            absolute path of a local GGUF.
 
     Returns:
         The launched GGUF path, or None when the launch command names no
@@ -829,6 +834,8 @@ def _served_model_path(
     if position >= len(command) or not isinstance(command[position], str):
         return None
     path = command[position]
+    if checkpoint.startswith("/"):
+        return path if path == checkpoint else None
     _repository, separator, filename = checkpoint.rpartition(":")
     if not separator or not filename:
         return None
