@@ -287,17 +287,30 @@ def test_compare_command_writes_the_comparison(tmp_path: Path) -> None:
     )
 
 
-def _baseline_runs() -> list[str]:
+def _baseline_runs(
+    set_name: str | None = None, condition: str | None = None
+) -> list[str]:
     """Name the committed baseline's run directories.
+
+    Filters on the manifest rather than the path strings, whose separator
+    differs on Windows.
+
+    Args:
+        set_name: Keep only this set's runs, if given.
+        condition: Keep only this condition's runs, if given.
 
     Returns:
         Each run directory, as a string.
     """
     manifest = json.loads((BASELINE / "manifest.json").read_text("utf-8"))
-    return [
+    runs = [
         str(BASELINE / entry["set"] / entry["condition"])
         for entry in manifest["runs"]
+        if set_name in (None, entry["set"])
+        and condition in (None, entry["condition"])
     ]
+    assert runs, (set_name, condition)
+    return runs
 
 
 def test_default_publish_still_reproduces_the_baseline(tmp_path: Path) -> None:
@@ -329,7 +342,7 @@ def test_default_publish_still_reproduces_the_baseline(tmp_path: Path) -> None:
 
 def test_publish_a_subset_as_another_kind(tmp_path: Path) -> None:
     """The gold-only control publishes as its own kind, under its title."""
-    runs = [run for run in _baseline_runs() if "/test_gold/" in run]
+    runs = _baseline_runs("test_gold")
     out = tmp_path / "control"
     code = eval_cli.run(
         [
@@ -359,9 +372,7 @@ def test_publish_refuses_a_missing_run_of_the_named_sets(
     tmp_path: Path,
 ) -> None:
     """--sets still needs every condition of every named set."""
-    runs = [
-        run for run in _baseline_runs() if run.endswith("test_gold/grammar")
-    ]
+    runs = _baseline_runs("test_gold", "grammar")
     code = eval_cli.run(
         [
             "publish",
@@ -384,7 +395,7 @@ def test_publish_refuses_a_missing_run_of_the_named_sets(
 
 def test_publish_refuses_a_partial_baseline(tmp_path: Path) -> None:
     """The baseline is always published over its config's whole grid."""
-    runs = [run for run in _baseline_runs() if "/test_gold/" in run]
+    runs = _baseline_runs("test_gold")
     code = eval_cli.run(
         [
             "publish",
