@@ -1,0 +1,20 @@
+# The notebook's environment (master plan item 18): Python 3.12, Linux.
+# It runs the training stack and the runtime code in one kernel, so it is
+# the training set, constrained to the training lock, plus the runtime's
+# own pins from requirements.in and requirements_lock.txt (numpy is the
+# one package both locks pin, and the training lock's pin wins here),
+# plus the notebook tooling.
+-r requirements-train.in
+-c requirements-train.txt
+pymol-open-source-whl==3.2.0.2
+httpx==0.28.1
+langgraph==1.2.11
+httpcore2==2.13.0
+httpx2==2.13.0
+langchain-core==1.6.3
+langgraph-sdk==0.4.4
+langsmith==0.12.6
+nbformat==5.11.1
+nbclient==0.11.0
+ipykernel==7.4.0
+matplotlib==3.11.2
