@@ -74,6 +74,19 @@ The training weights come from `unsloth/Llama-3.2-1B-Instruct`, an
 ungated mirror whose `model.safetensors` is byte-identical to Meta's
 (configs/training/README.md).
 
+The tools that train, export and serve the model, as each one states its
+own licence (recorded 2026-09-29, for item 18):
+
+| Tool | Licence | Where it is stated |
+| --- | --- | --- |
+| Lemonade 11.9.0 (serves the model) | Apache-2.0 | its repository's `LICENSE` at tag `v11.9.0`; the container image carries none |
+| llama.cpp `b10707` (exports and runs it) | MIT | `LICENSE` in the pinned checkout |
+| Unsloth 2026.9.5 (trains it) | Apache-2.0 | its package metadata |
+| unsloth_zoo 2026.9.4 (Unsloth's kernels) | LGPL-3.0-or-later | its package metadata |
+
+unsloth_zoo is used only during training. It is not part of the exported
+model or of the runtime.
+
 ## Method
 
 **Completion-only supervised fine-tuning, with LoRA, run with Unsloth.**
