@@ -545,6 +545,66 @@ support.markdown_table(
 )
 
 # %% [markdown]
+# The specification also asks for the diagnostic rates that were measured:
+# how often the first attempt parses, how often the model abstains, how
+# often a repair rescues a failed attempt, and how long an attempt takes.
+# On `test_gold`:
+
+# %%
+from pmc_eval.eval_cli import latency
+
+
+def _cell(rate_block: dict) -> str:
+    """Render one rate, or say why there is none."""
+    if rate_block.get("by_construction"):
+        return "0 by construction"
+    if not rate_block["n"]:
+        return "no samples"
+    return support.rate(rate_block["k"], rate_block["n"])
+
+
+rows = []
+for model in ("baseline", "finetuned"):
+    for condition in ("no-grammar", "grammar"):
+        directory = EVALUATION / model / "test_gold" / condition
+        overall = read_run(directory)[2]["overall"]
+        repair = overall["repair"]
+        support.record(f"repair.{model}.{condition}", repair["to_success"]["k"])
+        rows.append(
+            (
+                model,
+                condition,
+                _cell(overall["syntax_valid"]),
+                _cell(overall["abstention"]),
+                f"{repair['eligible']}",
+                _cell(repair["to_valid"]),
+                _cell(repair["to_success"]),
+                f"{latency(directory)['engine_p50_seconds']:.2f} s",
+            )
+        )
+support.markdown_table(
+    [
+        "Model",
+        "Condition",
+        "Syntax-valid, attempt 1",
+        "Abstention",
+        "Repaired",
+        "Repair to a valid plan",
+        "Repair to TaskSuccess",
+        "Engine time, median",
+    ],
+    rows,
+)
+
+# %% [markdown]
+# Repairs barely help: of the 43 fine-tuned first attempts without the
+# grammar that failed in a way the graph repairs (almost all by not
+# parsing), 2 were repaired into a valid plan and 1 into a correct one. Under the grammar nothing needs repair, because every plan
+# parses. The latencies are on the RTX 4060; on the machine's CPU the
+# fine-tuned model's median was 2.7-3.6 s per attempt
+# (`docs/training/README.md`, "Runs on CPU"). IoU and degeneracy, also
+# named by the specification, were not measured.
+#
 # **The fine-tune beats the baseline under both conditions on the primary
 # endpoint**, and every discordant pair favours it. On `heldout_synthetic`
 # it is right on every sample, but that set's intents come from the
@@ -591,8 +651,9 @@ print("expression shapes with no success under either condition:", collapsed)
 # every plan parses, and most wrong plans have the right verbs but the
 # wrong selection: an everyday name turned into an invented atom name
 # ("the alpha carbons" as `name ALPH`), or "chains A and B" read as `and`
-# where the user means either. Expressions joined by `or` collapse
-# completely, a direct consequence of that reading. The training intents
+# where the user means either. The two expression shapes that use `or`,
+# `or` and `and_or`, collapse completely under both conditions, a direct
+# consequence of that reading. The training intents
 # are templated; natural phrasing is where the next dataset has to grow.
 
 # %% [markdown]
@@ -871,6 +932,7 @@ support.markdown_table(["Component", "Licence"], rows)
 #   not, and are never uploaded.
 # - PyMOL recovery points are private files under `~/.pymol-copilot/`,
 #   consumed by a rollback and otherwise kept until the user deletes them.
+#   (Section 9's demonstration kept its own under a temporary directory.)
 # - No user data is collected; nothing leaves the machine.
 
 # %%

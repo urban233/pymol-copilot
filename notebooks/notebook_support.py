@@ -243,6 +243,8 @@ def start_server(arguments: Sequence[str], handoff: Path) -> subprocess.Popen:
         stdout=log,
         stderr=subprocess.STDOUT,
     )
+    # The child holds its own copy of the file; the notebook needs none.
+    log.close()
     deadline = time.monotonic() + 600
     while not handoff.exists():
         if process.poll() is not None or time.monotonic() > deadline:

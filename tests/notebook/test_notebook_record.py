@@ -186,6 +186,17 @@ def test_the_comparison_recomputes(set_name: str, condition: str) -> None:
     )
 
 
+@pytest.mark.parametrize("model", ["baseline", "finetuned"])
+@pytest.mark.parametrize("condition", CONDITIONS)
+def test_repair_success_recomputes(model: str, condition: str) -> None:
+    """The repair figures are what the stored samples aggregate to."""
+    _, _, report = read_run(EVALUATION / model / "test_gold" / condition)
+    assert (
+        RECORD[f"repair.{model}.{condition}"]
+        == report["overall"]["repair"]["to_success"]["k"]
+    )
+
+
 def test_collapsed_shapes_recompute() -> None:
     """The shapes reported as collapsing have no success in either condition."""
     shapes = COMPARISON["sets"]["test_gold"]

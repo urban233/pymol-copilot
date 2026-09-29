@@ -54,7 +54,9 @@ compared by fingerprint. An attempt is:
 - **The 612 unsupported are the declared ungradable surfaces:**
   - every plan using the `polymer` term (`polymer_classification`);
   - every bare `orient` (`camera_view`);
-  - these are the same ones the Mac run declined.
+  - the Mac run declined these same surfaces by the same code and seed,
+    but its per-category report was never committed, so the two cannot
+    be compared attempt by attempt.
 
 ## What it is not
 
