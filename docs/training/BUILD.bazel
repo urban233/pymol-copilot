@@ -1,0 +1,8 @@
+# The fine-tuning run's committed record (master plan item 17): its run
+# manifests, loss curves, timings and export checks, which the notebook
+# reports and //tests/notebook recomputes.
+filegroup(
+    name = "training_docs",
+    srcs = glob(["**/*.json", "**/*.jsonl", "**/*.md"]),
+    visibility = ["//tests/notebook:__pkg__"],
+)

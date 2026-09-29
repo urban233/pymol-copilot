@@ -1,0 +1,49 @@
+# Tests for the deliverable notebook (docs/master_plan.md item 18). The
+# notebook runs in its own environment, never under Bazel; these tests
+# only read the committed files.
+load("@rules_python//python:py_test.bzl", "py_test")
+
+# The committed notebook is exactly its reviewed source's build.
+py_test(
+    name = "notebook_source",
+    size = "small",
+    srcs = ["test_notebook_source.py"],
+    data = ["//notebooks:notebook"],
+    main = "test_notebook_source.py",
+    deps = ["@pypi//pytest"],
+)
+
+# Every number the executed notebook reports recomputes from the
+# committed evidence, and every cell, the demonstration included, ran.
+py_test(
+    name = "notebook_record",
+    size = "medium",
+    srcs = ["test_notebook_record.py"],
+    data = [
+        "//configs/evaluation:configs",
+        "//docs/dataset:dataset_docs",
+        "//docs/evaluation:evaluation_docs",
+        "//docs/training:training_docs",
+        "//notebooks:notebook",
+    ],
+    main = "test_notebook_record.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_eval:eval_cli",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# The Linux corpus regeneration's committed report is internally
+# consistent and was made under the committed generation config.
+py_test(
+    name = "linux_regeneration",
+    size = "small",
+    srcs = ["test_linux_regeneration.py"],
+    data = [
+        "//configs/generation:corpus.json",
+        "//docs/dataset:dataset_docs",
+    ],
+    main = "test_linux_regeneration.py",
+    deps = ["@pypi//pytest"],
+)
