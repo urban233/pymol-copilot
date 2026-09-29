@@ -54,6 +54,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Set up the kernel: the repository's packages, and every flag."""
 
+import importlib
 import os
 import sys
 import warnings
@@ -61,8 +62,9 @@ from pathlib import Path
 
 # The tokenizer's progress bars need ipywidgets, which this kernel lacks.
 warnings.filterwarnings("ignore", message="IProgress not found")
+# The notebook's helpers sit next to it, in notebooks/.
 sys.path.insert(0, str(Path.cwd()))
-import notebook_support as support
+support = importlib.import_module("notebook_support")
 
 support.setup_paths()
 
