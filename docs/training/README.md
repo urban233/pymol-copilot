@@ -103,10 +103,13 @@ ungated mirror whose `model.safetensors` is byte-identical to Meta's
   loss before every run. Every batch is checked for masking as it
   reaches the loss. Under Unsloth the hidden states come from Unsloth's
   own causal-LM forward (`pmc_train.train.final_hidden`): its patched
-  decoder, called on its own, is not causal, and the first GPU smoke
+  decoder, called on its own, is not causal, and the second GPU smoke
   attempt's cross-check refused to train on it (1.27 against the
-  model's own 6.42 on the shortest example; plain Hugging Face gives
-  6.45 both ways).
+  model's own 6.42 on the shortest example; plain Hugging Face on the
+  CPU gives 6.45 both ways). That attempt stopped before writing a run,
+  so these figures are from its console output and the CPU reference,
+  not from a committed record; the smoke run that followed the fix is
+  committed, with the two losses agreeing to 7e-8.
 - **Length.** The longest training example is 13,946 tokens; 425 exceed
   8,192, all from the two largest training structures. Sequences run to
   16,384 tokens, the evaluation context, so no sample is dropped or
@@ -166,14 +169,17 @@ run.
 *Filled in after the run.* The fine-tuned GGUF served by Lemonade's CPU
 backend (`configs/evaluation/finetuned_cpu.json`; that backend's own
 llama.cpp build is `b10723`) on the WSL2 machine's CPU, an **AMD Ryzen 5
-3400G** (4 cores, 8 threads), for the first 10 `test_gold` samples under
-each condition (`eval_cli run --limit 10`, runs `eval-017258f94820861c`
-and `eval-3694158a347d3ce0`, kept in `results/`):
+3400G** (4 cores, 8 threads), for the first 10 `test_gold` samples in
+the harness's order, which groups samples by structure (`gold_007`,
+`gold_008`, `gold_010`, ...), under each condition (`eval_cli run
+--limit 10`, runs `eval-017258f94820861c` and `eval-3694158a347d3ce0`,
+kept in `results/`). The GPU column is the committed Gate D run on the
+same samples:
 
 | Condition | Engine time per attempt, median | Slowest attempt | Same samples on the RTX 4060, median |
 | --- | --- | --- | --- |
-| no-grammar | 3.6 s | 38.8 s | 0.18 s |
-| grammar | 2.7 s | 13.7 s | 0.57 s |
+| no-grammar | 3.6 s | 38.8 s | 0.19 s |
+| grammar | 2.7 s | 13.7 s | 0.36 s |
 
 - The slowest attempts are the cold prefill of a structure card not yet
   in llama-server's prompt cache; samples on the same structure reuse it.
