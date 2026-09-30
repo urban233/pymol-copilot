@@ -75,3 +75,21 @@ py_test(
         "@pypi//pytest",
     ],
 )
+
+# The committed integrated report recomputes from its records, and every
+# sample whose outcome differs from offline carries an explanation.
+py_test(
+    name = "integrated_record",
+    size = "small",
+    srcs = ["test_integrated_record.py"],
+    data = [
+        "//configs/evaluation:configs",
+        "//docs/evaluation:evaluation_docs",
+        "//docs/integration:integration_docs",
+    ],
+    main = "test_integrated_record.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)

@@ -1,0 +1,11 @@
+# The integrated measurement's committed record (master plan item 19):
+# the gold set through the running product, its pairing with the offline
+# evaluation, and the reference run that proves the live grader.
+filegroup(
+    name = "integration_docs",
+    srcs = glob(
+        ["**/*.json", "**/*.jsonl", "**/*.md"],
+        allow_empty = True,
+    ),
+    visibility = ["//tests/integrated:__pkg__"],
+)
