@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12, 16 and 17 done; item 18 in progress)
+**Written:** 2026-09-16 · **State as of:** 2026-09-30 (items 12, 16, 17 and 18 done; item 19 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -104,8 +104,8 @@ Every item carries a **State**. The values are:
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
 | 17 | Fine-tuning | Martin | **done** — PR #59 | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
-| 18 | Notebook | Martin | **in progress** — `feat/notebook` | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
-| 19 | Integration | Joint | **ready** | 12 ✓, 17 ✓ | — |
+| 18 | Notebook | Martin | **done** — PR #60 | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
+| 19 | Integration | Joint | **in progress** — `feat/integration` | 12 ✓, 17 ✓ | — |
 
 ### The graph
 
@@ -135,8 +135,8 @@ flowchart LR
   I15["15 · gold set"]:::done
   I16["16 · eval and baseline"]:::done
   I17["17 · fine-tuning"]:::done
-  I18["18 · notebook"]:::progress
-  I19["19 · integration"]:::ready
+  I18["18 · notebook"]:::done
+  I19["19 · integration"]:::progress
 
   I2 --> I4
   I3 --> I4
@@ -214,6 +214,10 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   0/68 to 19/68 without the grammar and to 32/68 with it (exact McNemar
   p = 3.8e-6 and 4.7e-10); the result and its limits are under item 17
   below. Items 18 and 19 are now ready.
+- **Item 18 is done as PR #60.** The deliverable notebook is committed
+  executed, and every number it reports recomputes from the committed
+  evidence. It pulled the server's model flags forward from item 19,
+  which is now in progress.
 
 ### Cross-owner hand-offs
 
@@ -699,7 +703,7 @@ see [docs/training/README.md](training/README.md)):
 
 ### 18. Notebook
 
-**Size:** ~3 days · **State:** in progress (`feat/notebook`) — plan in [plans/14-notebook.md](../plans/14-notebook.md)
+**Size:** ~3 days · **State:** done (PR #60) — plan in [plans/14-notebook.md](../plans/14-notebook.md)
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
@@ -760,7 +764,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** ready
+**Size:** ~3 days · **State:** in progress (`feat/integration`) — plan in [plans/15-integration.md](../plans/15-integration.md)
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
