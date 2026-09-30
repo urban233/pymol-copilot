@@ -302,6 +302,28 @@ def test_main_refuses_a_config_combined_with_a_setting_flag(
     assert started == []
 
 
+def test_main_refuses_a_config_with_another_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The config was evaluated with the training prompt only."""
+    started: list[object] = []
+    monkeypatch.setattr(
+        server_main, "serve", lambda **kwargs: started.append(kwargs)
+    )
+    with pytest.raises(SystemExit):
+        server_main.main(
+            [
+                "--config",
+                str(_FINETUNED),
+                "--prompt",
+                "placeholder",
+                "--handoff",
+                "unused.json",
+            ]
+        )
+    assert started == []
+
+
 def test_main_refuses_a_missing_config(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

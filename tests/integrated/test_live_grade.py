@@ -40,6 +40,7 @@ from pmc_eval.integrated import IntegratedRecord
 from pmc_eval.integrated import compare_condition
 from pmc_eval.integrated import explain
 from pmc_eval.integrated import grade_live
+from pmc_eval.integrated import previewed_commands
 from pmc_eval.integrated import read_apply
 from pmc_eval.integrated import read_preview
 from pmc_eval.integrated import render_report
@@ -172,6 +173,29 @@ def test_a_preview_names_its_plan_and_is_approvable() -> None:
 
     assert preview.plan_id == "p-ec25a4fa"
     assert preview.applicable
+
+
+def test_the_previewed_commands_are_read_without_their_counts() -> None:
+    """The numbered commands, exactly as the plan renders them."""
+    assert previewed_commands(["\n".join(_PREVIEW)]) == (
+        "select copilot_sel0244, name ZN",
+    )
+
+
+def test_latency_percentiles_are_nearest_rank() -> None:
+    """p50 of 1..5 s is the 3rd value, p90 the 5th."""
+    offline = {
+        f"gold_00{i}": {**_OFFLINE, "sample_id": f"gold_00{i}"}
+        for i in range(1, 6)
+    }
+    records = [
+        _record(sample_id=f"gold_00{i}", task_success=True, preview_seconds=i)
+        for i in range(1, 6)
+    ]
+
+    latency = compare_condition(records, offline)["latency_seconds"]
+
+    assert (latency["preview_p50"], latency["preview_p90"]) == (3, 5)
 
 
 def test_an_inspectable_only_preview_is_not_approvable() -> None:

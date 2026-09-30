@@ -9,7 +9,7 @@
 
 - Outcomes: applied 68, not_applicable 0, apply_restored 0, apply_refused 0, no_plan 0, timeout 0.
 - Prompt skew (live structure not the recorded one): 0 of 68.
-- Latency: preview p50 8.9 s, p90 11.3 s; apply p50 2.0 s, p90 2.3 s.
+- Latency: preview p50 8.9 s, p90 11.4 s; apply p50 2.0 s, p90 3.0 s.
 
 ### Every sample whose outcome differs
 

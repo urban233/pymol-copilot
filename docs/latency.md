@@ -23,7 +23,7 @@ row below does not isolate.
 
 | Condition | Preview p50 | Preview p90 | Apply p50 | Apply p90 |
 | --- | --- | --- | --- | --- |
-| grammar (68 samples) | 8.9 s | 11.3 s | 2.0 s | 2.3 s |
+| grammar (68 samples) | 8.9 s | 11.4 s | 2.0 s | 3.0 s |
 | no-grammar (68 samples; 25 applied) | 5.7 s | 8.9 s | 1.0 s | 2.0 s |
 
 <!-- Paste each machine's own table below, oldest first. -->

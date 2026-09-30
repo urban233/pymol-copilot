@@ -82,6 +82,7 @@ from pmc_eval.integrated import compare_condition
 from pmc_eval.integrated import grade_live
 from pmc_eval.integrated import read_apply
 from pmc_eval.integrated import read_offline
+from pmc_eval.integrated import previewed_commands
 from pmc_eval.integrated import read_preview
 from pmc_eval.integrated import read_records
 from pmc_eval.integrated import render_report
@@ -377,6 +378,14 @@ def run_sample(
         base["plan_pml"] = plan.render_pml()
     if preview.plan_id is None or plan is None:
         return IntegratedRecord(**base, outcome=OUTCOME_NO_PLAN, output=lines)
+    shown = previewed_commands(lines)
+    if shown != tuple(plan.render_pml().splitlines()):
+        # The plan graded below is re-parsed from the server's trace; it
+        # must be the plan the user was shown and approves.
+        raise SystemExit(
+            f"{sample.sample_id}: the traced plan {plan.render_pml()!r} is "
+            f"not the previewed one {shown!r}"
+        )
     if not preview.applicable:
         return IntegratedRecord(
             **base, outcome=OUTCOME_NOT_APPLICABLE, output=lines
@@ -543,6 +552,31 @@ def _now() -> str:
     )
 
 
+def _resumed(path: Path, current: dict[str, Any]) -> dict[str, Any]:
+    """Continue a run's record, refusing to mix two runs in one.
+
+    Args:
+        path: The run's existing `run.json`.
+        current: What this invocation would record.
+
+    Returns:
+        The original record, with this resume appended.
+
+    Raises:
+        SystemExit: If this invocation differs from the original in its
+            mode, config, commit or tree.
+    """
+    original = json.loads(path.read_text(encoding="utf-8"))
+    for key in ("mode", "config", "config_sha256", "commit", "dirty"):
+        if original.get(key) != current[key]:
+            raise SystemExit(
+                f"{path}: resuming would mix runs; {key} was "
+                f"{original.get(key)!r}, now {current[key]!r}"
+            )
+    resumes = [*original.get("resumes", []), current["started_at"]]
+    return {**original, "resumes": resumes}
+
+
 def run(arguments: argparse.Namespace) -> int:
     """Run the gold set through the product under each condition.
 
@@ -629,7 +663,16 @@ def run(arguments: argparse.Namespace) -> int:
                     if config is None
                     else hashlib.sha256(config.read_bytes()).hexdigest(),
                     "commit": _git("rev-parse", "HEAD"),
-                    "dirty": bool(_git("status", "--porcelain", "--", "src")),
+                    "dirty": bool(
+                        _git(
+                            "status",
+                            "--porcelain",
+                            "--",
+                            "src",
+                            "tests",
+                            "configs",
+                        )
+                    ),
                     "server": server_argv,
                     "health": health,
                     "host": f"{platform.platform()} {platform.machine()}",
@@ -637,7 +680,10 @@ def run(arguments: argparse.Namespace) -> int:
                     "started_at": _now(),
                     "samples": len(samples),
                 }
-                (directory / "run.json").write_text(
+                run_path = directory / "run.json"
+                if done:
+                    run_record = _resumed(run_path, run_record)
+                run_path.write_text(
                     json.dumps(run_record, indent=2, sort_keys=True) + "\n",
                     encoding="utf-8",
                 )

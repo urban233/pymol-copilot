@@ -59,17 +59,24 @@ one.
 - **How often:** for 8 samples with the grammar and 11 without, the
   model wrote a different completion to an identical prompt.
 - **What changed:**
-  - mostly a near tie: the arbitrary number in a selection's name
-    (`copilot_sel0244` against `copilot_sel0249`), or a synonym;
-  - two are substantive:
+  - only the arbitrary number in a selection's name
+    (`copilot_sel0244` against `copilot_sel0249`): 4 of the 8 with the
+    grammar, and 6 of the 11 without;
+  - substantive for the rest: 4 with the grammar and 5 without. With
+    the grammar:
     - gold_001 added a second command (`color magenta, name ZN`);
-    - gold_044 wrote `name CA` where offline wrote `name C`.
+    - gold_020 wrote `resn OXY` where offline wrote `resn OX`;
+    - gold_044 wrote `name CA` where offline wrote `name C`;
+    - gold_047 wrote `resn WAT` where offline wrote `name WAT`.
+
+    Without the grammar, gold_010, 020, 033, 035 and 056 changed their
+    wording. Every one of them was a failure both ways.
 - **Effect on grades:** only gold_044 changed, and in the integrated
   run's favour. The report classifies it as `engine_drift`, the first
   place the two runs part.
 
-**The engine's answer depends on its history, not on the prompt alone.**
-Both runs sent the same prompts in the same order at temperature 0.
+**The engine's answer is not a function of the prompt alone.** Both
+runs sent the same prompts in the same order at temperature 0.
 
 `drift_probe.json` records a diagnostic, run with Martin's consent,
 that asked why. It sent gold_001's and gold_044's prompts after four
@@ -82,13 +89,21 @@ different preceding prompts, each sequence twice:
   (the live answer) and the second time `name C` (the offline one).
   After every other predecessor, `name C`.
 
-So on this engine, the completion is not a function of the prompt, nor
-of the prompt and the request before it. It depends on the engine's
-longer history since the model was loaded. llama-server keeps a cache
-of earlier prompts and reuses their prefixes. That changes how a
-prompt's tokens are batched, and so the floating-point sums a near tie
-turns on. This is our reading; the probe shows the dependence, not its
-mechanism.
+**What the probe shows:** on this engine, the completion is not a
+function of the prompt, nor of the prompt and the request before it.
+
+**What it does not show:** why. The one flip, gold_044's, happened on
+the probe's very first request after connecting, so the cause is not
+known. Two readings fit the data:
+
+- The cause is the engine's longer history. llama-server keeps a cache
+  of earlier prompts and reuses their prefixes, which changes how a
+  prompt's tokens are batched, and so the floating-point sums a near
+  tie turns on.
+- The cause is a first-request effect.
+
+The probe does not tell them apart. It also never reproduced gold_001's
+offline completion.
 
 The offline determinism check, rerunning both gold runs with the same
 completions ([configs/evaluation/README.md](../../configs/evaluation/README.md)),
@@ -103,9 +118,10 @@ this.
   - 1 of 136 grades changed, McNemar p = 1;
   - 8 and 11 of 68 completions changed with the grammar and without it;
   - none of it came from the runtime path.
-- **The recorded runs are still reproducible.** The trace of every
+- **The runs can be audited, not replayed.** The trace of every
   completion is committed beside each run (`trace.jsonl`), so any
   single outcome can be checked against what the model actually wrote.
+  Rerunning the model need not give the same completions.
 - **Not done here:** making the engine history-independent, for
   example by disabling prompt-cache reuse per request. That would
   change the evaluated configuration, and would need both the offline

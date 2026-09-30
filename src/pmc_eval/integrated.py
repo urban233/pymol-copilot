@@ -24,6 +24,8 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import dataclasses
 import json
+import math
+import re
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -330,6 +332,27 @@ def read_preview(lines: Sequence[str]) -> Preview:
     return Preview(plan_id=None, applicable=False)
 
 
+#: One numbered command in a preview: `    2 | color silver, x`, with an
+#: optional `   -> 2 atoms` count after it.
+_PREVIEW_COMMAND = re.compile(r"^\s+\d+ \| (?P<command>.+?)(?:\s+-> .*)?$")
+
+
+def previewed_commands(lines: Sequence[str]) -> tuple[str, ...]:
+    """Read the numbered commands a preview showed, in order.
+
+    Args:
+        lines: Everything the client printed for one `copilot <intent>`.
+
+    Returns:
+        Each command's canonical text.
+    """
+    return tuple(
+        match["command"]
+        for line in "\n".join(lines).splitlines()
+        if (match := _PREVIEW_COMMAND.match(line))
+    )
+
+
 def read_apply(lines: Sequence[str], plan_id: str) -> str:
     """Classify what `copilot_apply` printed.
 
@@ -468,8 +491,8 @@ def _percentile(values: Sequence[float], fraction: float) -> float | None:
     if not values:
         return None
     ordered = sorted(values)
-    index = max(0, min(len(ordered) - 1, round(fraction * len(ordered)) - 1))
-    return ordered[index]
+    rank = math.ceil(fraction * len(ordered))
+    return ordered[max(0, min(len(ordered), rank) - 1)]
 
 
 def compare_condition(

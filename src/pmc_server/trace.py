@@ -52,8 +52,14 @@ def open_trace(path: Path) -> TextIO:
         OSError: If it cannot be opened, is not a regular file, or its
             permissions cannot be made user-only.
     """
+    # O_NONBLOCK: a FIFO planted at the path is refused instead of
+    # blocking startup; it has no effect on a regular file.
     flags = (
-        os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_APPEND
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
     )
     descriptor = os.open(path, flags, _FILE_MODE)
     try:

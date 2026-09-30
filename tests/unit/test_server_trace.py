@@ -218,6 +218,40 @@ def test_the_trace_file_is_never_a_symlink(tmp_path: Path) -> None:
         open_trace(link)
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX FIFOs only")
+def test_a_fifo_at_the_trace_path_is_refused_without_blocking(
+    tmp_path: Path,
+) -> None:
+    """A pipe planted at the trace path cannot stall the server's start."""
+    fifo = tmp_path / "trace.jsonl"
+    os.mkfifo(fifo)
+
+    with pytest.raises(OSError):
+        open_trace(fifo)
+
+
+def test_an_unopenable_trace_never_connects_the_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The trace is opened first, so no engine is left unclosed."""
+    connected: list[object] = []
+    monkeypatch.setattr(
+        server_main,
+        "build_engine",
+        lambda **kwargs: connected.append(kwargs) or FakeEngine([]),
+    )
+    stop = threading.Event()
+    stop.set()
+
+    with pytest.raises(OSError):
+        server_main.serve(
+            handoff_path=tmp_path / "session.json",
+            trace_path=tmp_path / "absent" / "trace.jsonl",
+            stop=stop,
+        )
+    assert connected == []
+
+
 def _captured_serve(
     monkeypatch: pytest.MonkeyPatch, argv: list[str]
 ) -> dict[str, Any]:

@@ -18,9 +18,12 @@ from typing import Any
 
 import pytest
 
+from pmc_eval.integrated import GAP_ENGINE_DRIFT
 from pmc_eval.integrated import GAP_UNEXPLAINED
 from pmc_eval.integrated import GAPS
+from pmc_eval.integrated import OUTCOME_NO_PLAN
 from pmc_eval.integrated import compare_condition
+from pmc_eval.integrated import previewed_commands
 from pmc_eval.integrated import read_offline
 from pmc_eval.integrated import read_records
 from pmc_eval.integrated import render_report
@@ -98,6 +101,13 @@ def test_the_run_served_the_evaluated_config(condition: str) -> None:
     config = _read(CONFIG)["engine"]
 
     assert run["mode"] == "model"
+    assert run["dirty"] is False
+    server = run["server"]
+    assert server[server.index("--config") + 1].endswith(
+        "configs/evaluation/finetuned.json"
+    )
+    assert ("--grammar" if condition == "grammar" else "--no-grammar") in server
+    assert "--trace-file" in server
     assert (
         run["config_sha256"] == hashlib.sha256(CONFIG.read_bytes()).hexdigest()
     )
@@ -116,6 +126,31 @@ def test_every_difference_is_explained(condition: str) -> None:
             assert NOTES.get(row["sample_id"]), (
                 f"{row['sample_id']} is unexplained and has no note"
             )
+
+
+@pytest.mark.parametrize("condition", CONDITIONS)
+def test_every_graded_plan_is_the_previewed_one(condition: str) -> None:
+    """The plan graded from the trace is the one the user was shown."""
+    for record in read_records(
+        INTEGRATION / "test_gold" / condition / "samples.jsonl"
+    ):
+        if record.outcome == OUTCOME_NO_PLAN:
+            assert record.plan_pml is None, record.sample_id
+            continue
+        assert record.plan_pml is not None, record.sample_id
+        assert previewed_commands(record.output) == tuple(
+            record.plan_pml.splitlines()
+        ), record.sample_id
+
+
+def test_the_one_discordant_sample_is_engine_drift() -> None:
+    """gold_044: the offline prompt, another completion, another grade."""
+    grammar = COMPARISON["grammar"]["discordant"]
+
+    assert [(row["sample_id"], row["explanation"]) for row in grammar] == [
+        ("gold_044", GAP_ENGINE_DRIFT)
+    ]
+    assert COMPARISON["no-grammar"]["discordant"] == []
 
 
 @pytest.mark.parametrize("condition", CONDITIONS)

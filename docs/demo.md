@@ -47,7 +47,7 @@ offline evaluation.
   camera shows nothing.
 - **Do not move the camera before typing the request.** The view is
   part of what the model is shown. The headless rehearsal runs from the
-  same framed view, so its plan is the one to expect.
+  same framed view, so its plan is the likely one.
 
 ## Before the presentation (15 minutes)
 
@@ -177,10 +177,12 @@ All commands run from the repository root, on the demo machine.
   itself is safe: the copilot has changed nothing it has not reported.
   Restart the engine, then the server, then run `copilot_demo_fail off`
   to reconnect.
-- **The model proposes a different plan.** Show it: reject it with
-  `copilot_reject <plan id>`, which is the point of the preview. The
-  engine answers deterministically at temperature 0, so the rehearsal
-  plan is the one to expect.
+- **The model proposes a different plan.** Show it, and reject it with
+  `copilot_reject <plan id>`: that is the point of the preview.
+  - It can happen. At temperature 0, the engine's answer to the same
+    prompt still varies between runs
+    ([docs/integration/README.md](integration/README.md)).
+  - The rehearsal's plan is the likely one, not a guaranteed one.
 - **A restore fails, and the copilot halts.** Follow the manual
   recovery in
   [docs/development_setup.md](development_setup.md#manual-recovery-runbook)

@@ -336,12 +336,15 @@ def serve(
             engine, never used in production.
     """
     generation = generation or GenerationOptions()
+    # Opened before the engine connects: a trace that cannot be opened
+    # must not leave a connected engine behind unclosed.
+    sink = open_trace(trace_path) if trace_path is not None else None
     if engine is None:
         engine = build_engine(
             base_url=base_url, options=engine_options, expected=expected
         )
-    if trace_path is not None:
-        engine = TracingEngine(engine, open_trace(trace_path))
+    if sink is not None:
+        engine = TracingEngine(engine, sink)
     session = RequestGraphSession(
         engine=engine,
         prompt_builder=PROMPT_BUILDERS[generation.prompt],
@@ -407,6 +410,10 @@ def serve(
         if callable(close_engine):
             close_engine()
 
+
+#: The prompt every evaluation config was measured with: the one the
+#: model was fine-tuned on.
+EVALUATED_PROMPT = "training"
 
 #: The flags that set what a `--config` also sets, with their types.
 _CONFIGURED_FLAGS: tuple[tuple[str, type], ...] = (
@@ -538,6 +545,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 parser.error(
                     f"--config sets the engine and generation; "
                     f"{', '.join(given)} cannot be combined with it"
+                )
+            if args.prompt != EVALUATED_PROMPT:
+                # The config lists both grammar conditions, so the grammar
+                # stays a choice; it was evaluated with one prompt only.
+                parser.error(
+                    f"--config serves the evaluated configuration, whose "
+                    f"prompt is {EVALUATED_PROMPT!r}; --prompt {args.prompt} "
+                    "cannot be combined with it"
                 )
             expected = load_runtime_config(args.config)
             base_url = expected.base_url

@@ -787,8 +787,9 @@ before apply is confirmed.
   - It refuses an engine that is not the one the config records: the
     model, the Lemonade version, and the llama.cpp arguments that pin
     the chat template's date.
-  - The defaults are now the evaluated ones (training prompt, grammar,
-    16384 context), apart from the model.
+  - The generation defaults are now the evaluated ones (training
+    prompt, grammar, 16384 context). The model and backend stay the
+    adapter's own.
   - All four gaps item 16 noted are closed: the context, the prompt,
     the grammar, and the final newline, which the graph now appends as
     the evaluation did.
@@ -812,8 +813,9 @@ before apply is confirmed.
     runtime adds nothing.
   - The one discordant sample (gold_044) is engine drift: the same
     prompt got another completion.
-  - A diagnostic shows that at temperature 0 the engine's completion
-    depends on its history since load, not on the prompt alone.
+  - A diagnostic shows that at temperature 0 the engine's completion is
+    not a function of the prompt alone, nor of the prompt and the
+    request before it. The mechanism is not established.
 - **The demo:**
   - [docs/demo.md](demo.md) is the runbook, with its launcher (GUI
     PyMOL from the pinned `requirements-demo.txt`, which adds

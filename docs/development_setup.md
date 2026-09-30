@@ -78,9 +78,13 @@ the engine up with the same file first
 ([configs/evaluation/engine/README.md](../configs/evaluation/engine/README.md)).
 `--config` cannot be combined with the engine or generation flags.
 
-Without a config, the defaults are the evaluated ones apart from the
-model: the training prompt, the grammar, a 16384-token context, 256
-tokens and a 600 s generation deadline. `--no-grammar` and
+Without a config, the generation defaults are the evaluated ones: the
+training prompt, the grammar, a 16384-token context, 256 tokens and a
+600 s generation deadline. The model and the backend stay the
+adapter's own, the untuned base model on `cpu`, because neither the
+local GGUF nor a GPU can be assumed. `--config` also refuses
+`--prompt placeholder`, since the configs were evaluated with the
+training prompt only. `--no-grammar` and
 `--prompt placeholder` turn the grammar off and select the old stand-in
 prompt.
 
