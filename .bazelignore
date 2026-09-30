@@ -8,3 +8,4 @@ env
 .venv-train
 .train-tools
 unsloth_compiled_cache
+.venv-notebook

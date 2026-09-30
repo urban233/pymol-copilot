@@ -28,6 +28,7 @@ from pmc_core.errors import CATEGORY_UNKNOWN
 from pmc_core.errors import ERROR_ENVELOPE_VERSION
 from pmc_core.errors import ExecutionErrorV1
 from pmc_core.executor import OUTCOME_ERROR
+from pmc_core.grammar import build_grammar
 from pmc_core.executor import REASON_COMMAND_FAILURE
 from pmc_core.executor import REASON_OK
 from pmc_core.executor import REASON_TIMEOUT
@@ -236,6 +237,7 @@ def _run(
     *,
     policy_validator: Callable[[ActionPlan], PlanDecision] = evaluate_plan,
     max_repair_attempts: int = 2,
+    grammar: str | None = None,
 ) -> dict[str, object]:
     """Compile the graph against fakes and run one request to completion.
 
@@ -245,6 +247,7 @@ def _run(
         policy_validator: The policy validator `validating` calls.
             Defaults to the graph's own real `evaluate_plan`.
         max_repair_attempts: The repair budget to build the graph with.
+        grammar: The grammar to build the graph with.
 
     Returns:
         The invocation's result mapping.
@@ -256,6 +259,7 @@ def _run(
         policy_validator=policy_validator,
         plan_id_source=lambda: "33333333-3333-4333-8333-333333333333",
         max_repair_attempts=max_repair_attempts,
+        grammar=grammar,
     ).compile(checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": state["session_id"]}}
     return compiled.invoke(state, config)
@@ -455,6 +459,44 @@ def test_every_executor_call_receives_its_own_execution_request() -> None:
 
     assert len(executor.calls) == 2
     assert executor.calls[0] is not executor.calls[1]
+
+
+def _repaired_twice() -> tuple[FakeEngine, FakeExecutor]:
+    """Script a request that validates on its third attempt.
+
+    Returns:
+        The engine and executor fakes.
+    """
+    engine = FakeEngine(
+        [CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)] * 3
+    )
+    executor = FakeExecutor(
+        [
+            _command_failure_report(message="first failure"),
+            _command_failure_report(message="second failure"),
+            _ok_report(),
+        ]
+    )
+    return engine, executor
+
+
+def test_by_default_no_attempt_sends_a_grammar() -> None:
+    """Without a grammar, neither the first attempt nor a repair sends one."""
+    engine, executor = _repaired_twice()
+
+    _run(engine, executor)
+
+    assert [call.grammar for call in engine.calls] == [None, None, None]
+
+
+def test_a_configured_grammar_reaches_every_attempt() -> None:
+    """The configured grammar goes with the first attempt and every repair."""
+    engine, executor = _repaired_twice()
+    grammar = build_grammar()
+
+    _run(engine, executor, grammar=grammar)
+
+    assert [call.grammar for call in engine.calls] == [grammar] * 3
 
 
 if __name__ == "__main__":

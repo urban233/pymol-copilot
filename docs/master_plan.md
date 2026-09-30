@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12, 16 and 17 done)
+**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12, 16 and 17 done; item 18 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -104,7 +104,7 @@ Every item carries a **State**. The values are:
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
 | 17 | Fine-tuning | Martin | **done** — PR #59 | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
-| 18 | Notebook | Martin | **ready** | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
+| 18 | Notebook | Martin | **in progress** — `feat/notebook` | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
 | 19 | Integration | Joint | **ready** | 12 ✓, 17 ✓ | — |
 
 ### The graph
@@ -135,7 +135,7 @@ flowchart LR
   I15["15 · gold set"]:::done
   I16["16 · eval and baseline"]:::done
   I17["17 · fine-tuning"]:::done
-  I18["18 · notebook"]:::ready
+  I18["18 · notebook"]:::progress
   I19["19 · integration"]:::ready
 
   I2 --> I4
@@ -699,7 +699,7 @@ see [docs/training/README.md](training/README.md)):
 
 ### 18. Notebook
 
-**Size:** ~3 days · **State:** ready
+**Size:** ~3 days · **State:** in progress (`feat/notebook`) — plan in [plans/14-notebook.md](../plans/14-notebook.md)
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
@@ -709,6 +709,50 @@ deferred or unsupported category named, the exact operating system, PyMOL,
 Python, Lemonade and model versions, and the licensing record. It has to
 read standalone for someone who has never seen this repository.
 ```
+
+**Progress** (see [notebooks/pymol_copilot.ipynb](../notebooks/pymol_copilot.ipynb)):
+
+- **The notebook** is committed executed, built from the reviewable
+  `notebooks/source/pymol_copilot.py`. It runs in its own Python 3.12
+  environment (`requirements-notebook.txt`: the training lock plus the
+  runtime's pins plus Jupyter).
+  - Heavy stages (corpus generation, GPU training) show their real code
+    behind flags that are off and load the committed records.
+  - Instant ones run live: a structure and its card, a plan, the
+    oracle's prediction, and a training example's mask.
+  - The end-user demonstration ran on the GPU engine with Martin's
+    consent.
+  - `//tests/notebook` recomputes every number it reports from the
+    committed evidence, and checks it is its source's build.
+- **Oracle conformance:** the corpus was regenerated on Linux
+  ([docs/dataset/linux-regeneration/](dataset/linux-regeneration/README.md)).
+  - Of 4,000 differential checks against PyMOL, none disagreed.
+  - 612 were declared ungradable.
+  - 7 were PyMOL child crashes, all kept when re-run alone.
+- **The demonstration** runs the real copilot flow in headless PyMOL
+  against the fine-tuned model: preview, `copilot_apply` and
+  `copilot_rollback`, on a held-out structure.
+- **Pulled forward from item 19:** so that the demonstration could run,
+  `pmc_server.main` now takes the fine-tuned model's settings.
+  - The flags are `--model-name`, `--checkpoint`, `--backend`,
+    `--context-size`, `--read-timeout-seconds`,
+    `--prompt {placeholder,training}`, `--grammar`, `--max-tokens` and
+    `--generation-deadline-seconds`.
+  - The training prompt is a runtime builder
+    (`pmc_agent.prompt.build_training_prompt`), and the graph can send a
+    grammar.
+  - Every default is unchanged.
+- **Note for item 19 (Hannah):**
+  - The server serves the fine-tuned model with the flags the notebook's
+    section 9 lists. What remains is:
+    - deciding whether the defaults change;
+    - the missing-newline normalization when no grammar is sent;
+    - the integrated TaskSuccess measurement.
+  - A new finding: LangGraph logs "Deserializing unregistered type ...
+    from checkpoint. This will be blocked in a future version" for the
+    `pmc_core` types in the graph's checkpoint on every apply. A future
+    LangGraph upgrade would refuse them unless they are registered in
+    `allowed_msgpack_modules`.
 
 ---
 

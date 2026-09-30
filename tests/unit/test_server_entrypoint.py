@@ -23,11 +23,18 @@ import pytest
 
 import pmc_server.main as server_main
 from pmc_agent.inference.base import EngineFailure
+from pmc_agent.inference.lemonade import DEFAULT_BACKEND
+from pmc_agent.inference.lemonade import DEFAULT_CHECKPOINT
+from pmc_agent.inference.lemonade import DEFAULT_CONTEXT_SIZE
+from pmc_agent.inference.lemonade import DEFAULT_MODEL_NAME
+from pmc_agent.inference.lemonade import DEFAULT_READ_TIMEOUT_SECONDS
 from pmc_agent.inference.unavailable import UnavailableEngine
 from pmc_client.bootstrap import connect_from_handoff
 from pmc_client.command import CopilotCommandClient
 from pmc_client.recovery import RecoveryStore
 from pmc_client.transport import LoopbackPlanClient
+from pmc_agent.prompt import build_training_prompt
+from pmc_core.grammar import build_grammar
 from pmc_core.protocol import HealthRequestV1
 
 
@@ -91,8 +98,10 @@ def test_build_engine_never_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     """`build_engine` calls `connect_lemonade` exactly once."""
     calls: list[str] = []
 
-    def fake_connect(*, base_url: str, client: Any) -> EngineFailure:
-        del client
+    def fake_connect(
+        *, base_url: str, client: Any, **options: Any
+    ) -> EngineFailure:
+        del client, options
         calls.append(base_url)
         return EngineFailure("engine_unavailable", "refused")
 
@@ -109,8 +118,8 @@ def test_build_engine_returns_a_real_engine_on_success(
     """A successful probe returns the connected engine, never wrapped."""
     sentinel = object()
 
-    def fake_connect(*, base_url: str, client: Any) -> Any:
-        del base_url, client
+    def fake_connect(*, base_url: str, client: Any, **options: Any) -> Any:
+        del base_url, client, options
         return sentinel
 
     monkeypatch.setattr(server_main, "connect_lemonade", fake_connect)
@@ -119,6 +128,204 @@ def test_build_engine_returns_a_real_engine_on_success(
 
     assert engine is sentinel
     assert not isinstance(engine, UnavailableEngine)
+
+
+def _capture_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, Any]]:
+    """Record every `connect_lemonade` call's arguments; refuse each one.
+
+    Args:
+        monkeypatch: Pytest's monkeypatch fixture.
+
+    Returns:
+        The list the calls' keyword arguments are appended to.
+    """
+    calls: list[dict[str, Any]] = []
+
+    def fake_connect(**kwargs: Any) -> EngineFailure:
+        calls.append(kwargs)
+        return EngineFailure("engine_unavailable", "refused")
+
+    monkeypatch.setattr(server_main, "connect_lemonade", fake_connect)
+    return calls
+
+
+def test_build_engine_defaults_are_the_adapters_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without options, the server loads exactly what it always loaded."""
+    calls = _capture_connect(monkeypatch)
+
+    server_main.build_engine(base_url="http://127.0.0.1")
+
+    assert calls[0]["model_name"] == DEFAULT_MODEL_NAME
+    assert calls[0]["checkpoint"] == DEFAULT_CHECKPOINT
+    assert calls[0]["backend"] == DEFAULT_BACKEND
+    assert calls[0]["context_size"] == DEFAULT_CONTEXT_SIZE
+    assert calls[0]["read_timeout_seconds"] == DEFAULT_READ_TIMEOUT_SECONDS
+
+
+def test_build_engine_passes_the_chosen_model_through(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Engine options reach the adapter's probe unchanged."""
+    calls = _capture_connect(monkeypatch)
+    options = server_main.EngineOptions(
+        model_name="tuned",
+        checkpoint="/models/tuned/tuned.gguf",
+        backend="cuda",
+        context_size=16384,
+        read_timeout_seconds=600.0,
+    )
+
+    server_main.build_engine(base_url="http://127.0.0.1", options=options)
+
+    assert {k: calls[0][k] for k in _OPTION_KEYS} == {
+        "model_name": "tuned",
+        "checkpoint": "/models/tuned/tuned.gguf",
+        "backend": "cuda",
+        "context_size": 16384,
+        "read_timeout_seconds": 600.0,
+    }
+
+
+_OPTION_KEYS = (
+    "model_name",
+    "checkpoint",
+    "backend",
+    "context_size",
+    "read_timeout_seconds",
+)
+
+
+def _captured_serve(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> dict[str, Any]:
+    """Run `main` with `serve` replaced, and return what it was given.
+
+    Args:
+        monkeypatch: Pytest's monkeypatch fixture.
+        argv: The command line.
+
+    Returns:
+        `serve`'s keyword arguments.
+    """
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(
+        server_main, "serve", lambda **kwargs: seen.update(kwargs)
+    )
+    assert server_main.main([*argv, "--handoff", "unused.json"]) == 0
+    return seen
+
+
+def test_main_defaults_keep_todays_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No flags: the adapter's model, the placeholder prompt, no grammar."""
+    seen = _captured_serve(monkeypatch, [])
+
+    assert seen["engine_options"] == server_main.EngineOptions()
+    assert seen["generation"] == server_main.GenerationOptions()
+    assert seen["generation"].prompt == "placeholder"
+    assert seen["generation"].grammar is False
+
+
+def test_main_flags_select_the_fine_tuned_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The flags configure the model, the prompt, the grammar and bounds."""
+    seen = _captured_serve(
+        monkeypatch,
+        [
+            "--model-name",
+            "tuned",
+            "--checkpoint",
+            "/models/tuned/tuned.gguf",
+            "--backend",
+            "cuda",
+            "--context-size",
+            "16384",
+            "--read-timeout-seconds",
+            "600",
+            "--prompt",
+            "training",
+            "--grammar",
+            "--max-tokens",
+            "256",
+            "--generation-deadline-seconds",
+            "600",
+        ],
+    )
+
+    assert seen["engine_options"] == server_main.EngineOptions(
+        model_name="tuned",
+        checkpoint="/models/tuned/tuned.gguf",
+        backend="cuda",
+        context_size=16384,
+        read_timeout_seconds=600.0,
+    )
+    assert seen["generation"] == server_main.GenerationOptions(
+        prompt="training", grammar=True, max_tokens=256, deadline_seconds=600.0
+    )
+
+
+def test_main_refuses_an_unknown_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the known prompt builders can be selected."""
+    monkeypatch.setattr(server_main, "serve", lambda **_kwargs: None)
+    with pytest.raises(SystemExit):
+        server_main.main(["--prompt", "few-shot", "--handoff", "unused.json"])
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--max-tokens", "0"],
+        ["--generation-deadline-seconds", "0"],
+        ["--generation-deadline-seconds", "nan"],
+    ],
+)
+def test_main_refuses_bounds_no_completion_accepts(
+    monkeypatch: pytest.MonkeyPatch, flags: list[str]
+) -> None:
+    """A bound every request would refuse stops the server at startup."""
+    started: list[object] = []
+    monkeypatch.setattr(
+        server_main, "serve", lambda **kwargs: started.append(kwargs)
+    )
+    with pytest.raises(SystemExit):
+        server_main.main([*flags, "--handoff", "unused.json"])
+    assert started == []
+
+
+def test_serve_gives_the_session_the_chosen_prompt_and_grammar(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The session is built with the selected prompt builder and grammar."""
+    _capture_connect(monkeypatch)
+    built: list[dict[str, Any]] = []
+    real = server_main.RequestGraphSession
+
+    def recording_session(**kwargs: Any) -> Any:
+        built.append(kwargs)
+        return real(**kwargs)
+
+    monkeypatch.setattr(server_main, "RequestGraphSession", recording_session)
+    stop = threading.Event()
+    stop.set()
+    server_main.serve(
+        handoff_path=tmp_path / "session.json",
+        generation=server_main.GenerationOptions(
+            prompt="training", grammar=True, max_tokens=256
+        ),
+        stop=stop,
+    )
+
+    assert built[0]["prompt_builder"] is build_training_prompt
+    assert built[0]["grammar"] == build_grammar()
+    assert built[0]["max_tokens"] == 256
 
 
 def test_write_handoff_is_private_and_names_the_real_port(

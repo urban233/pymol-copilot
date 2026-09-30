@@ -14,8 +14,12 @@ rather than before: the card is by far the longest part of the prompt
 and is shared by every sample on the same structure, so keeping it a
 prefix lets the engine's prompt cache reuse it across repairs.
 
-The failure-line wording is a copy of `pmc_agent.prompt._error_line`,
-not an import of it. `tests/eval/test_prompt.py` fails if the two drift.
+Since item 18, `contract_prompt` delegates to the runtime's own
+`pmc_agent.prompt.build_training_prompt`, so the lines it sends are
+`pmc_agent.prompt._error_line`'s. `repair_line` stays here as the
+versioned statement of that wording (`REPAIR_PROMPT_VERSION`):
+`tests/eval/test_prompt.py` fails if the runtime's wording drifts from
+it, and a deliberate change updates both and bumps the version.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -24,7 +28,7 @@ import hashlib
 
 from pmc_agent.prompt import AttemptFailure
 from pmc_agent.prompt import PromptInputs
-from pmc_core.prompt import build_for_runtime
+from pmc_agent.prompt import build_training_prompt
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import structure_digest
 from pmc_core.snapshot import to_json
@@ -47,8 +51,10 @@ class BrokenLineageError(ValueError):
 def repair_line(failure: AttemptFailure) -> str:
     """Render one earlier failure as one prompt line.
 
-    Worded exactly as `pmc_agent.prompt._error_line` words it, so a
-    repair prompt tells the model the same thing the runtime's would.
+    Worded exactly as `pmc_agent.prompt._error_line` words it. It is not
+    what `contract_prompt` sends (that is `_error_line` itself); it is the
+    wording `REPAIR_PROMPT_VERSION` versions, which the tests hold the
+    runtime to.
 
     Args:
         failure: The earlier attempt's failure evidence.
@@ -83,8 +89,9 @@ def contract_prompt(inputs: PromptInputs) -> str:
         The training prompt, followed by one `repair_line` per earlier
         failure, oldest first.
     """
-    prompt = build_for_runtime(inputs.snapshot, inputs.intent).text()
-    return prompt + "".join(repair_line(error) for error in inputs.errors)
+    # The runtime's own builder since item 18; `repair_line` is kept here,
+    # worded identically, because REPAIR_PROMPT_VERSION versions it.
+    return build_training_prompt(inputs)
 
 
 def snapshot_for(sample: Sample) -> ObjectSnapshot:

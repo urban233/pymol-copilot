@@ -611,6 +611,7 @@ def _build_generating(
     max_tokens: int,
     deadline_seconds: float,
     cancel_token_source: CANCEL_TOKEN_SOURCE,
+    grammar: str | None = None,
 ) -> Callable[[RequestState], dict[str, object]]:
     """Close a `generating` node body over its injected engine and prompt.
 
@@ -629,6 +630,8 @@ def _build_generating(
         deadline_seconds: The wall-clock budget given to every completion.
         cancel_token_source: Finds the live cancellation token for this
             session's active graph invocation.
+        grammar: The grammar sent with every completion, first attempt
+            and repairs alike, or None to send none.
 
     Returns:
         The `generating` node body.
@@ -659,7 +662,7 @@ def _build_generating(
         outcome = engine.complete(
             CompletionRequest(
                 prompt=prompt,
-                grammar=None,
+                grammar=grammar,
                 max_tokens=max_tokens,
                 deadline_seconds=deadline_seconds,
             ),
@@ -1161,6 +1164,7 @@ def build_request_graph(
     ttl_seconds: float = PLAN_TTL_SECONDS,
     max_repair_attempts: int = MAX_REPAIR_ATTEMPTS,
     cancel_token_source: CANCEL_TOKEN_SOURCE = _new_cancel_token,
+    grammar: str | None = None,
 ) -> StateGraph[RequestState]:  # pyrefly: ignore[bad-specialization]
     """Build the uncompiled request graph, wired but not yet compiled.
 
@@ -1202,6 +1206,9 @@ def build_request_graph(
             session. Defaults to independent unset tokens for callers that
             use a bare graph; `RequestGraphSession` supplies tokens that a
             concurrent `/v1/cancel` can signal.
+        grammar: The grammar `generating` sends with every completion
+            (`pmc_core.grammar.build_grammar()`, which the fine-tuned model
+            scored best under), or None, the default, to send none.
 
     Returns:
         The graph, with every node and edge from `preparing` onward wired,
@@ -1214,6 +1221,7 @@ def build_request_graph(
         max_tokens=max_tokens,
         deadline_seconds=deadline_seconds,
         cancel_token_source=cancel_token_source,
+        grammar=grammar,
     )
     validating = _build_validating(
         executor=executor,

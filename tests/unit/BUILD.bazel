@@ -194,3 +194,18 @@ py_test(
         "//src/pmc_core:pmc_core",
     ],
 )
+
+# The runtime's training-prompt builder is byte for byte the prompt the
+# local model was fine-tuned on (master plan item 18).
+py_test(
+    name = "agent_training_prompt",
+    size = "small",
+    srcs = ["test_agent_training_prompt.py"],
+    main = "test_agent_training_prompt.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+    ],
+)

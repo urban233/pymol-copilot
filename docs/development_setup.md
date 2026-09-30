@@ -145,3 +145,31 @@ resolution would fail outright or pin the wrong variant. `--python-platform`
 lets it compile from any host without needing a Linux machine. It stays
 hash-pinned like every other lock in the repository, from default PyPI --
 PyPI's Linux torch wheels already bundle CUDA, so no extra index is needed.
+
+## Notebook environment
+
+The deliverable notebook (`notebooks/`, master plan item 18) runs the
+runtime code, the dataset and evaluation code, the training code and
+PyMOL in one Jupyter kernel. It has its own Python 3.12 environment,
+Linux only like training: `requirements-notebook.in` is the training set,
+constrained to `requirements-train.txt`, plus the runtime's own pins from
+`requirements.in` and `requirements_lock.txt` (numpy is the one package
+both locks pin, and the training lock's pin wins), plus the notebook
+tooling.
+
+```text
+uv venv --python 3.12 --managed-python .venv-notebook
+uv pip sync -p .venv-notebook requirements-notebook.txt
+PYTHONPATH=src:tools/winstage .venv-notebook/bin/pytest notebooks/tests
+```
+
+`tools/winstage` is on the path because `pmc_sidecar` imports it, as
+Bazel arranges for its own targets. To update the set, edit
+`requirements-notebook.in` and recompile it like the training lock:
+
+```text
+uvx --from uv==0.12.5 uv pip compile requirements-notebook.in --python-version 3.12 --python-platform x86_64-unknown-linux-gnu --generate-hashes --output-file requirements-notebook.txt
+```
+
+`notebooks/tests/test_environment.py` fails if the training stack or the
+runtime pins drift from their own locks.

@@ -8,5 +8,8 @@ filegroup(
         ["**/*.json", "**/*.jsonl", "**/*.md"],
         allow_empty = True,
     ),
-    visibility = ["//tests/eval:__pkg__"],
+    visibility = [
+        "//tests/eval:__pkg__",
+        "//tests/notebook:__pkg__",
+    ],
 )
