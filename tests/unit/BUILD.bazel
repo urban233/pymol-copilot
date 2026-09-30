@@ -246,3 +246,21 @@ py_test(
         "//src/pmc_server:pmc_server",
     ],
 )
+
+# The server's opt-in trace records every attempt's raw completion, only
+# when asked, in a private file (master plan item 19).
+py_test(
+    name = "server_trace",
+    size = "small",
+    srcs = ["test_server_trace.py"],
+    main = "test_server_trace.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
+    ],
+)

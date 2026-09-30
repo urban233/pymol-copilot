@@ -58,7 +58,10 @@ from pmc_server.config import InvalidRuntimeConfigError
 from pmc_server.config import RuntimeConfig
 from pmc_server.config import engine_mismatch
 from pmc_server.config import load_runtime_config
+from pmc_server.config import resolve_path
 from pmc_server.lifecycle import RequestGraphLifecycle
+from pmc_server.trace import TracingEngine
+from pmc_server.trace import open_trace
 from pmc_server.transport import LOOPBACK_HOST
 from pmc_server.transport import LoopbackPlanServer
 
@@ -304,8 +307,10 @@ def serve(
     engine_options: EngineOptions | None = None,
     generation: GenerationOptions | None = None,
     expected: RuntimeConfig | None = None,
+    trace_path: Path | None = None,
     ready: Callable[[int], None] | None = None,
     stop: threading.Event | None = None,
+    engine: InferenceEngine | None = None,
 ) -> None:
     """Build the real stack, start it, write the handoff, and block.
 
@@ -317,6 +322,8 @@ def serve(
             training prompt, the grammar) when None.
         expected: The evaluation config the server was started from, if
             any; an engine that does not match it is refused.
+        trace_path: A private file to append every completion call to
+            (`pmc_server.trace`), or None, the default, to record none.
         ready: Optional callback invoked with the bound port once the
             server has started and the handoff file has been written --
             for a test to synchronize on, never used in production.
@@ -324,11 +331,17 @@ def serve(
             its own signal handlers -- for a test that wants to stop the
             server deterministically without sending it a real signal.
             Production installs `SIGINT`/`SIGTERM` handlers instead.
+        engine: Optional engine used instead of connecting to Lemonade --
+            for a test that drives the real server with a scripted
+            engine, never used in production.
     """
     generation = generation or GenerationOptions()
-    engine = build_engine(
-        base_url=base_url, options=engine_options, expected=expected
-    )
+    if engine is None:
+        engine = build_engine(
+            base_url=base_url, options=engine_options, expected=expected
+        )
+    if trace_path is not None:
+        engine = TracingEngine(engine, open_trace(trace_path))
     session = RequestGraphSession(
         engine=engine,
         prompt_builder=PROMPT_BUILDERS[generation.prompt],
@@ -483,6 +496,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--trace-file",
+        type=Path,
+        default=None,
+        help=(
+            "Append every completion the server asks for -- its text, stop "
+            "reason and timing, and its prompt's SHA-256 -- to this private "
+            "file. Off by default: nothing is retained unless asked for."
+        ),
+    )
+    parser.add_argument(
         "--prompt",
         choices=sorted(PROMPT_BUILDERS),
         default=GenerationOptions().prompt,
@@ -526,6 +549,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             base_url, engine_options, generation = _from_flags(args)
     except (InvalidRuntimeConfigError, ValueError) as error:
         parser.error(str(error))
+    trace_path = None
+    if args.trace_file is not None:
+        trace_path = resolve_path(args.trace_file)
+        try:
+            open_trace(trace_path).close()
+        except OSError as error:
+            parser.error(f"cannot open --trace-file: {error}")
     # Resolved here, not as the argument's own default: Path.home() raises
     # on a platform or sandbox with no resolvable home directory (observed
     # on Windows CI), and that must not happen merely from registering
@@ -542,6 +572,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         engine_options=engine_options,
         generation=generation,
         expected=expected,
+        trace_path=trace_path,
     )
     return 0
 
