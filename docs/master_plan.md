@@ -218,6 +218,10 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   executed, and every number it reports recomputes from the committed
   evidence. It pulled the server's model flags forward from item 19,
   which is now in progress.
+- **Item 19 is in progress on `feat/integration`.** The model runs
+  through the product at the offline TaskSuccess: 33/68 with the grammar,
+  19/68 without. The one differing sample is explained under item 19
+  below. What remains is the watched demo dry run.
 
 ### Cross-owner hand-offs
 
@@ -774,6 +778,54 @@ one intent through apply, one deliberate failure through recovery, with the
 other developer watching to check they can tell what's about to change
 before apply is confirmed.
 ```
+
+**Progress** (see [docs/integration/README.md](integration/README.md)):
+
+- **Pairing:** the runtime now serves exactly what was evaluated.
+  - `pmc_server.main --config configs/evaluation/finetuned.json` takes
+    the engine and every generation bound from the evaluation config.
+  - It refuses an engine that is not the one the config records: the
+    model, the Lemonade version, and the llama.cpp arguments that pin
+    the chat template's date.
+  - The defaults are now the evaluated ones (training prompt, grammar,
+    16384 context), apart from the model.
+  - All four gaps item 16 noted are closed: the context, the prompt,
+    the grammar, and the final newline, which the graph now appends as
+    the evaluation did.
+  - The graph's checkpoint names every type it holds, so LangGraph's
+    "Deserializing unregistered type" warning is gone.
+- **The end-to-end suite against the model:** `//tests/e2e:real_engine`
+  (opt-in, like `lemonade_real`) passed all six scenarios on the GPU
+  engine, run from the production server. The scenarios are health,
+  preview, apply to the offline result, rollback, mid-apply failure and
+  recovery, and drift refusal
+  ([e2e_real_engine.md](integration/e2e_real_engine.md)). The denied,
+  hostile and engine-down scenarios stay scripted.
+- **Integrated TaskSuccess**, all 68 `test_gold` samples through the
+  running product (live PyMOL, the real client and server, apply, a live
+  grade):
+  - grammar: offline 32/68 → integrated **33/68**, exact McNemar p = 1;
+  - no-grammar: 19/68 → **19/68**, p = 1.
+- **The gap, explained:**
+  - A reference run puts every gold plan through the same path at
+    68/68, and every live prompt is byte for byte the offline one. The
+    runtime adds nothing.
+  - The one discordant sample (gold_044) is engine drift: the same
+    prompt got another completion.
+  - A diagnostic shows that at temperature 0 the engine's completion
+    depends on its history since load, not on the prompt alone.
+- **The demo:**
+  - [docs/demo.md](demo.md) is the runbook, with its launcher (GUI
+    PyMOL from the pinned `requirements-demo.txt`, which adds
+    PySide6's essentials). `copilot_demo_fail color` stages the failure
+    beat without adding a fault hook to the product.
+  - Both beats were rehearsed headless against the model
+    ([demo_rehearsal.md](integration/demo_rehearsal.md)).
+  - **Still open: the watched dry run.** Martin presents and Hannah
+    watches, or the other way round, and the record at the end of
+    docs/demo.md is filled in.
+- Every GPU run went through Martin's explicit consent: the e2e run,
+  the measurement, the drift diagnostic and the rehearsal.
 
 ---
 
