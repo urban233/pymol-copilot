@@ -113,6 +113,25 @@ class EngineOptions:
     read_timeout_seconds: float = DEFAULT_READ_TIMEOUT_SECONDS
     connect_timeout_seconds: float = DEFAULT_CONNECT_TIMEOUT_SECONDS
 
+    def __post_init__(self) -> None:
+        """Refuse bounds the adapter would refuse, before it is built.
+
+        Checked here, a bad flag or config stops the server with a usage
+        error before it opens its trace or connects, rather than with a
+        traceback from `LemonadeEngine`, or a context Lemonade is asked
+        to load.
+
+        Raises:
+            ValueError: If `context_size` is not positive, or a timeout
+                is not positive and finite.
+        """
+        if self.context_size <= 0:
+            raise ValueError("engine.context_size must be positive")
+        _positive(self.read_timeout_seconds, "engine.read_timeout_seconds")
+        _positive(
+            self.connect_timeout_seconds, "engine.connect_timeout_seconds"
+        )
+
     @property
     def model_identity(self) -> str:
         """Return the identity a Lemonade engine for these options reports.
@@ -291,15 +310,6 @@ def parse_runtime_config(data: Mapping[str, Any], path: Path) -> RuntimeConfig:
                 for name in _CHECKED_PROVENANCE
             },
         )
-        for name, value in (
-            ("engine.context_size", options.context_size),
-            ("engine.read_timeout_seconds", options.read_timeout_seconds),
-            (
-                "engine.connect_timeout_seconds",
-                options.connect_timeout_seconds,
-            ),
-        ):
-            _positive(value, name)
         config.generation(prompt=DEFAULT_PROMPT, grammar=True)
     except ValueError as error:
         if isinstance(error, InvalidRuntimeConfigError):
@@ -336,14 +346,20 @@ def load_runtime_config(path: Path) -> RuntimeConfig:
         The runtime config.
 
     Raises:
-        InvalidRuntimeConfigError: If the file is missing, not a JSON
-            object, or invalid.
+        InvalidRuntimeConfigError: If the file is missing, unreadable,
+            not a JSON object, or invalid.
     """
     resolved = resolve_path(path)
     if not resolved.is_file():
         raise InvalidRuntimeConfigError(f"{resolved} does not exist")
     try:
-        data = json.loads(resolved.read_text(encoding="utf-8"))
+        text = resolved.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise InvalidRuntimeConfigError(
+            f"cannot read {resolved}: {error}"
+        ) from error
+    try:
+        data = json.loads(text)
     except json.JSONDecodeError as error:
         raise InvalidRuntimeConfigError(
             f"{resolved} is not valid JSON"

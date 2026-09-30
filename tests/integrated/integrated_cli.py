@@ -65,6 +65,7 @@ from pmc_client.recovery import RecoveryStore
 from pmc_core.parser import ParseRejection
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
+from pmc_core.plan import selection_names
 from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_core.snapshot import extract
 from pmc_core.snapshot import reconstruct
@@ -86,7 +87,6 @@ from pmc_eval.integrated import previewed_commands
 from pmc_eval.integrated import read_preview
 from pmc_eval.integrated import read_records
 from pmc_eval.integrated import render_report
-from pmc_eval.integrated import selection_names
 from pmc_eval.prompt import snapshot_for
 from pmc_server.config import GenerationOptions
 from pmc_server.main import serve

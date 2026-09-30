@@ -149,8 +149,15 @@ class TracingEngine:
         with self._lock:
             self._sequence += 1
             record["sequence"] = self._sequence
-            self._sink.write(json.dumps(record, sort_keys=True) + "\n")
-            self._sink.flush()
+            # An engine must never raise on its own behalf
+            # (`InferenceEngine.complete`): a full disk, or a request still
+            # in flight when shutdown has closed the file, loses this
+            # line, never the request's own outcome.
+            try:
+                self._sink.write(json.dumps(record, sort_keys=True) + "\n")
+                self._sink.flush()
+            except (OSError, ValueError):
+                pass
         return outcome
 
     def close(self) -> None:

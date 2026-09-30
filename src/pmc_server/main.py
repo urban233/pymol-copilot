@@ -339,30 +339,42 @@ def serve(
     # Opened before the engine connects: a trace that cannot be opened
     # must not leave a connected engine behind unclosed.
     sink = open_trace(trace_path) if trace_path is not None else None
-    if engine is None:
-        engine = build_engine(
-            base_url=base_url, options=engine_options, expected=expected
+    try:
+        if engine is None:
+            engine = build_engine(
+                base_url=base_url, options=engine_options, expected=expected
+            )
+        if sink is not None:
+            engine = TracingEngine(engine, sink)
+            # The tracing engine owns the file from here and closes it.
+            sink = None
+        session = RequestGraphSession(
+            engine=engine,
+            prompt_builder=PROMPT_BUILDERS[generation.prompt],
+            grammar=build_grammar() if generation.grammar else None,
+            max_tokens=generation.max_tokens,
+            deadline_seconds=generation.deadline_seconds,
         )
-    if sink is not None:
-        engine = TracingEngine(engine, sink)
-    session = RequestGraphSession(
-        engine=engine,
-        prompt_builder=PROMPT_BUILDERS[generation.prompt],
-        grammar=build_grammar() if generation.grammar else None,
-        max_tokens=generation.max_tokens,
-        deadline_seconds=generation.deadline_seconds,
-    )
-    lifecycle = RequestGraphLifecycle(session=session)
-    credential = secrets.token_urlsafe(32)
-    server = LoopbackPlanServer(
-        credential,
-        lifecycle,
-        reject_handler=lifecycle.reject,
-        cancel_handler=lifecycle.cancel,
-        apply_handler=lifecycle.apply,
-        apply_outcome_handler=lifecycle.report_apply_outcome,
-        health_handler=lifecycle.health,
-    )
+        lifecycle = RequestGraphLifecycle(session=session)
+        credential = secrets.token_urlsafe(32)
+        server = LoopbackPlanServer(
+            credential,
+            lifecycle,
+            reject_handler=lifecycle.reject,
+            cancel_handler=lifecycle.cancel,
+            apply_handler=lifecycle.apply,
+            apply_outcome_handler=lifecycle.report_apply_outcome,
+            health_handler=lifecycle.health,
+        )
+    except BaseException:
+        # Nothing below has started yet, so the `finally` that releases
+        # the engine and the trace never runs; release them here.
+        if sink is not None:
+            sink.close()
+        close_engine = getattr(engine, "close", None)
+        if callable(close_engine):
+            close_engine()
+        raise
     own_stop = stop if stop is not None else threading.Event()
     if stop is None:
 

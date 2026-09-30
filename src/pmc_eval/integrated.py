@@ -41,8 +41,6 @@ from pmc_core.executor import CommandOutcome
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import SelectionCount
 from pmc_core.plan import ActionPlan
-from pmc_core.plan import SelectOperation
-from pmc_core.plan import referenced_selection_name
 from pmc_core.snapshot import ObjectSnapshot
 from pmc_data.audit import wilson_interval
 from pmc_data.sample import Sample
@@ -208,28 +206,6 @@ class IntegratedRecord:
         return cls(**values)
 
 
-def selection_names(plan: ActionPlan) -> tuple[str, ...]:
-    """Name every selection a plan creates or references, in order.
-
-    The sidecar counts exactly these after it runs a plan
-    (`pmc_sidecar.child`), so the live grade counts the same ones.
-
-    Args:
-        plan: The plan.
-
-    Returns:
-        Each distinct name, in first-appearance order.
-    """
-    seen: dict[str, None] = {}
-    for operation in plan.operations:
-        if isinstance(operation, SelectOperation):
-            seen.setdefault(operation.selection_name, None)
-        referenced = referenced_selection_name(operation)
-        if referenced is not None:
-            seen.setdefault(referenced, None)
-    return tuple(seen)
-
-
 def live_report(
     plan: ActionPlan,
     *,
@@ -245,7 +221,8 @@ def live_report(
     Args:
         plan: The applied plan.
         fingerprint: The live structure's fingerprint after apply.
-        selection_counts: `(name, atom count)` for `selection_names`.
+        selection_counts: `(name, atom count)` for
+            `pmc_core.plan.selection_names`.
 
     Returns:
         A successful report carrying the live readings.
@@ -289,7 +266,8 @@ def grade_live(
         plan: The applied plan.
         snapshot: The structure it was applied to.
         fingerprint: The live structure's fingerprint after apply.
-        selection_counts: `(name, atom count)` for `selection_names`.
+        selection_counts: `(name, atom count)` for
+            `pmc_core.plan.selection_names`.
 
     Returns:
         `pmc_eval.grade.grade`'s grade, unchanged.

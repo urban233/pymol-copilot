@@ -17,6 +17,7 @@ import pytest
 
 from pmc_core.parser import parse_pml
 from pmc_core.plan import ActionPlan
+from pmc_core.plan import selection_names
 from pmc_data.gold_set import DEFAULT_GOLD_SAMPLES_PATH
 from pmc_data.sample import ASSERTION_RESULTING_SNAPSHOT
 from pmc_data.sample import ASSERTION_SELECTION_COUNTS
@@ -44,7 +45,6 @@ from pmc_eval.integrated import previewed_commands
 from pmc_eval.integrated import read_apply
 from pmc_eval.integrated import read_preview
 from pmc_eval.integrated import render_report
-from pmc_eval.integrated import selection_names
 from pmc_eval.prompt import snapshot_for
 
 SAMPLES = read_samples(DEFAULT_GOLD_SAMPLES_PATH)
