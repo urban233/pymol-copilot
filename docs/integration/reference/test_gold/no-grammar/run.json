@@ -1,0 +1,21 @@
+{
+  "commit": "4d76a5dc1f557cb3f647bdfde8af86a7b311cf44",
+  "condition": "no-grammar",
+  "config": null,
+  "config_sha256": null,
+  "dirty": false,
+  "health": [
+    "copilot health\n  client:    application 0.0.0, protocol 1\n  server:    reachable, application 0.0.0\n  engine:    ready -- reference 1 on cpu\n  model:     reference@gold-plan\n  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, grammar 1, errorEnvelope 1, executor 1 -- all match this client\n  copilot:   ready"
+  ],
+  "host": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39 x86_64",
+  "integrated_version": 1,
+  "mode": "reference",
+  "python": "3.13.13",
+  "samples": 68,
+  "server": [
+    "serve(engine=ReferenceEngine())",
+    "no-grammar"
+  ],
+  "set": "test_gold",
+  "started_at": "2026-09-30T18:06:18Z"
+}
