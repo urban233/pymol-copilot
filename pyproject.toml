@@ -162,12 +162,15 @@ check-unannotated-defs = true
 # sample.
 # tests/eval/fakes.py is the same situation for master plan item 16: the
 # scripted executors and completions every hermetic harness suite shares.
+# tests/integrated/integrated_cli.py is the same situation for item 19:
+# the integrated measurement's driver, which its real-PyMOL test runs.
 search-path = [
     "tests/adversarial",
     "tests/contract",
     "tests/data",
     "tests/e2e",
     "tests/eval",
+    "tests/integrated",
     "tests/integration",
     "tests/recovery",
     "tools/winstage",

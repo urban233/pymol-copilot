@@ -11,5 +11,6 @@ filegroup(
     visibility = [
         "//tests/eval:__pkg__",
         "//tests/notebook:__pkg__",
+        "//tests/integrated:__pkg__",
     ],
 )

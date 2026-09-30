@@ -15,6 +15,7 @@ py_library(
         "compare.py",
         "config.py",
         "grade.py",
+        "integrated.py",
         "metrics.py",
         "prompt.py",
         "record.py",
