@@ -1,0 +1,158 @@
+{
+  "config": "configs/evaluation/finetuned.json",
+  "live_completion": {
+    "gold_001": "show mesh, name ZN\ncolor magenta, name ZN\n",
+    "gold_044": "hide lines, chain B and name CA\n"
+  },
+  "offline_completion": {
+    "gold_001": "show mesh, name ZN\n",
+    "gold_044": "hide lines, chain B and name C\n"
+  },
+  "probe_version": 1,
+  "results": [
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_061",
+      "predecessor_label": "the preflight's longest prompt (offline's first request)",
+      "repeat": 1,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_061",
+      "predecessor_label": "the preflight's longest prompt (offline's first request)",
+      "repeat": 2,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_061",
+      "predecessor_label": "the previous gold sample (both runs' order)",
+      "repeat": 1,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_061",
+      "predecessor_label": "the previous gold sample (both runs' order)",
+      "repeat": 2,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_001",
+      "predecessor_label": "itself",
+      "repeat": 1,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_001",
+      "predecessor_label": "itself",
+      "repeat": 2,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_056",
+      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "repeat": 1,
+      "target": "gold_001"
+    },
+    {
+      "completion": "show mesh, name ZN\ncolor magenta, name ZN\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_056",
+      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "repeat": 2,
+      "target": "gold_001"
+    },
+    {
+      "completion": "hide lines, chain B and name CA\n",
+      "is_live": true,
+      "is_offline": false,
+      "predecessor": "gold_061",
+      "predecessor_label": "the preflight's longest prompt (offline's first request)",
+      "repeat": 1,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_061",
+      "predecessor_label": "the preflight's longest prompt (offline's first request)",
+      "repeat": 2,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_043",
+      "predecessor_label": "the previous gold sample (both runs' order)",
+      "repeat": 1,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_043",
+      "predecessor_label": "the previous gold sample (both runs' order)",
+      "repeat": 2,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_044",
+      "predecessor_label": "itself",
+      "repeat": 1,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_044",
+      "predecessor_label": "itself",
+      "repeat": 2,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_056",
+      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "repeat": 1,
+      "target": "gold_044"
+    },
+    {
+      "completion": "hide lines, chain B and name C\n",
+      "is_live": false,
+      "is_offline": true,
+      "predecessor": "gold_056",
+      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "repeat": 2,
+      "target": "gold_044"
+    }
+  ]
+}
