@@ -225,10 +225,48 @@ def connect(
     return client is not None
 
 
-def start_gui(cmd: Any, *, handoff: str, fail_on: str | None = None) -> None:
-    """Set up the demo inside GUI PyMOL: the structure, the client.
+def prepare_session(cmd: Any, case: DemoCase) -> None:
+    """Rebuild the demo structure, framed so the audience can see it.
 
-    Runs in PyMOL's own interpreter, from the launcher's `-d` command.
+    The recorded structure's camera sits at its origin with a clipping
+    slab a few angstroms thick, which shows nothing; `orient` frames
+    it. The view is part of the structure card, so the demo's prompt
+    differs from the offline one in its view line only, and the
+    rehearsal prepares the session the same way.
+
+    Args:
+        cmd: PyMOL's `cmd`.
+        case: The demo case.
+    """
+    cmd.delete("all")
+    reconstruct(cmd, case.snapshot)
+    cmd.orient(case.snapshot.name)
+
+
+def start_gui(cmd: Any, *, handoff: str, fail_on: str | None = None) -> None:
+    """Set up the demo inside GUI PyMOL, once its window is up.
+
+    Called from the launcher's `-d` command, in PyMOL's own interpreter.
+    The setup runs on a thread of its own: done inside that startup
+    command, every `cmd.sync()` the client makes would wait on the
+    command it runs in, and print a timeout.
+
+    Args:
+        cmd: PyMOL's `cmd`.
+        handoff: The server's handoff file.
+        fail_on: A verb to arm from the start, or None.
+    """
+    threading.Thread(
+        target=_set_up_gui,
+        args=(cmd,),
+        kwargs={"handoff": handoff, "fail_on": fail_on},
+        daemon=True,
+    ).start()
+
+
+def _set_up_gui(cmd: Any, *, handoff: str, fail_on: str | None) -> None:
+    """Load the structure, connect the client, register the demo command.
+
     Registers `copilot_demo_fail <verb|off>` to arm or disarm the
     staged failure between the beats.
 
@@ -238,8 +276,7 @@ def start_gui(cmd: Any, *, handoff: str, fail_on: str | None = None) -> None:
         fail_on: A verb to arm from the start, or None.
     """
     case = load_case()
-    cmd.delete("all")
-    reconstruct(cmd, case.snapshot)
+    prepare_session(cmd, case)
     path = Path(handoff)
 
     def demo_fail(verb: str = "") -> None:
@@ -358,8 +395,7 @@ def rehearse(
     Returns:
         The rehearsal.
     """
-    cmd.delete("all")
-    reconstruct(cmd, case.snapshot)
+    prepare_session(cmd, case)
     driver = ConsoleDriver(cmd, COMMAND_DEADLINE_SECONDS)
     output: list[str] = []
     transcript: list[str] = []

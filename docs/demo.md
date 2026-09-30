@@ -37,6 +37,18 @@ offline evaluation.
   already changed the session.
 - The copilot restores the whole session by itself.
 
+**What the window shows:**
+
+- It is a small synthetic test structure: pseudo-atoms without bonds.
+  The zinc ions and the water show as spheres.
+- The change on apply is small but visible: the zinc turns silver and
+  gains dots.
+- The launcher frames the structure with `orient`, because the recorded
+  camera shows nothing.
+- **Do not move the camera before typing the request.** The view is
+  part of what the model is shown. The headless rehearsal runs from the
+  same framed view, so its plan is the one to expect.
+
 ## Before the presentation (15 minutes)
 
 All commands run from the repository root, on the demo machine.
