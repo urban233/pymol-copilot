@@ -1,1 +1,5 @@
-exports_files(["pyproject.toml", "requirements_lock.txt"])
+exports_files([
+    "pyproject.toml",
+    "requirements-demo.txt",
+    "requirements_lock.txt",
+])

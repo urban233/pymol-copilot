@@ -10,6 +10,10 @@ and is restored. The failure proxy fails only the verb it names.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import hashlib
+import json
+import subprocess
+import sys
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -22,7 +26,26 @@ import copilot_demo
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.fake import FakeEngine
 from pmc_agent.inference.base import CompletionResult
+from pmc_core.snapshot import to_json
+from pmc_data.gold_set import DEFAULT_GOLD_SAMPLES_PATH
+from pmc_data.sample import Sample
+from pmc_data.sample import read_samples
+from pmc_eval.prompt import snapshot_for
 from pmc_server.main import serve
+
+
+def _gold() -> Sample:
+    """Read the gold item the demo case copies.
+
+    Returns:
+        The sample.
+    """
+    case = json.loads(copilot_demo.CASE_PATH.read_text(encoding="utf-8"))
+    return next(
+        s
+        for s in read_samples(DEFAULT_GOLD_SAMPLES_PATH)
+        if s.sample_id == case["sample_id"]
+    )
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +73,7 @@ def handoff(tmp_path: Path) -> Iterator[Path]:
     Yields:
         The handoff file.
     """
-    plan = copilot_demo.demo_sample().plan_pml
+    plan = _gold().plan_pml
     engine = FakeEngine([CompletionResult(plan, "demo@gold", STOP_END)] * 8)
     stop, ready = threading.Event(), threading.Event()
     path = tmp_path / "session.json"
@@ -82,7 +105,7 @@ def test_the_first_beat_applies_and_rolls_back(
         handoff=handoff,
         recovery_root=tmp_path,
         fail_on=None,
-        sample=copilot_demo.demo_sample(),
+        case=copilot_demo.load_case(),
     )
 
     assert result.passed, (result.problems, result.transcript)
@@ -99,12 +122,46 @@ def test_the_second_beat_fails_on_purpose_and_is_restored(
         handoff=handoff,
         recovery_root=tmp_path,
         fail_on="color",
-        sample=copilot_demo.demo_sample(),
+        case=copilot_demo.load_case(),
     )
 
     assert result.passed, (result.problems, result.transcript)
     assert result.transcript.startswith(copilot_demo.banner("color"))
     assert "restored cleanly" in result.transcript
+
+
+def test_the_case_is_the_gold_item_on_its_own_structure() -> None:
+    """The demo runs exactly what the evaluation measured."""
+    sample = _gold()
+    case = copilot_demo.load_case()
+    text = to_json(case.snapshot)
+
+    assert case.intent == sample.intent
+    assert text == to_json(snapshot_for(sample))
+    assert hashlib.sha256(text.encode()).hexdigest() == (
+        sample.structure.snapshot_sha256
+    )
+    assert (
+        case.resulting_fingerprint == sample.verification.resulting_fingerprint
+    )
+
+
+def test_the_launcher_brings_nothing_into_pymol_the_client_does_not() -> None:
+    """No LangGraph, no data or evaluation code in the demo's PyMOL."""
+    probe = (
+        "import sys, copilot_demo; "
+        "print(sorted({m.split('.')[0] for m in sys.modules} & "
+        "{'langgraph', 'pmc_agent', 'pmc_data', 'pmc_eval', 'pmc_server', "
+        "'httpx'}))"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert result.stdout.strip() == "[]"
 
 
 class _Recorder:

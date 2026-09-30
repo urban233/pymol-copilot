@@ -3,29 +3,38 @@
 
 docs/master_plan.md item 19: "dry-run the demo: one intent through
 apply, one deliberate failure through recovery". The demo has two
-beats:
+beats, in one PyMOL window:
 
 1. an intent through preview, approval (`copilot_apply`) and, to show
    recovery on request, `copilot_rollback`;
-2. the same intent with a deliberate failure: with `--fail-on color`,
-   the client drives PyMOL through `FailOnVerbProxy`, whose `color`
-   raises after the plan's earlier commands have really changed the
-   session, and the client restores the whole session automatically.
+2. `copilot_demo_fail color`, then the same intent again: the client
+   now drives PyMOL through `FailOnVerbProxy`, whose `color` raises
+   after the plan's earlier commands have really changed the session,
+   and the client restores the whole session automatically.
 
 Nothing in the product can inject a failure, and nothing here adds one:
-the proxy wraps the `cmd` object this demo hands the client, it prints
-a banner saying so, and without `--fail-on` it is not used at all.
+the proxy wraps the `cmd` object this demo hands the client, a banner
+says so when it is armed, and `copilot_demo_fail off` removes it.
 
-`--headless` rehearses both beats against the running server, in
-headless PyMOL, prints the console transcript, and exits non-zero if a
-beat did not end as it must. It lives under tests/ because only tests
-may depend on `pmc_client`, like `//tests/e2e:record_latency`.
+The structure is gold item `gold_056`'s, read from `demo_case.json`
+(checked against its recorded SHA-256) and rebuilt with
+`pmc_core.snapshot.reconstruct`, so the PyMOL process holds only what
+the product puts there: the client and the shared core. It opens GUI
+PyMOL from the pinned demo environment (`requirements-demo.txt`, where
+the PyMOL wheel gains a Qt binding); `--headless` instead rehearses one
+beat in headless PyMOL, prints the transcript, and exits non-zero if
+it did not end as it must.
+
+It lives under tests/ because only tests may depend on `pmc_client`,
+like `//tests/e2e:record_latency`.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import argparse
 import hashlib
+import json
+import os
 import sys
 import tempfile
 import threading
@@ -40,30 +49,75 @@ import winstage
 
 from pmc_client.bootstrap import connect_from_handoff
 from pmc_client.recovery import RecoveryStore
+from pmc_core.snapshot import ObjectSnapshot
 from pmc_core.snapshot import extract
+from pmc_core.snapshot import from_json
 from pmc_core.snapshot import reconstruct
 from pmc_core.snapshot import to_json
-from pmc_data.gold_set import DEFAULT_GOLD_SAMPLES_PATH
-from pmc_data.sample import Sample
-from pmc_data.sample import read_samples
-from pmc_eval.prompt import snapshot_for
 
-#: The gold item the demo runs: an intent the fine-tuned model answered
-#: correctly offline, on its own held-out structure, whose plan selects,
-#: colours and shows -- so a failing `color` comes after a real change.
-DEFAULT_SAMPLE_ID = "gold_056"
+#: The demo's gold item: its intent and its held-out structure. The
+#: fine-tuned model answered it correctly offline; its plan selects,
+#: colours and shows, so a failing `color` comes after a real change.
+CASE_PATH = Path(__file__).resolve().with_name("demo_case.json")
 
-#: The verbs `--fail-on` can make fail.
+#: The verbs `copilot_demo_fail` can make fail.
 FAILABLE_VERBS = ("color", "show", "hide", "orient", "select")
 
 #: How long one console command may take before the rehearsal gives up.
 COMMAND_DEADLINE_SECONDS = 600.0
 
+DEFAULT_HANDOFF = Path.home() / ".pymol-copilot" / "session.json"
+
+#: Where WSLg keeps its Wayland socket: Qt finds no display otherwise.
+_WSLG_RUNTIME_DIR = Path("/mnt/wslg/runtime-dir")
+
+
+@dataclass(frozen=True)
+class DemoCase:
+    """The gold item the demo runs.
+
+    Attributes:
+        sample_id: The gold item.
+        intent: What the presenter types after `copilot`.
+        snapshot: Its structure.
+        resulting_fingerprint: The state its gold plan leaves.
+    """
+
+    sample_id: str
+    intent: str
+    snapshot: ObjectSnapshot
+    resulting_fingerprint: str
+
+
+def load_case(path: Path = CASE_PATH) -> DemoCase:
+    """Read the demo case, and prove its structure is the recorded one.
+
+    Args:
+        path: The case file.
+
+    Returns:
+        The case.
+
+    Raises:
+        ValueError: If the structure's SHA-256 is not the recorded one.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    text = data["snapshot"]
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if digest != data["snapshot_sha256"]:
+        raise ValueError(f"{path}: the structure is not the recorded one")
+    return DemoCase(
+        sample_id=data["sample_id"],
+        intent=data["intent"],
+        snapshot=from_json(text),
+        resulting_fingerprint=data["resulting_fingerprint"],
+    )
+
 
 class FailOnVerbProxy:
     """PyMOL's `cmd`, except that one verb raises when the plan calls it.
 
-    Every other attribute is the real `cmd`'s, so the plan's other
+    Every other attribute is the wrapped object's, so the plan's other
     commands really change the session before the named one fails.
     """
 
@@ -95,7 +149,8 @@ class FailOnVerbProxy:
 
             def fail(*_args: Any, **_kwargs: Any) -> None:
                 raise RuntimeError(
-                    f"DEMO: `{self._verb}` failed on purpose (--fail-on)"
+                    f"DEMO: `{self._verb}` failed on purpose "
+                    "(copilot_demo_fail)"
                 )
 
             return fail
@@ -113,8 +168,94 @@ def banner(verb: str) -> str:
     """
     return (
         f"DEMO: the next plan's `{verb}` will fail on purpose, to show "
-        "automatic recovery (--fail-on)."
+        "automatic recovery. `copilot_demo_fail off` disarms it."
     )
+
+
+def _fingerprint(cmd: Any, name: str) -> str:
+    """Fingerprint one live object the way the sidecar does.
+
+    Args:
+        cmd: PyMOL's `cmd`.
+        name: The object.
+
+    Returns:
+        `sha256:<hex>` of its canonical snapshot.
+    """
+    text = to_json(extract(cmd, name))
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def connect(
+    cmd: Any,
+    *,
+    handoff: Path,
+    fail_on: str | None,
+    output: Callable[[str], None],
+    recovery_store: RecoveryStore | None = None,
+) -> bool:
+    """Connect the client to the running server, armed or not.
+
+    Registering again replaces the `copilot*` commands, so this also
+    arms and disarms the staged failure.
+
+    Args:
+        cmd: What the client should drive: PyMOL's `cmd`, or a console
+            driver around it.
+        handoff: The server's handoff file.
+        fail_on: The verb to fail, or None.
+        output: Where the client prints.
+        recovery_store: Where recovery points go; the user's own when
+            None.
+
+    Returns:
+        Whether the client connected.
+    """
+    target = cmd if fail_on is None else FailOnVerbProxy(cmd, fail_on)
+    if fail_on is not None:
+        output(banner(fail_on))
+    client = connect_from_handoff(
+        # pyrefly: ignore.  __getattr__ delegates the query surface at
+        # runtime, but pyrefly cannot verify that structurally.
+        target,
+        output,
+        path=handoff,
+        recovery_store=recovery_store,
+    )
+    return client is not None
+
+
+def start_gui(cmd: Any, *, handoff: str, fail_on: str | None = None) -> None:
+    """Set up the demo inside GUI PyMOL: the structure, the client.
+
+    Runs in PyMOL's own interpreter, from the launcher's `-d` command.
+    Registers `copilot_demo_fail <verb|off>` to arm or disarm the
+    staged failure between the beats.
+
+    Args:
+        cmd: PyMOL's `cmd`.
+        handoff: The server's handoff file.
+        fail_on: A verb to arm from the start, or None.
+    """
+    case = load_case()
+    cmd.delete("all")
+    reconstruct(cmd, case.snapshot)
+    path = Path(handoff)
+
+    def demo_fail(verb: str = "") -> None:
+        verb = verb.strip()
+        if verb not in (*FAILABLE_VERBS, "off"):
+            print(f"copilot_demo_fail: one of {', '.join(FAILABLE_VERBS)}, off")
+            return
+        armed = None if verb == "off" else verb
+        connected = connect(cmd, handoff=path, fail_on=armed, output=print)
+        if connected and armed is None:
+            print("DEMO: the staged failure is off.")
+
+    cmd.extend("copilot_demo_fail", demo_fail)
+    connect(cmd, handoff=path, fail_on=fail_on, output=print)
+    print(f"DEMO: {case.sample_id}'s structure is loaded. Try:")
+    print(f"  copilot {case.intent}")
 
 
 class ConsoleDriver:
@@ -127,7 +268,7 @@ class ConsoleDriver:
         """Wrap PyMOL's `cmd`.
 
         Args:
-            cmd: PyMOL's `cmd`, or a wrapper of it.
+            cmd: PyMOL's `cmd`.
             deadline_seconds: How long one command may take.
         """
         self._cmd = cmd
@@ -152,7 +293,7 @@ class ConsoleDriver:
         self._cmd.extend(name, synchronized)
 
     def __getattr__(self, name: str) -> Any:
-        """Forward everything else to the wrapped `cmd`.
+        """Forward everything else to PyMOL's `cmd`.
 
         Args:
             name: The attribute.
@@ -177,37 +318,6 @@ class ConsoleDriver:
             raise TimeoutError(f"{command_line!r} did not finish")
 
 
-def demo_sample(sample_id: str = DEFAULT_SAMPLE_ID) -> Sample:
-    """Read the gold item the demo runs.
-
-    Args:
-        sample_id: The gold item.
-
-    Returns:
-        The sample.
-    """
-    return next(
-        s
-        for s in read_samples(DEFAULT_GOLD_SAMPLES_PATH)
-        if s.sample_id == sample_id
-    )
-
-
-def _fingerprint(cmd: Any, name: str) -> str:
-    """Fingerprint one live object.
-
-    Args:
-        cmd: PyMOL's `cmd`.
-        name: The object.
-
-    Returns:
-        Its canonical snapshot's SHA-256.
-    """
-    return hashlib.sha256(
-        to_json(extract(cmd, name)).encode("utf-8")
-    ).hexdigest()
-
-
 @dataclass(frozen=True)
 class Rehearsal:
     """What one rehearsed beat printed, and whether it ended as it must.
@@ -229,7 +339,7 @@ def rehearse(
     handoff: Path,
     recovery_root: Path,
     fail_on: str | None,
-    sample: Sample,
+    case: DemoCase,
 ) -> Rehearsal:
     """Rehearse one beat against the running server.
 
@@ -243,30 +353,25 @@ def rehearse(
         handoff: The server's handoff file.
         recovery_root: Where recovery points are kept.
         fail_on: The verb to fail, or None.
-        sample: The gold item to run.
+        case: The demo case.
 
     Returns:
         The rehearsal.
     """
-    snapshot = snapshot_for(sample)
     cmd.delete("all")
-    reconstruct(cmd, snapshot)
-    target = cmd if fail_on is None else FailOnVerbProxy(cmd, fail_on)
-    driver = ConsoleDriver(target, COMMAND_DEADLINE_SECONDS)
+    reconstruct(cmd, case.snapshot)
+    driver = ConsoleDriver(cmd, COMMAND_DEADLINE_SECONDS)
     output: list[str] = []
     transcript: list[str] = []
-    if fail_on is not None:
-        transcript.append(banner(fail_on))
-    client = connect_from_handoff(
-        # pyrefly: ignore.  __getattr__ delegates the query surface at
-        # runtime, but pyrefly cannot verify that structurally.
+    connected = connect(
         driver,
-        output.append,
-        path=handoff,
+        handoff=handoff,
+        fail_on=fail_on,
+        output=output.append,
         recovery_store=RecoveryStore(recovery_root),
     )
     transcript += output
-    if client is None:
+    if not connected:
         return Rehearsal("\n".join(transcript), False, ("did not connect",))
     problems: list[str] = []
 
@@ -280,9 +385,10 @@ def rehearse(
         transcript.append(f"({time.monotonic() - started:.1f} s)")
         return text
 
-    before = _fingerprint(cmd, snapshot.name)
+    name = case.snapshot.name
+    before = _fingerprint(cmd, name)
     run("copilot_health")
-    preview = run(f"copilot {sample.intent}")
+    preview = run(f"copilot {case.intent}")
     plan_line = next(
         (
             line
@@ -295,18 +401,18 @@ def rehearse(
         return Rehearsal(
             "\n".join(transcript), False, ("no approvable preview",)
         )
-    if _fingerprint(cmd, snapshot.name) != before:
+    if _fingerprint(cmd, name) != before:
         problems.append("the preview changed the session")
     plan_id = plan_line.removeprefix("copilot plan ").split(" ", 1)[0]
     applied = run(f"copilot_apply {plan_id}")
-    after = _fingerprint(cmd, snapshot.name)
+    after = _fingerprint(cmd, name)
     if fail_on is None:
         if f"plan {plan_id} applied." not in applied or after == before:
             problems.append("apply did not change the session")
         rolled_back = run(f"copilot_rollback {plan_id}")
         if (
             f"plan {plan_id} rolled back" not in rolled_back
-            or _fingerprint(cmd, snapshot.name) != before
+            or _fingerprint(cmd, name) != before
         ):
             problems.append("rollback did not restore the session")
     elif (
@@ -317,32 +423,58 @@ def rehearse(
     return Rehearsal("\n".join(transcript), not problems, tuple(problems))
 
 
+def _gui_environment() -> dict[str, str]:
+    """Point Qt at WSLg's Wayland socket when running under WSLg.
+
+    Returns:
+        The variables set, for the launcher to print.
+    """
+    if not _WSLG_RUNTIME_DIR.is_dir() or "WAYLAND_DISPLAY" not in os.environ:
+        return {}
+    chosen = {
+        "XDG_RUNTIME_DIR": str(_WSLG_RUNTIME_DIR),
+        "QT_QPA_PLATFORM": "wayland",
+    }
+    for key, value in chosen.items():
+        os.environ.setdefault(key, value)
+    return {key: os.environ[key] for key in chosen}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Rehearse the demo's beats headless against the running server.
+    """Open the demo in GUI PyMOL, or rehearse one beat headless.
 
     Args:
         argv: The arguments, without the program name.
 
     Returns:
-        Zero when every rehearsed beat ended as it must.
+        Zero when PyMOL closes, or when the rehearsed beat ended as it
+        must.
     """
     parser = argparse.ArgumentParser(prog="copilot_demo")
-    parser.add_argument(
-        "--handoff",
-        type=Path,
-        default=Path.home() / ".pymol-copilot" / "session.json",
-    )
+    parser.add_argument("--handoff", type=Path, default=DEFAULT_HANDOFF)
     parser.add_argument("--fail-on", choices=FAILABLE_VERBS, default=None)
-    parser.add_argument("--sample", default=DEFAULT_SAMPLE_ID)
     parser.add_argument(
         "--headless",
         action="store_true",
-        required=True,
-        help="Rehearse the beats in headless PyMOL (the only mode yet).",
+        help="Rehearse the beat in headless PyMOL and report it.",
     )
     arguments = parser.parse_args(argv)
     winstage.ensure_importable()
     import pymol  # pyrefly: ignore[missing-import]
+
+    if not arguments.headless:
+        for key, value in _gui_environment().items():
+            print(f"copilot_demo: {key}={value}")
+        pymol.launch(
+            [
+                "pymol",
+                "-d",
+                "/import copilot_demo; copilot_demo.start_gui(cmd, "
+                f"handoff={str(arguments.handoff)!r}, "
+                f"fail_on={arguments.fail_on!r})",
+            ]
+        )
+        return 0
     from pymol import cmd  # pyrefly: ignore[missing-import]
 
     pymol.finish_launching(["pymol", "-qc"])
@@ -352,7 +484,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             handoff=arguments.handoff,
             recovery_root=Path(scratch),
             fail_on=arguments.fail_on,
-            sample=demo_sample(arguments.sample),
+            case=load_case(),
         )
     print(result.transcript)
     print("REHEARSAL:", "passed" if result.passed else "FAILED")
