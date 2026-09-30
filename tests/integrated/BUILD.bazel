@@ -93,3 +93,18 @@ py_test(
         "//src/pmc_eval:pmc_eval",
     ],
 )
+
+# Not a test: needs the GPU engine, and runs only when a person has agreed
+# to it. Tests whether the engine's completion depends on the request
+# before it (docs/integration/README.md).
+py_binary(
+    name = "drift_probe",
+    srcs = ["drift_probe.py"],
+    main = "drift_probe.py",
+    deps = [
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_server:pmc_server",
+    ],
+)
