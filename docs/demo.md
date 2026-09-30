@@ -11,8 +11,13 @@ through automatic recovery.
 **Where it runs:** Martin's WSL2 machine with the RTX 4060, the only one
 with the fine-tuned model (docs/master_plan.md item 19).
 
-**Status:** the watched dry run is still to be done; its record is at
-the end of this page.
+**Status:**
+
+- Done: a scripted dry run of both beats in GUI PyMOL against the
+  fine-tuned model, on 2026-09-30. Both beats ended as they must. The
+  record is at the end of this page.
+- Still to do: the watched check, in which the other developer judges
+  whether they could tell what was about to change before apply.
 
 ## What the audience sees
 
@@ -212,6 +217,48 @@ All commands run from the repository root, on the demo machine.
 
 The specification requires the failure-then-recovery beat to be
 dry-run at least once, with the other developer watching.
+
+### Dry run 1: scripted, no watcher
+
+- **Date:** 2026-09-30.
+- **Commit:** `f4b2ef2`.
+- **Machine:** Martin's WSL2 machine (Windows 10.0.26200), with the RTX
+  4060 and Lemonade 11.9.0 on CUDA.
+- **Model:** the fine-tuned GGUF `6c5c76a0…bdbd`.
+- **Setup:**
+  - the production server ran from
+    `--config configs/evaluation/finetuned.json`;
+  - the demo window was GUI PyMOL from `.venv-demo`, under WSLg.
+- **Presenter:** a script, `tests/demo/gui_dry_run.py`, run by Claude at
+  Martin's request. It typed each step of this runbook at PyMOL's
+  command line, waited for the client's answer, and checked the session
+  after every step.
+- **Watcher:** none. Whether a watcher can tell what is about to change
+  before apply is a person's judgement, so that column is left for the
+  watched run. The preview the watcher would read is recorded in full.
+- **Evidence:** [docs/integration/dry_run/](integration/dry_run/)
+  holds the transcript (`transcript.txt`), the checks
+  (`checks.json`), and a screenshot of the window at each step.
+
+| Beat | What happened | Checked | Could the watcher tell what was about to change? |
+| --- | --- | --- | --- |
+| 1: intent through apply and rollback | The preview named the object and listed three numbered commands with their counts: select `name ZN` (2 atoms), `color silver`, `show dots`. It stated what was checked and what was not, and gave the approve and reject commands. Apply turned the zinc silver with dots. Rollback warned it replaces the whole session, then restored it. | Preview changed nothing; apply changed the session; rollback restored it exactly. | Not judged: no watcher. |
+| 2: deliberate failure through recovery | The banner announced the staged `color` failure, and the preview was the same plan. Apply failed at `color`, after `select` had run, and the client restored the whole session. | The session after the failed apply equals the one before it. | Not judged: no watcher. |
+
+**Issues found:**
+
+- **The visible change is small.** The structure is a sparse, bond-less
+  test structure. After apply, only the zinc position turns silver and
+  gains dots (`2-applied.png`); the two zinc ions overlap in this view.
+  For the audience:
+  - say what to look at before approving;
+  - or zoom in with the mouse before the request. The view is part of
+    the prompt, so rehearse with that same view.
+- The launcher's first `copilot_demo_fail` re-registers the client, so a
+  plan previewed before arming the failure cannot be applied after it.
+  Arm the failure before typing the beat 2 request, as the runbook does.
+
+### The watched run (still to do)
 
 - **Date:** *(to fill in)*
 - **Machine:** *(to fill in)*

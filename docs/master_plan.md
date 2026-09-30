@@ -221,7 +221,8 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
 - **Item 19 is in progress on `feat/integration`.** The model runs
   through the product at the offline TaskSuccess: 33/68 with the grammar,
   19/68 without. The one differing sample is explained under item 19
-  below. What remains is the watched demo dry run.
+  below. The demo is rehearsed and dry-run by script; what remains is
+  the watched check of the preview.
 
 ### Cross-owner hand-offs
 
@@ -823,8 +824,13 @@ before apply is confirmed.
     beat without adding a fault hook to the product.
   - Both beats were rehearsed headless against the model
     ([demo_rehearsal.md](integration/demo_rehearsal.md)).
-  - **Still open: the watched dry run.** Martin presents and Hannah
-    watches, or the other way round, and the record at the end of
+  - A scripted dry run of both beats in GUI PyMOL against the model
+    passed every check. Its transcript and screenshots are in
+    docs/integration/dry_run/, and its record is in docs/demo.md. It
+    found that the visible change on apply is small.
+  - **Still open: the watched check.** Martin presents and Hannah
+    watches, or the other way round. The watcher judges whether they
+    could tell what was about to change before apply, and the record in
     docs/demo.md is filled in.
 - Every GPU run went through Martin's explicit consent: the e2e run,
   the measurement, the drift diagnostic and the rehearsal.

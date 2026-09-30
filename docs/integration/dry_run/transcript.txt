@@ -1,0 +1,45 @@
+copilot: connected to the server on 127.0.0.1:42595.
+PyMOL> copilot_health
+copilot health
+  client:    application 0.0.0, protocol 1
+  server:    reachable, application 0.0.0
+  engine:    ready -- lemonade 11.9.0 on cuda
+  model:     Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M@/models/train-e6c6c4dd8f6caaf9/export/Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf
+  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, grammar 1, errorEnvelope 1, executor 1 -- all match this client
+  copilot:   ready
+PyMOL> copilot select the zinc ions, make them silver and show them as dots
+copilot plan p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079 (expires 2026-09-30T19:57:58.806Z, in 5 min)
+  object:    pmc_structure (36 atoms, 1 state)
+  commands:
+    1 | select copilot_sel0250, name ZN   -> 2 atoms
+    2 | color silver, copilot_sel0250
+    3 | show dots, copilot_sel0250
+  warnings:  none
+  fidelity:  exact on the declared state scope
+  checked:   the plan parses, policy allows it, and a fresh PyMOL sidecar reconstructed this session's declared state exactly, then ran the plan against it -- the counts above are from that run
+  NOT checked: whether this is scientifically what you meant
+  apply:     copilot_apply p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079
+  reject:    copilot_reject p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079
+PyMOL> copilot_apply p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079
+copilot_apply: plan p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079 applied. Recovery point retained at /home/manfred/.pymol-copilot/recovery/plan-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079.pse.
+PyMOL> copilot_rollback p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079
+copilot_rollback: replacing the entire session with the pre-apply recovery point; later changes will be discarded.
+copilot_rollback: plan p-a7fbb3f5-2cc5-4429-b85a-58ea5a55d079 rolled back and its recovery point was removed.
+PyMOL> copilot_demo_fail color
+DEMO: the next plan's `color` will fail on purpose, to show automatic recovery. `copilot_demo_fail off` disarms it.
+copilot: connected to the server on 127.0.0.1:42595.
+PyMOL> copilot select the zinc ions, make them silver and show them as dots
+copilot plan p-6e5d072f-8566-46d4-a598-d79a5329a622 (expires 2026-09-30T19:58:16.444Z, in 5 min)
+  object:    pmc_structure (36 atoms, 1 state)
+  commands:
+    1 | select copilot_sel0250, name ZN   -> 2 atoms
+    2 | color silver, copilot_sel0250
+    3 | show dots, copilot_sel0250
+  warnings:  none
+  fidelity:  exact on the declared state scope
+  checked:   the plan parses, policy allows it, and a fresh PyMOL sidecar reconstructed this session's declared state exactly, then ran the plan against it -- the counts above are from that run
+  NOT checked: whether this is scientifically what you meant
+  apply:     copilot_apply p-6e5d072f-8566-46d4-a598-d79a5329a622
+  reject:    copilot_reject p-6e5d072f-8566-46d4-a598-d79a5329a622
+PyMOL> copilot_apply p-6e5d072f-8566-46d4-a598-d79a5329a622
+copilot_apply: plan p-6e5d072f-8566-46d4-a598-d79a5329a622 failed and the complete session was restored cleanly.
