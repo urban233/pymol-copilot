@@ -633,6 +633,26 @@ def _sanitize_question(text: str, *, maximum: int = 200) -> str:
     return _bounded(printable, maximum=maximum)
 
 
+def with_final_newline(completion: str) -> str:
+    """Append the final newline a completion is missing, and nothing else.
+
+    `pmc_core.parser.parse_pml` requires a plan to end in exactly one
+    newline, and a chat model rarely writes one before it stops. This is
+    the one normalization a completion gets before screening and parsing,
+    and it is the offline evaluation's own (`pmc_eval.runner`'s
+    `append-missing-final-newline`), so the runtime parses exactly what
+    the evaluation did. A completion that already ends in a newline is
+    unchanged, so a trailing blank line is still rejected.
+
+    Args:
+        completion: The engine's raw completion text.
+
+    Returns:
+        The text, ending in a newline.
+    """
+    return completion if completion.endswith("\n") else completion + "\n"
+
+
 def _classify_completion(
     state: RequestState, *, completion: str, model_identity: str, attempt: int
 ) -> dict[str, object]:
@@ -647,7 +667,7 @@ def _classify_completion(
 
     Args:
         state: The request state entering `generating`.
-        completion: The engine's raw completion text.
+        completion: The engine's completion, its final newline ensured.
         model_identity: The engine's reported model identity.
         attempt: This request's attempt count, already incremented.
 
@@ -785,7 +805,7 @@ def _build_generating(
             return failed
         return _classify_completion(
             state,
-            completion=outcome.text,
+            completion=with_final_newline(outcome.text),
             # The engine's own stable identity, never the per-call
             # result's own claim: SPECIFICATION.md:541 requires this be
             # re-verified at approval, which only means something if this
