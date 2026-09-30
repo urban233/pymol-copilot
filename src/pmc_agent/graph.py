@@ -40,13 +40,19 @@ body is as thin as it is.
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
+import dataclasses
 import uuid
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
+from typing import TypeAliasType
 from typing import TypedDict
+from typing import get_args
+from typing import get_type_hints
 
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END
 from langgraph.graph import StateGraph
 from langgraph.types import interrupt
@@ -380,6 +386,79 @@ class RequestState(TypedDict):
     sidecar_warnings: tuple[str, ...]
 
     completion: str | None
+
+
+#: The module prefixes whose types this graph's checkpoint may hold.
+#: Everything else a checkpoint stores is a builtin LangGraph already
+#: allows.
+_PROJECT_MODULE_PREFIXES = ("pmc_core.", "pmc_agent.")
+
+
+def _collect_project_types(annotation: object, found: set[type]) -> None:
+    """Add every project type an annotation can hold, recursively.
+
+    Args:
+        annotation: A resolved type annotation: a class, a union, a
+            generic alias such as `tuple[X, ...]`, or a `type` alias.
+        found: The types collected so far; extended in place.
+    """
+    if isinstance(annotation, TypeAliasType):
+        _collect_project_types(annotation.__value__, found)
+        return
+    for argument in get_args(annotation):
+        _collect_project_types(argument, found)
+    if not isinstance(annotation, type) or annotation in found:
+        return
+    if not annotation.__module__.startswith(_PROJECT_MODULE_PREFIXES):
+        return
+    found.add(annotation)
+    if dataclasses.is_dataclass(annotation):
+        for hint in get_type_hints(annotation).values():
+            _collect_project_types(hint, found)
+
+
+def _checkpoint_types() -> frozenset[type]:
+    """Find every project type a `RequestState` checkpoint can hold.
+
+    Walks `RequestState`'s own annotations, so a field or a plan node
+    added later is covered without a second list to keep in step.
+
+    Returns:
+        The classes from this project the state can hold.
+    """
+    found: set[type] = set()
+    for hint in get_type_hints(RequestState).values():
+        _collect_project_types(hint, found)
+    return frozenset(found)
+
+
+#: Every project type `new_checkpointer`'s serializer may rebuild from a
+#: checkpoint. Anything else of this project's is refused, not merely
+#: warned about, which is LangGraph's own default for an unregistered
+#: type.
+CHECKPOINT_TYPES: frozenset[type] = _checkpoint_types()
+
+
+def new_checkpointer() -> InMemorySaver:
+    """Build the in-memory checkpointer every compiled request graph uses.
+
+    LangGraph's default serializer rebuilds any type it finds in a
+    checkpoint and only logs "Deserializing unregistered type"; a later
+    LangGraph refuses them. This one names `CHECKPOINT_TYPES` explicitly,
+    so the state round-trips today and after that change, and a type
+    that is not the graph's own is refused.
+
+    Returns:
+        A fresh checkpointer with the explicit type allowlist.
+    """
+    return InMemorySaver(
+        serde=JsonPlusSerializer(
+            allowed_msgpack_modules=sorted(
+                CHECKPOINT_TYPES,
+                key=lambda kind: (kind.__module__, kind.__qualname__),
+            )
+        )
+    )
 
 
 def route_by_status(state: RequestState) -> str:

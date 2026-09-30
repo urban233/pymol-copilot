@@ -209,3 +209,21 @@ py_test(
         "//src/pmc_data:pmc_data",
     ],
 )
+
+# The request graph's checkpoint names every type it holds, so LangGraph's
+# "Deserializing unregistered type" warning is gone and a later LangGraph
+# that refuses unregistered types still round-trips the state (master plan
+# item 19).
+py_test(
+    name = "graph_checkpointer",
+    size = "small",
+    srcs = ["test_graph_checkpointer.py"],
+    main = "test_graph_checkpointer.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)

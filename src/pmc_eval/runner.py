@@ -42,7 +42,6 @@ from datetime import UTC
 from datetime import datetime
 from typing import cast
 
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from pmc_agent.graph import FAILURE_ENGINE_INCOMPLETE
@@ -55,6 +54,7 @@ from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_REJECTED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
+from pmc_agent.graph import new_checkpointer
 from pmc_agent.inference.base import ENGINE_FAILURE_CATEGORIES
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
@@ -398,7 +398,7 @@ def compile_request_graph(
         plan_id_source=lambda: _FIXED_PLAN_ID,
         clock=lambda: _FIXED_MOMENT,
         validation_deadline_seconds=validation_deadline_seconds,
-    ).compile(checkpointer=InMemorySaver())
+    ).compile(checkpointer=new_checkpointer())
 
 
 def _summary(report: ExecutionReport) -> ExecutionSummary:
