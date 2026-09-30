@@ -24,6 +24,7 @@ py_library(
         "//src/pmc_data:__pkg__",
         "//src/pmc_sidecar:__pkg__",
         "//tests/data:__pkg__",
+        "//tests/demo:__pkg__",
         "//tests/e2e:__pkg__",
         "//tests/integrated:__pkg__",
         "//tests/integration:__pkg__",

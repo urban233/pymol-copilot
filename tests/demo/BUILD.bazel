@@ -1,0 +1,50 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+# The live demo's launcher and rehearsal (docs/demo.md, master plan item
+# 19). It lives under tests/ because only tests may depend on pmc_client,
+# like //tests/e2e:record_latency.
+_DEMO_DEPS = [
+    "@pypi//pymol_open_source_whl",
+    "//src/pmc_client:pmc_client",
+    "//src/pmc_core:pmc_core",
+    "//src/pmc_data:pmc_data",
+    "//src/pmc_eval:pmc_eval",
+    "//src/pmc_sidecar:pmc_sidecar",
+    "//tools/winstage:winstage",
+]
+
+py_library(
+    name = "copilot_demo_lib",
+    srcs = ["copilot_demo.py"],
+    imports = ["."],
+    deps = _DEMO_DEPS,
+)
+
+# Not a test: rehearses the demo against the running server.
+py_binary(
+    name = "demo",
+    srcs = ["copilot_demo.py"],
+    main = "copilot_demo.py",
+    deps = _DEMO_DEPS,
+)
+
+# Both beats end as the demo needs them to, against the real server with a
+# scripted engine, in real headless PyMOL.
+py_test(
+    name = "demo_launcher",
+    size = "large",
+    timeout = "moderate",
+    srcs = ["test_demo_launcher.py"],
+    main = "test_demo_launcher.py",
+    tags = ["exclusive"],
+    deps = [
+        ":copilot_demo_lib",
+        "@pypi//pytest",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_server:pmc_server",
+        "//tools/winstage:winstage",
+    ],
+)
