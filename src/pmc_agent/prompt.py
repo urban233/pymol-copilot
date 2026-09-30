@@ -20,9 +20,9 @@ be dropped into without a graph change.
 Item 13 has since landed, and `build_training_prompt` is that seam
 filled: the prompt the local model was fine-tuned on (item 17), which
 the offline evaluation sends too (`pmc_eval.prompt.contract_prompt`).
-The graph's default is still the placeholder; `pmc_server.main
---prompt training` selects the real one (item 18), and item 19 decides
-which the runtime uses by default.
+The graph's own default is still the placeholder, so a bare graph in
+a test is unchanged; the server (`pmc_server.main`) sends this one by
+default (item 19).
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

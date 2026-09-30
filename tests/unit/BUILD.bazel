@@ -4,6 +4,7 @@ py_test(
     name = "server_entrypoint",
     size = "small",
     srcs = ["test_server_entrypoint.py"],
+    data = ["//configs/evaluation:configs"],
     main = "test_server_entrypoint.py",
     deps = [
         "@pypi//httpx",
@@ -225,5 +226,23 @@ py_test(
         "@pypi//langgraph_checkpoint",
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",
+    ],
+)
+
+# The server reads each committed evaluation config exactly as the
+# evaluation does, and its defaults are the fine-tuned model's evaluated
+# ones (master plan item 19).
+py_test(
+    name = "server_config",
+    size = "small",
+    srcs = ["test_server_config.py"],
+    data = ["//configs/evaluation:configs"],
+    main = "test_server_config.py",
+    deps = [
+        "@pypi//httpx",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_server:pmc_server",
     ],
 )

@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -25,9 +26,8 @@ import pmc_server.main as server_main
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.lemonade import DEFAULT_BACKEND
 from pmc_agent.inference.lemonade import DEFAULT_CHECKPOINT
-from pmc_agent.inference.lemonade import DEFAULT_CONTEXT_SIZE
+from pmc_agent.inference.lemonade import DEFAULT_CONNECT_TIMEOUT_SECONDS
 from pmc_agent.inference.lemonade import DEFAULT_MODEL_NAME
-from pmc_agent.inference.lemonade import DEFAULT_READ_TIMEOUT_SECONDS
 from pmc_agent.inference.unavailable import UnavailableEngine
 from pmc_client.bootstrap import connect_from_handoff
 from pmc_client.command import CopilotCommandClient
@@ -36,6 +36,14 @@ from pmc_client.transport import LoopbackPlanClient
 from pmc_agent.prompt import build_training_prompt
 from pmc_core.grammar import build_grammar
 from pmc_core.protocol import HealthRequestV1
+from pmc_server.config import load_runtime_config
+
+_FINETUNED = (
+    Path(__file__).resolve().parents[2]
+    / "configs"
+    / "evaluation"
+    / "finetuned.json"
+)
 
 
 class _FakeSession:
@@ -151,10 +159,10 @@ def _capture_connect(
     return calls
 
 
-def test_build_engine_defaults_are_the_adapters_own(
+def test_build_engine_defaults_are_the_evaluated_ones(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without options, the server loads exactly what it always loaded."""
+    """Without options: the adapter's model, loaded the evaluated way."""
     calls = _capture_connect(monkeypatch)
 
     server_main.build_engine(base_url="http://127.0.0.1")
@@ -162,8 +170,11 @@ def test_build_engine_defaults_are_the_adapters_own(
     assert calls[0]["model_name"] == DEFAULT_MODEL_NAME
     assert calls[0]["checkpoint"] == DEFAULT_CHECKPOINT
     assert calls[0]["backend"] == DEFAULT_BACKEND
-    assert calls[0]["context_size"] == DEFAULT_CONTEXT_SIZE
-    assert calls[0]["read_timeout_seconds"] == DEFAULT_READ_TIMEOUT_SECONDS
+    assert calls[0]["context_size"] == 16384
+    assert calls[0]["read_timeout_seconds"] == 600.0
+    assert (
+        calls[0]["connect_timeout_seconds"] == DEFAULT_CONNECT_TIMEOUT_SECONDS
+    )
 
 
 def test_build_engine_passes_the_chosen_model_through(
@@ -219,16 +230,185 @@ def _captured_serve(
     return seen
 
 
-def test_main_defaults_keep_todays_server(
+def test_main_defaults_serve_the_way_the_model_was_evaluated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No flags: the adapter's model, the placeholder prompt, no grammar."""
+    """No flags: the training prompt, the grammar, the evaluated bounds."""
     seen = _captured_serve(monkeypatch, [])
 
     assert seen["engine_options"] == server_main.EngineOptions()
-    assert seen["generation"] == server_main.GenerationOptions()
-    assert seen["generation"].prompt == "placeholder"
+    assert seen["generation"] == server_main.GenerationOptions(
+        prompt="training", grammar=True, max_tokens=256, deadline_seconds=600.0
+    )
+    assert seen["expected"] is None
+
+
+def test_main_no_grammar_sends_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--no-grammar` turns the default grammar off."""
+    seen = _captured_serve(monkeypatch, ["--no-grammar"])
+
     assert seen["generation"].grammar is False
+
+
+def test_main_config_sets_the_engine_and_the_bounds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--config` takes the engine and generation from the evaluated file."""
+    seen = _captured_serve(
+        monkeypatch, ["--config", str(_FINETUNED), "--no-grammar"]
+    )
+    recorded = json.loads(_FINETUNED.read_text(encoding="utf-8"))
+    engine = recorded["engine"]
+
+    assert seen["base_url"] == engine["base_url"]
+    assert seen["engine_options"] == server_main.EngineOptions(
+        model_name=engine["model_name"],
+        checkpoint=engine["checkpoint"],
+        backend=engine["backend"],
+        context_size=engine["context_size"],
+        read_timeout_seconds=engine["read_timeout_seconds"],
+        connect_timeout_seconds=engine["connect_timeout_seconds"],
+    )
+    assert seen["generation"] == server_main.GenerationOptions(
+        prompt="training",
+        grammar=False,
+        max_tokens=recorded["generation"]["max_tokens"],
+        deadline_seconds=recorded["generation"]["deadline_seconds"],
+    )
+    assert seen["expected"].engine == seen["engine_options"]
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--model-name", "other"],
+        ["--context-size", "4096"],
+        ["--lemonade-base-url", "http://127.0.0.1:1"],
+        ["--max-tokens", "1024"],
+    ],
+)
+def test_main_refuses_a_config_combined_with_a_setting_flag(
+    monkeypatch: pytest.MonkeyPatch, flags: list[str]
+) -> None:
+    """One run has one source of truth for what it loads and sends."""
+    started: list[object] = []
+    monkeypatch.setattr(
+        server_main, "serve", lambda **kwargs: started.append(kwargs)
+    )
+    with pytest.raises(SystemExit):
+        server_main.main(
+            ["--config", str(_FINETUNED), *flags, "--handoff", "unused.json"]
+        )
+    assert started == []
+
+
+def test_main_refuses_a_missing_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A config that cannot be read stops the server at startup."""
+    monkeypatch.setattr(server_main, "serve", lambda **_kwargs: None)
+    with pytest.raises(SystemExit):
+        server_main.main(
+            ["--config", str(tmp_path / "absent.json"), "--handoff", "x"]
+        )
+
+
+class _ConnectedEngine:
+    """The part of a proven `LemonadeEngine` the config check reads."""
+
+    def __init__(self, model_identity: str, lemonade_version: str) -> None:
+        """Report a fixed identity and Lemonade version.
+
+        Args:
+            model_identity: The identity to report.
+            lemonade_version: The Lemonade version to report.
+        """
+        self.model_identity = model_identity
+        self.capabilities = SimpleNamespace(lemonade_version=lemonade_version)
+        self.closed = False
+
+    def close(self) -> None:
+        """Record that the engine was released."""
+        self.closed = True
+
+
+def _check_against_config(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    model_identity: str | None = None,
+    lemonade_version: str | None = None,
+    llamacpp_args: str | None = None,
+) -> tuple[Any, _ConnectedEngine]:
+    """Connect a fake engine and check it against the fine-tuned config.
+
+    Each value left None is the config's own.
+
+    Args:
+        monkeypatch: Pytest's monkeypatch fixture.
+        model_identity: The identity the engine reports.
+        lemonade_version: The Lemonade version it reports.
+        llamacpp_args: The llama.cpp arguments health reports.
+
+    Returns:
+        What `build_engine` returned, and the connected fake.
+    """
+    config = load_runtime_config(_FINETUNED)
+    connected = _ConnectedEngine(
+        model_identity or config.engine.model_identity,
+        lemonade_version or config.provenance["lemonade_version"],
+    )
+    monkeypatch.setattr(
+        server_main, "connect_lemonade", lambda **_kwargs: connected
+    )
+    monkeypatch.setattr(
+        server_main,
+        "loaded_llamacpp_args",
+        lambda **_kwargs: llamacpp_args or config.provenance["llamacpp_args"],
+    )
+    engine = server_main.build_engine(
+        base_url=config.base_url, options=config.engine, expected=config
+    )
+    return engine, connected
+
+
+def test_build_engine_accepts_the_engine_the_config_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The evaluated engine is served."""
+    engine, connected = _check_against_config(monkeypatch)
+
+    assert engine is connected
+    assert not connected.closed
+
+
+@pytest.mark.parametrize(
+    ("mismatch", "field"),
+    [
+        ({"model_identity": "other@other.gguf"}, "the engine is"),
+        ({"lemonade_version": "11.8.0"}, "lemonade_version"),
+        (
+            {
+                "llamacpp_args": (
+                    "--chat-template-kwargs "
+                    '\'{"date_string":"30 Sep 2026"}\' --parallel 1'
+                )
+            },
+            "llamacpp_args",
+        ),
+    ],
+)
+def test_build_engine_refuses_an_engine_the_config_does_not_record(
+    monkeypatch: pytest.MonkeyPatch, mismatch: dict[str, str], field: str
+) -> None:
+    """Another model, Lemonade or chat-template date is not served."""
+    engine, connected = _check_against_config(monkeypatch, **mismatch)
+
+    assert isinstance(engine, UnavailableEngine)
+    assert connected.closed
+    health = engine.health()
+    assert health.failure is not None
+    assert field in health.failure.message
+    assert "finetuned.json" in health.failure.message
 
 
 def test_main_flags_select_the_fine_tuned_model(

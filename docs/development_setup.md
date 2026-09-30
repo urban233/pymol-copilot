@@ -59,8 +59,32 @@ elsewhere), and falls back to `UnavailableEngine` -- reported through
 `copilot_health`, never a crash -- if that connection fails. It writes the
 port and an ephemeral credential to `~/.pymol-copilot/session.json` (mode
 0600; `--handoff` to write elsewhere), the same private directory the
-recovery runbook above uses. From a PyMOL session, bootstrap the client
-against a running server with:
+recovery runbook above uses.
+
+To serve the fine-tuned model exactly as it was evaluated (master plan
+item 19), give the server the evaluation config instead of individual
+flags:
+
+```sh
+bazel run //src/pmc_server:server -- --config configs/evaluation/finetuned.json
+```
+
+It then takes the Lemonade origin, the model, the checkpoint, the context
+and every generation bound from that file. At startup it refuses, as
+`copilot_health`'s `engine: unavailable (...)` line, an engine that is
+not the one the file records: another model, another Lemonade version,
+or other llama.cpp arguments, which pin the chat template's date. Bring
+the engine up with the same file first
+([configs/evaluation/engine/README.md](../configs/evaluation/engine/README.md)).
+`--config` cannot be combined with the engine or generation flags.
+
+Without a config, the defaults are the evaluated ones apart from the
+model: the training prompt, the grammar, a 16384-token context, 256
+tokens and a 600 s generation deadline. `--no-grammar` and
+`--prompt placeholder` turn the grammar off and select the old stand-in
+prompt.
+
+From a PyMOL session, bootstrap the client against a running server with:
 
 ```python
 from pmc_client.bootstrap import connect_from_handoff

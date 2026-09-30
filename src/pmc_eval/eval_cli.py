@@ -52,13 +52,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import httpx
 
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.base import InferenceEngine
 from pmc_agent.inference.lemonade import connect_lemonade
+from pmc_agent.inference.lemonade import loaded_llamacpp_args
 from pmc_core.card import CARD_VERSION
 from pmc_core.executor import ExecutionReport
 from pmc_core.executor import ExecutionRequest
@@ -261,48 +261,14 @@ def connect_engine(config: EngineConfig) -> ConnectedEngine | EngineFailure:
     if isinstance(engine, EngineFailure):
         return engine
     capabilities = dataclasses.asdict(engine.capabilities)
-    capabilities["llamacpp_args"] = _loaded_llamacpp_args(config)
+    capabilities["llamacpp_args"] = loaded_llamacpp_args(
+        base_url=config.base_url,
+        model_name=config.model_name,
+        timeout_seconds=config.connect_timeout_seconds,
+    )
     return ConnectedEngine(
         engine=engine, capabilities=capabilities, close=engine.close
     )
-
-
-def _loaded_llamacpp_args(config: EngineConfig) -> str | None:
-    """Read the extra llama.cpp arguments the loaded model runs with.
-
-    They carry the pinned chat-template date (configs/evaluation/
-    README.md), which the adapter's probe does not check. Read from the
-    same local health endpoint the probe just proved, right after it
-    loaded the model.
-
-    Args:
-        config: The connected engine's config.
-
-    Returns:
-        The loaded model's `llamacpp_args`, or None if health does not
-        report them.
-    """
-    try:
-        response = httpx.get(
-            config.base_url.rstrip("/") + "/api/v1/health",
-            timeout=config.connect_timeout_seconds,
-            follow_redirects=False,
-        )
-        health = response.json()
-    except (httpx.HTTPError, ValueError):
-        return None
-    if not isinstance(health, dict):
-        return None
-    loaded = health.get("all_models_loaded")
-    for model in loaded if isinstance(loaded, list) else []:
-        if isinstance(model, dict) and model.get("model_name") == (
-            config.model_name
-        ):
-            options = model.get("recipe_options")
-            if isinstance(options, dict):
-                args = options.get("llamacpp_args")
-                return args if isinstance(args, str) else None
-    return None
 
 
 def _digest(material: Mapping[str, Any]) -> str:
