@@ -9,8 +9,10 @@ filegroup(
     visibility = [
         "//tests/eval:__pkg__",
         "//tests/notebook:__pkg__",
+        # The server reads them too, and the integrated measurement and
+        # the real-engine scenarios serve from them (master plan item 19).
+        "//tests/e2e:__pkg__",
         "//tests/integrated:__pkg__",
-        # The server reads them too (master plan item 19).
         "//tests/unit:__pkg__",
     ],
 )
