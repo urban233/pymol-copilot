@@ -218,13 +218,18 @@ def test_the_trace_file_is_never_a_symlink(tmp_path: Path) -> None:
         open_trace(link)
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX FIFOs only")
 def test_a_fifo_at_the_trace_path_is_refused_without_blocking(
     tmp_path: Path,
 ) -> None:
     """A pipe planted at the trace path cannot stall the server's start."""
     fifo = tmp_path / "trace.jsonl"
-    os.mkfifo(fifo)
+    # A decorator skips execution but leaves the body visible to Windows
+    # type checking, where os.mkfifo does not exist. Guard it here so both
+    # pytest and the type checker recognize the platform restriction.
+    if sys.platform != "win32":
+        os.mkfifo(fifo)
+    else:
+        pytest.skip("named pipes are POSIX-only")
 
     with pytest.raises(OSError):
         open_trace(fifo)
