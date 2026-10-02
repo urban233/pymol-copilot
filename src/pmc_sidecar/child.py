@@ -62,7 +62,7 @@ from pmc_core.plan import OPERATION
 from pmc_core.plan import OrientOperation
 from pmc_core.plan import SelectOperation
 from pmc_core.plan import ShowOperation
-from pmc_core.plan import referenced_selection_name
+from pmc_core.plan import selection_names
 from pmc_core.protocol import decode_plan
 from pmc_core.snapshot import extract
 from pmc_core.snapshot import from_json
@@ -199,25 +199,6 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
     return PlanRunResult(STATUS_OK, REASON_OK, tuple(outcomes))
 
 
-def _selection_names(plan: ActionPlan) -> tuple[str, ...]:
-    """Collect every distinct selection name a plan creates or references.
-
-    Args:
-        plan: The typed plan whose selection names to collect.
-
-    Returns:
-        Each distinct name, in first-appearance order.
-    """
-    seen: dict[str, None] = {}
-    for operation in plan.operations:
-        if isinstance(operation, SelectOperation):
-            seen.setdefault(operation.selection_name, None)
-        referenced = referenced_selection_name(operation)
-        if referenced is not None:
-            seen.setdefault(referenced, None)
-    return tuple(seen)
-
-
 def _outcome_to_dict(outcome: CommandOutcome) -> dict[str, object]:
     """Convert one command outcome to its JSON-serializable form.
 
@@ -291,7 +272,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if status == STATUS_OK:
         try:
-            for name in _selection_names(plan):
+            for name in selection_names(plan):
                 selection_counts.append(
                     {"name": name, "atom_count": cmd.count_atoms(name)}
                 )

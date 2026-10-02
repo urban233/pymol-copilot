@@ -4,6 +4,7 @@ py_test(
     name = "server_entrypoint",
     size = "small",
     srcs = ["test_server_entrypoint.py"],
+    data = ["//configs/evaluation:configs"],
     main = "test_server_entrypoint.py",
     deps = [
         "@pypi//httpx",
@@ -207,5 +208,59 @@ py_test(
         "//src/pmc_agent:pmc_agent",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",
+    ],
+)
+
+# The request graph's checkpoint names every type it holds, so LangGraph's
+# "Deserializing unregistered type" warning is gone and a later LangGraph
+# that refuses unregistered types still round-trips the state (master plan
+# item 19).
+py_test(
+    name = "graph_checkpointer",
+    size = "small",
+    srcs = ["test_graph_checkpointer.py"],
+    main = "test_graph_checkpointer.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_core:pmc_core",
+    ],
+)
+
+# The server reads each committed evaluation config exactly as the
+# evaluation does, and its defaults are the fine-tuned model's evaluated
+# ones (master plan item 19).
+py_test(
+    name = "server_config",
+    size = "small",
+    srcs = ["test_server_config.py"],
+    data = ["//configs/evaluation:configs"],
+    main = "test_server_config.py",
+    deps = [
+        "@pypi//httpx",
+        "@pypi//pytest",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_eval:pmc_eval",
+        "//src/pmc_server:pmc_server",
+    ],
+)
+
+# The server's opt-in trace records every attempt's raw completion, only
+# when asked, in a private file (master plan item 19).
+py_test(
+    name = "server_trace",
+    size = "small",
+    srcs = ["test_server_trace.py"],
+    main = "test_server_trace.py",
+    deps = [
+        "@pypi//pytest",
+        "@pypi//langgraph",
+        "@pypi//langgraph_checkpoint",
+        "//src/pmc_agent:pmc_agent",
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_server:pmc_server",
     ],
 )

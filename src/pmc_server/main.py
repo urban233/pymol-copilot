@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import secrets
 import signal
@@ -34,34 +33,48 @@ import threading
 import uuid
 from collections.abc import Callable
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
+from typing import Any
 
 import httpx
 
-from pmc_agent.graph import DEFAULT_GENERATION_DEADLINE_SECONDS
-from pmc_agent.graph import DEFAULT_MAX_COMPLETION_TOKENS
+from pmc_agent.inference.base import ENGINE_UNKNOWN
 from pmc_agent.inference.base import EngineFailure
 from pmc_agent.inference.base import InferenceEngine
-from pmc_agent.inference.lemonade import DEFAULT_BACKEND
 from pmc_agent.inference.lemonade import DEFAULT_BASE_URL
-from pmc_agent.inference.lemonade import DEFAULT_CHECKPOINT
-from pmc_agent.inference.lemonade import DEFAULT_CONTEXT_SIZE
-from pmc_agent.inference.lemonade import DEFAULT_MODEL_NAME
-from pmc_agent.inference.lemonade import DEFAULT_READ_TIMEOUT_SECONDS
+from pmc_agent.inference.lemonade import LemonadeEngine
 from pmc_agent.inference.lemonade import connect_lemonade
+from pmc_agent.inference.lemonade import loaded_llamacpp_args
 from pmc_agent.inference.unavailable import UnavailableEngine
-from pmc_agent.prompt import PROMPT_BUILDER
-from pmc_agent.prompt import build_default_prompt
-from pmc_agent.prompt import build_training_prompt
 from pmc_agent.session import RequestGraphSession
 from pmc_core.grammar import build_grammar
+from pmc_server.config import PROMPT_BUILDERS
+from pmc_server.config import EngineOptions
+from pmc_server.config import GenerationOptions
+from pmc_server.config import InvalidRuntimeConfigError
+from pmc_server.config import RuntimeConfig
+from pmc_server.config import engine_mismatch
+from pmc_server.config import load_runtime_config
+from pmc_server.config import resolve_path
 from pmc_server.lifecycle import RequestGraphLifecycle
+from pmc_server.trace import TracingEngine
+from pmc_server.trace import open_trace
 from pmc_server.transport import LOOPBACK_HOST
 from pmc_server.transport import LoopbackPlanServer
+
+#: Re-exported: what the server loads and sends is defined beside the
+#: config reader that also builds it (`pmc_server.config`).
+__all__ = [
+    "PROMPT_BUILDERS",
+    "EngineOptions",
+    "GenerationOptions",
+    "build_engine",
+    "main",
+    "serve",
+]
 
 #: Where the handoff file lives by default, relative to a root (the
 #: user's home directory unless overridden for a test): the same
@@ -76,86 +89,12 @@ _DIRECTORY_MODE = 0o700
 _FILE_MODE = 0o600
 
 
-#: The prompt builders `--prompt` can select. `placeholder` is the graph's
-#: own default; `training` is the prompt the local model was fine-tuned on
-#: (master plan item 17), which the offline evaluation sends too.
-PROMPT_BUILDERS: dict[str, PROMPT_BUILDER] = {
-    "placeholder": build_default_prompt,
-    "training": build_training_prompt,
-}
-
-
-@dataclass(frozen=True)
-class EngineOptions:
-    """Which model the server loads, and how.
-
-    Every default is the adapter's own, so a server started without
-    options behaves as it always has. Serving the fine-tuned model takes
-    its name, checkpoint and a context large enough for its prompts
-    (configs/evaluation/finetuned.json holds the values the evaluation
-    used).
-
-    Attributes:
-        model_name: The exact Lemonade model identifier.
-        checkpoint: The exact checkpoint that identifier must load.
-        backend: The llama.cpp backend (`cpu`, `cuda`, `vulkan`, ...).
-        context_size: The context size to load the model with.
-        read_timeout_seconds: The adapter's HTTP read timeout.
-    """
-
-    model_name: str = DEFAULT_MODEL_NAME
-    checkpoint: str = DEFAULT_CHECKPOINT
-    backend: str = DEFAULT_BACKEND
-    context_size: int = DEFAULT_CONTEXT_SIZE
-    read_timeout_seconds: float = DEFAULT_READ_TIMEOUT_SECONDS
-
-
-@dataclass(frozen=True)
-class GenerationOptions:
-    """What the request graph sends the engine, and within what bounds.
-
-    Attributes:
-        prompt: A `PROMPT_BUILDERS` key.
-        grammar: Whether `pmc_core.grammar.build_grammar()` goes with
-            every completion.
-        max_tokens: The token budget of every completion.
-        deadline_seconds: The wall-clock budget of every completion.
-    """
-
-    prompt: str = "placeholder"
-    grammar: bool = False
-    max_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
-    deadline_seconds: float = DEFAULT_GENERATION_DEADLINE_SECONDS
-
-    def __post_init__(self) -> None:
-        """Refuse bounds every completion request would refuse.
-
-        `CompletionRequest` rejects the same values, but only once a
-        request is being generated: checked here, a bad flag stops the
-        server before it loads a model or writes its handoff, rather than
-        failing every request it later serves.
-
-        Raises:
-            ValueError: If `prompt` is not a `PROMPT_BUILDERS` key, if
-                `max_tokens` is not positive, or if `deadline_seconds` is
-                not positive and finite.
-        """
-        if self.prompt not in PROMPT_BUILDERS:
-            raise ValueError(f"unknown prompt builder: {self.prompt!r}")
-        if self.max_tokens <= 0:
-            raise ValueError("max_tokens must be positive")
-        if (
-            not math.isfinite(self.deadline_seconds)
-            or self.deadline_seconds <= 0
-        ):
-            raise ValueError("deadline_seconds must be positive and finite")
-
-
 def build_engine(
     *,
     base_url: str = DEFAULT_BASE_URL,
     options: EngineOptions | None = None,
     client: httpx.Client | None = None,
+    expected: RuntimeConfig | None = None,
 ) -> InferenceEngine:
     """Connect to Lemonade, or return an engine that reports why it could not.
 
@@ -166,12 +105,16 @@ def build_engine(
 
     Args:
         base_url: The local Lemonade HTTP origin.
-        options: Which model to load; the adapter's defaults when None.
+        options: Which model to load; the defaults when None.
         client: An optional hermetic transport client, for tests.
+        expected: The evaluation config the server was started from, if
+            any. An engine that is not the one it records -- another
+            model, Lemonade version, or chat-template date -- is refused
+            the same way a failed probe is.
 
     Returns:
         A proven `LemonadeEngine`, or an `UnavailableEngine` recording the
-        first capability failure.
+        first capability failure or mismatch.
     """
     options = options or EngineOptions()
     result = connect_lemonade(
@@ -180,12 +123,49 @@ def build_engine(
         checkpoint=options.checkpoint,
         backend=options.backend,
         context_size=options.context_size,
+        connect_timeout_seconds=options.connect_timeout_seconds,
         read_timeout_seconds=options.read_timeout_seconds,
         client=client,
     )
     if isinstance(result, EngineFailure):
         return UnavailableEngine(result)
+    if expected is not None:
+        mismatch = _mismatch(result, expected, base_url=base_url, client=client)
+        if mismatch is not None:
+            result.close()
+            return UnavailableEngine(EngineFailure(ENGINE_UNKNOWN, mismatch))
     return result
+
+
+def _mismatch(
+    engine: LemonadeEngine,
+    expected: RuntimeConfig,
+    *,
+    base_url: str,
+    client: httpx.Client | None,
+) -> str | None:
+    """Compare a connected engine with the config it must match.
+
+    Args:
+        engine: The proven engine.
+        expected: The config the server was started from.
+        base_url: The local Lemonade HTTP origin.
+        client: An optional hermetic transport client, for tests.
+
+    Returns:
+        What differs, or None.
+    """
+    return engine_mismatch(
+        expected,
+        model_identity=engine.model_identity,
+        lemonade_version=engine.capabilities.lemonade_version,
+        llamacpp_args=loaded_llamacpp_args(
+            base_url=base_url,
+            model_name=expected.engine.model_name,
+            timeout_seconds=expected.engine.connect_timeout_seconds,
+            client=client,
+        ),
+    )
 
 
 def write_handoff(
@@ -326,18 +306,24 @@ def serve(
     handoff_path: Path,
     engine_options: EngineOptions | None = None,
     generation: GenerationOptions | None = None,
+    expected: RuntimeConfig | None = None,
+    trace_path: Path | None = None,
     ready: Callable[[int], None] | None = None,
     stop: threading.Event | None = None,
+    engine: InferenceEngine | None = None,
 ) -> None:
     """Build the real stack, start it, write the handoff, and block.
 
     Args:
         base_url: The local Lemonade HTTP origin.
         handoff_path: Where to write the port and credential for PyMOL.
-        engine_options: Which model to load; the adapter's defaults when
-            None.
-        generation: What the graph sends the engine; the graph's own
-            defaults (placeholder prompt, no grammar) when None.
+        engine_options: Which model to load; the defaults when None.
+        generation: What the graph sends the engine; the defaults (the
+            training prompt, the grammar) when None.
+        expected: The evaluation config the server was started from, if
+            any; an engine that does not match it is refused.
+        trace_path: A private file to append every completion call to
+            (`pmc_server.trace`), or None, the default, to record none.
         ready: Optional callback invoked with the bound port once the
             server has started and the handoff file has been written --
             for a test to synchronize on, never used in production.
@@ -345,27 +331,50 @@ def serve(
             its own signal handlers -- for a test that wants to stop the
             server deterministically without sending it a real signal.
             Production installs `SIGINT`/`SIGTERM` handlers instead.
+        engine: Optional engine used instead of connecting to Lemonade --
+            for a test that drives the real server with a scripted
+            engine, never used in production.
     """
     generation = generation or GenerationOptions()
-    engine = build_engine(base_url=base_url, options=engine_options)
-    session = RequestGraphSession(
-        engine=engine,
-        prompt_builder=PROMPT_BUILDERS[generation.prompt],
-        grammar=build_grammar() if generation.grammar else None,
-        max_tokens=generation.max_tokens,
-        deadline_seconds=generation.deadline_seconds,
-    )
-    lifecycle = RequestGraphLifecycle(session=session)
-    credential = secrets.token_urlsafe(32)
-    server = LoopbackPlanServer(
-        credential,
-        lifecycle,
-        reject_handler=lifecycle.reject,
-        cancel_handler=lifecycle.cancel,
-        apply_handler=lifecycle.apply,
-        apply_outcome_handler=lifecycle.report_apply_outcome,
-        health_handler=lifecycle.health,
-    )
+    # Opened before the engine connects: a trace that cannot be opened
+    # must not leave a connected engine behind unclosed.
+    sink = open_trace(trace_path) if trace_path is not None else None
+    try:
+        if engine is None:
+            engine = build_engine(
+                base_url=base_url, options=engine_options, expected=expected
+            )
+        if sink is not None:
+            engine = TracingEngine(engine, sink)
+            # The tracing engine owns the file from here and closes it.
+            sink = None
+        session = RequestGraphSession(
+            engine=engine,
+            prompt_builder=PROMPT_BUILDERS[generation.prompt],
+            grammar=build_grammar() if generation.grammar else None,
+            max_tokens=generation.max_tokens,
+            deadline_seconds=generation.deadline_seconds,
+        )
+        lifecycle = RequestGraphLifecycle(session=session)
+        credential = secrets.token_urlsafe(32)
+        server = LoopbackPlanServer(
+            credential,
+            lifecycle,
+            reject_handler=lifecycle.reject,
+            cancel_handler=lifecycle.cancel,
+            apply_handler=lifecycle.apply,
+            apply_outcome_handler=lifecycle.report_apply_outcome,
+            health_handler=lifecycle.health,
+        )
+    except BaseException:
+        # Nothing below has started yet, so the `finally` that releases
+        # the engine and the trace never runs; release them here.
+        if sink is not None:
+            sink.close()
+        close_engine = getattr(engine, "close", None)
+        if callable(close_engine):
+            close_engine()
+        raise
     own_stop = stop if stop is not None else threading.Event()
     if stop is None:
 
@@ -414,6 +423,63 @@ def serve(
             close_engine()
 
 
+#: The prompt every evaluation config was measured with: the one the
+#: model was fine-tuned on.
+EVALUATED_PROMPT = "training"
+
+#: The flags that set what a `--config` also sets, with their types.
+_CONFIGURED_FLAGS: tuple[tuple[str, type], ...] = (
+    ("--lemonade-base-url", str),
+    ("--model-name", str),
+    ("--checkpoint", str),
+    ("--backend", str),
+    ("--context-size", int),
+    ("--read-timeout-seconds", float),
+    ("--max-tokens", int),
+    ("--generation-deadline-seconds", float),
+)
+
+
+def _from_flags(
+    args: argparse.Namespace,
+) -> tuple[str, EngineOptions, GenerationOptions]:
+    """Build the engine and generation settings from individual flags.
+
+    Args:
+        args: The parsed command line, without `--config`.
+
+    Returns:
+        The Lemonade origin, the engine options and the generation
+        options, each flag left alone taking its default.
+    """
+    engine, generation = EngineOptions(), GenerationOptions()
+
+    def value(name: str, default: object) -> Any:
+        given = getattr(args, name)
+        return default if given is None else given
+
+    return (
+        value("lemonade_base_url", DEFAULT_BASE_URL),
+        EngineOptions(
+            model_name=value("model_name", engine.model_name),
+            checkpoint=value("checkpoint", engine.checkpoint),
+            backend=value("backend", engine.backend),
+            context_size=value("context_size", engine.context_size),
+            read_timeout_seconds=value(
+                "read_timeout_seconds", engine.read_timeout_seconds
+            ),
+        ),
+        GenerationOptions(
+            prompt=args.prompt,
+            grammar=args.grammar,
+            max_tokens=value("max_tokens", generation.max_tokens),
+            deadline_seconds=value(
+                "generation_deadline_seconds", generation.deadline_seconds
+            ),
+        ),
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse arguments and run the server until it is signaled to stop.
 
@@ -429,9 +495,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Start the PyMOL-Copilot loopback server.",
     )
     parser.add_argument(
-        "--lemonade-base-url",
-        default=DEFAULT_BASE_URL,
-        help="The local Lemonade HTTP origin (default: %(default)s).",
+        "--config",
+        type=Path,
+        default=None,
+        help=(
+            "An evaluation config (configs/evaluation/*.json) to take the "
+            "engine and generation settings from, so the server runs "
+            "exactly the configuration that was evaluated. Cannot be "
+            "combined with the engine or generation flags below."
+        ),
     )
     parser.add_argument(
         "--handoff",
@@ -442,47 +514,75 @@ def main(argv: Sequence[str] | None = None) -> int:
             "(default: ~/.pymol-copilot/session.json)."
         ),
     )
-    defaults, generation_defaults = EngineOptions(), GenerationOptions()
-    parser.add_argument("--model-name", default=defaults.model_name)
-    parser.add_argument("--checkpoint", default=defaults.checkpoint)
-    parser.add_argument("--backend", default=defaults.backend)
     parser.add_argument(
-        "--context-size", type=int, default=defaults.context_size
-    )
-    parser.add_argument(
-        "--read-timeout-seconds",
-        type=float,
-        default=defaults.read_timeout_seconds,
+        "--trace-file",
+        type=Path,
+        default=None,
+        help=(
+            "Append every completion the server asks for -- its text, stop "
+            "reason and timing, and its prompt's SHA-256 -- to this private "
+            "file. Off by default: nothing is retained unless asked for."
+        ),
     )
     parser.add_argument(
         "--prompt",
         choices=sorted(PROMPT_BUILDERS),
-        default=generation_defaults.prompt,
+        default=GenerationOptions().prompt,
         help="The prompt builder (default: %(default)s).",
     )
     parser.add_argument(
         "--grammar",
-        action="store_true",
-        help="Send pmc_core.grammar.build_grammar() with every completion.",
+        action=argparse.BooleanOptionalAction,
+        default=GenerationOptions().grammar,
+        help=(
+            "Send pmc_core.grammar.build_grammar() with every completion "
+            "(default: on)."
+        ),
     )
-    parser.add_argument(
-        "--max-tokens", type=int, default=generation_defaults.max_tokens
-    )
-    parser.add_argument(
-        "--generation-deadline-seconds",
-        type=float,
-        default=generation_defaults.deadline_seconds,
-    )
+    # The engine and generation settings a config also sets. Their
+    # defaults are applied below, not here, so a flag given alongside
+    # --config can be told apart from one left alone.
+    for flag, kind in _CONFIGURED_FLAGS:
+        parser.add_argument(flag, type=kind, default=None)
     args = parser.parse_args(argv)
+    given = [
+        flag
+        for flag, _ in _CONFIGURED_FLAGS
+        if getattr(args, flag[2:].replace("-", "_")) is not None
+    ]
+    expected: RuntimeConfig | None = None
     try:
-        generation = GenerationOptions(
-            prompt=args.prompt,
-            grammar=args.grammar,
-            max_tokens=args.max_tokens,
-            deadline_seconds=args.generation_deadline_seconds,
-        )
-    except ValueError as error:
+        if args.config is not None:
+            if given:
+                parser.error(
+                    f"--config sets the engine and generation; "
+                    f"{', '.join(given)} cannot be combined with it"
+                )
+            if args.prompt != EVALUATED_PROMPT:
+                # The config lists both grammar conditions, so the grammar
+                # stays a choice; it was evaluated with one prompt only.
+                parser.error(
+                    f"--config serves the evaluated configuration, whose "
+                    f"prompt is {EVALUATED_PROMPT!r}; --prompt {args.prompt} "
+                    "cannot be combined with it"
+                )
+            expected = load_runtime_config(args.config)
+            base_url = expected.base_url
+            engine_options = expected.engine
+            generation = expected.generation(
+                prompt=args.prompt, grammar=args.grammar
+            )
+        else:
+            base_url, engine_options, generation = _from_flags(args)
+    except (InvalidRuntimeConfigError, ValueError) as error:
         parser.error(str(error))
+    trace_path = None
+    if args.trace_file is not None:
+        trace_path = resolve_path(args.trace_file)
+        try:
+            open_trace(trace_path).close()
+        except OSError as error:
+            parser.error(f"cannot open --trace-file: {error}")
     # Resolved here, not as the argument's own default: Path.home() raises
     # on a platform or sandbox with no resolvable home directory (observed
     # on Windows CI), and that must not happen merely from registering
@@ -494,16 +594,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         else Path.home() / DEFAULT_HANDOFF_PATH
     )
     serve(
-        base_url=args.lemonade_base_url,
+        base_url=base_url,
         handoff_path=handoff,
-        engine_options=EngineOptions(
-            model_name=args.model_name,
-            checkpoint=args.checkpoint,
-            backend=args.backend,
-            context_size=args.context_size,
-            read_timeout_seconds=args.read_timeout_seconds,
-        ),
+        engine_options=engine_options,
         generation=generation,
+        expected=expected,
+        trace_path=trace_path,
     )
     return 0
 

@@ -9,3 +9,4 @@ env
 .train-tools
 unsloth_compiled_cache
 .venv-notebook
+.venv-demo

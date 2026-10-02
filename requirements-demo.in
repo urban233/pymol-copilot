@@ -1,0 +1,8 @@
+# The live demo's PyMOL window (docs/demo.md, master plan item 19): the
+# runtime's own PyMOL wheel and numpy, held to the runtime lock, plus the Qt
+# binding (PySide6's essentials) it needs to open a window. It is LGPL-3.0; the
+# licence is recorded in docs/demo.md. The server still runs from Bazel;
+# this environment only runs PyMOL with the client in it.
+-c requirements_lock.txt
+pymol-open-source-whl==3.2.0.2
+PySide6-Essentials==6.9.3

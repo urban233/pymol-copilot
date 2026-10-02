@@ -1129,3 +1129,26 @@ class ActionPlan:
         """
         lines = (operation.render() for operation in self.operations)
         return "\n".join(lines) + "\n"
+
+
+def selection_names(plan: ActionPlan) -> tuple[str, ...]:
+    """Name every distinct selection a plan creates or references.
+
+    The sidecar counts exactly these after it runs a plan
+    (`pmc_sidecar.child`), and the integrated measurement's live grade
+    (`pmc_eval.integrated`) counts the same ones.
+
+    Args:
+        plan: The typed plan whose selection names to collect.
+
+    Returns:
+        Each distinct name, in first-appearance order.
+    """
+    seen: dict[str, None] = {}
+    for operation in plan.operations:
+        if isinstance(operation, SelectOperation):
+            seen.setdefault(operation.selection_name, None)
+        referenced = referenced_selection_name(operation)
+        if referenced is not None:
+            seen.setdefault(referenced, None)
+    return tuple(seen)

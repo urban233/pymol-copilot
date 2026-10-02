@@ -1027,3 +1027,52 @@ def connect_lemonade(
         return capabilities
     engine._set_capabilities(capabilities)
     return engine
+
+
+def loaded_llamacpp_args(
+    *,
+    base_url: str,
+    model_name: str,
+    timeout_seconds: float = DEFAULT_CONNECT_TIMEOUT_SECONDS,
+    client: httpx.Client | None = None,
+) -> str | None:
+    """Read the extra llama.cpp arguments a loaded model runs with.
+
+    They carry the pinned chat-template date (configs/evaluation/
+    README.md), which `probe_capabilities` does not check. Read from the
+    same local health endpoint the probe proved, after it loaded the
+    model. The offline evaluation and the server both check them.
+
+    Args:
+        base_url: The local Lemonade origin.
+        model_name: The loaded model's Lemonade identifier.
+        timeout_seconds: The request's budget.
+        client: An optional hermetic transport client for tests.
+
+    Returns:
+        The loaded model's `llamacpp_args`, or None if health does not
+        report them.
+    """
+    url = base_url.rstrip("/") + _HEALTH_PATH
+    try:
+        if client is None:
+            response = httpx.get(
+                url, timeout=timeout_seconds, follow_redirects=False
+            )
+        else:
+            response = client.get(
+                url, timeout=timeout_seconds, follow_redirects=False
+            )
+        health = response.json()
+    except (httpx.HTTPError, ValueError):
+        return None
+    if not isinstance(health, dict):
+        return None
+    loaded = health.get("all_models_loaded")
+    for model in loaded if isinstance(loaded, list) else []:
+        if isinstance(model, dict) and model.get("model_name") == model_name:
+            options = model.get("recipe_options")
+            if isinstance(options, dict):
+                args = options.get("llamacpp_args")
+                return args if isinstance(args, str) else None
+    return None

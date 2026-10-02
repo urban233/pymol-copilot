@@ -31,7 +31,6 @@ from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime
 
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from pmc_agent.graph import MAX_REPAIR_ATTEMPTS
@@ -50,6 +49,7 @@ from pmc_agent.graph import TERMINAL_CANCELLED
 from pmc_agent.graph import STATE_RECEIVED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
+from pmc_agent.graph import new_checkpointer
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import EngineHealth
 from pmc_agent.inference.base import InferenceEngine
@@ -212,7 +212,7 @@ class RequestGraphSession:
         # sessions; every read and mutation of this shared LRU needs its
         # own lock, including the paired get/move_to_end replay lookup.
         self._outcome_receipts_lock = threading.Lock()
-        self._checkpointer = InMemorySaver()
+        self._checkpointer = new_checkpointer()
         self._graph = build_request_graph(
             engine=engine,
             prompt_builder=prompt_builder,
