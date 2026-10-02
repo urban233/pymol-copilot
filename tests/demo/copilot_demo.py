@@ -66,7 +66,11 @@ FAILABLE_VERBS = ("color", "show", "hide", "orient", "select")
 #: How long one console command may take before the rehearsal gives up.
 COMMAND_DEADLINE_SECONDS = 600.0
 
-DEFAULT_HANDOFF = Path.home() / ".pymol-copilot" / "session.json"
+#: The handoff's place under the user's home directory, the one the server
+#: writes by default. Kept relative: `Path.home()` raises where no home
+#: directory resolves (Bazel's Windows test environment), so it is
+#: resolved in `main`, not when this module is imported.
+DEFAULT_HANDOFF_PATH = Path(".pymol-copilot") / "session.json"
 
 #: Where WSLg keeps its Wayland socket: Qt finds no display otherwise.
 _WSLG_RUNTIME_DIR = Path("/mnt/wslg/runtime-dir")
@@ -487,7 +491,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         must.
     """
     parser = argparse.ArgumentParser(prog="copilot_demo")
-    parser.add_argument("--handoff", type=Path, default=DEFAULT_HANDOFF)
+    parser.add_argument(
+        "--handoff",
+        type=Path,
+        default=None,
+        help=(
+            "The server's handoff file "
+            f"(default: ~/{DEFAULT_HANDOFF_PATH.as_posix()})."
+        ),
+    )
     parser.add_argument("--fail-on", choices=FAILABLE_VERBS, default=None)
     parser.add_argument(
         "--headless",
@@ -495,6 +507,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Rehearse the beat in headless PyMOL and report it.",
     )
     arguments = parser.parse_args(argv)
+    handoff = (
+        arguments.handoff
+        if arguments.handoff is not None
+        else Path.home() / DEFAULT_HANDOFF_PATH
+    )
     winstage.ensure_importable()
     import pymol  # pyrefly: ignore[missing-import]
 
@@ -506,7 +523,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "pymol",
                 "-d",
                 "/import copilot_demo; copilot_demo.start_gui(cmd, "
-                f"handoff={str(arguments.handoff)!r}, "
+                f"handoff={str(handoff)!r}, "
                 f"fail_on={arguments.fail_on!r})",
             ]
         )
@@ -517,7 +534,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="pmc-demo-") as scratch:
         result = rehearse(
             cmd,
-            handoff=arguments.handoff,
+            handoff=handoff,
             recovery_root=Path(scratch),
             fail_on=arguments.fail_on,
             case=load_case(),
