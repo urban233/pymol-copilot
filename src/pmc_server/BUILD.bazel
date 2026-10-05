@@ -5,8 +5,10 @@ py_library(
     name = "pmc_server",
     srcs = [
         "__init__.py",
+        "config.py",
         "lifecycle.py",
         "main.py",
+        "trace.py",
         "transport.py",
         "validation.py",
     ],

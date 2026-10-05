@@ -16,5 +16,6 @@ filegroup(
         "//tests/data:__pkg__",
         "//tests/eval:__pkg__",
         "//tests/notebook:__pkg__",
+        "//tests/integrated:__pkg__",
     ],
 )

@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-29 (items 12, 16 and 17 done; item 18 in progress)
+**Written:** 2026-09-16 · **State as of:** 2026-09-30 (items 12, 16, 17 and 18 done; item 19 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -104,8 +104,8 @@ Every item carries a **State**. The values are:
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
 | 17 | Fine-tuning | Martin | **done** — PR #59 | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
-| 18 | Notebook | Martin | **in progress** — `feat/notebook` | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
-| 19 | Integration | Joint | **ready** | 12 ✓, 17 ✓ | — |
+| 18 | Notebook | Martin | **done** — PR #60 | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
+| 19 | Integration | Joint | **in progress** — `feat/integration` | 12 ✓, 17 ✓ | — |
 
 ### The graph
 
@@ -135,8 +135,8 @@ flowchart LR
   I15["15 · gold set"]:::done
   I16["16 · eval and baseline"]:::done
   I17["17 · fine-tuning"]:::done
-  I18["18 · notebook"]:::progress
-  I19["19 · integration"]:::ready
+  I18["18 · notebook"]:::done
+  I19["19 · integration"]:::progress
 
   I2 --> I4
   I3 --> I4
@@ -214,6 +214,15 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   0/68 to 19/68 without the grammar and to 32/68 with it (exact McNemar
   p = 3.8e-6 and 4.7e-10); the result and its limits are under item 17
   below. Items 18 and 19 are now ready.
+- **Item 18 is done as PR #60.** The deliverable notebook is committed
+  executed, and every number it reports recomputes from the committed
+  evidence. It pulled the server's model flags forward from item 19,
+  which is now in progress.
+- **Item 19 is in progress on `feat/integration`.** The model runs
+  through the product at the offline TaskSuccess: 33/68 with the grammar,
+  19/68 without. The one differing sample is explained under item 19
+  below. The demo is rehearsed and dry-run by script; what remains is
+  the watched check of the preview.
 
 ### Cross-owner hand-offs
 
@@ -699,7 +708,7 @@ see [docs/training/README.md](training/README.md)):
 
 ### 18. Notebook
 
-**Size:** ~3 days · **State:** in progress (`feat/notebook`) — plan in [plans/14-notebook.md](../plans/14-notebook.md)
+**Size:** ~3 days · **State:** done (PR #60) — plan in [plans/14-notebook.md](../plans/14-notebook.md)
 
 ```
 Write the deliverable notebook: dataset generation, the oracle and its
@@ -760,7 +769,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** ready
+**Size:** ~3 days · **State:** in progress (`feat/integration`) — plan in [plans/15-integration.md](../plans/15-integration.md)
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
@@ -770,6 +779,61 @@ one intent through apply, one deliberate failure through recovery, with the
 other developer watching to check they can tell what's about to change
 before apply is confirmed.
 ```
+
+**Progress** (see [docs/integration/README.md](integration/README.md)):
+
+- **Pairing:** the runtime now serves exactly what was evaluated.
+  - `pmc_server.main --config configs/evaluation/finetuned.json` takes
+    the engine and every generation bound from the evaluation config.
+  - It refuses an engine that is not the one the config records: the
+    model, the Lemonade version, and the llama.cpp arguments that pin
+    the chat template's date.
+  - The generation defaults are now the evaluated ones (training
+    prompt, grammar, 16384 context). The model and backend stay the
+    adapter's own.
+  - All four gaps item 16 noted are closed: the context, the prompt,
+    the grammar, and the final newline, which the graph now appends as
+    the evaluation did.
+  - The graph's checkpoint names every type it holds, so LangGraph's
+    "Deserializing unregistered type" warning is gone.
+- **The end-to-end suite against the model:** `//tests/e2e:real_engine`
+  (opt-in, like `lemonade_real`) passed all six scenarios on the GPU
+  engine, run from the production server. The scenarios are health,
+  preview, apply to the offline result, rollback, mid-apply failure and
+  recovery, and drift refusal
+  ([e2e_real_engine.md](integration/e2e_real_engine.md)). The denied,
+  hostile and engine-down scenarios stay scripted.
+- **Integrated TaskSuccess**, all 68 `test_gold` samples through the
+  running product (live PyMOL, the real client and server, apply, a live
+  grade):
+  - grammar: offline 32/68 → integrated **33/68**, exact McNemar p = 1;
+  - no-grammar: 19/68 → **19/68**, p = 1.
+- **The gap, explained:**
+  - A reference run puts every gold plan through the same path at
+    68/68, and every live prompt is byte for byte the offline one. The
+    runtime adds nothing.
+  - The one discordant sample (gold_044) is engine drift: the same
+    prompt got another completion.
+  - A diagnostic shows that at temperature 0 the engine's completion is
+    not a function of the prompt alone, nor of the prompt and the
+    request before it. The mechanism is not established.
+- **The demo:**
+  - [docs/demo.md](demo.md) is the runbook, with its launcher (GUI
+    PyMOL from the pinned `requirements-demo.txt`, which adds
+    PySide6's essentials). `copilot_demo_fail color` stages the failure
+    beat without adding a fault hook to the product.
+  - Both beats were rehearsed headless against the model
+    ([demo_rehearsal.md](integration/demo_rehearsal.md)).
+  - A scripted dry run of both beats in GUI PyMOL against the model
+    passed every check. Its transcript and screenshots are in
+    docs/integration/dry_run/, and its record is in docs/demo.md. It
+    found that the visible change on apply is small.
+  - **Still open: the watched check.** Martin presents and Hannah
+    watches, or the other way round. The watcher judges whether they
+    could tell what was about to change before apply, and the record in
+    docs/demo.md is filled in.
+- Every GPU run went through Martin's explicit consent: the e2e run,
+  the measurement, the drift diagnostic and the rehearsal.
 
 ---
 

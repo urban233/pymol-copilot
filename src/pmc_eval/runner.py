@@ -22,12 +22,15 @@ Each attempt's outcome is read back from the graph's own state, never
 re-derived: every repairable failure is one entry in `errors`, and the
 terminal status says how the last attempt ended.
 
-The newline normalization is a declared deviation from the runtime,
-settled with Martin: `pmc_core.parser.parse_pml` rejects a completion
-that does not end in a newline, and a chat model's completion usually
-does not, so without it the ungrammared condition would measure that
-formatting rule rather than the model. It is a no-op under the grammar,
-which forces every command to end in a newline.
+The newline normalization was settled with Martin:
+`pmc_core.parser.parse_pml` rejects a completion that does not end in
+a newline, and a chat model's completion usually does not, so without
+it the ungrammared condition would measure that formatting rule rather
+than the model. It is a no-op under the grammar, which forces every
+command to end in a newline. Since item 19 the runtime graph applies
+the same rule itself (`pmc_agent.graph.with_final_newline`), so it is
+no longer a deviation; the harness still applies it first so that each
+call records whether a newline was appended.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -42,7 +45,6 @@ from datetime import UTC
 from datetime import datetime
 from typing import cast
 
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
 from pmc_agent.graph import FAILURE_ENGINE_INCOMPLETE
@@ -55,6 +57,7 @@ from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_REJECTED
 from pmc_agent.graph import RequestState
 from pmc_agent.graph import build_request_graph
+from pmc_agent.graph import new_checkpointer
 from pmc_agent.inference.base import ENGINE_FAILURE_CATEGORIES
 from pmc_agent.inference.base import CancelToken
 from pmc_agent.inference.base import CompletionRequest
@@ -398,7 +401,7 @@ def compile_request_graph(
         plan_id_source=lambda: _FIXED_PLAN_ID,
         clock=lambda: _FIXED_MOMENT,
         validation_deadline_seconds=validation_deadline_seconds,
-    ).compile(checkpointer=InMemorySaver())
+    ).compile(checkpointer=new_checkpointer())
 
 
 def _summary(report: ExecutionReport) -> ExecutionSummary:

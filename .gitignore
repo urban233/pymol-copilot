@@ -242,5 +242,6 @@ code_review
 # Training environment and pinned toolchain (master plan item 17).
 .venv-train/
 .venv-notebook/
+.venv-demo/
 /.train-tools/
 /unsloth_compiled_cache/

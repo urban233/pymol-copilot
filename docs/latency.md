@@ -14,6 +14,18 @@ measured directly -- this item's own decision not to thread a timer through
 `pmc_client.command` to isolate them further. `generate` reads "not
 measured" unless the run named a real Lemonade server.
 
+With the fine-tuned model (master plan item 19), the integrated
+measurement ([docs/integration/](integration/README.md)) timed every
+`test_gold` sample through the running product: console command to
+console output, on Martin's WSL2 machine with the RTX 4060, 2026-09-30.
+It covers inference plus both PyMOL sidecars, which the `generate`
+row below does not isolate.
+
+| Condition | Preview p50 | Preview p90 | Apply p50 | Apply p90 |
+| --- | --- | --- | --- | --- |
+| grammar (68 samples) | 8.9 s | 11.4 s | 2.0 s | 3.0 s |
+| no-grammar (68 samples; 25 applied) | 5.7 s | 8.9 s | 1.0 s | 2.0 s |
+
 <!-- Paste each machine's own table below, oldest first. -->
 
 ### Linux 7.2.6-1-default · x86_64 · Python 3.13.13

@@ -15,6 +15,7 @@ py_library(
         "compare.py",
         "config.py",
         "grade.py",
+        "integrated.py",
         "metrics.py",
         "prompt.py",
         "record.py",
@@ -47,7 +48,6 @@ py_binary(
     main = "eval_cli.py",
     data = ["//configs/evaluation:baseline.json"],
     deps = [
-        "@pypi//httpx",
         "//src/pmc_agent/inference:inference",
         "//src/pmc_core:pmc_core",
         "//src/pmc_data:pmc_data",

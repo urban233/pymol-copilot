@@ -1,0 +1,110 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+# Integrated TaskSuccess (docs/master_plan.md item 19): the gold set
+# through the running product -- live PyMOL, the real client, the real
+# server -- graded on the live session and paired with the offline
+# evaluation. The driver lives here, not in src/pmc_eval, because only
+# tests may depend on pmc_client, the in-PyMOL client it drives.
+_DRIVER_DEPS = [
+    "@pypi//pymol_open_source_whl",
+    "//src/pmc_agent:pmc_agent",
+    "//src/pmc_agent/inference:inference",
+    "//src/pmc_client:pmc_client",
+    "//src/pmc_core:pmc_core",
+    "//src/pmc_data:pmc_data",
+    "//src/pmc_eval:pmc_eval",
+    "//src/pmc_server:pmc_server",
+    "//src/pmc_sidecar:pmc_sidecar",
+    "//tools/winstage:winstage",
+]
+
+_DRIVER_DATA = [
+    "//configs/evaluation:configs",
+    "//docs/dataset:dataset_docs",
+    "//docs/evaluation:evaluation_docs",
+]
+
+py_library(
+    name = "integrated_cli_lib",
+    srcs = ["integrated_cli.py"],
+    data = _DRIVER_DATA,
+    imports = ["."],
+    deps = _DRIVER_DEPS,
+)
+
+# Not a test: `run --config` is minutes of local-model inference and runs
+# only when a person has agreed to it; `run --reference` needs no model.
+# Writes under docs/integration/ through BUILD_WORKSPACE_DIRECTORY.
+py_binary(
+    name = "integrated_cli",
+    srcs = ["integrated_cli.py"],
+    data = _DRIVER_DATA,
+    main = "integrated_cli.py",
+    deps = _DRIVER_DEPS,
+)
+
+# The live grader, the console reading, the gap classifier and the
+# pairing, without PyMOL or a server.
+py_test(
+    name = "live_grade",
+    size = "small",
+    srcs = ["test_live_grade.py"],
+    main = "test_live_grade.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# A correct plan scores every sample through the live path, and a wrong
+# one does not: the real server with a scripted engine, the real client,
+# real headless PyMOL.
+py_test(
+    name = "reference_live_real_pymol",
+    size = "large",
+    timeout = "long",
+    srcs = ["test_reference_live_real_pymol.py"],
+    main = "test_reference_live_real_pymol.py",
+    tags = ["exclusive"],
+    deps = [
+        ":integrated_cli_lib",
+        "@pypi//pytest",
+    ],
+)
+
+# The committed integrated report recomputes from its records, and every
+# sample whose outcome differs from offline carries an explanation.
+py_test(
+    name = "integrated_record",
+    size = "small",
+    srcs = ["test_integrated_record.py"],
+    data = [
+        "//configs/evaluation:configs",
+        "//docs/evaluation:evaluation_docs",
+        "//docs/integration:integration_docs",
+    ],
+    main = "test_integrated_record.py",
+    deps = [
+        "@pypi//pytest",
+        "//src/pmc_eval:pmc_eval",
+    ],
+)
+
+# Not a test: needs the GPU engine, and runs only when a person has agreed
+# to it. Tests whether the engine's completion depends on the request
+# before it (docs/integration/README.md).
+py_binary(
+    name = "drift_probe",
+    srcs = ["drift_probe.py"],
+    main = "drift_probe.py",
+    deps = [
+        "//src/pmc_agent/inference:inference",
+        "//src/pmc_core:pmc_core",
+        "//src/pmc_data:pmc_data",
+        "//src/pmc_server:pmc_server",
+    ],
+)

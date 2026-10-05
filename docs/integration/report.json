@@ -1,0 +1,815 @@
+{
+  "grammar": {
+    "breakouts": {
+      "category": {
+        "color+select+show/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/chain+resn/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select+show/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select+show/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/resi/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select+show/resn/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select/chain+resi/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/chain+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select/name+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resi/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resn/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resn/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+show/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain+hetatm/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain+name+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain+name/and": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color/chain/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color/hetatm/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color/resn/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/resn/single": {
+          "integrated": 0,
+          "n": 2,
+          "offline": 0
+        },
+        "hide+select/chain+hetatm/and": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+select/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+select/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+select/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+select/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/chain/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/name/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+show/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/chain+hetatm/and+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/chain+name/and": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/chain/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/hetatm+resn/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/hetatm/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/name/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/resi/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "orient+select/chain+resi/and": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/name/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/resn/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/chain+hetatm/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+name/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain/single": {
+          "integrated": 2,
+          "n": 2,
+          "offline": 2
+        },
+        "show/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/name/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/resi/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/resn/single+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        }
+      },
+      "shape": {
+        "and": {
+          "integrated": 4,
+          "n": 9,
+          "offline": 3
+        },
+        "and+not": {
+          "integrated": 1,
+          "n": 4,
+          "offline": 1
+        },
+        "and_or": {
+          "integrated": 0,
+          "n": 6,
+          "offline": 0
+        },
+        "or": {
+          "integrated": 0,
+          "n": 5,
+          "offline": 0
+        },
+        "single": {
+          "integrated": 23,
+          "n": 38,
+          "offline": 23
+        },
+        "single+not": {
+          "integrated": 5,
+          "n": 6,
+          "offline": 5
+        }
+      }
+    },
+    "discordant": [
+      {
+        "explanation": "engine_drift",
+        "integrated": true,
+        "offline": false,
+        "offline_outcome": "executed_wrong",
+        "outcome": "applied",
+        "sample_id": "gold_044"
+      }
+    ],
+    "integrated": {
+      "k": 33,
+      "n": 68,
+      "rate": 0.4852941176470588,
+      "wilson_high": 0.6016524669367487,
+      "wilson_low": 0.3705084547256065
+    },
+    "latency_seconds": {
+      "apply_p50": 2.0233152049995624,
+      "apply_p90": 3.03084046100048,
+      "preview_p50": 8.896131938000508,
+      "preview_p90": 11.414506913999503
+    },
+    "mcnemar_exact_p": 1.0,
+    "n": 68,
+    "offline": {
+      "k": 32,
+      "n": 68,
+      "rate": 0.47058823529411764,
+      "wilson_high": 0.5875907791127207,
+      "wilson_low": 0.35673106421198947
+    },
+    "only_integrated": 1,
+    "only_offline": 0,
+    "outcomes": {
+      "applied": 68,
+      "apply_refused": 0,
+      "apply_restored": 0,
+      "no_plan": 0,
+      "not_applicable": 0,
+      "timeout": 0
+    },
+    "prompt_skew": 0
+  },
+  "no-grammar": {
+    "breakouts": {
+      "category": {
+        "color+select+show/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/chain+resn/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/chain/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select+show/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/resi/single+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select+show/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/chain+resi/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/chain+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color+select/name+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resi/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resn/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+select/resn/single+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color+show/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain+hetatm/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain+name+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain+name/and": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "color/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/chain/single+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/hetatm/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/resi/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/resn/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "color/resn/single": {
+          "integrated": 0,
+          "n": 2,
+          "offline": 0
+        },
+        "hide+select/chain+hetatm/and": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+select/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+select/name/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+select/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide+select/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/chain/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/name/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/resi/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide+show/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/chain+hetatm/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/chain+name/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/chain/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/chain/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/hetatm+resn/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/hetatm/single+not": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/name/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "hide/resi/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "hide/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "orient+select/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "orient+select/chain/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "orient+select/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/name/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "orient+select/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+hetatm/and+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+name/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+resi/and": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain+resn/and_or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/chain/single": {
+          "integrated": 1,
+          "n": 2,
+          "offline": 1
+        },
+        "show/hetatm/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/name/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/resi/or": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/resi/single": {
+          "integrated": 1,
+          "n": 1,
+          "offline": 1
+        },
+        "show/resn/single": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        },
+        "show/resn/single+not": {
+          "integrated": 0,
+          "n": 1,
+          "offline": 0
+        }
+      },
+      "shape": {
+        "and": {
+          "integrated": 2,
+          "n": 9,
+          "offline": 2
+        },
+        "and+not": {
+          "integrated": 0,
+          "n": 4,
+          "offline": 0
+        },
+        "and_or": {
+          "integrated": 0,
+          "n": 6,
+          "offline": 0
+        },
+        "or": {
+          "integrated": 0,
+          "n": 5,
+          "offline": 0
+        },
+        "single": {
+          "integrated": 15,
+          "n": 38,
+          "offline": 15
+        },
+        "single+not": {
+          "integrated": 2,
+          "n": 6,
+          "offline": 2
+        }
+      }
+    },
+    "discordant": [],
+    "integrated": {
+      "k": 19,
+      "n": 68,
+      "rate": 0.27941176470588236,
+      "wilson_high": 0.3956343456973241,
+      "wilson_low": 0.18677947923800126
+    },
+    "latency_seconds": {
+      "apply_p50": 1.0316332419997707,
+      "apply_p90": 2.028519772000436,
+      "preview_p50": 5.689089402999343,
+      "preview_p90": 8.931376473000455
+    },
+    "mcnemar_exact_p": 1.0,
+    "n": 68,
+    "offline": {
+      "k": 19,
+      "n": 68,
+      "rate": 0.27941176470588236,
+      "wilson_high": 0.3956343456973241,
+      "wilson_low": 0.18677947923800126
+    },
+    "only_integrated": 0,
+    "only_offline": 0,
+    "outcomes": {
+      "applied": 25,
+      "apply_refused": 0,
+      "apply_restored": 0,
+      "no_plan": 43,
+      "not_applicable": 0,
+      "timeout": 0
+    },
+    "prompt_skew": 0
+  }
+}

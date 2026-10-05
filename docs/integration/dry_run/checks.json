@@ -1,0 +1,14 @@
+{
+  "beat1_apply_changed_the_session": true,
+  "beat1_preview_changed_nothing": true,
+  "beat1_rollback_restored_the_session": true,
+  "beat2_failed_apply_was_restored": true,
+  "screenshots": [
+    "0-start.png",
+    "1-preview.png",
+    "2-applied.png",
+    "3-rolled-back.png",
+    "4-preview-armed.png",
+    "5-restored.png"
+  ]
+}

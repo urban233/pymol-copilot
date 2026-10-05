@@ -17,6 +17,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from pmc_agent.graph import ACCEPTED_CONTRACT_MANIFEST
 from pmc_agent.graph import STATE_RECEIVED
+from pmc_agent.graph import TERMINAL_ASK
 from pmc_agent.graph import TERMINAL_FAILED
 from pmc_agent.graph import TERMINAL_REJECTED
 from pmc_agent.graph import RequestState
@@ -24,6 +25,7 @@ from pmc_agent.graph import build_request_graph
 from pmc_agent.inference.base import STOP_END
 from pmc_agent.inference.base import CompletionResult
 from pmc_agent.inference.fake import FakeEngine
+from pmc_agent.prompt import AttemptFailure
 from pmc_core.errors import CATEGORY_UNKNOWN
 from pmc_core.errors import ERROR_ENVELOPE_VERSION
 from pmc_core.errors import ExecutionErrorV1
@@ -497,6 +499,52 @@ def test_a_configured_grammar_reaches_every_attempt() -> None:
     _run(engine, executor, grammar=grammar)
 
     assert [call.grammar for call in engine.calls] == [grammar] * 3
+
+
+def test_a_completion_missing_its_final_newline_is_parsed_with_one() -> None:
+    """The runtime appends the newline a chat model leaves off, as eval does."""
+    engine = FakeEngine(
+        [CompletionResult("color red, chain A", "m-1", STOP_END)]
+    )
+    executor = FakeExecutor([_ok_report()])
+
+    result = _run(engine, executor)
+
+    assert len(engine.calls) == 1
+    assert "__interrupt__" in result
+    assert result["errors"] == ()
+    assert result["completion"] == "color red, chain A\n"
+
+
+def test_a_trailing_blank_line_is_still_rejected() -> None:
+    """Only a missing newline is added; an extra one is never removed."""
+    engine = FakeEngine(
+        [
+            CompletionResult("color red, chain A\n\n", "m-1", STOP_END),
+            CompletionResult(_VALID_COMPLETION, "m-1", STOP_END),
+        ]
+    )
+    executor = FakeExecutor([_ok_report()])
+
+    result = _run(engine, executor)
+
+    errors = cast(tuple[AttemptFailure, ...], result["errors"])
+    assert [(e.source, e.category) for e in errors] == [
+        ("parse", "alternate_whitespace")
+    ]
+    assert len(executor.calls) == 1
+
+
+def test_a_clarification_without_a_newline_is_still_a_question() -> None:
+    """The appended newline does not turn an `ask:` line into a plan."""
+    engine = FakeEngine(
+        [CompletionResult("ask: which chain?", "m-1", STOP_END)]
+    )
+
+    result = _run(engine, FakeExecutor([]))
+
+    assert result["status"] == TERMINAL_ASK
+    assert result["question"] == "which chain?"
 
 
 if __name__ == "__main__":

@@ -1,0 +1,28 @@
+{
+  "commit": "5b184a84e4d62ce0bf6469640ed6b73d1bbbc649",
+  "condition": "grammar",
+  "config": "configs/evaluation/finetuned.json",
+  "config_sha256": "be73d76d2ef2baa47d1681dee0fb711f48ce14e6924bd5513ab7374c82763058",
+  "dirty": false,
+  "health": [
+    "copilot health\n  client:    application 0.0.0, protocol 1\n  server:    reachable, application 0.0.0\n  engine:    ready -- lemonade 11.9.0 on cuda\n  model:     Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M@/models/train-e6c6c4dd8f6caaf9/export/Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf\n  contracts: plan 1, policy 1, snapshot 1, card 1, prompt 1, grammar 1, errorEnvelope 1, executor 1 -- all match this client\n  copilot:   ready"
+  ],
+  "host": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.39 x86_64",
+  "integrated_version": 1,
+  "mode": "model",
+  "python": "3.13.13",
+  "samples": 68,
+  "server": [
+    "-m",
+    "pmc_server.main",
+    "--config",
+    "/home/manfred/github_repos/pmc-gate/configs/evaluation/finetuned.json",
+    "--grammar",
+    "--trace-file",
+    "/home/manfred/github_repos/pymol-copilot/docs/integration/test_gold/grammar/trace.jsonl",
+    "--handoff",
+    "/tmp/pmc-integrated-6bq0vuqd/session.json"
+  ],
+  "set": "test_gold",
+  "started_at": "2026-09-30T18:32:12Z"
+}
