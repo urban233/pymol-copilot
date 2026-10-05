@@ -64,6 +64,11 @@ CONTENTS = (
 #: the Linux training environment, not the bundle's.
 EXCLUDED = ("notebooks/tests",)
 
+#: The variables that name folders under `state`, which the launcher
+#: creates before anything runs: IPython falls back to a temporary folder
+#: when its own does not exist yet.
+STATE_VARIABLES = ("MPLCONFIGDIR", "IPYTHONDIR", "JUPYTER_RUNTIME_DIR")
+
 #: Environment variables the launcher clears, so that nothing installed
 #: on the colleague's machine reaches the bundle's Python.
 CLEARED = ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP")
@@ -154,9 +159,11 @@ def launcher_text(*, demo: bool = True) -> str:
         'set "PMC_ROOT=%~dp0"',
         'set "PMC_ROOT=%PMC_ROOT:~0,-1%"',
     ]
+    variables = environment("%PMC_ROOT%", demo=demo)
+    lines += [f'set "{name}={value}"' for name, value in variables.items()]
     lines += [
-        f'set "{name}={value}"'
-        for name, value in environment("%PMC_ROOT%", demo=demo).items()
+        f'if not exist "{variables[name]}" mkdir "{variables[name]}"'
+        for name in STATE_VARIABLES
     ]
     lines += [
         "echo PyMOL Copilot - Built with Llama",

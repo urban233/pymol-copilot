@@ -118,6 +118,16 @@ def test_the_launcher_opens_the_notebook_in_jupyterlab() -> None:
     assert '"%PMC_ROOT%\\repo\\notebooks\\pymol_copilot.ipynb"' in text
 
 
+def test_the_state_folders_exist_before_jupyterlab_starts() -> None:
+    """IPython falls back to a temporary folder when its own is missing."""
+    text = bundle_spec.launcher_text()
+    start = text.index("-m jupyterlab")
+
+    for name in bundle_spec.STATE_VARIABLES:
+        folder = bundle_spec.environment("%PMC_ROOT%")[name]
+        assert text.index(f'mkdir "{folder}"') < start
+
+
 @pytest.mark.parametrize(("demo", "value"), [(True, "1"), (False, "0")])
 def test_the_demo_runs_only_with_the_model(demo: bool, value: str) -> None:
     """A bundle without the model (CI's) runs with the demo off."""

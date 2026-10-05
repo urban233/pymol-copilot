@@ -49,6 +49,8 @@ def _use_launcher_environment(*, demo: bool) -> None:
             os.environ[name] = value
         else:
             os.environ.pop(name, None)
+    for name in bundle_spec.STATE_VARIABLES:
+        Path(os.environ[name]).mkdir(parents=True, exist_ok=True)
     for path in (REPOSITORY / "tools" / "winstage", REPOSITORY / "src"):
         sys.path.insert(0, str(path))
 
