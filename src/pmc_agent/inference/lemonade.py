@@ -30,6 +30,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import PureWindowsPath
 from types import TracebackType
 from typing import Any
 
@@ -817,6 +818,9 @@ def _served_model_path(
     A local GGUF that Lemonade serves in place from its
     ``extra_models_dir`` (item 17's exports) has its absolute path as
     its checkpoint. Its launched path must then be exactly that path.
+    On Windows that path starts with a drive (``C:``), whose colon
+    is not a ``<repo>:<file>`` separator, and Windows paths compare
+    without regard to case or slash direction.
 
     Args:
         loaded_model: The selected model's loaded-health block.
@@ -836,6 +840,12 @@ def _served_model_path(
     path = command[position]
     if checkpoint.startswith("/"):
         return path if path == checkpoint else None
+    if PureWindowsPath(checkpoint).is_absolute():
+        return (
+            path
+            if PureWindowsPath(path) == PureWindowsPath(checkpoint)
+            else None
+        )
     _repository, separator, filename = checkpoint.rpartition(":")
     if not separator or not filename:
         return None
