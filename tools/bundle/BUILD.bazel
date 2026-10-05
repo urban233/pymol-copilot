@@ -1,0 +1,12 @@
+load("@rules_python//python:py_library.bzl", "py_library")
+
+# What the portable Windows bundle holds and the files it writes itself
+# (master plan item 20). Standard library only, so it is tested here;
+# build_bundle.py, which downloads and assembles the bundle, runs only on
+# Windows and is not a Bazel target. Nothing ships from tools/.
+py_library(
+    name = "bundle_spec",
+    srcs = ["bundle_spec.py"],
+    imports = ["."],
+    visibility = ["//tests/bundle:__pkg__"],
+)

@@ -2,8 +2,85 @@
 
 Master plan item 20 ([plans/16-portable-bundle.md](../plans/16-portable-bundle.md)).
 One ZIP that runs the notebook on Windows without any setup, including the
-live demo on the CPU. This page is a draft: it records the spike (step 1);
-how to build and share the bundle follows with steps 5 to 9.
+live demo on the CPU.
+
+## For a colleague
+
+Unzip, double-click `Start PyMOL Copilot.bat`, and choose *Run, Run All
+Cells* in the JupyterLab tab that opens. The `README.txt` beside the
+launcher says the same, with what to do when Windows warns about an
+unsigned file. Nothing is installed and nothing leaves the computer; to
+remove the bundle, delete its folder.
+
+Each answer of the model in section 9 takes from tens of seconds to
+about a minute on a CPU. Plan for about 4 GB of free memory and 3 GB of
+disk.
+
+## What is inside
+
+```
+pymol-copilot\
+  Start PyMOL Copilot.bat   the launcher (tools/bundle/bundle_spec.py writes it)
+  README.txt
+  bundle.json               commit, versions, and the model's SHA-256
+  LICENSES\                 every component's licence, Llama 3.2's agreement included
+  python\                   CPython 3.13.13 and requirements-bundle.txt
+  lemonade\                 embeddable Lemonade 11.9.0, llama.cpp b10723 (CPU)
+  model\                    the fine-tuned Q4_K_M GGUF
+  hf\                       the tokenizer's files, read offline
+  repo\                     the code, configs and evidence the notebook reads
+  state\                    created on first start: Jupyter's, IPython's,
+                            matplotlib's and the check's files
+```
+
+The launcher clears `PYTHONPATH`, `PYTHONHOME` and `PYTHONSTARTUP`, turns
+off the user site folder, reads the tokenizer offline, keeps every file
+Jupyter, IPython and matplotlib write under `state\`, and switches the
+live demo on. The notebook then starts its own Lemonade (below).
+
+## Building it
+
+On Windows, with `git` and `uv` on the `PATH`, from a clean checkout of
+the commit to ship (a dirty tree is refused):
+
+```
+uv run --python 3.13 tools\bundle\build_bundle.py ^
+    --model <path to Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf> ^
+    --out C:\pmc-dist
+```
+
+It downloads every input once into `C:\pmc-dist\downloads` and checks
+each against its SHA-256 in `configs/bundle/pins.json`. Then it installs
+the locked packages, lets Lemonade's own CLI install the pinned llama.cpp
+backend, copies the model and checks it, fetches the tokenizer's files,
+gathers the licences, and writes
+`C:\pmc-dist\pymol-copilot-<commit>-win64.zip` and its `.sha256`. Every
+path inside the ZIP is at most 150 characters, so Explorer can extract it
+under a deep folder. `--no-model` builds the same bundle without the
+model (CI's): its launcher leaves the live demo off.
+
+To check a built bundle from inside it, with its own Python:
+
+```
+pymol-copilot\python\python.exe pymol-copilot\repo\tools\bundle\check_bundle.py
+```
+
+It launches PyMOL in a Jupyter kernel. It then runs gold item `gold_056`
+in a PyMOL sidecar and requires the fingerprint recorded on Linux.
+Finally, it executes a copy of the notebook and runs its record test on
+that copy, which recomputes every number from the committed evidence.
+The `Portable bundle smoke` workflow does all of this without the model
+on `windows-2025` for every pull request that touches what the bundle
+holds.
+
+## Sharing it
+
+The ZIP is about 1.2 GB, almost all of it the model (stored, not
+compressed: a GGUF barely compresses). Share it through a file share or
+OneDrive rather than e-mail, with its `.sha256`. The model is derived
+from Llama 3.2: whoever receives it receives the Llama 3.2 Community
+License Agreement and its Acceptable Use Policy with it, in `LICENSES\`,
+and the launcher and README show "Built with Llama".
 
 ## Spike: embeddable Lemonade on native Windows
 
@@ -49,6 +126,22 @@ does, with `--backend cpu --lemonade-base-url http://127.0.0.1:13399`.
 | How long does a request take? | 69.4 s for `gold_056`, 45.3 s for the unseen intent. Almost all of it is reading the prompt: 2,485 tokens at about 48 tokens per second on 4 threads (52 s), then 30 tokens generated at about 8 per second. The second request reused the cached prefix (1,317 new tokens, 28 s). A newer CPU with more cores is faster; this 2019 4-core APU is a floor, not a typical laptop. |
 | Does `lemond` reach the network? | With `offline: true` it logs "offline mode; using installed llamacpp:cpu backend" and no outbound request. Step 8 confirms it with the network off. |
 | What is written outside the given folders? | The recovery point goes to `%TEMP%` (the notebook's own temporary folder), as planned. |
+
+### The notebook's own engine on Windows (step 4)
+
+`notebook_support.start_engine` was then run on the same host from a
+test bundle under `C:\pmc-spike\bündle` (a non-ASCII folder), loading
+the model without generating:
+
+- It verified the model's SHA-256, handed `lemond` the 8.3 short forms
+  of its folders (`C:\PMC-SP~1\BNDLE~1\...`), picked a free port, loaded
+  the model and found the evaluated llama.cpp arguments in its launch
+  command, in 4.7 to 6.5 s (hashing the 770 MiB model included).
+- A second call returned the running engine; `stop_engine` left no
+  `lemond` or `llama-server` process.
+- When the kernel's process ended abruptly (`os._exit`), the Windows job
+  object took `lemond` and `llama-server` with it. In a control run with
+  the job object disabled, both were left running.
 
 ### Consequences for the bundle
 

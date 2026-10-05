@@ -14,5 +14,8 @@ filegroup(
         "//tests/e2e:__pkg__",
         "//tests/integrated:__pkg__",
         "//tests/unit:__pkg__",
+        # The portable bundle's engine must be the evaluated CPU engine
+        # (master plan item 20).
+        "//tests/bundle:__pkg__",
     ],
 )

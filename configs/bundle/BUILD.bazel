@@ -1,0 +1,5 @@
+# The portable Windows bundle's pinned downloads (master plan item 20).
+exports_files(
+    ["pins.json"],
+    visibility = ["//tests/bundle:__pkg__"],
+)
