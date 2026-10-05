@@ -1,5 +1,7 @@
 exports_files([
     "pyproject.toml",
+    "requirements-bundle.txt",
     "requirements-demo.txt",
+    "requirements-notebook.txt",
     "requirements_lock.txt",
 ])

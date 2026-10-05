@@ -1,0 +1,16 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+# The portable Windows bundle's lock keeps the runtime's packages and the
+# notebook's own versions, and leaves the training stack out (item 20).
+py_test(
+    name = "bundle_environment",
+    size = "small",
+    srcs = ["test_bundle_environment.py"],
+    data = [
+        "//:requirements-bundle.txt",
+        "//:requirements-notebook.txt",
+        "//:requirements_lock.txt",
+    ],
+    main = "test_bundle_environment.py",
+    deps = ["@pypi//pytest"],
+)
