@@ -150,6 +150,10 @@ still parses (sabotage: revert).
   assert the chat-template date in `launch_command`; read the `checkpoint` from the
   catalog and confirm `os.path.samefile` with the verified GGUF. Re-adopt a healthy
   engine it started earlier. `stop_engine()`.
+- **Non-ASCII paths** (spike finding: Lemonade 11.9.0 exits silently when its own
+  folder, cache, config or `extra_models_dir` holds e.g. `ü`): pass `lemond` the 8.3
+  short form of every path; where the volume has no short names, stage `lemonade\`
+  and a hard link of the GGUF into an ASCII folder, as `winstage` does for PyMOL.
 - Server joins the same Job Object; `--lemonade-base-url http://127.0.0.1:<port>`
   (avoids `localhost` → `::1` stalls against health's 2 s budget, `lemonade.py:78`).
 - `launch_pymol()`: idempotent (one `finish_launching` per process) and calls
@@ -186,7 +190,8 @@ URL+sha256, tokenizer revision + files), manifest, launcher text, path budget.
    --invalidation-mode unchecked-hash`; JupyterLab `overrides.json`.
 3. Lemonade embeddable → `lemonade\`; `backends install llamacpp:cpu`; write
    `config.template.json`; assert the build equals `finetuned_cpu.json`'s; MSVC DLLs
-   app-local if step 1 showed the need.
+   app-local (step 1: the llama.cpp binaries import `MSVCP140.dll` and
+  `VCRUNTIME140.dll` and do not ship them).
 4. GGUF → `model\` (sha256 checked); tokenizer files → `hf\` (`snapshot_download`,
    `allow_patterns`).
 5. Launcher, README, LICENSES, `bundle.json`; path budget (≤150 chars per entry; the
@@ -265,4 +270,8 @@ tar -xf pymol-copilot-<sha>-win64.zip -C %USERPROFILE%\Downloads
   Mark-of-the-Web; README offers `tar -xf` and *Unblock*; avoid OneDrive-synced folders.
 - **Console QuickEdit** pauses Jupyter when clicked — launcher disables it or README warns.
 - **Size** ~1.2–1.5 GB (GGUF barely compresses) — share via file share/OneDrive.
-- **CPU speed** — ~3 s/attempt on WSL CPU; slower laptops take longer; timeouts stay 600 s.
+- **CPU speed** — the spike measured 45–70 s per request on a 2019 4-core APU
+  (prompt reading at ~48 tokens/s dominates); newer CPUs are faster. Section 9 says
+  so up front; timeouts stay 600 s.
+- **Loopback llama-server allows any CORS origin** (as in the Docker engine) — a page
+  in the user's browser could reach it while the demo runs; documented.
