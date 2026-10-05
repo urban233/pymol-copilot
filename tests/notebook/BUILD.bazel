@@ -13,6 +13,20 @@ py_test(
     deps = ["@pypi//pytest"],
 )
 
+# The notebook's helpers decide which engine section 9 serves from and
+# what they accept from it (master plan item 20's Windows bundle).
+py_test(
+    name = "notebook_support",
+    size = "small",
+    srcs = ["test_notebook_support.py"],
+    data = [
+        "//configs/evaluation:configs",
+        "//notebooks:notebook",
+    ],
+    main = "test_notebook_support.py",
+    deps = ["@pypi//pytest"],
+)
+
 # Every number the executed notebook reports recomputes from the
 # committed evidence, and every cell, the demonstration included, ran.
 py_test(
