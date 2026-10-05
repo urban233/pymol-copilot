@@ -1,0 +1,56 @@
+name: Portable bundle smoke
+
+# Builds the portable Windows bundle (master plan item 20) without the
+# model, which is never uploaded, extracts it into a deep folder whose
+# name has spaces, and runs its own check with the live demo off: PyMOL
+# in a Jupyter kernel, a PyMOL sidecar from the relocated Python, and the
+# whole notebook with every number it reports recomputed. The bundle
+# with the model is built and checked on the build host (docs/bundle.md).
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/bundle.yml"
+      - "configs/**"
+      - "docs/dataset/**"
+      - "docs/evaluation/**"
+      - "docs/training/**"
+      - "notebooks/**"
+      - "requirements-bundle.txt"
+      - "requirements_lock.txt"
+      - "src/**"
+      - "tests/notebook/**"
+      - "tools/bundle/**"
+      - "tools/winstage/**"
+  push:
+    branches: [main]
+    paths:
+      - "notebooks/**"
+      - "requirements-bundle.txt"
+      - "tools/bundle/**"
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Build the bundle without the model
+        run: uv run --python 3.13 tools\bundle\build_bundle.py --no-model --out "${{ runner.temp }}\pmc-dist"
+      - name: Extract it into a deep folder
+        shell: pwsh
+        run: |
+          $target = Join-Path "${{ runner.temp }}" "Users\A Colleague\Downloads\pymol-copilot-ci (1)"
+          New-Item -ItemType Directory -Force $target | Out-Null
+          $zip = Get-ChildItem "${{ runner.temp }}\pmc-dist\pymol-copilot-*-win64.zip"
+          tar -xf $zip.FullName -C $target
+          "BUNDLE=$target\pymol-copilot" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Check it from inside
+        shell: pwsh
+        run: |
+          & "$env:BUNDLE\python\python.exe" "$env:BUNDLE\repo\tools\bundle\check_bundle.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
