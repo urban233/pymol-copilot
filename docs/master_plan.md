@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-30 (items 12, 16, 17 and 18 done; item 19 in progress)
+**Written:** 2026-09-16 · **State as of:** 2026-10-05 (items 12, 16, 17, 18 and 19 done; item 20 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -104,8 +104,9 @@ Every item carries a **State**. The values are:
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
 | 17 | Fine-tuning | Martin | **done** — PR #59 | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
-| 18 | Notebook | Martin | **done** — PR #60 | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
-| 19 | Integration | Joint | **in progress** — `feat/integration` | 12 ✓, 17 ✓ | — |
+| 18 | Notebook | Martin | **done** — PR #60 | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | 20 |
+| 19 | Integration | Joint | **done** — PR #61 | 12 ✓, 17 ✓ | 20 |
+| 20 | Portable Windows bundle | Martin | **in progress** — `feat/portable-bundle` | 18 ✓, 19 ✓ | — |
 
 ### The graph
 
@@ -136,7 +137,8 @@ flowchart LR
   I16["16 · eval and baseline"]:::done
   I17["17 · fine-tuning"]:::done
   I18["18 · notebook"]:::done
-  I19["19 · integration"]:::progress
+  I19["19 · integration"]:::done
+  I20["20 · portable bundle"]:::progress
 
   I2 --> I4
   I3 --> I4
@@ -175,6 +177,8 @@ flowchart LR
   I17 --> I18
   I12 --> I19
   I17 --> I19
+  I18 --> I20
+  I19 --> I20
 ```
 
 The dashed edge is soft: item 16 needs *some* way to run the untuned base model,
@@ -218,11 +222,14 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   executed, and every number it reports recomputes from the committed
   evidence. It pulled the server's model flags forward from item 19,
   which is now in progress.
-- **Item 19 is in progress on `feat/integration`.** The model runs
-  through the product at the offline TaskSuccess: 33/68 with the grammar,
-  19/68 without. The one differing sample is explained under item 19
-  below. The demo is rehearsed and dry-run by script; what remains is
-  the watched check of the preview.
+- **Item 19 is done as PR #61.** The model runs through the product at
+  the offline TaskSuccess: 33/68 with the grammar, 19/68 without. The one
+  differing sample is explained under item 19 below. The demo is
+  rehearsed and dry-run by script; the watched check of the preview is
+  still to do.
+- **Item 20 is in progress on `feat/portable-bundle`.** It packs the
+  notebook, the runtime and the fine-tuned model into one ZIP that runs
+  on Windows without any setup.
 
 ### Cross-owner hand-offs
 
@@ -769,7 +776,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** in progress (`feat/integration`) — plan in [plans/15-integration.md](../plans/15-integration.md)
+**Size:** ~3 days · **State:** done (PR #61) — plan in [plans/15-integration.md](../plans/15-integration.md)
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
@@ -834,6 +841,21 @@ before apply is confirmed.
     docs/demo.md is filled in.
 - Every GPU run went through Martin's explicit consent: the e2e run,
   the measurement, the drift diagnostic and the rehearsal.
+
+## Martin — distribution
+
+### 20. Portable Windows bundle
+
+**Size:** ~4 days · **State:** in progress (`feat/portable-bundle`) — plan in [plans/16-portable-bundle.md](../plans/16-portable-bundle.md)
+
+```
+Pack the notebook into one ZIP a colleague on Windows can extract and run
+without any setup: no Python, no GPU, no administrator rights, no network.
+A double-click opens the notebook in a bundled JupyterLab, and Run All
+re-executes every section, including the live demo against the fine-tuned
+model on the CPU, served by an embedded Lemonade. The model ships with its
+licence and is verified by its SHA-256 before it loads.
+```
 
 ---
 
