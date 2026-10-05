@@ -55,8 +55,11 @@ the locked packages, lets Lemonade's own CLI install the pinned llama.cpp
 backend, copies the model and checks it, fetches the tokenizer's files,
 gathers the licences, and writes
 `C:\pmc-dist\pymol-copilot-<commit>-win64.zip` and its `.sha256`. Every
-path inside the ZIP is at most 150 characters, so Explorer can extract it
-under a deep folder. `--no-model` builds the same bundle without the
+path inside the ZIP is at most 160 characters, so Explorer can extract it
+under a folder up to 100 characters deep. To get there it deletes
+JupyterLab's UI-testing helper and tests, and leaves out the few
+precompiled `.pyc` files whose paths would be longer (Python runs those
+modules from their source). `--no-model` builds the same bundle without the
 model (CI's): its launcher leaves the live demo off.
 
 To check a built bundle from inside it, with its own Python:

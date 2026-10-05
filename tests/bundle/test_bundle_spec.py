@@ -178,6 +178,17 @@ def test_paths_longer_than_the_budget_are_found() -> None:
     assert bundle_spec.over_budget([fits + "b"]) == [fits + "b"]
 
 
+def test_a_precompiled_module_too_long_is_left_out() -> None:
+    """Python runs it from its source; anything else too long fails."""
+    long = "pymol-copilot/" + "a" * bundle_spec.PATH_BUDGET
+    entries = ["pymol-copilot/short.py", long + ".pyc", long + ".py"]
+
+    packed, too_long = bundle_spec.zip_entries(entries)
+
+    assert packed == ["pymol-copilot/short.py"]
+    assert too_long == [long + ".py"]
+
+
 def test_the_zip_is_named_after_its_commit() -> None:
     """Two builds of different commits never share a name."""
     name = bundle_spec.zip_name("0123456789abcdef0123")

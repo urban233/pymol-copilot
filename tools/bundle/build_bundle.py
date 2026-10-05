@@ -196,6 +196,8 @@ def _add_python(stage: Path, pins: dict[str, Any], cache: Path) -> Path:
         "--requirement",
         REPOSITORY / "requirements-bundle.txt",
     )
+    for pruned in bundle_spec.PRUNED:
+        _remove(stage / pruned)
     settings = stage / "python" / "share" / "jupyter" / "lab" / "settings"
     settings.mkdir(parents=True, exist_ok=True)
     (settings / "overrides.json").write_text(
@@ -378,7 +380,8 @@ def _write_zip(stage: Path, target: Path, timestamp: int) -> None:
     """Pack the bundle into one ZIP, deterministically.
 
     Entries are sorted and carry the commit's time. The model is stored,
-    not compressed: a GGUF barely compresses, and storing it is fast.
+    not compressed: a GGUF barely compresses, and storing it is fast. A
+    precompiled module too long to extract is left out (`zip_entries`).
 
     Args:
         stage: The bundle's folder.
@@ -388,14 +391,15 @@ def _write_zip(stage: Path, target: Path, timestamp: int) -> None:
     Raises:
         RuntimeError: If an entry's path is too long to extract safely.
     """
-    files = sorted(path for path in stage.rglob("*") if path.is_file())
-    names = [
-        f"{bundle_spec.ROOT_NAME}/{path.relative_to(stage).as_posix()}"
-        for path in files
-    ]
-    too_long = bundle_spec.over_budget(names)
+    by_name = {
+        f"{bundle_spec.ROOT_NAME}/{path.relative_to(stage).as_posix()}": path
+        for path in stage.rglob("*")
+        if path.is_file()
+    }
+    names, too_long = bundle_spec.zip_entries(sorted(by_name))
     if too_long:
         raise RuntimeError(f"paths too long to extract safely: {too_long}")
+    files = [by_name[name] for name in names]
     moment = datetime.datetime.fromtimestamp(timestamp, datetime.UTC)
     date_time = (
         max(moment.year, 1980),

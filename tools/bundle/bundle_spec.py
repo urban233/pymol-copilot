@@ -28,9 +28,17 @@ LAUNCHER_NAME = "Start PyMOL Copilot.bat"
 
 #: The longest path an entry may have inside the ZIP, its root folder
 #: included. Windows Explorer cannot extract a path longer than 260
-#: characters, so this leaves 110 for the folder the ZIP is extracted to
+#: characters, so this leaves 100 for the folder the ZIP is extracted to
 #: (`C:\Users\<name>\Downloads\pymol-copilot-<commit>-win64\` is about 60).
-PATH_BUDGET = 150
+PATH_BUDGET = 160
+
+#: What the installed packages ship that the bundle never runs and whose
+#: paths are among the longest: JupyterLab's UI-testing helper (Galata)
+#: and its own tests. Paths from the bundle's folder.
+PRUNED = (
+    "python/Lib/site-packages/jupyterlab/galata",
+    "python/Lib/site-packages/jupyterlab/tests",
+)
 
 #: Where the pinned downloads are recorded, from the repository root.
 PINS = "configs/bundle/pins.json"
@@ -280,6 +288,33 @@ def over_budget(entries: Iterable[str], budget: int = PATH_BUDGET) -> list[str]:
         The entries that exceed it.
     """
     return [entry for entry in entries if len(entry) > budget]
+
+
+def zip_entries(
+    entries: Iterable[str], budget: int = PATH_BUDGET
+) -> tuple[list[str], list[str]]:
+    """Choose what goes into the ZIP, and what is too long to.
+
+    A precompiled `.pyc` adds `__pycache__` and the interpreter's tag to
+    its module's path. One too long to extract is left out: Python then
+    runs that module from its source, which is always there. Any other
+    entry that is too long fails the build.
+
+    Args:
+        entries: The bundle's files, as paths inside the ZIP.
+        budget: The longest path allowed.
+
+    Returns:
+        The entries to pack, and those too long that cannot be left out.
+    """
+    packed: list[str] = []
+    too_long: list[str] = []
+    for entry in entries:
+        if len(entry) <= budget:
+            packed.append(entry)
+        elif not entry.endswith(".pyc"):
+            too_long.append(entry)
+    return packed, too_long
 
 
 def declared_licence(metadata: Any) -> str:
