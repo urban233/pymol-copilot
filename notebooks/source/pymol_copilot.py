@@ -78,6 +78,12 @@ RUN_TRAINING = False
 #: (the Windows bundle starts its own and switches the demo on).
 RUN_DEMO = os.environ.get("PMC_NOTEBOOK_DEMO") == "1"
 
+# Section 9 runs PyMOL inside this kernel. It is started now, before the
+# tokenizer and LangGraph are loaded: on Windows, PyMOL launched later in
+# a Jupyter kernel fails to start (docs/bundle.md).
+if RUN_DEMO:
+    cmd = support.launch_pymol()
+
 print(support.host_description())
 
 # %% [markdown]
@@ -711,11 +717,11 @@ from pmc_core.snapshot import reconstruct
 
 output_lines: list[str] = []
 if RUN_DEMO:
-    engine = support.start_engine(MODEL_NAME, CONTEXT_SIZE)
-    print("engine:", " ".join(engine.flags))
+    lemonade = support.start_engine(MODEL_NAME, CONTEXT_SIZE)
+    print("engine:", " ".join(lemonade.flags))
     workdir = Path(tempfile.mkdtemp(prefix="pmc-notebook-"))
     handoff = workdir / "session.json"
-    server = support.start_server([*SERVER_FLAGS, *engine.flags], handoff)
+    server = support.start_server([*SERVER_FLAGS, *lemonade.flags], handoff)
     cmd = support.launch_pymol()
     reconstruct(cmd, snapshot)
     driver = support.ConsoleDriver(cmd)
@@ -800,7 +806,7 @@ if plan_id is not None:
     print("zinc colour index after rollback:", restored)
 if RUN_DEMO:
     support.stop_server(server)
-    support.stop_engine(engine)
+    support.stop_engine(lemonade)
 
 # %% [markdown]
 # ## 10. Limits, versions, licensing and retention

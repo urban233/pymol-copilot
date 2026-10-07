@@ -146,6 +146,21 @@ the model without generating:
   object took `lemond` and `llama-server` with it. In a control run with
   the job object disabled, both were left running.
 
+### PyMOL in a Jupyter kernel on Windows (step 8)
+
+The first check of a full bundle hung in section 9: PyMOL's own launch
+thread had died with `UnicodeDecodeError: 'utf-8' codec can't decode
+byte 0x8b in position 0` inside `_cmd._start`, so it never ran the
+queued `copilot` command. Bisecting the notebook's cells found the
+trigger: PyMOL launched in a Jupyter kernel after both
+`pmc_eval.eval_cli` (LangGraph and about 1,000 other modules) and the
+tokenizer had been loaded. Either one alone was harmless, as was the
+same sequence in plain Python, an ASCII path, or Linux. The byte varies
+between runs (0x83, 0x8b), which suggests PyMOL's startup reads
+uninitialised memory. The notebook therefore launches PyMOL in its first
+cell when the demo is on; launched first, it keeps working after both
+are loaded.
+
 ### Consequences for the bundle
 
 - Everything `lemond` reads or writes is passed to it inside the bundle
