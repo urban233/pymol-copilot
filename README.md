@@ -29,6 +29,10 @@ not yet qualified product support. See the
 [development setup guide](docs/development_setup.md) for the authoritative
 commands.
 
+To run the notebook on Windows without any setup, including the live demo
+on the CPU, build the [portable bundle](docs/bundle.md): one ZIP to extract
+and double-click.
+
 ## 👁️‍🗨️ The Vision
 
 Structural biology workflows require navigating dozens of precise PyMOL commands, 

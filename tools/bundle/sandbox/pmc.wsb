@@ -1,0 +1,32 @@
+<!--
+  Master plan item 20, step 8: a clean Windows (Windows Sandbox, network
+  off) extracts the portable bundle and runs it. Double-click this file on
+  the build host. C:\pmc-dist holds the built ZIP (build_bundle.py's
+  --out); C:\pmc-src is the Windows checkout this folder belongs to; the
+  results are written to C:\pmc-sandbox\results. Edit the host folders
+  if yours differ. See docs/bundle.md.
+-->
+<Configuration>
+  <Networking>Disable</Networking>
+  <MemoryInMB>8192</MemoryInMB>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\pmc-dist</HostFolder>
+      <SandboxFolder>C:\dist</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\pmc-sandbox\results</HostFolder>
+      <SandboxFolder>C:\results</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\pmc-src\tools\bundle\sandbox</HostFolder>
+      <SandboxFolder>C:\sandbox</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\sandbox\run.ps1</Command>
+  </LogonCommand>
+</Configuration>

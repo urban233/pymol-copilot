@@ -76,9 +76,27 @@ The `Portable bundle smoke` workflow does all of this without the model
 on `windows-2025` for every pull request that touches what the bundle
 holds.
 
+### On a clean Windows
+
+`tools/bundle/sandbox/pmc.wsb` starts Windows Sandbox: a fresh Windows
+with no Python, no Visual C++ runtime and the network off. Its
+`run.ps1` runs unattended:
+
+1. it extracts the ZIP from `C:\pmc-dist` into a `Downloads` folder whose
+   name has an umlaut, a space and `(1)`;
+2. it runs `check_bundle.py` with the live demo;
+3. it starts the launcher as a double-click would, and waits for
+   JupyterLab to answer;
+4. it lists what was left running and what was written outside the
+   bundle.
+
+The results land in `C:\pmc-sandbox\results` (create it first). Windows
+starts a Sandbox only from the desktop, not from WSL, so the file is
+double-clicked.
+
 ## Sharing it
 
-The ZIP is about 1.2 GB, almost all of it the model (stored, not
+The ZIP is about 1.06 GB, almost all of it the model (stored, not
 compressed: a GGUF barely compresses). Share it through a file share or
 OneDrive rather than e-mail, with its `.sha256`. The model is derived
 from Llama 3.2: whoever receives it receives the Llama 3.2 Community

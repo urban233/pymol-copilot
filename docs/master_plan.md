@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-10-05 (items 12, 16, 17, 18 and 19 done; item 20 in progress)
+**Written:** 2026-09-16 · **State as of:** 2026-10-07 (items 12, 16, 17, 18 and 19 done; item 20 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -856,6 +856,53 @@ re-executes every section, including the live demo against the fine-tuned
 model on the CPU, served by an embedded Lemonade. The model ships with its
 licence and is verified by its SHA-256 before it loads.
 ```
+
+**Progress** (see [docs/bundle.md](bundle.md)):
+
+- **The spike:** Lemonade's embeddable Windows build 11.9.0 runs the
+  fine-tuned model natively.
+  - The CPU backend it installs is llama.cpp b10723, the evaluated CPU
+    engine of `configs/evaluation/finetuned_cpu.json`.
+  - It binds to 127.0.0.1 only, and the chat template's date reaches
+    llama.cpp intact.
+  - It exits silently on any non-ASCII path; 8.3 short paths work.
+  - llama.cpp needs the Visual C++ runtime DLLs, which a clean Windows
+    may lack.
+- **The runtime:** `_served_model_path` now accepts a Windows-absolute
+  checkpoint. Before, `C:\...` was split at the drive's colon.
+- **The notebook:** in the bundle, section 9 starts its own Lemonade on
+  the CPU.
+  - It verifies the model's SHA-256 first, and refuses a llama.cpp
+    launched without the evaluated arguments.
+  - Lemonade, llama-server and the server run in a Windows job object,
+    so a crashed kernel leaves nothing running.
+  - PyMOL is launched in the first cell: launched later in a Windows
+    Jupyter kernel, after LangGraph and the tokenizer, it dies at start
+    (bisected; docs/bundle.md).
+  - The committed notebook is re-executed against the Docker engine on
+    the CPU, with the same plans as the GPU run.
+- **The bundle:** `tools/bundle/build_bundle.py` builds it on Windows
+  from the committed tree, every download pinned by SHA-256 in
+  `configs/bundle/pins.json`.
+  - It holds CPython 3.13.13 with `requirements-bundle.txt` (the
+    runtime's pins, the notebook's tokenizer stack, JupyterLab; no
+    training stack), Lemonade, the model, the tokenizer's files, every
+    licence, and the repository's code and evidence.
+  - The ZIP is 1.06 GB, and every path in it is at most 160 characters.
+- **The check:** `tools/bundle/check_bundle.py` runs inside an
+  extracted bundle.
+  - It launches PyMOL in a Jupyter kernel, and requires a sidecar from
+    the relocated Python to reproduce `gold_056`'s Linux fingerprint.
+  - It then executes the notebook and recomputes every reported number.
+  - On the build host, extracted under `Jürgen Müller\Downloads\... (1)`,
+    every check passed, the live demo included. A CPU answer took
+    45–80 s on its 2019 4-core APU.
+  - The `Portable bundle smoke` workflow runs it without the model on
+    `windows-2025`.
+- **Still open:** the clean-machine run in Windows Sandbox with the
+  network off (step 8). `tools/bundle/sandbox/pmc.wsb` runs it
+  unattended, but has to be double-clicked: Windows refuses to start a
+  Sandbox from WSL.
 
 ---
 
