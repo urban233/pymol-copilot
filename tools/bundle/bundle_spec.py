@@ -45,9 +45,11 @@ PINS = "configs/bundle/pins.json"
 
 #: What the notebook and its check need from the repository, as `git
 #: archive` path specs: the code, the committed evidence it reads, the
-#: configs it hashes, and the record test `check_bundle.py` runs.
+#: configs it hashes, the record test `check_bundle.py` runs, and the
+#: image the German short notebook shows.
 CONTENTS = (
     "LICENSE",
+    "assets/splash_screen.png",
     "configs",
     "docs/bundle.md",
     "docs/dataset",

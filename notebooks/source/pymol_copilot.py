@@ -8,8 +8,7 @@
 # %% [markdown]
 # # PyMOL-Copilot: a local model that writes safe PyMOL commands
 #
-# **Authors:** Martin Urban and Hannah Kullik · **Deliverable of:** the V1
-# specification (`SPECIFICATION.md`) · **Built by:**
+# **Authors:** Martin Urban and Hannah Kullik · **Built by:**
 # `notebooks/build_notebook.py` from `notebooks/source/pymol_copilot.py`
 #
 # PyMOL is a molecular viewer driven by a command language. PyMOL-Copilot
@@ -360,8 +359,8 @@ print(
 #
 # Before any fine-tuning existed, the base model (Llama-3.2-1B-Instruct,
 # quantized to Q4_K_M) was evaluated by the same harness the fine-tune
-# would be, and the comparison was pre-registered
-# (`docs/evaluation/PREREGISTRATION.md`): **TaskSuccess on `test_gold`**,
+# would be, and the comparison was fixed before either model was
+# evaluated: **TaskSuccess on `test_gold`**,
 # for each condition, paired by sample, with an exact two-sided McNemar
 # test. A sample succeeds when its final plan runs cleanly in PyMOL and
 # leaves exactly the state its assertions predict. The two conditions are
@@ -555,8 +554,7 @@ support.markdown_table(
 )
 
 # %% [markdown]
-# The specification also asks for the diagnostic rates that were measured:
-# how often the first attempt parses, how often the model abstains, how
+# Beside TaskSuccess, the harness measures diagnostic rates: how often the first attempt parses, how often the model abstains, how
 # often a repair rescues a failed attempt, and how long an attempt takes.
 # On `test_gold`:
 
@@ -612,8 +610,8 @@ support.markdown_table(
 # parsing), 2 were repaired into a valid plan and 1 into a correct one. Under the grammar nothing needs repair, because every plan
 # parses. The latencies are on the RTX 4060; on the machine's CPU the
 # fine-tuned model's median was 2.7-3.6 s per attempt
-# (`docs/training/README.md`, "Runs on CPU"). IoU and degeneracy, also
-# named by the specification, were not measured.
+# (`docs/training/README.md`, "Runs on CPU"). IoU and degeneracy were
+# not measured.
 #
 # **The fine-tune beats the baseline under both conditions on the primary
 # endpoint**, and every discordant pair favours it. On `heldout_synthetic`
@@ -811,9 +809,9 @@ if RUN_DEMO:
 # %% [markdown]
 # ## 10. Limits, versions, licensing and retention
 #
-# ### What V1 does not do
+# ### What this version does not do
 #
-# Cut from V1 before building, as the specification permits:
+# Left out on purpose, before building:
 #
 # - fetching structures from the PDB inside the tool;
 # - the `label`, `set` and measurement command families;
@@ -837,7 +835,8 @@ if RUN_DEMO:
 # - the integrated-GPU route (Lemonade's Vulkan backend) is **unproven**:
 #   CPU and a discrete NVIDIA GPU were measured.
 #
-# The specification's optional evidence, and what became of it:
+# Further evidence that would strengthen the result, and what became of
+# it:
 #
 # | Item | Status |
 # | --- | --- |
