@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """A correct plan scores through the live path; a wrong one does not.
 
-docs/master_plan.md item 19. Before the integrated measurement grades a
+Before the integrated measurement grades a
 model, it has to grade the product itself correctly. Here the real
 server (`pmc_server.main.serve`) runs with a scripted engine that
 answers each sample's own gold plan, the real client sends each intent

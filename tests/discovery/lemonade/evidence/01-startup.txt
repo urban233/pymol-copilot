@@ -7,7 +7,7 @@ Image platform (per `docker inspect`): linux/amd64 (confirmed: GHCR manifest lis
 Host: Apple M2 Pro (arm64), OrbStack Docker Desktop replacement, Linux
   7.0.14-orbstack (Ubuntu 24.04 userspace inside the VM).
 
-Outcome: contrary to the plan's prior expectation of a likely SIGILL under
+Outcome: contrary to the prior expectation of a likely SIGILL under
 emulation (Rosetta historically lacks AVX2), the emulated x86_64
 lemonade-server manager process AND the downloaded llama-server (llama.cpp,
 build b10723) binary both started and ran a real model load and chat

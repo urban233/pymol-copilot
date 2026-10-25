@@ -1,9 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """What the portable Windows bundle holds, and the files it writes itself.
 
-Master plan item 20 (plans/16-portable-bundle.md). The bundle is one ZIP
-that runs the notebook on Windows without any setup: its own Python, its
-own Lemonade with the llama.cpp CPU backend, the fine-tuned model, the
+The bundle is one ZIP that runs the notebook on Windows without any
+setup: its own Python, its own Lemonade with the llama.cpp CPU backend,
+the fine-tuned model, the
 tokenizer files the notebook reads, and the repository's code and
 evidence. `build_bundle.py` downloads and assembles it on Windows; this
 module decides what goes in and writes the launcher, the README and the

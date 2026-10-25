@@ -4,7 +4,7 @@
 Covers pmc_core.grammar's generated GBNF: that every terminal comes from
 pmc_core.plan's allowlist tables rather than from a literal in the
 generator, and that the grammar agrees with pmc_core.parser over an
-accept/reject corpus -- the evidence SPECIFICATION.md:488 asks for.
+accept/reject corpus.
 
 The agreement is deliberately one-directional. Anything the parser
 accepts, the grammar must accept; the converse is not promised, because

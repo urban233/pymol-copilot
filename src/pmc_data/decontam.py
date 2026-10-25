@@ -1,11 +1,11 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Decontamination: drop training samples that restate a gold intent.
 
-The spec requires that training data overlapping near-duplicate test
-intents is removed. The gold set is the test split, so a training
-sample is dropped when its intent is a near-duplicate of any gold
-intent. Samples generated on held-out structures are already excluded
-from training by the structure split; this module handles the wording.
+Training data overlapping near-duplicate test intents is removed. The
+gold set is the test split, so a training sample is dropped when its
+intent is a near-duplicate of any gold intent. Samples generated on
+held-out structures are already excluded from training by the structure
+split; this module handles the wording.
 
 **What counts as a near-duplicate.** Two intents are near-duplicates
 when they name exactly the same entities and are worded almost the

@@ -1,25 +1,24 @@
 # Latency
 
-docs/master_plan.md item 12. [SPECIFICATION.md:157](../SPECIFICATION.md#L157)
-sets no fixed pass/fail budget for runtime latency; this is the informal
-per-stage p50/p95 note it asks for instead, measured on each developer's own
-machine with `bazel run //tests/e2e:record_latency -- --repetitions 11`
-(see [docs/development_setup.md](development_setup.md#recording-latency)).
+Runtime latency has no fixed pass/fail budget; this is the informal per-stage
+p50/p95 note reported instead, measured on each developer's own machine with
+`bazel run //tests/e2e:record_latency -- --repetitions 11` (see
+[docs/development_setup.md](development_setup.md#recording-latency)).
 
 Every table below is one machine's own recorded run: the engine used
 (scripted, or a real Lemonade server), the repetition count, and the date.
 `preview_client_local` and `approval_reverify` are each a whole console
 invocation's own elapsed time minus its instrumented sub-stages, not
-measured directly -- this item's own decision not to thread a timer through
+measured directly -- a deliberate decision not to thread a timer through
 `pmc_client.command` to isolate them further. `generate` reads "not
 measured" unless the run named a real Lemonade server.
 
-With the fine-tuned model (master plan item 19), the integrated
-measurement ([docs/integration/](integration/README.md)) timed every
-`test_gold` sample through the running product: console command to
-console output, on Martin's WSL2 machine with the RTX 4060, 2026-09-30.
-It covers inference plus both PyMOL sidecars, which the `generate`
-row below does not isolate.
+With the fine-tuned model, the integrated measurement
+([docs/integration/](integration/README.md)) timed every `test_gold`
+sample through the running product: console command to console output,
+on Martin's WSL2 machine with the RTX 4060, 2026-09-30. It covers
+inference plus both PyMOL sidecars, which the `generate` row below does
+not isolate.
 
 | Condition | Preview p50 | Preview p90 | Apply p50 | Apply p90 |
 | --- | --- | --- | --- | --- |

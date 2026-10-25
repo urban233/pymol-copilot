@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Record p50/p95 latency per stage on this machine.
 
-docs/master_plan.md item 12. Runs the scenario 1 happy path (preview,
+Runs the scenario 1 happy path (preview,
 approve, apply) `--repetitions` times against real headless PyMOL and a
 real loopback server, then the scenario 2 mid-apply-failure path once
 more to measure the restore stage, timing each stage through the seams
@@ -10,7 +10,7 @@ edited to make this measurement possible: `preview_client_local` and
 `approval_reverify` are each the whole console invocation's own elapsed
 time (`ConsoleDriver.run`'s own return value) minus the instrumented
 sub-stages within it, not threaded through `pmc_client.command` directly
--- this item's own decision, stated in its plan.
+-- a deliberate choice.
 
 The engine is a scripted `FakeEngine` by default; `generate` is recorded
 as "not measured" unless `--lemonade-base-url` names a real, reachable

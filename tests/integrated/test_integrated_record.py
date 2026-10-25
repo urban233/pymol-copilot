@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The committed integrated report is what its evidence says.
 
-docs/master_plan.md item 19: "Measure integrated TaskSuccess against the
-offline number and explain any gap rather than averaging it away." This
+Integrated TaskSuccess is measured against the offline number, and any
+gap is explained rather than averaged away. This
 test recomputes `docs/integration/report.json` and `REPORT.md` from the
 committed integrated records and the published offline ones, and holds
 every sample whose outcome differs to an explanation: one the evidence
@@ -155,7 +155,7 @@ def test_the_one_discordant_sample_is_engine_drift() -> None:
 
 @pytest.mark.parametrize("condition", CONDITIONS)
 def test_the_offline_side_is_the_published_result(condition: str) -> None:
-    """The pairing is against item 17's 32/68 and 19/68, unchanged."""
+    """The pairing is against the published 32/68 and 19/68, unchanged."""
     expected = {"grammar": 32, "no-grammar": 19}[condition]
 
     assert COMPARISON[condition]["offline"]["k"] == expected

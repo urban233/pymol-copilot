@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Aggregating evaluated samples into the rates item 16 reports.
+"""Aggregating evaluated samples into the rates the evaluation reports.
 
 `aggregate` is a pure function of a run's `SampleRecord`s, so a
 committed report can be recomputed from its committed samples and must

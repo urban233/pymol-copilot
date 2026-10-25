@@ -1,8 +1,8 @@
-# The evaluation engine for Apple Silicon (master plan item 16): Lemonade
-# 11.9.0 built natively for linux/arm64 from Lemonade's own Debian 13
-# package, so llama.cpp runs on the host's own CPU instead of under x86_64
-# emulation. The package needs cpp-httplib 0.41, which Debian 13 carries
-# only in trixie-backports.
+# The evaluation engine for Apple Silicon: Lemonade 11.9.0 built natively
+# for linux/arm64 from Lemonade's own Debian 13 package, so llama.cpp runs
+# on the host's own CPU instead of under x86_64 emulation. The package
+# needs cpp-httplib 0.41, which Debian 13 carries only in
+# trixie-backports.
 FROM debian:13
 
 # The official image's paths, so both images keep Lemonade's caches and

@@ -1,12 +1,12 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Resolve a consumer package's calls to the shared-core callable they reach.
 
-Master plan items 6 and 13 each require that both consumers -- the dataset
-pipeline and the runtime -- call one shared implementation rather than
-growing their own. Neither consumer's real call site exists yet, so what
-is checkable today is that nothing in `pmc_agent` or `pmc_data` defines a
-competing implementation, and that any call one does make resolves to the
-shared-core one.
+The error envelope and the prompt builder each require that both
+consumers -- the dataset pipeline and the runtime -- call one shared
+implementation rather than growing their own. Neither consumer's real call
+site exists yet, so what is checkable today is that nothing in `pmc_agent`
+or `pmc_data` defines a competing implementation, and that any call one
+does make resolves to the shared-core one.
 
 "Resolves" is meant literally. An earlier version of the error envelope's
 check looked for the two names co-occurring as strings in a file, which
@@ -17,7 +17,7 @@ module's own import bindings, so what is compared is the callable the call
 reaches. Indirection through a computed target is not followed, and this
 module does not claim otherwise.
 
-The scan is shared rather than copied so that the two items cannot drift
+The scan is shared rather than copied so that the two checks cannot drift
 into two different notions of what "reaches the shared core" means.
 """
 

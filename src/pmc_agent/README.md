@@ -1,8 +1,8 @@
 # `pmc_agent`
 
 The LangGraph request graph: `received` through `pending_approval`, then
-`applying`, and every terminal SPECIFICATION.md:417-426 assigns to that
-span -- `rejected`, `expired`, `superseded`, `failed`, `cancelled`, `ask`,
+`applying`, and every terminal the domain model assigns to that span --
+`rejected`, `expired`, `superseded`, `failed`, `cancelled`, `ask`,
 `applied`, `apply_failed_restored`, and `rolled_back`. `restoring` remains a
 client-side transient: recovery must finish even if the local server is down.
 
@@ -18,8 +18,8 @@ client-side transient: recovery must finish even if the local server is down.
   `InMemorySaver` checkpointer, and a per-session `threading.Lock` table,
   for one server process's whole lifetime. `session_id` is the graph's own
   `thread_id`, which is what makes "at most one active request and one
-  pending plan per session" (SPECIFICATION.md:409-411) structural rather
-  than a separately enforced rule -- and why the lock exists at all:
+  pending plan per session" structural rather than a separately enforced
+  rule -- and why the lock exists at all:
   `pmc_server.transport.LoopbackPlanServer` is threaded, so two requests
   for the same session can genuinely race to touch one thread at once.
   `submit`, `reject`, `cancel`, `approve`, and `report_apply_outcome` are its
@@ -29,9 +29,9 @@ client-side transient: recovery must finish even if the local server is down.
   Protocol accepts only a prompt, optional grammar, token and time bounds,
   cancellation, and a model identity; it returns a completion or typed
   failure, never an engine exception. It also carries a total, never-raising
-  `health()` method (docs/master_plan.md item 11), returning an
-  `EngineHealth`: ready, with the engine's own name, version, and device, or
-  unavailable, with a bounded `EngineFailure`. `pmc_server.lifecycle
+  `health()` method, returning an `EngineHealth`: ready, with the engine's
+  own name, version, and device, or unavailable, with a bounded
+  `EngineFailure`. `pmc_server.lifecycle
   .RequestGraphLifecycle.health()` reads this straight through
   `RequestGraphSession.engine_health()` for `copilot_health`; it is a
   property of the engine itself, never of any one request, so it does not
@@ -46,10 +46,10 @@ client-side transient: recovery must finish even if the local server is down.
   syntax-only mode; its own `health()` instead issues one bounded
   `GET /api/v1/health` call, never repeating the load or the canary.
   `unavailable.py`'s `UnavailableEngine` is what a future server entrypoint
-  (docs/master_plan.md item 12) constructs when `connect_lemonade()` itself
-  fails at startup: every `complete()` call returns that one recorded
-  failure unchanged, and `health()` reports it too, so the server stays up
-  for diagnostics (SPECIFICATION.md:609) instead of refusing to start.
+  constructs when `connect_lemonade()` itself fails at startup: every
+  `complete()` call returns that one recorded failure unchanged, and
+  `health()` reports it too, so the server stays up for diagnostics
+  instead of refusing to start.
 - `warnings.py`'s `derive_warnings()` is a pure function of validation
   evidence alone — selection counts, the target object's own atom count,
   the repair-attempt count, and the executor's own captured stderr — never
@@ -60,20 +60,20 @@ client-side transient: recovery must finish even if the local server is down.
   .MAX_VALIDATION_WARNINGS` entries.
 - `prompt.py` is a placeholder seam, not a real prompt: `PROMPT_BUILDER`
   and a minimal default that stamps the card version, the contract
-  manifest, and prior failures into bounded text. docs/master_plan.md item
-  13 supplies the real prompt and grammar against this exact signature.
+  manifest, and prior failures into bounded text. The prompt builder
+  supplies the real prompt and grammar against this exact signature.
 - `runtime.py` predates the request graph: a one-node pass-through kept to
   prove the LangGraph/httpx dependency wiring alone (`tests/unit
   /test_agent_runtime.py`). It is not part of the request path.
 
 ## The one invariant every node is designed around
 
-SPECIFICATION.md:551-552: *"No model output determines authority, retries,
-target object, network destination, policy, approval, or rollback
-behavior."* The engine's own return value writes exactly one field,
-`completion`; `attempt`, `target_object`, `plan_id`, `expires_at`, the
-policy verdict, and every terminal transition are written by this
-package's own deterministic code from inputs the engine never touches.
+No model output determines authority, retries, target object, network
+destination, policy, approval, or rollback behavior. The engine's own
+return value writes exactly one field, `completion`; `attempt`,
+`target_object`, `plan_id`, `expires_at`, the policy verdict, and every
+terminal transition are written by this package's own deterministic code
+from inputs the engine never touches.
 `tests/adversarial/test_model_authority.py` proves this adversarially,
 against the finished graph, engineering a completion to influence each
 protected field in turn.

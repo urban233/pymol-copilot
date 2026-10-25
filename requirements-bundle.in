@@ -1,10 +1,9 @@
-# The portable Windows bundle's Python (master plan item 20,
-# plans/16-portable-bundle.md): CPython 3.13 on Windows x64, no training
-# stack. It runs the notebook with RUN_GENERATION and RUN_TRAINING off, so
-# it needs the runtime's packages, held to the runtime lock, plus what the
-# notebook's own cells import (the tokenizer, the loss plot) at the
-# notebook lock's versions, plus JupyterLab to open it and nbclient and
-# pytest to check it (tools/bundle/check_bundle.py).
+# The portable Windows bundle's Python: CPython 3.13 on Windows x64, no
+# training stack. It runs the notebook with RUN_GENERATION and
+# RUN_TRAINING off, so it needs the runtime's packages, held to the
+# runtime lock, plus what the notebook's own cells import (the tokenizer,
+# the loss plot) at the notebook lock's versions, plus JupyterLab to open
+# it and nbclient and pytest to check it (tools/bundle/check_bundle.py).
 -c requirements_lock.txt
 pymol-open-source-whl==3.2.0.2
 langgraph==1.2.11

@@ -6,23 +6,22 @@
 versions that decide what the model sees -- the prompt's own, the card's,
 the grammar's and the policy's. `text()` renders it to canonical bytes.
 
-Master plan item 13 requires that the dataset generator and the runtime
-call *this* code rather than each assembling a prompt of its own, because
-a model trained against one prompt and served another is a silent failure
-with no symptom. Neither caller exists yet -- the dataset pipeline
-generalizes in item 14, the runtime path arrives with items 8 and 9 -- so
-what ships now is the pair of seams they will call, `build_for_data()` and
+The dataset generator and the runtime must both call *this* code rather
+than each assembling a prompt of its own, because a model trained against
+one prompt and served another is a silent failure with no symptom.
+Neither caller exists yet -- the dataset pipeline is still to be
+generalized and the runtime path still to arrive -- so what
+ships now is the pair of seams they will call, `build_for_data()` and
 `build_for_runtime()`, proved byte-identical by a contract test. This is
 the same shape `pmc_core.card` ships for the same reason, and
 `card.render_for_runtime()` already names this module as its caller.
 
-Four versions rather than three. Item 13 asks for the card, grammar and
-policy versions; `PROMPT_VERSION` is here as well because without it a
+Four versions rather than three. Every prompt must carry the card, grammar
+and policy versions; `PROMPT_VERSION` is here as well because without it a
 change to the instruction text below would alter every prompt while every
 recorded version stayed the same, and a dataset built across that change
-would be silently inhomogeneous. SPECIFICATION.md:491 lists
-"prompt/card/grammar/error versions" among the fields a model artifact
-pins, so the prompt is expected to carry one.
+would be silently inhomogeneous. A model artifact pins its prompt, card,
+grammar and error versions, so the prompt is expected to carry one.
 
 The card and the intent are both validated rather than trusted. A card
 is accepted only if it declares this module's own `CARD_VERSION` on its
@@ -34,7 +33,7 @@ characters: raw interpolation would let a newline inside a user intent
 add a line the prompt never authored.
 
 The grammar itself is not embedded in the prompt. It constrains the
-engine's decoding (master plan item 9) rather than instructing the model
+engine's decoding rather than instructing the model
 in prose, so only its version is stamped here -- what the model may emit
 is enforced, not requested, and `pmc_core.parser` and `pmc_core.policy`
 still adjudicate the result either way.
@@ -246,7 +245,7 @@ def build_for_data(snapshot: ObjectSnapshot, intent: str) -> PromptV1:
 
     Returns:
         The same prompt build_for_runtime returns, through the seam the
-        dataset writer (master plan item 14) calls.
+        dataset writer calls.
     """
     return build_prompt(render_for_data(snapshot), intent)
 
@@ -260,6 +259,6 @@ def build_for_runtime(snapshot: ObjectSnapshot, intent: str) -> PromptV1:
 
     Returns:
         The same prompt build_for_data returns, through the seam the
-        runtime request graph (master plan items 8 and 9) calls.
+        runtime request graph calls.
     """
     return build_prompt(render_for_runtime(snapshot), intent)

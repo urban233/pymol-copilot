@@ -1,7 +1,7 @@
 # Evaluation tests
 
-Owned by the offline evaluation harness (master plan item 16,
-`src/pmc_eval/`). No parser, policy, executor or request-graph behavior
+Owned by the offline evaluation harness (`src/pmc_eval/`). No parser,
+policy, executor or request-graph behavior
 is settled here -- those stay owned by `tests/contract`,
 `tests/adversarial`, `tests/unit` and `tests/integration`. What is
 settled here is that the harness measures what it claims to: that it
@@ -32,4 +32,4 @@ grader can both pass a correct plan and fail a wrong one.
   fence, or an English word such as "set" or "load" is enough. The
   report names the rule that fired so this reads as what it is.
 - **A pulled Lemonade model is catalogued without its `user.` prefix**,
-  and the item 9 adapter compares the catalog id exactly.
+  and the Lemonade adapter compares the catalog id exactly.

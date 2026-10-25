@@ -3,9 +3,9 @@
 
 LangGraph's default checkpoint serializer rebuilds any class it finds and
 only logs "Deserializing unregistered type"; a later LangGraph refuses
-them (docs/master_plan.md item 18's hand-over note). These tests run real
-requests through `pmc_agent.session.RequestGraphSession` -- every plan
-node type, a repair, a failure, approval and its outcome -- and listen to
+them. These tests run real requests through
+`pmc_agent.session.RequestGraphSession` -- every plan node type, a
+repair, a failure, approval and its outcome -- and listen to
 LangGraph's own serde events, so a type missing from
 `pmc_agent.graph.CHECKPOINT_TYPES` fails here rather than in a later
 LangGraph.

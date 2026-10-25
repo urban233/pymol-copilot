@@ -29,11 +29,11 @@ guard -- promoted from `tests/discovery/h02` once that candidate
 comparison shipped as production code. The snapshot format's own
 PyMOL-free codec/digest/diff evidence stays in `tests/contract` instead.
 
-Also owns the sidecar executor's own real-process evidence
-(docs/master_plan.md item 4), promoted from that same `tests/discovery/h02`
-prototype once it shipped as `src/pmc_core/executor.py` and
-`src/pmc_sidecar/child.py`: `test_sidecar_child.py` (the closed verb
-dispatch and bounded command diagnostics against real PyMOL, no subprocess),
+Also owns the sidecar executor's own real-process evidence, promoted from
+that same `tests/discovery/h02` prototype once it shipped as
+`src/pmc_core/executor.py` and `src/pmc_sidecar/child.py`:
+`test_sidecar_child.py` (the closed verb dispatch and bounded command
+diagnostics against real PyMOL, no subprocess),
 `test_executor_boundary.py` (the spawn/deadline/kill/reap/cleanup and bounded
 stderr/error sabotage suite, built on this directory's own test-owned
 `sabotage_child.py`), and
@@ -52,11 +52,11 @@ so the two can never disagree about what was driven, and by
 index and verb against it. The hermetic normalization evidence stays in
 `tests/contract`.
 
-Also owns the live-extraction-and-fidelity-gate's real-process evidence
-(docs/master_plan.md item 7): `test_sidecar_fidelity.py` (`src/pmc_sidecar
-/fidelity.py`'s reconstruct-and-re-extract logic against real PyMOL, no
-subprocess -- the fresh-process spawn evidence for that same child lives
-here too, in `test_client_fidelity_real_pymol.py` below) and
+Also owns the live-extraction-and-fidelity-gate's real-process evidence:
+`test_sidecar_fidelity.py` (`src/pmc_sidecar/fidelity.py`'s
+reconstruct-and-re-extract logic against real PyMOL, no subprocess -- the
+fresh-process spawn evidence for that same child lives here too, in
+`test_client_fidelity_real_pymol.py` below) and
 `test_client_fidelity_real_pymol.py` (`pmc_client.fidelity.check_fidelity()`
 gated on a real sidecar spawn: modified coordinates, multiple states,
 alternate locations, hetero atoms, and all four combined, each asserting an

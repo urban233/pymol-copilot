@@ -4,9 +4,9 @@
     uv run --python 3.13 tools\\bundle\\build_bundle.py ^
         --model <the fine-tuned GGUF> --out C:\\pmc-dist
 
-Master plan item 20 (plans/16-portable-bundle.md, docs/bundle.md). It
-must run on Windows: it installs Windows wheels into a Windows Python and
-lets Lemonade's own CLI install its llama.cpp backend. It needs `git`
+See docs/bundle.md. It must run on Windows: it installs Windows wheels
+into a Windows Python and lets Lemonade's own CLI install its llama.cpp
+backend. It needs `git`
 and `uv` on the PATH and the network, and builds from the committed
 tree only. Every download is pinned in `configs/bundle/pins.json` and
 checked against its SHA-256. `--no-model` builds the bundle without the

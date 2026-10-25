@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Helpers the deliverable notebook calls, so its own cells stay readable.
 
-The notebook (`pymol_copilot.ipynb`, master plan item 18) shows the real
+The notebook (`pymol_copilot.ipynb`) shows the real
 code of each stage. What it hides here is plumbing: putting the
 repository's packages on the path, launching headless PyMOL, running a
 `copilot` command synchronously, starting and stopping the server, and
@@ -45,7 +45,7 @@ IMPORT_PATHS = (ROOT / "src", ROOT / "tools" / "winstage")
 #: The line that heads the notebook's final record of every number.
 RECORD_HEADER = "pmc-notebook-record"
 
-#: Set by the portable Windows bundle's launcher (master plan item 20) to
+#: Set by the portable Windows bundle's launcher to
 #: the folder the bundle was extracted to; the bundle then starts its own
 #: Lemonade on the CPU.
 BUNDLE_VARIABLE = "PMC_BUNDLE_ROOT"
@@ -330,7 +330,7 @@ def plan_id(preview: str) -> str | None:
 
 # The engine section 9 serves the model from. On the development machine
 # it is the Docker engine, already running; in the portable Windows
-# bundle (master plan item 20) the notebook starts its own embedded
+# bundle the notebook starts its own embedded
 # Lemonade on the CPU and stops it again.
 
 

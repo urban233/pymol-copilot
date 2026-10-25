@@ -30,8 +30,8 @@ reports PyMOL's entire 24-entry representation table across five lines; an
 invalid selection name reports the name and then repeats it on a caret
 line, and an unrecognized failure can name a selection without quoting it
 at all. All three would leak plan text into an error, which
-`pmc_core.parser.ParseRejection` already refuses to do and which item 11 of
-the master plan forbids outright. Quoted spans redact, caret lines drop,
+`pmc_core.parser.ParseRejection` already refuses to do and which no
+failure path may ever do. Quoted spans redact, caret lines drop,
 and any token carrying `pmc_core.plan.SELECTION_NAME_PREFIX` redacts
 whole.
 
@@ -58,7 +58,7 @@ ERROR_ENVELOPE_VERSION = 1
 #: The greatest length, in bytes, of a normalized message. The longest real
 #: message for a supported verb is `show`'s representation table: 291 bytes
 #: raw, 226 once whitespace is collapsed. The bound sits above that on
-#: purpose -- item 8 feeds this message to a repair attempt, and the list of
+#: purpose -- each repair attempt is fed this message, and the list of
 #: valid representations is the part that makes the repair succeed, so
 #: truncating it would cost more than it saves. No real message reaches the
 #: bound today; the truncation path is covered by a synthetic case.
@@ -495,8 +495,8 @@ class ExecutionErrorV1:
 
         Provided so the captured corpus can record an expected envelope and
         a test can compare against it field by field. There is no decoder:
-        putting an envelope on the wire is item 8's contract, not this
-        module's.
+        putting an envelope on the wire is the request graph's contract,
+        not this module's.
 
         Returns:
             The envelope's fields, keyed by field name.

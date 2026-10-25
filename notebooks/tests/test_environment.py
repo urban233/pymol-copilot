@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The notebook's kernel can run every stage of the project in one process.
 
-The notebook (master plan item 18) imports the runtime packages, the
+The notebook imports the runtime packages, the
 dataset and evaluation code, the training code and PyMOL itself. They
 normally live in two environments: Bazel's Python 3.13 closure and the
 Python 3.12 training venv. `.venv-notebook` is the training lock plus

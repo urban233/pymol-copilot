@@ -1,6 +1,6 @@
 <!--
-  Master plan item 20, step 8: a clean Windows (Windows Sandbox, network
-  off) extracts the portable bundle and runs it. Double-click this file on
+  A clean Windows (Windows Sandbox, network off) extracts the portable
+  bundle and runs it. Double-click this file on
   the build host. C:\pmc-dist holds the built ZIP (build_bundle.py's
   --out); C:\pmc-src is the Windows checkout this folder belongs to; the
   results are written to C:\pmc-sandbox\results. Edit the host folders

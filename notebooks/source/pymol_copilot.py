@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-# The deliverable notebook's source (master plan item 18), in the percent
+# The deliverable notebook's source, in the percent
 # format; notebooks/build_notebook.py turns it into pymol_copilot.ipynb.
 # Read as one module, each cell's imports come after the previous cell's
 # code, and `display` is the notebook kernel's own built-in.

@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The bundle's lock is the runtime, plus what the notebook's cells need.
 
-docs/master_plan.md item 20. The portable Windows bundle runs the
+The portable Windows bundle runs the
 notebook from its own Python (`requirements-bundle.txt`). It must run
 the same runtime packages the evaluation measured, the tokenizer stack
 at the notebook's own versions, and nothing of the training stack, which

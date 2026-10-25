@@ -1,12 +1,12 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Every training sample fits the configured length, measured exactly.
 
-Item 16 recorded the longest *gold* prompt, 5,495 tokens. Training
-prompts are longer: two training structures list four and three chains
-of atoms. `data/train_lengths.json` records the exact figures with the
-real tokenizer and template; this test recomputes them, so the record
-cannot drift from the data, and fails if any sample would have to be
-truncated.
+The evaluation recorded the longest *gold* prompt, 5,495 tokens.
+Training prompts are longer: two training structures list four and three
+chains of atoms. `data/train_lengths.json` records the exact figures
+with the real tokenizer and template; this test recomputes them, so the
+record cannot drift from the data, and fails if any sample would have to
+be truncated.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

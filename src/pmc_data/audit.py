@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The label audit: a seeded random draw, judged by hand, scored honestly.
 
-The spec asks for a spot-check of a small labeled sample, with the
+The audit is a spot-check of a small labeled sample, with the
 observed error rate reported and no pass/fail threshold. This module
 draws the sample, writes the sheet a person fills in, and turns the
 filled sheet into a number with an interval.

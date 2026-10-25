@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Real-PyMOL test support for pmc_core.snapshot's round-trip evidence.
 
-This is what remains of the H-02 discovery harness
+This is what remains of the snapshot discovery harness
 (`tests/discovery/h02/harness.py`) once its production content (the
 canonical extraction format, `extract()`, `reconstruct()`, the JSON codec,
 `structure_digest()`, and `diff()`) moved to `pmc_core.snapshot`: the shared

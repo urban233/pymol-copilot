@@ -358,10 +358,7 @@ def build_manifest(
             "teacher_outputs": (
                 "none; training intents are templated by pmc_data.taxonomy"
             ),
-            "publication": (
-                "none planned; SPECIFICATION.md records that no publication "
-                "is planned for this deliverable"
-            ),
+            "publication": "none planned",
         },
         "regeneration": {
             "commands": [

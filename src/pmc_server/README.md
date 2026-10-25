@@ -10,13 +10,12 @@ package.
 
 ## The production entrypoint
 
-`main.py` (docs/master_plan.md item 12) is the first thing that starts a
-real server process: `build_engine()` connects to Lemonade once and falls
-back to `pmc_agent.inference.unavailable.UnavailableEngine` on any
-capability failure, so the server starts and stays available for
-diagnostics through `copilot_health` even when no local model can be
-reached (SPECIFICATION.md:609) — there is no retry and no second engine
-(SPECIFICATION.md:554).
+`main.py` is the first thing that starts a real server process:
+`build_engine()` connects to Lemonade once and falls back to
+`pmc_agent.inference.unavailable.UnavailableEngine` on any capability
+failure, so the server starts and stays available for diagnostics through
+`copilot_health` even when no local model can be reached — there is no
+retry and no second engine.
 
 `serve()` then starts the real `LoopbackPlanServer` on an ephemeral
 loopback port with a fresh `secrets.token_urlsafe(32)` credential, and

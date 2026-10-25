@@ -13,17 +13,17 @@ py_library(
         "validation.py",
     ],
     imports = [".."],
-    # //src/pmc_sidecar is the sidecar executor's PyMOL-touching child
-    # (docs/master_plan.md item 4): pmc_server is the process that actually
-    # spawns it via pmc_core.executor.execute(), so it needs the child
-    # present in its own runfiles for that spawn to find it at runtime.
-    # //src/pmc_agent is the LangGraph request graph (item 8): the server
+    # //src/pmc_sidecar is the sidecar executor's PyMOL-touching child:
+    # pmc_server is the process that actually spawns it via
+    # pmc_core.executor.execute(), so it needs the child present in its own
+    # runfiles for that spawn to find it at runtime.
+    # //src/pmc_agent is the LangGraph request graph: the server
     # owns the graph's lifetime, not its states. lifecycle.py's
     # RequestGraphLifecycle only translates between pmc_agent.session
     # .RequestGraphSession's own result mapping and this protocol's typed
     # wire responses -- every state, transition, and terminal the graph can
     # reach belongs to pmc_agent.graph, never to this package. main.py
-    # (item 12) is the production entrypoint that builds and starts both.
+    # is the production entrypoint that builds and starts both.
     deps = [
         "@pypi//httpx",
         "//src/pmc_agent:pmc_agent",

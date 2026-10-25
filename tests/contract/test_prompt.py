@@ -7,13 +7,14 @@ bytes, that a prompt outside its bounds is refused at construction rather
 than at render, and that the dataset and runtime caller seams produce
 identical bytes.
 
-The seam parity test is the one master plan item 13 asks for. Neither
-real caller exists yet -- the dataset pipeline generalizes in item 14 and
-the runtime path arrives with items 8 and 9 -- so it is written against
-the two seams themselves, which are real code this test executes. That
-is deliberately not the shape review rejected twice on the error
-envelope, where a textual scan for co-occurring strings proved nothing:
-breaking either seam turns this test red today.
+The seam parity test is the one the prompt builder requires. Neither
+real caller exists yet -- the dataset pipeline generalizes with dataset
+generation and the runtime path arrives with the request graph and the
+inference abstraction -- so it is written against the two seams
+themselves, which are real code this test executes. That is deliberately
+not the shape review rejected twice on the error envelope, where a
+textual scan for co-occurring strings proved nothing: breaking either
+seam turns this test red today.
 """
 
 from dataclasses import replace
@@ -215,10 +216,10 @@ def test_data_and_runtime_seams_have_byte_parity(
 ) -> None:
     """Both caller seams build the same prompt, byte for byte.
 
-    Item 13's requirement that the dataset generator and the runtime
-    call the same code reduces to this while neither caller exists. It
-    is proved over every card outcome, because a divergence that only
-    showed on a malformed card would be the hardest kind to notice.
+    The requirement that the dataset generator and the runtime call the same
+    code reduces to this while neither caller exists. It is proved over
+    every card outcome, because a divergence that only showed on a malformed
+    card would be the hardest kind to notice.
     """
     assert (
         build_for_data(snapshot, _INTENT).text()
@@ -325,9 +326,10 @@ def test_an_intent_ending_in_a_newline_leaves_one_trailing_newline() -> None:
 
 #: Every entry point a consumer could reach for, each against the one
 #: dotted path a call to it must resolve to. `build_prompt` alone is not
-#: enough: the APIs items 14 and 8 are told to call are the two seams, so
-#: a consumer reaching `other.build_for_data(...)` has to be caught here
-#: rather than slip through under a name nobody checks.
+#: enough: the APIs dataset generation and the request graph are told to
+#: call are the two seams, so a consumer reaching
+#: `other.build_for_data(...)` has to be caught here rather than slip
+#: through under a name nobody checks.
 _CANONICAL_BUILDERS = (
     "pmc_core.prompt.build_prompt",
     "pmc_core.prompt.build_for_data",
@@ -347,10 +349,10 @@ _BUILDER_DEFINITIONS = (
 def test_no_consumer_builds_a_prompt_of_its_own() -> None:
     """Neither consumer may grow a second prompt builder.
 
-    Item 13 requires the dataset generator and the runtime to call this
-    module. Their call sites arrive with items 14 and 8, so no test here
-    can yet prove that both *reach* it; what a divergence would have to
-    defeat first is that neither has written its own.
+    The dataset generator and the runtime must both call this module. Their
+    call sites arrive with dataset generation and the request graph, so no
+    test here can yet prove that both *reach* it; what a divergence would
+    have to defeat first is that neither has written its own.
     """
     sources = consumer_sources()
     assert sources, "no consumer sources were found to scan"
@@ -365,11 +367,12 @@ def test_no_consumer_builds_a_prompt_of_its_own() -> None:
 def test_a_consumer_that_builds_a_prompt_reaches_this_module() -> None:
     """A consumer calling build_prompt() must reach this module's.
 
-    Inert until items 14 and 8 add their call sites, and armed by the
-    shared scan in consumer_scan, whose own discriminating cases are
-    proved in test_errors.py. Reusing that machinery rather than writing
-    a second check is what keeps the two items from drifting into
-    different notions of what reaching the shared core means.
+    Inert until dataset generation and the request graph add their call
+    sites, and armed by the shared scan in consumer_scan, whose own
+    discriminating cases are proved in test_errors.py. Reusing that
+    machinery rather than writing a second check is what keeps this check
+    and the error envelope's from drifting into different notions of what
+    reaching the shared core means.
     """
     for source in consumer_sources():
         body = source.read_text(encoding="utf-8")

@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Server-owned lifecycle for the LangGraph request graph.
 
-docs/master_plan.md item 8's own replacement for the hardcoded fixture this
+The request graph's own replacement for the hardcoded fixture this
 module used to hold: `PlanRequestLifecycle` pattern-matched one exact
 request shape and answered with one constant plan, never called a model,
 and held no per-session state. `RequestGraphLifecycle` instead routes every
@@ -267,9 +267,9 @@ class RequestGraphLifecycle:
     def health(self, request: HealthRequestV1) -> HealthResponseV1:
         """Report this server's own application, contract, and engine facts.
 
-        docs/master_plan.md item 11's own `copilot_health` command. Never
-        touches the request graph: health is a property of the engine and
-        this build, not of any one request.
+        The `copilot_health` command. Never touches the request graph:
+        health is a property of the engine and this build, not of any one
+        request.
 
         Args:
             request: Decoded health request to answer.
@@ -347,7 +347,7 @@ class RequestGraphLifecycle:
                 validation=ValidationReportV1(
                     status="passed",
                     snapshot_digest=digest,
-                    # Orchestration rule 9 (SPECIFICATION.md:539): never
+                    # Exact fidelity is mandatory to apply: never
                     # upgrade or re-derive the request's own fidelity
                     # outcome -- this lifecycle has no live session to
                     # compare against, only what the client already

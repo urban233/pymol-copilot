@@ -1,27 +1,26 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Deterministic validation warnings, derived only from executor evidence.
 
-docs/master_plan.md item 11: `copilot` must print "selection counts and
-validation warnings where available"
-([SPECIFICATION.md:503-511](../../SPECIFICATION.md)). Until this module
-existed, the server always sent an empty `warnings` tuple
-(`pmc_server.lifecycle`'s two report builders both hard-coded `()`) even
-though the sidecar had already computed selection counts a warning could be
-built from. `derive_warnings` is that missing computation: a pure function
-of the sidecar's own `ExecutionReport` evidence and the attempt count
-`validating` already tracks, never of the model's raw completion text.
+`copilot` must print selection counts and validation warnings where
+available. Until this module existed, the server always sent an empty
+`warnings` tuple (`pmc_server.lifecycle`'s two report builders both
+hard-coded `()`) even though the sidecar had already computed selection
+counts a warning could be built from. `derive_warnings` is that missing
+computation: a pure function of the sidecar's own `ExecutionReport` evidence
+and the attempt count `validating` already tracks, never of the model's raw
+completion text.
 
-That purity is deliberate and load-bearing, not incidental.
-SPECIFICATION.md:551-552 forbids model output from influencing anything
-this system treats as authoritative; a warning is user-facing text, and a
-warning whose wording could be steered by a hostile completion would be
-exactly the kind of influence that invariant exists to rule out. Every
-parameter below traces back to `pmc_core.executor.ExecutionReport` (via
-`pmc_agent.graph`'s own call to `execute()`) or to `RequestState["attempt"]`
-(incremented once per `generating` call, by `generating` itself, never by
-anything the model returns) -- nothing here reads
-`RequestState["completion"]`. `tests/adversarial/test_model_authority.py`
-proves this with a hostile fake engine whose completion embeds a forged
+That purity is deliberate and load-bearing, not incidental. No model output
+may influence anything this system treats as authoritative; a warning is
+user-facing text, and a warning whose wording could be steered by a hostile
+completion would be exactly the kind of influence that invariant exists to
+rule out. Every parameter below traces back to
+`pmc_core.executor.ExecutionReport` (via `pmc_agent.graph`'s own call to
+`execute()`) or to `RequestState["attempt"]` (incremented once per
+`generating` call, by `generating` itself, never by anything the model
+returns) -- nothing here reads `RequestState["completion"]`.
+`tests/adversarial/test_model_authority.py` proves this with a hostile fake
+engine whose completion embeds a forged
 `# selection copilot_selection: 999 atoms` comment: the derived warnings
 must be identical to a benign run's.
 """
@@ -37,9 +36,9 @@ from pmc_core.protocol import MAX_VALIDATION_WARNINGS
 from pmc_core.protocol import MAX_VALIDATION_WARNING_BYTES
 
 #: `derive_warnings`'s own fixed template for a selection that matched no
-#: atoms -- scientifically useful information (SPECIFICATION.md:503-511
-#: wants "validation warnings where available"), not a failure: the plan
-#: still validated and may still be applied.
+#: atoms -- scientifically useful information (`copilot` prints
+#: validation warnings where available), not a failure: the plan still
+#: validated and may still be applied.
 _ZERO_MATCH_TEMPLATE = "selection {name} matched 0 atoms"
 
 #: `derive_warnings`'s own fixed template for a selection that matched

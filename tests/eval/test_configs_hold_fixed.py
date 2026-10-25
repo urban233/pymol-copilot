@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Every evaluation config differs from the baseline's only in its model.
 
-Item 17 compares a fine-tuned model with the untuned baseline, and
+The evaluation compares a fine-tuned model with the untuned baseline, and
 that comparison holds everything but the weights fixed
 (docs/evaluation/README.md, PREREGISTRATION.md). So each config beside
 `baseline.json` may name another model and pin another GGUF, and a
@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIGS = ROOT / "configs" / "evaluation"
 BASELINE = CONFIGS / "baseline.json"
 
-#: What any item 17 config may change: the model under evaluation, the
+#: What any other config may change: the model under evaluation, the
 #: same leaves `eval_cli compare` lets two compared configs differ in.
 MODEL_KEYS = ALLOWED_CONFIG_KEYS
 

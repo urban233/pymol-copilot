@@ -1,11 +1,11 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Server-owned lifecycle for the sidecar executor's /v1/validate endpoint.
 
-This is the "server-side service" docs/master_plan.md item 4 asks for
-alongside `pmc_core.executor` itself: a thin, injectable-seamed wrapper
-around `execute()`, following `pmc_server.lifecycle.PlanRequestLifecycle`'s
-own shape, that maps a decoded `ExecutionRequestV1` to an
-`ExecutionReportV1` for the transport layer to send back.
+This is the server-side service that sits alongside `pmc_core.executor`
+itself: a thin, injectable-seamed wrapper around `execute()`, following
+`pmc_server.lifecycle.PlanRequestLifecycle`'s own shape, that maps a decoded
+`ExecutionRequestV1` to an `ExecutionReportV1` for the transport layer to
+send back.
 
 Unlike `PlanRequestLifecycle.__call__`, this service's `__call__` has no
 `FailedPlanResponseV1` fallback: every fail-closed outcome `execute()`
@@ -108,8 +108,7 @@ class PlanValidationService:
 
         Performs no retry of its own: exactly one call to this service's
         own executor per request, matching `execute()`'s own "no internal
-        retry" guarantee and orchestration rule 8's "a fresh sidecar per
-        attempt" one level up.
+        retry" guarantee and the fresh sidecar per attempt one level up.
 
         Args:
             request: Decoded execution request to run.

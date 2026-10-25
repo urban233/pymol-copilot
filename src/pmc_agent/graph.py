@@ -1,10 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The LangGraph request graph: states, the request's own typed shape.
 
-docs/master_plan.md item 8 replaces the hardcoded fixture that used to sit
-in `src/pmc_server/lifecycle.py` with this graph. The state space is
-SPECIFICATION.md:417-426's own domain model, restated here as the graph's
-node names:
+This graph replaces the hardcoded fixture that used to sit in
+`src/pmc_server/lifecycle.py`. The state space is the project's own
+domain model, restated here as the graph's node names:
 
 ```text
 received -> preparing -> generating -> validating -> pending_approval
@@ -31,11 +30,10 @@ resume. Every value `pending_approval` must report and that must survive
 resumption unchanged (`plan_id`, `expires_at`, `model_identity`) is
 therefore always minted by `validating`'s own success path, committed to
 state *before* the graph transitions to `pending_approval`, whose body
-after this item does nothing but call `interrupt` and interpret whatever
-resumes it. Verified empirically against langgraph 1.2.11 before this
-module was written; not asserted by any test here because it is a property
-of the dependency, not of this code, but it is why `pending_approval`'s own
-body is as thin as it is.
+does nothing but call `interrupt` and interpret whatever resumes it. Verified
+empirically against langgraph 1.2.11 before this module was written; not
+asserted by any test here because it is a property of the dependency, not of
+this code, but it is why `pending_approval`'s own body is as thin as it is.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -141,13 +139,13 @@ NON_TERMINAL_STATES: frozenset[str] = frozenset(
     }
 )
 
-#: Every status this graph's domain model defines -- the eleven names
-#: docs/master_plan.md item 8 names exactly, no more and no fewer.
+#: Every status this graph's domain model defines -- exactly these eleven
+#: names, no more and no fewer.
 REQUEST_STATES: frozenset[str] = NON_TERMINAL_STATES | TERMINAL_STATES
 
-#: SPECIFICATION.md:640: "at most one initial attempt and two repair
-#: attempts." `attempt` counts from 1 at the first generation, so a request
-#: may reach `attempt == MAX_REPAIR_ATTEMPTS + 1` before failing closed.
+#: At most one initial attempt and two repair attempts. `attempt` counts
+#: from 1 at the first generation, so a request may reach
+#: `attempt == MAX_REPAIR_ATTEMPTS + 1` before failing closed.
 MAX_REPAIR_ATTEMPTS = 2
 
 #: How long a validated plan may sit at `pending_approval` before an
@@ -177,9 +175,9 @@ DEFAULT_GENERATION_DEADLINE_SECONDS = 30.0
 #: `generating`'s own clarification-request contract: a completion whose
 #: entire text is one line starting with this prefix is a clarification
 #: question, not a plan to parse. This module owns the contract because no
-#: real prompt builder exists yet (docs/master_plan.md item 13); item 13
-#: inherits it or replaces it, but the graph does not change either way,
-#: since classification happens here, not in the prompt.
+#: real prompt builder exists yet; the prompt builder inherits it or
+#: replaces it, but the graph does not change either way, since
+#: classification happens here, not in the prompt.
 ASK_MARKER_PREFIX = "ask:"
 
 #: The fixed question `generating` reports when a completion is empty or
@@ -227,12 +225,11 @@ FAILURE_EXECUTION_PREFIX = "execution_"
 FAILURE_REPAIR_EXHAUSTED = "repair_exhausted"
 
 #: `validating`'s own failure category for a completion the hostile screen
-#: rejected before it was ever parsed. docs/master_plan.md item 11: a
-#: hostile rejection and an ordinary user `copilot_reject` must be
-#: distinguishable to the user, even though both leave `status` at
-#: `TERMINAL_REJECTED` -- this category is carried in `state["failure"]`
-#: alongside that terminal so `pmc_server.lifecycle` can tell the two
-#: apart and report each honestly, instead of the one generic "request
+#: rejected before it was ever parsed. A hostile rejection and an ordinary user
+#: `copilot_reject` must be distinguishable to the user, even though both leave
+#: `status` at `TERMINAL_REJECTED` -- this category is carried in
+#: `state["failure"]` alongside that terminal so `pmc_server.lifecycle` can tell
+#: the two apart and report each honestly, instead of the one generic "request
 #: ended: rejected" text every other `rejected` carries.
 FAILURE_HOSTILE_OUTPUT = "hostile_output"
 
@@ -285,9 +282,9 @@ class RequestState(TypedDict):
     field -- is the model's entire contribution to this state:
     `generating` is the only node that writes it, and no other field is
     ever derived from its *content*, only from whether it is present, in
-    the same spirit as SPECIFICATION.md:551-552's "no model output
-    determines authority, retries, target object, network destination,
-    policy, approval, or rollback behavior."
+    the same spirit as the rule that no model output determines
+    authority, retries, target object, network destination, policy,
+    approval, or rollback behavior.
 
     Attributes:
         request_id: The request's own wire identifier, echoed on every
@@ -308,7 +305,7 @@ class RequestState(TypedDict):
             rewritten here.
         fidelity: The client's own local fidelity outcome for this
             snapshot, carried unchanged; this graph never upgrades or
-            re-derives it (orchestration rule 9).
+            re-derives it.
         status: The request's current state. Always one of
             `REQUEST_STATES`.
         target_object: The one molecular object `preparing` resolved, or
@@ -341,7 +338,7 @@ class RequestState(TypedDict):
             `plan_id`, from the same injected clock plus `PLAN_TTL_SECONDS`.
         model_identity: The identity the inference engine reported for the
             completion that produced `plan`, re-verifiable at approval
-            (item 10's territory; this graph only carries it forward).
+            (approval's territory; this graph only carries it forward).
         failure: The typed failure this request ended with, when `status`
             is `failed`; None otherwise.
         question: The bounded, redacted clarification question, when
@@ -349,10 +346,10 @@ class RequestState(TypedDict):
         selection_counts: The sidecar's own per-selection atom counts from
             the attempt that validated
             (`pmc_core.executor.ExecutionReport.selection_counts`), empty
-            before one has. docs/master_plan.md item 11: this is raw
-            evidence, carried unchanged -- deriving a rendered warning from
-            it is `pmc_agent.warnings.derive_warnings`'s job, done once the
-            plan is actually reported, not here.
+            before one has. This is raw evidence, carried unchanged --
+            deriving a rendered warning from it is
+            `pmc_agent.warnings.derive_warnings`'s job, done once the plan
+            is actually reported, not here.
         sidecar_warnings: Bounded diagnostic text the executor itself
             already captured for the attempt that validated
             (`ExecutionReport.warnings`, such as non-fatal captured child
@@ -553,10 +550,10 @@ def _new_cancel_token(_session_id: str) -> CancelToken:
 def _preparing(state: RequestState) -> dict[str, object]:
     """Resolve the request's target object; verify its contract manifest.
 
-    Orchestration rule 3 ("preparation resolves one target object") is
-    already done by the time a request reaches this graph: item 7's client
-    resolves exactly one molecular object, deterministically, and fails
-    closed with no request sent at all if it cannot
+    Preparation resolves one target object, and that is already done by
+    the time a request reaches this graph: the client resolves exactly one
+    molecular object, deterministically, and fails closed with no request
+    sent at all if it cannot
     (`pmc_client.session.resolve_target_object`). This node's own job is
     narrower -- read what the client already resolved, and refuse to
     proceed on a request this server's own contracts cannot honor -- not
@@ -658,12 +655,12 @@ def _classify_completion(
 ) -> dict[str, object]:
     """Classify a completion as a clarification, or accept it for parsing.
 
-    Orchestration rule 6: "LangGraph calls local inference and classifies
-    clarification or no-op output before plan parsing." Whether the model
-    asked a question is the model's own contribution
-    (SPECIFICATION.md:551-552 permits this -- it is not retry count,
-    target, policy, or approval); the classification rule itself, and the
-    bounding of whatever question text results, are this module's.
+    LangGraph calls local inference and classifies clarification or no-op
+    output before plan parsing. Whether the model asked a question is the
+    model's own contribution (the no-model-authority rule permits this --
+    it is not retry count, target, policy, or approval); the
+    classification rule itself, and the bounding of whatever question
+    text results, are this module's.
 
     Args:
         state: The request state entering `generating`.
@@ -721,9 +718,9 @@ def _build_generating(
     `executor`, `plan_id_source`, `clock`) get the same treatment.
 
     Args:
-        engine: The inference engine to call. A fake in every test in this
-            item; item 9's Lemonade adapter satisfies the same
-            `InferenceEngine` Protocol in production.
+        engine: The inference engine to call. A fake in every test; the
+            Lemonade adapter satisfies the same `InferenceEngine` Protocol
+            in production.
         prompt_builder: Builds the prompt from this request's own inputs.
         max_tokens: The token budget given to every completion.
         deadline_seconds: The wall-clock budget given to every completion.
@@ -807,10 +804,9 @@ def _build_generating(
             state,
             completion=with_final_newline(outcome.text),
             # The engine's own stable identity, never the per-call
-            # result's own claim: SPECIFICATION.md:541 requires this be
-            # re-verified at approval, which only means something if this
-            # graph never trusts a result to assert its own provenance in
-            # the first place.
+            # result's own claim: approval re-verifies it, which only
+            # means something if this graph never trusts a result to
+            # assert its own provenance in the first place.
             model_identity=engine.model_identity,
             attempt=attempt,
         )
@@ -856,10 +852,9 @@ def _build_validating(
 
     Args:
         executor: Runs one `ExecutionRequest` in a fresh sidecar. A fake
-            in every test in this item; `pmc_core.executor.execute` in
-            production -- always a *fresh* one per call, per orchestration
-            rule 8; this closure calls it at most once per attempt and
-            never pools or reuses anything across calls.
+            in every test; `pmc_core.executor.execute` in production --
+            always a *fresh* one per call; this closure calls it at most once
+            per attempt and never pools or reuses anything across calls.
         policy_validator: Independently re-checks a parsed plan. Defaults
             to `pmc_core.policy.evaluate_plan` in production, matching
             `pmc_server.lifecycle.PlanRequestLifecycle`'s own
@@ -879,7 +874,7 @@ def _build_validating(
         max_snapshot_bytes: The snapshot size ceiling given to `executor`.
         deadline_seconds: The wall-clock deadline given to `executor`.
         ttl_seconds: How long a minted plan stays approvable.
-        max_repair_attempts: SPECIFICATION.md:640's repair budget --
+        max_repair_attempts: The repair budget --
             `MAX_REPAIR_ATTEMPTS` by default, injectable only so a test can
             prove the bound is actually enforced by lowering or raising it.
         cancel_token_source: Finds the live cancellation token for this
@@ -938,11 +933,10 @@ def _build_validating(
     def _validating(state: RequestState) -> dict[str, object]:
         """Parse, screen, police, and execute one attempt.
 
-        Orchestration rules 7 and 8, in the fixed order both require:
-        parse, screen the raw text for a hostile marker regardless of
-        parse outcome, re-check policy independently of the parser, then
-        execute in a fresh sidecar -- never reordered, and never skipped
-        because an earlier step looked like it already covered the same
+        Always in the same fixed order: parse, screen the raw text for a hostile
+        marker regardless of parse outcome, re-check policy independently of the
+        parser, then execute in a fresh sidecar -- never reordered, and never
+        skipped because an earlier step looked like it already covered the same
         ground.
 
         Args:
@@ -1042,9 +1036,9 @@ def _build_validating(
                 "expires_at": _format_timestamp(
                     now + timedelta(seconds=ttl_seconds)
                 ),
-                # docs/master_plan.md item 11: raw evidence only, carried
-                # unchanged from the sidecar that actually ran the parsed
-                # plan -- never from `completion` itself. See
+                # Raw evidence only, carried unchanged from the sidecar
+                # that actually ran the parsed plan -- never from
+                # `completion` itself. See
                 # `pmc_agent.warnings.derive_warnings`'s own docstring for
                 # why that purity matters.
                 "selection_counts": report.selection_counts,
@@ -1086,9 +1080,8 @@ def _build_validating(
         # Every other executor reason -- oversized input, a malformed or
         # mismatched snapshot, a spawn failure, a timeout, a child crash,
         # or a fidelity mismatch -- is an infrastructure-level problem a
-        # repaired completion cannot fix: SPECIFICATION.md's own failure-
-        # mode table calls exactly this out for a sidecar timeout ("repairs
-        # stop"), and the same reasoning applies to every reason in this
+        # repaired completion cannot fix: repairs stop on a sidecar
+        # timeout, and the same reasoning applies to every reason in this
         # branch. None of them consumes a repair attempt.
         return _failed(
             state,
@@ -1161,10 +1154,9 @@ def _build_pending_approval(
     def _pending_approval(state: RequestState) -> dict[str, object]:
         """Park for approval; resolve whatever resumes it.
 
-        Expiry is checked before the resume value is honored
-        (SPECIFICATION.md:432-435): a reject, cancel, or supersede
-        arriving after `expires_at` has passed reports `expired`, not the
-        action that was actually requested -- the plan was already
+        Expiry is checked before the resume value is honored: a reject, cancel,
+        or supersede arriving after `expires_at` has passed reports `expired`,
+        not the action that was actually requested -- the plan was already
         invalid by the time it arrived, regardless of which action asked.
 
         Args:
@@ -1268,7 +1260,7 @@ def build_request_graph(
     """Build the uncompiled request graph, wired but not yet compiled.
 
     Left uncompiled here because compilation is where a checkpointer is
-    attached, and this item's checkpointer is owned by
+    attached, and the checkpointer is owned by
     `pmc_agent.session.RequestGraphSession`, one per server process, not by
     this builder -- matching how every other injectable seam in this
     repository (`PlanRequestLifecycle`, `PlanValidationService`) keeps
@@ -1280,14 +1272,13 @@ def build_request_graph(
             production-safe default engine to fall back to.
         prompt_builder: Builds the prompt `generating` sends to `engine`.
             Defaults to this module's own placeholder
-            (`pmc_agent.prompt.build_default_prompt`) until
-            docs/master_plan.md item 13 supplies the real one.
+            (`pmc_agent.prompt.build_default_prompt`) until the prompt
+            builder supplies the real one.
         max_tokens: The token budget given to every completion.
         deadline_seconds: The wall-clock budget given to every completion.
         executor: Runs one `ExecutionRequest` in a fresh sidecar. Defaults
-            to `pmc_core.executor.execute`; every test in this item injects
-            a fake so no real PyMOL process is ever spawned by a graph
-            test.
+            to `pmc_core.executor.execute`; every test injects a fake so no
+            real PyMOL process is ever spawned by a graph test.
         policy_validator: Independently re-checks a parsed plan. Defaults
             to `pmc_core.policy.evaluate_plan`; see `_build_validating`'s
             own docstring for why this seam exists at all.
@@ -1300,7 +1291,7 @@ def build_request_graph(
             `executor`. Independent of `deadline_seconds`, which bounds
             the engine, not a spawned process.
         ttl_seconds: How long a minted plan stays approvable.
-        max_repair_attempts: SPECIFICATION.md:640's repair budget.
+        max_repair_attempts: The repair budget.
         cancel_token_source: Finds the live cancellation token for one
             session. Defaults to independent unset tokens for callers that
             use a bare graph; `RequestGraphSession` supplies tokens that a

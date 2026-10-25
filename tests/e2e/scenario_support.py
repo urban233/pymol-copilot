@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Shared real-PyMOL harness for docs/master_plan.md item 12's scenarios.
+"""Shared real-PyMOL harness for the end-to-end scenarios.
 
 Every real-PyMOL end-to-end module in this directory launches PyMOL once
 (module-scoped `real_pymol`) and reuses this file's `ConsoleDriver`,
@@ -50,7 +50,7 @@ from pmc_server.lifecycle import RequestGraphLifecycle
 import winstage
 
 #: The credential every scenario's own loopback server expects. Not a real
-#: secret: it never leaves this process, and step 6's production entrypoint
+#: secret: it never leaves this process, and the server's production entrypoint
 #: mints one with `secrets.token_urlsafe` instead.
 CREDENTIAL = "e2e-scenario-secret"
 
@@ -465,8 +465,7 @@ def loaded_fixture(real_pymol: Any) -> Iterator[Any]:
     applied plan's own selection in place on purpose (scenario 1 never
     rolls back, to prove approval mutated something durable) would
     otherwise leak that selection into the next test's own "before"
-    fingerprint, exactly as this module's own tests are the record of
-    (docs/master_plan.md item 12).
+    fingerprint, exactly as this module's own tests record.
 
     Args:
         real_pymol: The real PyMOL `cmd` module.

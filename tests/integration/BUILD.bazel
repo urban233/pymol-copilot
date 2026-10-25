@@ -10,9 +10,9 @@ load("@rules_python//python:py_test.bzl", "py_test")
 # moved to src/pmc_core/snapshot.py. tests/discovery/h02 and
 # tests/discovery/m02 each used to reach this library for their own
 # prototype's real-PyMOL evidence, which is what its visibility grant
-# was for; both prototypes are now promoted (docs/master_plan.md items 4
-# and 5) and neither directory exists, so this target is private to its
-# own package again and carries no grant at all.
+# was for; both prototypes are now promoted and neither directory exists,
+# so this target is private to its own package again and carries no grant
+# at all.
 # The two-chain fixture PDB, shared with //tests/e2e so the two real-PyMOL
 # suites cannot disagree about what "the fixture" is. Bazel's glob cannot
 # reach across a package boundary, so the dependency is spelled as this

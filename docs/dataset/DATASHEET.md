@@ -8,9 +8,9 @@ hand. Split version 2, built from commit
 
 This split trains and evaluates a small local model that turns a
 structural biologist's natural-language intent into a restricted,
-verified PyMOL command plan (master plan items 15-17). It exists so
-the offline evaluation measures generalization to structures the model
-never saw, on intents a person wrote rather than a template.
+verified PyMOL command plan. It exists so the offline evaluation
+measures generalization to structures the model never saw, on intents
+a person wrote rather than a template.
 
 ## Composition
 
@@ -91,11 +91,10 @@ Earlier split versions, superseded by this one and kept in `docs/dataset/history
 
 ## Uses
 
-Fine-tuning (item 17) trains on `train.jsonl` only. The offline
-evaluation (item 16) reports on `test_gold.jsonl`, with
-`heldout_synthetic.jsonl` as a secondary structure-generalization
-figure. Neither evaluation file may be used for training, prompt
-selection or model selection.
+Fine-tuning trains on `train.jsonl` only. The offline evaluation
+reports on `test_gold.jsonl`, with `heldout_synthetic.jsonl` as a
+secondary structure-generalization figure. Neither evaluation file may
+be used for training, prompt selection or model selection.
 
 ## Distribution and license
 
@@ -104,7 +103,7 @@ selection or model selection.
 - PyMOL: pymol-open-source-whl 3.2.0.2, as its wheel metadata states: License: Open-Source PyMOL Copyright Notice (full text recorded in manifest.json)
 - Gold intents: written for this repository: drafted by claude-opus-5-5 and reviewed and edited by Martin
 - Teacher outputs: none; training intents are templated by pmc_data.taxonomy
-- Publication: none planned; SPECIFICATION.md records that no publication is planned for this deliverable
+- Publication: none planned
 
 ## Maintenance and regeneration
 

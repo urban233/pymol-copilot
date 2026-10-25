@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""The p50-per-stage record docs/master_plan.md item 12 asks for.
+"""The end-to-end suite's p50-per-stage latency record.
 
-SPECIFICATION.md:157: "Report p50 stage latency; no fixed pass/fail
-budget." This module holds the arithmetic and the note-rendering, kept
+The latency is reported at p50 per stage, with no fixed pass/fail
+budget. This module holds the arithmetic and the note-rendering, kept
 PyMOL-free so it is checked hermetically and cheaply
 (`tests/e2e/test_latency.py`) on every CI run; `record_latency.py` is the
 `py_binary` that actually drives a real scenario and writes a real
@@ -24,7 +24,7 @@ from typing import Iterator
 #: import and page-cache warm-up) is discarded, leaving an even ten.
 DEFAULT_REPETITIONS = 11
 
-#: The stages this item's own brief asks to be timed, in the order the
+#: The stages the latency record times, in the order the
 #: rendered table lists them. `StageTimer` treats this as the complete,
 #: closed set: an undeclared stage, a stage recorded twice, or a declared
 #: stage never recorded are each a programming error in the harness, not
@@ -98,8 +98,8 @@ class StageTimer:
 
         Used for a stage this harness derives arithmetically (a whole
         console invocation's own elapsed time, minus the instrumented
-        sub-stages within it) rather than measures directly, per this
-        item's own decision not to thread a timer through production
+        sub-stages within it) rather than measures directly, by the
+        deliberate choice not to thread a timer through production
         code to isolate it precisely.
 
         Args:

@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Drive both demo beats in GUI PyMOL, and record what the window showed.
 
-docs/master_plan.md item 19. This is the demo's scripted dry run: it
+This is the demo's scripted dry run: it
 runs inside GUI PyMOL (from the demo environment, `requirements-demo.txt`)
 against the running server, types each step of docs/demo.md at PyMOL's
 command line, waits for the client's answer, checks the session, and

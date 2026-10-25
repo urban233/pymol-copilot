@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Integrated TaskSuccess: the gold set through the running product.
 
-docs/master_plan.md item 19: "Measure integrated TaskSuccess against the
-offline number and explain any gap rather than averaging it away."
+Integrated TaskSuccess is measured against the offline number, and any
+gap is explained rather than averaged away.
 
 The offline evaluation (`pmc_eval.runner`) drives the runtime's own
 request graph against a rebuilt structure and grades what a fresh

@@ -239,7 +239,7 @@ __marimo__/
 # Code Review
 code_review
 
-# Training environment and pinned toolchain (master plan item 17).
+# Training environment and pinned toolchain.
 .venv-train/
 .venv-notebook/
 .venv-demo/

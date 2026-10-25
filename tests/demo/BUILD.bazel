@@ -2,8 +2,8 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
-# The live demo's launcher and rehearsal (docs/demo.md, master plan item
-# 19). It lives under tests/ because only tests may depend on pmc_client,
+# The live demo's launcher and rehearsal (docs/demo.md). It lives under
+# tests/ because only tests may depend on pmc_client,
 # like //tests/e2e:record_latency.
 # Only what the product itself puts in PyMOL: the client and the core.
 _DEMO_DEPS = [

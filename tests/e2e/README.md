@@ -1,6 +1,6 @@
 # End-to-end tests
 
-Owned by docs/master_plan.md item 12: the five scenarios its brief names,
+Owned by the end-to-end suite: its five scenarios,
 each driven from `cmd.do("copilot ...")` against a real headless PyMOL and a
 real loopback server, plus the sabotage matrix that proves the suite's own
 mutation check can fail, plus the per-stage latency record.
@@ -18,8 +18,7 @@ mutation check can fail, plus the per-stage latency record.
 - `test_server_unavailable_real_pymol.py` -- scenario 5: a real
   `//src/pmc_server:server` process, started and then killed, covering never
   started, died mid-session, and up-with-the-engine-down.
-- `test_fingerprint_sabotage.py` -- the sabotage test
-  [SPECIFICATION.md:723](../../SPECIFICATION.md#L723) asks for by name:
+- `test_fingerprint_sabotage.py` -- the suite's own sabotage test:
   a real PyMOL mutation of every field this directory's own fingerprint
   compares, proving the check can fail, plus the negative that a genuine
   no-op does not trip it.

@@ -759,7 +759,7 @@ def test_hostile_json_is_a_decode_error_not_a_crash(raw: str) -> None:
         decode_json(raw, response=True)
 
 
-# --- executor wire types (docs/master_plan.md item 4) ---------------------
+# --- executor wire types --------------------------------------------------
 
 
 def five_verb_plan() -> ActionPlan:

@@ -1,7 +1,7 @@
 # The live grader's reference run
 
-**What this is:** the integrated measurement (master plan item 19) run
-with no model. Every gold sample goes through the running product:
+**What this is:** the integrated measurement run with no model. Every
+gold sample goes through the running product:
 
 1. its structure is rebuilt in live headless PyMOL;
 2. `copilot <intent>` is typed at PyMOL's command line and goes through

@@ -2,8 +2,8 @@ load("@rules_python//python:py_library.bzl", "py_library")
 
 # The one package permitted to import both real PyMOL and //tools/winstage:
 # the fresh-process children pmc_core.executor spawns by module name --
-# "python -m pmc_sidecar.child" for execute() (docs/master_plan.md item 4)
-# and "python -m pmc_sidecar.fidelity" for probe_fidelity() (item 7) --
+# "python -m pmc_sidecar.child" for execute() and
+# "python -m pmc_sidecar.fidelity" for probe_fidelity() --
 # never by import, so pmc_core itself never acquires either dependency.
 # tools/bazel/check_dependency_boundaries.py's FORBIDDEN set names this
 # package as defence in depth behind that: the spawn-by-module-name

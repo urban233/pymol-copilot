@@ -1,10 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The per-category rejection report, aggregated honestly.
 
-Item 14 asks for the rejection rate per category, reported honestly,
-with any category the oracle cannot grade marked unsupported rather
-than guessed. Four rules follow, and they are what this module exists
-to enforce rather than leave to whoever reads the numbers:
+The rejection rate is reported per category, honestly, with any category
+the oracle cannot grade marked unsupported rather than guessed. Four
+rules follow, and they are what this module exists to enforce rather
+than leave to whoever reads the numbers:
 
 - **An unsupported category is not a failure.** A plan naming the
   polymer flag was never gradable, so counting it as a rejection would

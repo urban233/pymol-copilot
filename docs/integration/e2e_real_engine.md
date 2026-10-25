@@ -1,9 +1,8 @@
 # The end-to-end suite against the fine-tuned model
 
-**What this is:** `//tests/e2e:real_engine` (master plan item 19). It
-runs the end-to-end scenarios against the trained model artifact
-instead of a scripted engine, through the production server started as
-a user starts it:
+**What this is:** `//tests/e2e:real_engine`. It runs the end-to-end
+scenarios against the trained model artifact instead of a scripted
+engine, through the production server started as a user starts it:
 
 ```
 python -m pmc_server.main --config configs/evaluation/finetuned.json

@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The denied-form corpus: every shape V1 must refuse, with zero execution.
 
-The specification's explicit-denial list names Python-evaluating forms,
+V1's explicit-denial list names Python-evaluating forms,
 shell and system commands, script inclusion, plugins and extensions,
 arbitrary namespaces, unrestricted settings, file paths, load/save/export,
 destructive or molecular-data mutations, and anything unknown. This module
@@ -159,7 +159,7 @@ def test_every_allowlisted_verb_is_absent_from_the_denied_corpus() -> None:
 
 
 def test_the_corpus_covers_every_named_denial_family() -> None:
-    """Each family the specification names explicitly has cases here."""
+    """Each family the explicit-denial list names has cases here."""
     every_case = (
         [case_id for _, case_id in UNKNOWN_VERB_FORMS]
         + [case_id for _, case_id in DENIED_EXPRESSION_FORMS]

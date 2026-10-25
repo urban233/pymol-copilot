@@ -2,9 +2,9 @@
 """The fidelity probe's fresh-process child.
 
 This is the second of two modules that import real PyMOL (the other is
-`src/pmc_sidecar/child.py`), one of docs/master_plan.md item 7's own
-requirements: "reconstruct that snapshot in a sidecar, compare it against
-the live session". `pmc_core.executor.probe_fidelity()` spawns this module
+`src/pmc_sidecar/child.py`), because the fidelity gate must reconstruct
+that snapshot in a sidecar and compare it against the live session.
+`pmc_core.executor.probe_fidelity()` spawns this module
 by name (`python -m pmc_sidecar.fidelity`), never by import, so
 `pmc_core` itself never acquires either PyMOL dependency (see
 `tools/bazel/check_dependency_boundaries.py`). `main()` reads a snapshot

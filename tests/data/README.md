@@ -6,16 +6,16 @@ behavior is exercised here -- those stay owned by `tests/contract`,
 
 Two generations of evidence live side by side.
 
-The original chain-A/red fixture (M-01, issue #8): the gold-case
+The original chain-A/red fixture (issue #8): the gold-case
 schema, the independent chain-membership oracle, its sabotage check,
 and the real-PyMOL suite that grades the one accepted plan.
 
-The generalized dataset pipeline (master plan item 14): the controlled
+The generalized dataset pipeline: the controlled
 structure builder, the selection-expression oracle, the sample record,
 the plan taxonomy, the per-category report, and the committed
 conformance slice.
 
-The gold set, split and label audit (master plan item 15): the gold
+The gold set, split and label audit: the gold
 record and its committed items, the held-out split, decontamination,
 the manifest and datasheet, and the audit. See "The gold set, split
 and audit" below.
@@ -121,7 +121,7 @@ it honest about itself if the first is ever weakened.
 
 ## The gold set, split and audit
 
-Item 15 turns the corpus into something an evaluation can rest on. Each
+This stage turns the corpus into something an evaluation can rest on. Each
 claim it makes has a test that has been sabotaged -- the property
 broken, the test watched failing, the break reverted.
 

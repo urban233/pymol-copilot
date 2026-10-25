@@ -40,7 +40,7 @@ from pmc_core.plan import SelectionExpression
 from pmc_core.plan import ShowOperation
 from pmc_sidecar.child import run_plan
 
-#: The captured PyMOL error corpus item 6 owns (docs/master_plan.md item 6),
+#: The captured PyMOL error corpus the error envelope owns,
 #: reached from this file rather than from the working directory, which a
 #: Bazel test does not control -- the same technique
 #: tests/integration/test_errors_real_pymol.py already uses to reach the
@@ -265,12 +265,11 @@ def test_a_real_pymol_failure_produces_the_captured_envelope(
 ) -> None:
     """A real PyMOL failure normalizes to exactly the checked-in corpus.
 
-    docs/master_plan.md item 8: run_plan() itself calls
-    pmc_core.errors.normalize at the point PyMOL raises, so this is the
-    first place that normalization is exercised against a real PyMOL
-    failure rather than a synthetic one -- test_errors.py's own
-    byte-equality guarantee, now proven at this module's own boundary
-    rather than only against a recorded raw message.
+    run_plan() itself calls pmc_core.errors.normalize at the point PyMOL
+    raises, so this is the first place that normalization is exercised
+    against a real PyMOL failure rather than a synthetic one --
+    test_errors.py's own byte-equality guarantee, now proven at this
+    module's own boundary rather than only against a recorded raw message.
 
     Args:
         loaded_fixture: The real PyMOL cmd module with "fx" loaded.

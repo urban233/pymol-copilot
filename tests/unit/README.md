@@ -14,12 +14,11 @@ The local-inference evidence is entirely hermetic:
 
 `test_agent_runtime.py` and `test_validation_service.py` predate the request
 graph: the first pins the LangGraph/httpx dependency wiring
-(`pmc_agent.runtime`) that item 8's own graph superseded as the package's
+(`pmc_agent.runtime`) that the request graph superseded as the package's
 real content; the second covers `pmc_server.validation.PlanValidationService`,
-the `/v1/validate` sidecar-executor lifecycle (docs/master_plan.md item 4)
-against a fake executor.
+the `/v1/validate` sidecar-executor lifecycle against a fake executor.
 
-The rest is docs/master_plan.md item 8's own evidence, one file per node
+The rest is the request graph's own evidence, one file per node
 group so each can be read (and broken) independently:
 
 - `test_inference_fake.py` covers `pmc_agent.inference.fake.FakeEngine`
@@ -37,9 +36,9 @@ group so each can be read (and broken) independently:
   answer that shows ignored grammar, or even a near-miss sentinel leaves no
   usable engine.
 - `test_request_graph_transitions.py` proves the graph's shape before any
-  node does real work: every edge SPECIFICATION.md:420-425 describes is
-  reachable and lands where specified, `REQUEST_STATES` is exactly the
-  eleven names this item owns (a set-equality assertion, so a twelfth status
+  node does real work: every edge of the request state machine is
+  reachable and lands where it should, `REQUEST_STATES` is exactly the
+  eleven names the graph owns (a set-equality assertion, so a twelfth status
   cannot appear without the suite noticing), and the routing function fails
   closed on an unrecognized status rather than defaulting to a live one.
 - `test_request_graph_generation.py` covers `preparing` and `generating`
@@ -49,7 +48,7 @@ group so each can be read (and broken) independently:
   bounded question and no plan; every `EngineFailure` category reaches
   `TERMINAL_FAILED` typed, with no traceback; and `target_object` always
   equals the request's own resolved object, never anything the completion
-  names. `validating` is already real by this step, so every test here also
+  names. `validating` is already real, so every test here also
   injects a fake executor that always succeeds -- `validating`'s own
   behavior is `test_request_graph_repair.py`'s to prove.
 - `test_request_graph_repair.py` covers `validating` and the bounded repair
@@ -82,7 +81,7 @@ group so each can be read (and broken) independently:
   the failure message, and a reject or cancel with nothing pending refused
   as `no_pending_plan` rather than reaching the graph at all.
 
-The no-model-authority proof that ties all of the above together --
-SPECIFICATION.md:551-552, that no completion can move a protected field --
-is deliberately not here: it is written adversarially, against the finished
-graph, in `tests/adversarial/test_model_authority.py`.
+The no-model-authority proof that ties all of the above together -- that
+no completion can move a protected field -- is deliberately not here: it
+is written adversarially, against the finished graph, in
+`tests/adversarial/test_model_authority.py`.

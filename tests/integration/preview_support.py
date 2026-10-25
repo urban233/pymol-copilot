@@ -1,14 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Read a `copilot` preview block without indexing captured output lines.
 
-docs/master_plan.md item 11 replaces the four separate `_output` calls
-`copilot` used to make (fidelity, plan, checked, apply) with one block. A
-test that indexed `output[0]`, `output[1]`, ... against the old four-line
-shape breaks the moment a section is added, reordered, or merged -- this
-module is what those tests read from instead: by section name, not
-position, so a wording or ordering change inside the block does not by
-itself break a test that only cares whether a section exists and what it
-says.
+The preview replaces the four separate `_output` calls `copilot` used to
+make (fidelity, plan, checked, apply) with one block. A test that indexed
+`output[0]`, `output[1]`, ... against the old four-line shape breaks the
+moment a section is added, reordered, or merged -- this module is what
+those tests read from instead: by section name, not position, so a
+wording or ordering change inside the block does not by itself break a
+test that only cares whether a section exists and what it says.
 """
 
 from __future__ import annotations

@@ -1,15 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """An `InferenceEngine` that was never reachable at startup.
 
-docs/master_plan.md item 11. SPECIFICATION.md:609: when Lemonade is
-unavailable or incompatible, *"Server remains available for diagnostics; no
-unconstrained fallback."* Today nothing in `src/` builds a real server
-entrypoint (that lands with a later item), but this is the engine such an
-entrypoint constructs when `pmc_agent.inference.lemonade.connect_lemonade`
-returns an `EngineFailure` instead of a connected engine: every
-`complete()` call returns that same recorded failure unchanged, and
-`copilot_health` can still report why, instead of the server refusing to
-start at all.
+When Lemonade is unavailable or incompatible, the server remains available
+for diagnostics, with no unconstrained fallback. Today nothing in `src/`
+builds a real server entrypoint (that lands later), but this is the engine such
+an entrypoint constructs when `pmc_agent.inference.lemonade.connect_lemonade`
+returns an `EngineFailure` instead of a connected engine: every `complete()`
+call returns that same recorded failure unchanged, and `copilot_health` can
+still report why, instead of the server refusing to start at all.
 """
 
 from __future__ import annotations

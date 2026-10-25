@@ -1,10 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The prompt-builder seam: a placeholder default, not a real prompt.
 
-docs/master_plan.md item 13 (Martin's, ~2 days, blocked on item 5) owns
-the real prompt builder: "turns a structure card plus a user intent into
-the model prompt, and emits the grammar for the engine," stamping "card
-version, grammar version and policy version into every prompt," with a
+The real prompt builder turns a structure card plus a user intent into
+the model prompt and emits the grammar for the engine, stamping card
+version, grammar version and policy version into every prompt, with a
 parity test asserting the dataset generator and the runtime call the same
 code. None of that exists yet.
 
@@ -13,16 +12,15 @@ something to call today: a `PROMPT_BUILDER` seam -- one callable taking a
 frozen `PromptInputs` and returning a prompt string -- and a minimal
 default implementation that stamps `pmc_core.card.CARD_VERSION`, the
 request's own contract manifest, and the literal intent into a bounded
-prompt. Building item 13's real prompt or grammar here would be work item
-13 deletes; this module's only job is to give the graph a seam item 13 can
-be dropped into without a graph change.
+prompt. Building the real prompt or grammar here would be work the
+prompt builder deletes; this module's only job is to give the graph a
+seam the prompt builder can be dropped into without a graph change.
 
-Item 13 has since landed, and `build_training_prompt` is that seam
-filled: the prompt the local model was fine-tuned on (item 17), which
-the offline evaluation sends too (`pmc_eval.prompt.contract_prompt`).
-The graph's own default is still the placeholder, so a bare graph in
-a test is unchanged; the server (`pmc_server.main`) sends this one by
-default (item 19).
+The prompt builder has since landed, and `build_training_prompt` is that
+seam filled: the prompt the local model was fine-tuned on, which the
+offline evaluation sends too (`pmc_eval.prompt.contract_prompt`). The
+graph's own default is still the placeholder, so a bare graph in a test
+is unchanged; the server (`pmc_server.main`) sends this one by default.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -86,10 +84,10 @@ class PromptInputs:
             against the exact contracts that produced it.
         errors: Every prior attempt's failure evidence for this request,
             oldest first, empty on the first (non-repair) generation. Fed
-            back so the model sees what went wrong; SPECIFICATION.md:
-            551-552 forbids this history from ever influencing anything
-            this graph itself decides -- attempt count, target object,
-            policy, or approval all come from elsewhere, never from this.
+            back so the model sees what went wrong; this history must never
+            influence anything this graph itself decides -- attempt count,
+            target object, policy, or approval all come from elsewhere, never
+            from this.
     """
 
     intent: str
@@ -98,8 +96,9 @@ class PromptInputs:
     errors: tuple[AttemptFailure, ...] = ()
 
 
-#: The prompt-builder seam `pmc_agent.graph` depends on. item 13 supplies
-#: its own implementation of this same signature; the graph never changes.
+#: The prompt-builder seam `pmc_agent.graph` depends on. The prompt builder
+#: supplies its own implementation of this same signature; the graph never
+#: changes.
 type PROMPT_BUILDER = Callable[[PromptInputs], str]
 
 
@@ -155,11 +154,11 @@ def build_default_prompt(inputs: PromptInputs) -> str:
         inputs: The request's own prompt inputs.
 
     Returns:
-        A bounded prompt string. Not the real prompt item 13 will emit --
-        no grammar, no few-shot structure, no task framing -- only enough
-        for the fake engine in this item's own tests to have something to
-        record, and for a real engine to have something to complete
-        against before item 13 lands.
+        A bounded prompt string. Not the real prompt the prompt builder
+        will emit -- no grammar, no few-shot structure, no task framing --
+        only enough for the fake engine in the graph's own tests to have
+        something to record, and for a real engine to have something to
+        complete against before the prompt builder lands.
     """
     manifest = inputs.contract_manifest
     errors = "".join(_error_line(error) for error in inputs.errors)

@@ -1,6 +1,6 @@
 name: Portable bundle smoke
 
-# Builds the portable Windows bundle (master plan item 20) without the
+# Builds the portable Windows bundle without the
 # model, which is never uploaded, extracts it into a deep folder whose
 # name has spaces, and runs its own check with the live demo off: PyMOL
 # in a Jupyter kernel, a PyMOL sidecar from the relocated Python, and the

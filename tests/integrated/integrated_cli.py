@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Run the gold set through the product, and report it against offline.
 
-docs/master_plan.md item 19. Every sample goes through what a user does:
+Every sample goes through what a user does:
 
 1. its structure is rebuilt in a live, headless PyMOL session;
 2. `copilot <intent>` is typed at PyMOL's own command line, and the

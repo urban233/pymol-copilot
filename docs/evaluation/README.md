@@ -1,7 +1,7 @@
 # Offline evaluation
 
-**Purpose:** what the offline evaluation (master plan item 16) measures,
-how, and what a later comparison against its baseline must hold fixed.
+**Purpose:** what the offline evaluation measures, how, and what a later
+comparison against its baseline must hold fixed.
 
 **Code:** [`src/pmc_eval/`](../../src/pmc_eval/) · **Config:**
 [`configs/evaluation/baseline.json`](../../configs/evaluation/baseline.json)
@@ -16,11 +16,11 @@ own request graph (`pmc_agent.graph`), compiled exactly as the runtime
 compiles it, with three seams wrapped:
 
 1. **The prompt** is `pmc_eval.prompt.contract_prompt`: on a first
-   attempt, byte for byte the `Sample.prompt_text` item 17 trains on
-   (`pmc_core.prompt.build_for_runtime`); on a repair, the same prompt
-   followed by one line per earlier failure, worded as the graph words
-   them. The graph's own default builder is a placeholder that differs
-   from the training prompt.
+   attempt, byte for byte the `Sample.prompt_text` the fine-tune
+   trains on (`pmc_core.prompt.build_for_runtime`); on a repair, the
+   same prompt followed by one line per earlier failure, worded as the
+   graph words them. The graph's own default builder is a placeholder
+   that differs from the training prompt.
 2. **The engine** receives `pmc_core.grammar.build_grammar()` on every
    attempt under the `grammar` condition, and none under `no-grammar`
    (the runtime graph always sends none). A completion that does not end
@@ -128,7 +128,7 @@ prompt that does not fit the context. It checkpoints every sample, and
 `--resume` continues an interrupted run. `--limit N` runs a pilot of the
 first N samples, which `publish` refuses.
 
-## What item 17's comparison must hold fixed
+## What the fine-tuning comparison must hold fixed
 
 The tuned model is compared with this baseline only when everything but
 the weights is the same:

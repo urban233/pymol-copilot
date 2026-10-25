@@ -1,8 +1,7 @@
 # Integrated TaskSuccess: the model paired with the runtime
 
-**What this is:** master plan item 19's measurement: *"Measure integrated
-TaskSuccess against the offline number and explain any gap rather than
-averaging it away."*
+**What this is:** integrated TaskSuccess, measured against the offline
+number, with any gap explained rather than averaged away.
 
 **What was measured:** the 68 `test_gold` samples, run through the
 running product against the fine-tuned model. For each sample:

@@ -1,11 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The server's opt-in trace records what the model wrote, and only then.
 
-docs/master_plan.md item 19: explaining a difference between the
-integrated and the offline TaskSuccess needs every attempt's raw
-completion, which the client never sees. `pmc_server.trace` appends one
-line per completion call to a private file, only when `--trace-file`
-asks for it.
+Explaining a difference between the integrated and the offline
+TaskSuccess needs every attempt's raw completion, which the client never
+sees. `pmc_server.trace` appends one line per completion call to a
+private file, only when `--trace-file` asks for it.
 """
 
 from __future__ import annotations

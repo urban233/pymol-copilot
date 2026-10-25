@@ -697,7 +697,7 @@ def test_a_launch_command_naming_another_file_is_not_trusted() -> None:
 
 
 #: A local GGUF Lemonade serves in place from its `extra_models_dir`,
-#: whose checkpoint is its own absolute path (master plan item 17).
+#: whose checkpoint is its own absolute path.
 _LOCAL_CHECKPOINT = "/models/export-control/local.gguf"
 
 
@@ -737,8 +737,8 @@ def test_a_local_gguf_launched_from_another_path_is_refused() -> None:
     assert result.category == ENGINE_UNKNOWN
 
 
-#: The same local GGUF served in place on native Windows (master plan
-#: item 20's bundle), as Lemonade's catalog reports it.
+#: The same local GGUF served in place on native Windows (the portable
+#: bundle), as Lemonade's catalog reports it.
 _WINDOWS_CHECKPOINT = r"C:\pmc\model\local.gguf"
 
 

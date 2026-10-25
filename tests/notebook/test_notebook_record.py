@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Every number the committed notebook reports recomputes from the evidence.
 
-The notebook (master plan item 18) is committed executed, so its
+The notebook is committed executed, so its
 outputs are text a reader trusts without running anything. Each number
 it reports also goes through `notebook_support.record`, and its last
 cell prints them all as one JSON document. This test reads that document
@@ -11,7 +11,7 @@ notebook cannot drift from what it describes. It also checks that every
 cell ran, in order, without an error, and that the end-user
 demonstration was actually executed.
 
-The portable Windows bundle (master plan item 20) runs the same test on
+The portable Windows bundle runs the same test on
 the copy of the notebook it executed itself: `PMC_NOTEBOOK_PATH` names
 that copy (`tools/bundle/check_bundle.py`).
 """

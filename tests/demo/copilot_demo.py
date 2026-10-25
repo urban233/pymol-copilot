@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The live demo's launcher and its rehearsal (docs/demo.md).
 
-docs/master_plan.md item 19: "dry-run the demo: one intent through
-apply, one deliberate failure through recovery". The demo has two
+It rehearses one intent through apply and one deliberate failure
+through recovery. The demo has two
 beats, in one PyMOL window:
 
 1. an intent through preview, approval (`copilot_apply`) and, to show

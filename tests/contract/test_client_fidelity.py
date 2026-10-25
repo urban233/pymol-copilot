@@ -155,8 +155,8 @@ def test_perturbed_reextraction_is_not_exact_with_diffs_module_own_strings() -> 
     """A perturbed reconstruction's mismatches equal an independent diff().
 
     Perturbs one atom's q, that same atom's coordinate, and adds an extra
-    coordinate state -- exactly the three categories this item's own
-    step 9 covers with real PyMOL. The assertion is equality against an
+    coordinate state -- exactly the three categories the real-PyMOL
+    fidelity tests cover. The assertion is equality against an
     independently computed `diff()` call, not a hand-predicted message
     list, since `diff()`'s own n_states short-circuit means which
     messages appear depends on its internal comparison order, not on

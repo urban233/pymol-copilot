@@ -120,19 +120,19 @@ RUN_FILES = ("run.json", "samples.jsonl", "report.json", "timings.jsonl")
 PUBLISH_VERSION = 1
 
 #: What a published directory can hold, each with its page's file name,
-#: title and opening paragraph. `baseline` is item 16's, and publishing
-#: it is unchanged; the others are item 17's.
+#: title and opening paragraph. `baseline` is the untuned baseline's, and
+#: publishing it is unchanged; the others are the fine-tune's.
 PUBLISH_KINDS: dict[str, tuple[str, str, str]] = {
     "baseline": (
         "BASELINE.md",
         "Untuned baseline",
         "The untuned base model, evaluated by the offline harness "
-        "(docs/master_plan.md item 16) before any fine-tuning existed.",
+        "before any fine-tuning existed.",
     ),
     "finetuned": (
         "REPORT.md",
         "Fine-tuned model",
-        "The fine-tuned model (docs/master_plan.md item 17), evaluated by "
+        "The fine-tuned model, evaluated by "
         "the same harness under the same config as the untuned baseline, "
         "except for the model. The comparison is in "
         "[../comparison/COMPARISON.md](../comparison/COMPARISON.md).",
@@ -140,7 +140,7 @@ PUBLISH_KINDS: dict[str, tuple[str, str, str]] = {
     "export-control": (
         "REPORT.md",
         "Export-pipeline control",
-        "The untuned base weights exported through item 17's own "
+        "The untuned base weights exported through the fine-tune's own "
         "convert-and-quantize pipeline (docs/training/README.md), "
         "evaluated like the baseline. It measures what that pipeline "
         "changes before any fine-tuning; it is not the pre-registered "
@@ -898,9 +898,9 @@ def run_publish(args: argparse.Namespace, git: tuple[str, bool]) -> int:
             return _refuse(f"two runs of {key[0]} under {key[1]}")
         runs[key] = (run, report, directory)
     if args.sets and args.kind == "baseline":
-        # Item 16's baseline, which every comparison rests on, is always
+        # The untuned baseline, which every comparison rests on, is always
         # published over its config's whole grid.
-        return _refuse("--sets is for item 17's publications only")
+        return _refuse("--sets is for the fine-tune's publications only")
     sets = args.sets or list(config.sets)
     if not set(sets) <= set(config.sets):
         return _refuse(f"--sets must name only {list(config.sets)}")

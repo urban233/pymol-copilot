@@ -1,7 +1,7 @@
-# The evaluation engine (master plan item 16): Lemonade 11.9.0 serving the
-# model configs/evaluation/baseline.json names, on the loopback port the
-# config points at. See README.md in this directory for which variant to
-# run where; setup.sh then prepares the model and prints the provenance.
+# The evaluation engine: Lemonade 11.9.0 serving the model
+# configs/evaluation/baseline.json names, on the loopback port the config
+# points at. See README.md in this directory for which variant to run
+# where; setup.sh then prepares the model and prints the provenance.
 #
 #   x86_64 Linux or WSL2, CPU:
 #     docker compose -f compose.yaml up -d

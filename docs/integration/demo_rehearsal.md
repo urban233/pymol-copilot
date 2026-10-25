@@ -1,9 +1,9 @@
 # The demo, rehearsed against the fine-tuned model
 
-**What this is:** Gate C of master plan item 19. Both demo beats
-([docs/demo.md](../demo.md)) were rehearsed headless against the
-fine-tuned model, at commit `6fad86e`, on 2026-09-30, on Martin's WSL2
-machine with the RTX 4060, with his consent.
+**What this is:** both demo beats ([docs/demo.md](../demo.md)) were
+rehearsed headless against the fine-tuned model, at commit `6fad86e`,
+on 2026-09-30, on Martin's WSL2 machine with the RTX 4060, with his
+consent.
 
 **How it was run:** the production server was started from the
 evaluated config:

@@ -113,8 +113,8 @@ def _exact_outcome() -> FidelityOutcome:
     )
 
 
-def test_preview_names_every_section_specification_requires() -> None:
-    """Every section SPECIFICATION.md:503-511 names appears, every time."""
+def test_preview_names_every_required_section() -> None:
+    """Every section a `copilot` preview must print appears, every time."""
     response = _response(
         selection_counts=(SelectionCountV1("copilot_selection", 1020),)
     )
@@ -245,7 +245,7 @@ def test_not_applicable_never_offers_the_apply_command() -> None:
 
 
 def test_checked_lines_never_claim_a_non_exact_plan_was_not_run() -> None:
-    """The known bug this item fixes: a non-exact plan really did run."""
+    """The known bug fixed here: a non-exact plan really did run."""
     not_exact = FidelityOutcome(
         status=FIDELITY_NOT_EXACT,
         reason="fidelity_mismatch",

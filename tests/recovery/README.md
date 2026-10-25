@@ -1,6 +1,6 @@
 # Recovery tests
 
-Owned by approval, apply, and recovery evidence (master-plan item 10).
+Owned by approval, apply, and recovery evidence.
 This directory proves the recovery-point lifecycle, approval verification,
 apply/rollback behavior, and real-PyMOL mid-plan recovery. `apply_engine`,
 `approval_verification`, `recovery_point`, `rollback`, `apply_real_pymol`,

@@ -3,7 +3,7 @@
 
 A manifest is a claim about bytes, so the validator is tested by
 changing bytes. The datasheet is rendered from the manifest, so it is
-tested for the statements the spec requires it to make.
+tested for the statements it must make.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

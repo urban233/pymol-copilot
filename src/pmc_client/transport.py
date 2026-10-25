@@ -24,7 +24,7 @@ from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
 PLAN_PATH = "/v1/plan"
-#: docs/master_plan.md item 8's own request-graph endpoints
+#: The request graph's own endpoints
 #: (`pmc_server.transport.REJECT_PATH`/`CANCEL_PATH`), redefined here with
 #: matching literal values: `pmc_client` cannot depend on `pmc_server`
 #: (tools/bazel/check_dependency_boundaries.py), so every endpoint path
@@ -34,13 +34,13 @@ REJECT_PATH = "/v1/reject"
 CANCEL_PATH = "/v1/cancel"
 APPLY_PATH = "/v1/apply"
 APPLY_OUTCOME_PATH = "/v1/apply-outcome"
-#: docs/master_plan.md item 11's own `copilot_health` command, redefined
+#: The `copilot_health` command's own endpoint, redefined
 #: here for the same dependency-boundary reason as the paths above.
 HEALTH_PATH = "/v1/health"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
 #: `PlanRequestV1` now carries the full canonical snapshot JSON, not
-#: merely its identity (docs/master_plan.md item 8), so the request side
+#: merely its identity, so the request side
 #: of this transport needs the same wider bound
 #: `pmc_server.transport`'s own `/v1/plan` handler enforces --
 #: `pmc_core.executor.MAX_EXECUTION_REQUEST_BYTES`, imported directly
@@ -61,8 +61,8 @@ class TransportError(RuntimeError):
     """Raised when the local server transport cannot be trusted."""
 
 
-#: `/v1/plan` now answers synchronously from inside the request graph
-#: (docs/master_plan.md item 8), not a fixture echo: `pmc_server.lifecycle
+#: `/v1/plan` now answers synchronously from inside the request graph,
+#: not a fixture echo: `pmc_server.lifecycle
 #: .RequestGraphLifecycle` can drive up to three full generate-then-validate
 #: attempts (one initial plus two repairs) before the HTTP response is ever
 #: written, each bounded by the graph's own 30-second generation deadline
@@ -246,7 +246,7 @@ class LoopbackPlanClient:
         except TransportError:
             raise
         except Exception as error:
-            # docs/master_plan.md item 11: every failure path must be
+            # Every failure path must be
             # bounded, never an unhandled exception escaping into PyMOL's
             # own command dispatch -- widened past the specific transport
             # exceptions this library documents, since an HTTP client can

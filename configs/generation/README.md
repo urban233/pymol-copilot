@@ -4,8 +4,8 @@ This directory is owned by model-data generation.
 
 ## `corpus.json`
 
-The standing configuration for the generalized dataset run (master
-plan item 14), consumed by `pmc_data.corpus_cli`:
+The standing configuration for the generalized dataset run, consumed
+by `pmc_data.corpus_cli`:
 
 ```
 bazel run //src/pmc_data:corpus_cli -- --workers 8
@@ -58,8 +58,7 @@ gold records keep their fixed-plan drift guard.
 
 ## `split.json`
 
-Declares how `pmc_data.split_cli` builds the held-out split (master
-plan item 15):
+Declares how `pmc_data.split_cli` builds the held-out split:
 
 - `seed` -- the corpus seed the structure matrix is rebuilt at. It must
   equal the corpus run's own seed, or the build is refused.

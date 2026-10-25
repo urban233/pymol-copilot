@@ -1,15 +1,14 @@
 # The live demo: runbook and dry-run record
 
-**Purpose:** the live demo in the V1 presentation (SPECIFICATION.md,
-V1 scope): one intent through apply, and one deliberate failure
-through automatic recovery.
+**Purpose:** the live demo in the V1 presentation: one intent through
+apply, and one deliberate failure through automatic recovery.
 
 **Length:** sized for a twenty-minute segment.
 
 **Audience:** Martin and Hannah, as presenters.
 
 **Where it runs:** Martin's WSL2 machine with the RTX 4060, the only one
-with the fine-tuned model (docs/master_plan.md item 19).
+with the fine-tuned model.
 
 **Status:**
 
@@ -120,8 +119,8 @@ All commands run from the repository root, on the demo machine.
    The answer takes about ten seconds.
 
 2. **Stop on the preview and let the watcher read it.** This is the
-   check SPECIFICATION.md makes of the demo: *a watcher can tell what is
-   about to change before apply is confirmed.* The preview shows:
+   check the demo must pass: a watcher can tell what is about to change
+   before apply is confirmed. The preview shows:
    - **the plan's identifier and when it expires**, in 5 minutes;
    - **the object it acts on**, `pmc_structure` (36 atoms, 1 state);
    - **the numbered commands**, exactly as they will run, with how many
@@ -215,8 +214,8 @@ All commands run from the repository root, on the demo machine.
 
 ## Dry-run record
 
-The specification requires the failure-then-recovery beat to be
-dry-run at least once, with the other developer watching.
+The failure-then-recovery beat must be dry-run at least once, with the
+other developer watching.
 
 ### Dry run 1: scripted, no watcher
 

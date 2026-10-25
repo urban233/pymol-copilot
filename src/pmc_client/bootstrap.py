@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Bootstrap the Copilot client from the server's own handoff file.
 
-docs/master_plan.md item 12. `pmc_server.main.write_handoff` is the only
+`pmc_server.main.write_handoff` is the only
 writer; this module is the only reader, and it is deliberately paranoid:
 the file names a live credential and a port to connect to, so every field
 is validated before a transport or a client is ever built, and a refusal
@@ -291,8 +291,8 @@ def connect_from_handoff(
     # merely any loopback name: `localhost`, `::1`, or `127.0.0.2` would
     # each pass a looser "is loopback" check, yet the transport would still
     # connect to 127.0.0.1 and hand this credential to whatever listens
-    # there. Non-loopback listening is a configuration error
-    # (SPECIFICATION.md:554), and this reader is the last place to catch
+    # there. Non-loopback listening is a configuration error,
+    # and this reader is the last place to catch
     # it, not only the server that wrote the file.
     if host != LOOPBACK_HOST:
         output(

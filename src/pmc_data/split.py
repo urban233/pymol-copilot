@@ -1,15 +1,15 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The held-out split: which controlled structures only the test side sees.
 
-The split is by source structure, as master plan item 15 asks, so no
-structure a test item is asked about appears anywhere in training. Six
-of the 24 specs `pmc_data.structures.enumerate_structures` builds are
-held out, chosen so every structural feature -- several chains, hetero
-atoms, several states, alternate locations, insertion codes, bonds and
-a longer chain -- occurs on *both* sides. A feature present only in the
-test split would measure whether the model can handle something it was
-never shown, which is a different question from whether it generalizes
-to a new structure.
+The split is by source structure, so no structure a test item is asked
+about appears anywhere in training. Six of the 24 specs
+`pmc_data.structures.enumerate_structures` builds are held out, chosen
+so every structural feature -- several chains, hetero atoms, several
+states, alternate locations, insertion codes, bonds and a longer chain
+-- occurs on *both* sides. A feature present only in the test split
+would measure whether the model can handle something it was never shown,
+which is a different question from whether it generalizes to a new
+structure.
 
 What this split does and does not establish is stated plainly in the
 datasheet: every spec shares one residue vocabulary (ALA, SER, GLY,
@@ -17,12 +17,11 @@ VAL, LEU, with ZN and HOH), so it tests generalization across feature
 combinations and coordinates, not to new chemistry. It is a split by
 spec, not by sequence cluster.
 
-The held-out set is frozen. The spec says test splits are immutable
-after inspection begins, so changing `HELD_OUT_SPEC_IDS` must bump
-`SPLIT_VERSION`, and `tests/data/test_split.py` pins both together so a
-silent edit fails CI. So must changing what the split excludes: version
-2 is version 1 with every `slice` sample removed, after the label audit
-judged one wrong.
+The held-out set is frozen. Test splits are immutable after inspection
+begins, so changing `HELD_OUT_SPEC_IDS` must bump `SPLIT_VERSION`, and
+`tests/data/test_split.py` pins both together so a silent edit fails CI.
+So must changing what the split excludes: version 2 is version 1 with
+every `slice` sample removed, after the label audit judged one wrong.
 
 **Exclusions.** `configs/generation/split.json` can name representations
 whose samples are removed from the split entirely -- from training and

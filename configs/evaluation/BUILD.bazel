@@ -1,6 +1,6 @@
 exports_files(["baseline.json"])
 
-# Every evaluation config: the baseline's and item 17's, which
+# Every evaluation config: the baseline's and the fine-tune's, which
 # //tests/eval:configs_hold_fixed checks differ from it only in the
 # model under evaluation.
 filegroup(
@@ -10,12 +10,11 @@ filegroup(
         "//tests/eval:__pkg__",
         "//tests/notebook:__pkg__",
         # The server reads them too, and the integrated measurement and
-        # the real-engine scenarios serve from them (master plan item 19).
+        # the real-engine scenarios serve from them.
         "//tests/e2e:__pkg__",
         "//tests/integrated:__pkg__",
         "//tests/unit:__pkg__",
-        # The portable bundle's engine must be the evaluated CPU engine
-        # (master plan item 20).
+        # The portable bundle's engine must be the evaluated CPU engine.
         "//tests/bundle:__pkg__",
     ],
 )

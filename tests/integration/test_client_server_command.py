@@ -121,7 +121,7 @@ class DisposablePyMOLAdapter:
     #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
     #: `pymol.commanding.extend()` does, so `register()`'s own
     #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
-    #: entry to rewrite (docs/master_plan.md item 11).
+    #: entry to rewrite.
     keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
@@ -448,10 +448,9 @@ def test_copilot_health_over_real_loopback_with_a_ready_engine() -> None:
 def test_copilot_health_over_real_loopback_with_an_unavailable_engine() -> None:
     """`copilot_health` over a real round trip when the engine never connected.
 
-    SPECIFICATION.md:609: the server stays available for diagnostics even
-    when the engine could not be reached at startup;
-    `UnavailableEngine` is what a future entrypoint constructs for exactly
-    that case (docs/master_plan.md item 11).
+    The server stays available for diagnostics even when the engine could
+    not be reached at startup; `UnavailableEngine` is what a future
+    entrypoint constructs for exactly that case.
     """
     failure = EngineFailure("engine_unavailable", "lemonade is not running")
     session = RequestGraphSession(

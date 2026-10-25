@@ -111,7 +111,7 @@ def _declared_version_constants() -> dict[str, tuple[str, object]]:
 
 
 def test_declared_version_constants_finds_the_known_eight() -> None:
-    """The scan itself must see every constant this item was written against.
+    """The scan itself must see every constant it was written against.
 
     A regression here means the scan stopped walking a module, which
     would silently make the coverage assertion below vacuous.
@@ -133,7 +133,7 @@ def test_contract_versions_covers_every_declared_constant() -> None:
 
     Adding a new `FOO_VERSION = 1` anywhere in `pmc_core` without also
     adding it to `contract_versions()` must fail here, naming the
-    constant that was missed -- proven by hand for this item by adding
+    constant that was missed -- proven by hand by adding
     exactly that to `pmc_core/card.py`, confirming this test names
     `FOO_VERSION`, then reverting it.
     """

@@ -1,5 +1,5 @@
-﻿# Item 20, step 8: a clean Windows (Sandbox, network off) extracts the
-# bundle and runs it. Results go to C:\results (mapped, writable).
+﻿# A clean Windows (Sandbox, network off) extracts the bundle and runs it.
+# Results go to C:\results (mapped, writable).
 $ErrorActionPreference = "Continue"
 $log = "C:\results\sandbox.log"
 function Log($text) { "$(Get-Date -Format HH:mm:ss) $text" | Out-File -Append -Encoding utf8 $log }

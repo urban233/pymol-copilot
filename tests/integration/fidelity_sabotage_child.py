@@ -1,16 +1,16 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """A sabotage fidelity child: reconstructs faithfully, then lies about it.
 
-Test-owned, in the spirit of tests/integration/sabotage_child.py (item 4's
-own sabotage runner for `pmc_core.executor.execute()`): this module
-honours the exact same `[snapshot_path, output_path]` argv contract as
-`src/pmc_sidecar/fidelity.py`, so `pmc_core.executor.probe_fidelity()` can
-spawn it as a drop-in replacement via `runner_module=`. Unlike that
-production child, it genuinely reconstructs and re-extracts the candidate
-snapshot in real PyMOL first -- proving the sabotage lives in the
-*reported* fidelity, not in a shortcut that never touches PyMOL at all --
-then perturbs exactly one field of its own honest re-extraction before
-writing it out.
+Test-owned, in the spirit of tests/integration/sabotage_child.py (the
+sidecar executor's own sabotage runner for `pmc_core.executor.execute()`):
+this module honours the exact same `[snapshot_path, output_path]` argv
+contract as `src/pmc_sidecar/fidelity.py`, so
+`pmc_core.executor.probe_fidelity()` can spawn it as a drop-in replacement
+via `runner_module=`. Unlike that production child, it genuinely
+reconstructs and re-extracts the candidate snapshot in real PyMOL first --
+proving the sabotage lives in the *reported* fidelity, not in a shortcut
+that never touches PyMOL at all -- then perturbs exactly one field of its
+own honest re-extraction before writing it out.
 
 This is what makes tests/integration/test_client_fidelity_real_pymol.py's
 five `FIDELITY_EXACT` cases meaningful: without this module proving

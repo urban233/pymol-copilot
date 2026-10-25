@@ -1,10 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""docs/master_plan.md item 12, scenario 5: the server is unavailable.
+"""End-to-end scenario 5: the server is unavailable.
 
 A real `pmc_server.main` process, spawned (`python -m pmc_server.main`,
 the same "spawn by module name, real environment inheritance" pattern
 `pmc_core.executor._run_child` already uses for the sidecar) and then
-killed, covering all three sub-cases the brief names:
+killed, covering all three sub-cases:
 never started, died mid-session, and up with the engine down. Nothing
 here is faked except the Lemonade origin itself, which deliberately names
 a port nothing listens on.

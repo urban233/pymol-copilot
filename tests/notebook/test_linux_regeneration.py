@@ -3,8 +3,8 @@
 
 `docs/dataset/linux-regeneration/report.json` is the per-category
 record of 4,000 oracle-versus-PyMOL differential checks, which the
-notebook reports as the oracle's conformance evidence (master plan item
-18). It must follow from the committed generation config, and its
+notebook reports as the oracle's conformance evidence. It must follow
+from the committed generation config, and its
 totals must be the sum of its categories.
 """
 

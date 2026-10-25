@@ -37,7 +37,7 @@ def _raw() -> dict[str, Any]:
 
 
 def test_committed_config_loads() -> None:
-    """The committed config parses, with the settings the plan fixed."""
+    """The committed config parses, with its pinned settings."""
     config = load_config(COMMITTED)
     assert config.max_seq_length == 16384
     assert config.chat_template_date == "26 Jul 2024"

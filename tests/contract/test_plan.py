@@ -682,9 +682,9 @@ def test_the_resource_bounds_are_the_shipped_values() -> None:
     """The bounds are pinned as literals, not merely referenced.
 
     Every other bound test is written relative to these constants, so
-    raising one would leave the whole suite green. SPECIFICATION.md requires
-    these limits to be finite and frozen from measured evidence; changing
-    one is a deliberate act that should have to edit this line.
+    raising one would leave the whole suite green. These limits must be
+    finite and frozen from measured evidence; changing one is a deliberate
+    act that should have to edit this line.
     """
     assert (MAX_COMMANDS, MAX_EXPRESSION_TERMS, MAX_INPUT_BYTES) == (
         128,

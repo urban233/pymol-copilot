@@ -7,15 +7,14 @@ and policy suites assert that PyMOL is absent from sys.modules, and pmc_core
 is imported inside PyMOL's own process where dragging in more would be
 worse. A frozen list can drift from the PyMOL it was generated against, and
 a drifted list has a nasty failure mode: a plan the parser accepts and the
-policy allows, which then fails at execution. The specification requires
-denial to happen before execution, so that combination is the thing to rule
-out.
+policy allows, which then fails at execution. Denial must happen before
+execution, so that combination is the thing to rule out.
 
 This module rules it out in one direction only: everything the allowlists
 name must be something real PyMOL knows. The reverse is deliberately not
 asserted. A newer PyMOL adding a color must not turn the build red --
-widening an allowlist is a reviewed decision under the specification's
-"expansion requires security review", not something CI should demand.
+widening an allowlist is a reviewed decision, since expansion requires
+security review, not something CI should demand.
 
 Every collaborator here is real headless Open-Source PyMOL. Nothing is a
 test double.

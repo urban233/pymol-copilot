@@ -1,10 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """A default-deny screen for whether a rejected completion may be repaired.
 
-Orchestration rule 7 (SPECIFICATION.md:534-536) gives an ordinary denial one
-repair opportunity and a hostile class none: "Denied commands receive at
-most one repair opportunity; traversal, arbitrary-code, or other hostile
-classes receive none." The parser and policy cannot make that distinction
+An ordinary denial gets at most one repair opportunity; traversal,
+arbitrary-code, or other hostile classes get none. The parser and policy
+cannot make that distinction
 themselves -- both `pmc_core.parser.parse_pml` and
 `pmc_core.policy.evaluate_plan` file every dangerous payload
 `tests/adversarial/test_denied_forms.py` carries under the same ordinary
@@ -22,8 +21,8 @@ positive (screening an ordinary typo as hostile) costs one repair attempt
 the request would otherwise have had; a false negative (screening a
 dangerous payload as ordinary) hands the model another turn to try again
 with nothing yet having executed anywhere. The corpus in
-tests/adversarial/test_denied_forms.py -- every case docs/master_plan.md
-item 2 already proves the parser and policy deny with zero execution -- is
+tests/adversarial/test_denied_forms.py -- every case the parser and policy
+are already proven to deny with zero execution -- is
 this module's own fixture, so the two suites cannot drift apart.
 
 This module imports no PyMOL and performs no I/O, in the same hermetic
@@ -44,7 +43,7 @@ SCREEN_ORDINARY = "ordinary"
 #: category the parser or policy filed the denial under.
 SCREEN_HOSTILE = "hostile"
 
-#: The restricted command language (SPECIFICATION.md's five verbs, six
+#: The restricted command language (its five verbs, six
 #: selection-term forms, and/or/not, and bare selection names) has no
 #: legitimate use for any of these characters or forms. Their presence
 #: alone is what this module screens on -- it never inspects what a

@@ -10,7 +10,7 @@ unless verification reports both a valid run and TaskSuccess; a rejected
 generation is returned to the caller instead, never silently discarded or
 promoted. This intentionally does not implement teacher back-translation,
 curation, or a hermetic execution service -- those remain out of scope for
-this task's containment (see the wave plan's M-01 entry).
+this module.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

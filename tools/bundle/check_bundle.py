@@ -3,9 +3,8 @@
 
     pymol-copilot\\python\\python.exe pymol-copilot\\repo\\tools\\bundle\\check_bundle.py
 
-Master plan item 20 (plans/16-portable-bundle.md, step 6). It runs what a
-colleague's double-click runs, in the launcher's environment, and fails
-loudly where the bundle would fail them:
+It runs what a colleague's double-click runs, in the launcher's
+environment, and fails loudly where the bundle would fail them:
 
 1. PyMOL launches inside a Jupyter kernel of the bundle's Python;
 2. a fresh PyMOL sidecar, spawned from the bundle's relocated Python,

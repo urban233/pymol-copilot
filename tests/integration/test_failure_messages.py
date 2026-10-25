@@ -1,8 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Every failure path is bounded, actionable, and free of plan text.
 
-docs/master_plan.md item 11, step 9's own proof test. `tests/unit
-/test_client_messages.py` already proves `describe_failure`,
+`tests/unit/test_client_messages.py` already proves `describe_failure`,
 `describe_transport`, and `describe_unexpected` are themselves bounded,
 printable, and never echo a raw exception's own text; this file instead
 proves that `pmc_client.command`'s real handlers actually *reach* one of
@@ -188,7 +187,7 @@ class _FakeSession:
     #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
     #: `pymol.commanding.extend()` does, so `register()`'s own
     #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
-    #: entry to rewrite (docs/master_plan.md item 11).
+    #: entry to rewrite.
     keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
@@ -449,7 +448,7 @@ def test_every_server_failure_category_reaches_describe_failure(
     """`copilot`'s typed-failure path reaches `describe_failure` unchanged.
 
     Sabotage: replace this test's own `_report_failure` call site with
-    `f"copilot failed: {response.failure.message}"` (the pre-item-11
+    `f"copilot failed: {response.failure.message}"` (the earlier
     wording), and this row goes red for every category at once, because
     the printed line no longer contains that category's own action text.
     """
@@ -509,10 +508,9 @@ def test_a_transport_failure_naming_no_status_gets_the_generic_action(
 
     Every underlying cause -- a refused connection, a timeout, a
     malformed reply, or `pmc_client.transport`'s own broadened `except
-    Exception: raise TransportError(...) from error` (docs/master_plan.md
-    item 11) for anything else -- reaches this client as a
-    `TransportError` carrying no recognizable HTTP status, and all of
-    them take the same bounded, generic path.
+    Exception: raise TransportError(...) from error` for anything else --
+    reaches this client as a `TransportError` carrying no recognizable
+    HTTP status, and all of them take the same bounded, generic path.
     """
     error = TransportError(message)
     output: list[str] = []

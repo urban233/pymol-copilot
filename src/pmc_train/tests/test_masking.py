@@ -1,14 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Prompt tokens are masked out of the loss, proven at the tensor level.
 
-This is the test the master plan's item 17 asks for. The first tests
-check the labels a real sample produces: every prompt position is
-ignored, the plan and the end of turn are supervised. The later tests
-check the loss itself on a tiny randomly initialized Llama with the real
-vocabulary: the gradient reaching every prompt position's logits (and,
-for the loss the run trains on, every prompt position's final hidden
-state) is exactly zero, and the completion-only loss equals the
-standard full-logit masked loss.
+The first tests check the labels a real sample produces: every prompt
+position is ignored, the plan and the end of turn are supervised. The
+later tests check the loss itself on a tiny randomly initialized Llama
+with the real vocabulary: the gradient reaching every prompt position's
+logits (and, for the loss the run trains on, every prompt position's
+final hidden state) is exactly zero, and the completion-only loss equals
+the standard full-logit masked loss.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

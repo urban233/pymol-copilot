@@ -1,9 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The generalized dataset sample record and its serialization.
 
-Master plan item 14 requires each sample to record its source structure
-identity and checksum, card version, plan, assertions, PyMOL version,
-seed and verification result. This module is that record.
+Each sample records its source structure identity and checksum, card
+version, plan, assertions, PyMOL version, seed and verification result.
+This module is that record.
 
 It sits beside `pmc_data.gold_case` rather than replacing it. A
 `GoldCase` is pinned to the one hand-authored chain-A/red fixture and

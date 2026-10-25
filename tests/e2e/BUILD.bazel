@@ -151,8 +151,8 @@ py_test(
     ],
 )
 
-# p50/p95 latency arithmetic and note rendering (docs/master_plan.md item
-# 12): kept PyMOL-free so it is checked cheaply on every CI run.
+# p50/p95 latency arithmetic and note rendering: kept PyMOL-free so it is
+# checked cheaply on every CI run.
 # record_latency.py, which actually drives a real scenario, is the
 # py_binary below, not a test.
 py_library(
@@ -198,7 +198,7 @@ py_binary(
     ],
 )
 
-# The scenarios against the fine-tuned model (master plan item 19):
+# The scenarios against the fine-tuned model:
 # opt-in, like //tests/integration:lemonade_real. Skips unless
 # PMC_LEMONADE_BASE_URL names the running engine, so CI stays scripted.
 py_test(

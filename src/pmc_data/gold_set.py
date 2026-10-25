@@ -1,11 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The hand-reviewed gold set: the evaluation split's intents and plans.
 
-Master plan item 15 asks for a gold set spanning every supported
-category, with natural-language intents a structural biologist would
-actually type. This module is that set's record type, its loader and
-the bridge that turns one record into something the item 14 pipeline
-can verify.
+The gold set spans every supported category, with natural-language
+intents a structural biologist would actually type. This module is that
+set's record type, its loader and the bridge that turns one record into
+something the dataset generation pipeline can verify.
 
 It is not `pmc_data.gold_case`. A `GoldCase` is the legacy
 chain-A/red fixture, pinned by its own drift guard to one plan and a
@@ -23,12 +22,12 @@ Three properties are enforced here rather than trusted:
 - **The reference plan is legal.** It must parse with
   `pmc_core.parser.parse_pml` and pass `pmc_core.policy.evaluate_plan`,
   the same two authorities every generated plan answers to.
-- **Authorship is recorded.** The spec asks for human-authored domain
-  intents. These were drafted by a model and then reviewed by a
-  person, and each record says which model drafted it and who reviewed
-  it, so the evaluation cannot quietly claim more independence than it
-  has. `pmc_data.gold_cli` and `pmc_data.split_cli` refuse to run while
-  any record is unreviewed.
+- **Authorship is recorded.** Domain intents should be human-authored.
+  These were drafted by a model and then reviewed by a person, and each
+  record says which model drafted it and who reviewed it, so the
+  evaluation cannot quietly claim more independence than it has.
+  `pmc_data.gold_cli` and `pmc_data.split_cli` refuse to run while any
+  record is unreviewed.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

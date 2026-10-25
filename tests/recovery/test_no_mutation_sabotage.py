@@ -124,11 +124,11 @@ def test_a_pre_apply_inspection_exception_never_leaks_its_own_text(
 ) -> None:
     """A pre-apply inspection failure is reported by exception type only.
 
-    docs/master_plan.md item 11: `apply_plan`'s own pre-apply `extract()`
-    reaches real PyMOL query APIs this module cannot enumerate every
-    failure mode of, and a raised message can carry a selection
-    expression -- plan text. Sabotage: interpolate ``str(error)`` at this
-    call site instead of ``type(error).__name__``, and this row goes red.
+    `apply_plan`'s own pre-apply `extract()` reaches real PyMOL query APIs
+    this module cannot enumerate every failure mode of, and a raised
+    message can carry a selection expression -- plan text. Sabotage:
+    interpolate ``str(error)`` at this call site instead of
+    ``type(error).__name__``, and this row goes red.
     """
     sentinel = "LEAK select chain A"
     cmd = _Cmd()

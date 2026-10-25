@@ -2,9 +2,9 @@
 """Behavior tests for `validating` and the bounded repair loop.
 
 Runs the compiled graph against a `FakeEngine` and a fake executor --
-never real inference and never a real sidecar. docs/master_plan.md item 8:
-"one initial generation plus at most two repair attempts, each fed the
-error envelope and each validated in a FRESH sidecar."
+never real inference and never a real sidecar. The loop allows one
+initial generation plus at most two repair attempts, each fed the error
+envelope and each validated in a fresh sidecar.
 """
 
 import re

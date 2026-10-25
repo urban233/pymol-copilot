@@ -15,20 +15,20 @@ FORBIDDEN = {
     # returns to the graph.
     "//src/pmc_train:pmc_train",
     # Test/developer-tooling support: the Windows short-path staging shim
-    # (W2-01, issue #12). It is reached from five test targets and one
+    # (issue #12). It is reached from five test targets and one
     # developer data-generation binary, and must never enter a runtime
     # closure. Keeping it out rests primarily on its enumerated visibility
     # list in tools/winstage/BUILD.bazel, which names neither root below;
-    # this entry is defence in depth behind that, and makes W2-01's own
-    # "Stop if" clause enforceable rather than merely stated.
+    # this entry is defence in depth behind that, and makes the rule
+    # enforceable rather than merely stated.
     "//tools/winstage:winstage",
-    # The sidecar executor's PyMOL-touching child (docs/master_plan.md item
-    # 4). pmc_core.executor spawns it by module name
+    # The sidecar executor's PyMOL-touching child. pmc_core.executor spawns
+    # it by module name
     # ("python -m pmc_sidecar.child"), never by import, so this package must
     # never enter pmc_core's or pmc_agent's own dependency closure. Two
     # packages depend on it directly: pmc_server, which spawns the
-    # execution-boundary child, and pmc_client (docs/master_plan.md item 7),
-    # which spawns the fidelity-probe child from inside PyMOL's own process.
+    # execution-boundary child, and pmc_client, which spawns the
+    # fidelity-probe child from inside PyMOL's own process.
     "//src/pmc_sidecar:pmc_sidecar",
 }
 FORBIDDEN_BY_ROOT = {
@@ -50,8 +50,8 @@ NAMES_BY_ROOT = {
     # pmc_core is the shared contract layer the in-PyMOL client imports, so
     # neither the training stack nor LangGraph orchestration may reach it.
     "//src/pmc_core:pmc_core": TRAINING_NAMES + RUNTIME_NAMES,
-    # Per SPECIFICATION.md:656, the managed server is exactly where
-    # LangGraph belongs. Only the training stack is forbidden here.
+    # The managed server is exactly where LangGraph belongs. Only the
+    # training stack is forbidden here.
     "//src/pmc_agent:pmc_agent": TRAINING_NAMES,
     # The client runs inside PyMOL's own interpreter -- the one process
     # where neither the training stack nor LangGraph orchestration may ever

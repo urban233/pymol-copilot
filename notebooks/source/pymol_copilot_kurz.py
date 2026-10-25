@@ -35,8 +35,10 @@
 #     - im Windows-Bundle automatisch: es startet seinen eigenen Server auf der CPU
 
 # %%
+# Copyright 2026 PyMOL Copilot contributors.
 """Kernel vorbereiten: die Pakete des Repositorys einbinden."""
 
+import importlib
 import os
 import sys
 import warnings
@@ -47,7 +49,7 @@ warnings.filterwarnings("ignore", message="IProgress not found")
 
 # Hilfsfunktionen liegen neben dem Notebook im Ordner notebooks/
 sys.path.insert(0, str(Path.cwd()))
-import notebook_support as support
+support = importlib.import_module("notebook_support")
 
 # Pakete des Repositorys (src/) importierbar machen
 support.setup_paths()

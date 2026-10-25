@@ -1,4 +1,4 @@
-# Tests for the deliverable notebook (docs/master_plan.md item 18). The
+# Tests for the deliverable notebook. The
 # notebook runs in its own environment, never under Bazel; these tests
 # only read the committed files.
 load("@rules_python//python:py_test.bzl", "py_test")
@@ -14,7 +14,7 @@ py_test(
 )
 
 # The notebook's helpers decide which engine section 9 serves from and
-# what they accept from it (master plan item 20's Windows bundle).
+# what they accept from it, including in the portable Windows bundle.
 py_test(
     name = "notebook_support",
     size = "small",

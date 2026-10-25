@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The bundle holds the evaluated engine and model, and starts safely.
 
-docs/master_plan.md item 20. `tools/bundle/bundle_spec.py` decides what
+`tools/bundle/bundle_spec.py` decides what
 the portable Windows bundle holds and writes its launcher, README and
 manifest; `build_bundle.py` only fetches and assembles. These tests hold
 the pins to the evaluated CPU engine and the launcher to what a

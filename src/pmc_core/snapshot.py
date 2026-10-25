@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Canonical PyMOL object snapshots: extract, serialize, digest, rebuild.
 
-This is the production promotion of H-02's differential discovery work
+This is the production promotion of the snapshot's differential discovery work
 (originally `tests/discovery/h02/harness.py` plus candidate A's own
 `reconstruct()`). Candidate A -- extraction and reconstruction entirely
 through PyMOL's ordinary object-construction API (`get_model`/`iterate` for

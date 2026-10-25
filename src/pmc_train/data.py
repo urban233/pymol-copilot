@@ -1,11 +1,11 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Read the training set, and only the training set, and fix its order.
 
-Training reads `train.jsonl` of the frozen split (item 15), after its
-manifest's every hash has been recomputed. The held-out files are opened
-only to read their ids, to prove none of their samples or structures is
-in the training set: the split is by source structure, and a leak would
-make the held-out comparison meaningless.
+Training reads `train.jsonl` of the frozen split, after its manifest's
+every hash has been recomputed. The held-out files are opened only to
+read their ids, to prove none of their samples or structures is in the
+training set: the split is by source structure, and a leak would make
+the held-out comparison meaningless.
 
 The order samples are visited in is explicit: one seeded permutation
 per epoch, concatenated. The trainer visits that list sequentially, so

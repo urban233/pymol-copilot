@@ -152,7 +152,7 @@ class _RecordingSession:
     #: Real PyMOL's own `cmd.keyword`, populated by `extend()` exactly as
     #: `pymol.commanding.extend()` does, so `register()`'s own
     #: `cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE` line has an
-    #: entry to rewrite (docs/master_plan.md item 11).
+    #: entry to rewrite.
     keyword: dict[str, list[Any]] = field(default_factory=dict)
 
     def extend(self, name: str, callback: Callable[[str], None]) -> None:
@@ -869,10 +869,10 @@ def test_client_reuses_session_and_generates_unique_request_ids() -> None:
 def test_registers_all_five_copilot_commands() -> None:
     """Registration exposes all five commands, each reaching its own handler.
 
-    Each registered callback is `_guarded()`'s own wrapper (docs/master_plan.md
-    item 11), not the bound method directly, so identity no longer proves
-    wiring; invoking the simplest one instead proves it actually reaches
-    the real handler behind it.
+    Each registered callback is `_guarded()`'s own wrapper, not the bound
+    method directly, so identity no longer proves wiring; invoking the
+    simplest one instead proves it actually reaches the real handler
+    behind it.
     """
     output: list[str] = []
     session = _RecordingSession()
@@ -1131,7 +1131,6 @@ def test_a_target_resolution_failure_sends_nothing() -> None:
 def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
     """A new request supersedes the previous pending plan.
 
-    SPECIFICATION.md:515: "A new request supersedes the old pending plan."
     Once replaced, the first plan's own id is refused by copilot_apply.
     """
     output: list[str] = []
@@ -1174,11 +1173,11 @@ def test_a_second_copilot_call_replaces_the_pending_plan() -> None:
 def test_a_failed_second_copilot_call_still_clears_the_pending_plan() -> None:
     """A new request supersedes the pending plan even when it fails too.
 
-    SPECIFICATION.md:515/524-525 require this unconditionally, not only
-    when the new request happens to succeed: a stale applicable plan,
-    bound to whatever the live session looked like one request ago, must
-    never remain reachable through copilot_apply just because the
-    request that was meant to replace it failed.
+    This holds unconditionally, not only when the new request happens to
+    succeed: a stale applicable plan, bound to whatever the live session
+    looked like one request ago, must never remain reachable through
+    copilot_apply just because the request that was meant to replace it
+    failed.
     """
     output: list[str] = []
     probe_session = _RecordingSession()
@@ -1216,9 +1215,9 @@ def test_a_broad_exception_from_resolve_target_object_fails_closed() -> None:
     (get_names/get_type) this module cannot enumerate every failure mode
     of; copilot() must fail closed the same way it already does for a
     failure in extract_live_snapshot(), not let an unrelated exception
-    escape uncaught. docs/master_plan.md item 11: only the exception's type
-    name is reported, never its own message, since a raw PyMOL exception can
-    carry a selection expression or another fragment of plan text.
+    escape uncaught. Only the exception's type name is reported, never its
+    own message, since a raw PyMOL exception can carry a selection
+    expression or another fragment of plan text.
     """
     requests: list[PlanRequestV1] = []
     transport = RecordingTransport(validated_response, requests)
@@ -2684,9 +2683,8 @@ def test_copilot_reject_reports_a_non_rejected_terminal() -> None:
     """A terminal other than `rejected` is reported, not silently accepted.
 
     `pending_approval`'s own expiry check can win over a reject that
-    arrives too late (docs/master_plan.md item 8); this proves the client
-    reports whatever the server actually decided rather than assuming its
-    own request was honored.
+    arrives too late; this proves the client reports whatever the server
+    actually decided rather than assuming its own request was honored.
     """
 
     def expired_response(request: RejectRequestV1) -> FailedPlanResponseV1:
@@ -2777,7 +2775,7 @@ def test_copilot_reject_keeps_the_pending_plan_on_a_server_internal_error() -> (
     ]
 
 
-# --- Step 10: literal parsing, usage lines, and the intent length limit --
+# --- literal parsing, usage lines, and the intent length limit ------------
 
 
 def test_register_sets_copilots_own_parsing_mode_to_literal() -> None:
@@ -2911,7 +2909,7 @@ def test_copilot_rollback_with_an_empty_plan_id_prints_usage() -> None:
     assert output == ["copilot_rollback: usage: copilot_rollback <plan id>"]
 
 
-# --- Step 11: copilot_health ------------------------------------------------
+# --- copilot_health -------------------------------------------------------
 
 
 def test_copilot_health_reports_a_ready_matching_server() -> None:

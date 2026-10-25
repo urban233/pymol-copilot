@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""docs/master_plan.md item 12: scenarios 1-3, one real PyMOL launch.
+"""End-to-end scenarios 1-3, one real PyMOL launch.
 
 Real here: headless Open-Source PyMOL (`pymol.finish_launching(["pymol",
 "-qc"])`), PyMOL's own command registry (`cmd.extend`/`cmd.do`), the real

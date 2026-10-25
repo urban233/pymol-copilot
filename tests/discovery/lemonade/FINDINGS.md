@@ -1,10 +1,8 @@
 # Lemonade capability spike: findings
 
-Answers [docs/master_plan.md](../../../docs/master_plan.md)'s day-one spike and
-feed [SPECIFICATION.md:490](../../../SPECIFICATION.md#L490)'s "bounded local
-completion" and item 9's `src/pmc_agent/inference/` engine boundary. See
-[plans/02-lemonade-capability-spike.md](../../../plans/02-lemonade-capability-spike.md)
-for how these were produced. Every number in the four verdicts below is
+Answers the day-one spike's four questions about Lemonade and feeds the
+"bounded local completion" interface and its `src/pmc_agent/inference/`
+engine boundary. Every number in the four verdicts below is
 reproducible by running `docker compose -f compose.yaml up -d && python3
 probe.py --all` against this same container; the one-time setup evidence
 (`evidence/01-*`, `evidence/02-*` — first boot and the initial model pull) is
@@ -34,7 +32,7 @@ See git history on this file for what changed and why.
 | 4 | Run on this machine's integrated GPU | **NOT PROVEN ON THIS MACHINE** — Docker on an Apple M2 Pro has no GPU passthrough into a Linux container | `evidence/06-gpu-absent.txt` |
 
 None of these is a clean "no", but one (non-streaming cancellation) is a real
-gap that item 9 must design around, not silently accept.
+gap that the inference adapter must design around, not silently accept.
 
 ---
 
@@ -48,7 +46,7 @@ Grammar: `root ::= "Berlin" | "Madrid" | "Rome"` — this makes "Paris"
   `"Paris"` (`evidence/04-grammar.json`'s `control.outputs`). The prior is
   confirmed, so a constrained result means something.
 - **R1 — `grammar` field on `/api/v1/chat/completions`** (the per-request
-  shape the master plan asks about), **repeated 3 times**: every run
+  shape the inference interface needs), **repeated 3 times**: every run
   returned `"Rome"` (`r1_grammar_field.outputs`, `deterministic: true`) —
   deterministic, not a lucky single call. Then, still per request (not via
   `llamacpp_args` — that is R3, below), tightened to `root ::= "Berlin"` — a
@@ -106,16 +104,15 @@ support — which is exactly why it works today and exactly why it is the kind
 of thing that regresses silently in a later release without anyone treating
 it as a breaking change.
 
-**Consequence for item 9.** Grammar enforcement is real and multiply
+**Consequence for the adapter.** Grammar enforcement is real and multiply
 confirmed, so `src/pmc_agent/inference/`'s bounded-completion interface can
 accept an optional grammar and rely on it being honored on the `llamacpp`
 recipe. Because it is undocumented — and plausibly an accident of passthrough
-rather than a supported feature — item 9 should still probe it at startup
+rather than a supported feature — the adapter should still probe it at startup
 with a canary shaped exactly like R1 (a grammar that forbids the model's
 otherwise-deterministic answer) and treat anything other than the constrained
-output as a hard failure, per
-[docs/master_plan.md:230-231](../../../docs/master_plan.md#L230-L231)'s
-"treat silently-ignored grammar as a hard engine failure, not a warning."
+output as a hard failure: silently-ignored grammar is a hard engine
+failure, not a warning.
 
 ## Q2 — Cancellation: PARTIAL (streaming yes, non-streaming no)
 
@@ -155,14 +152,14 @@ finished answer.
 There is no documented cancel *endpoint* in Lemonade's API — cancellation, to
 the extent it exists, is disconnect-driven only.
 
-**Consequence for item 9.** The bounded-completion interface promises a
+**Consequence for the adapter.** The bounded-completion interface promises a
 *time limit*, not merely a client-side "please stop." If the agent always
 requests streaming and disconnects to cancel, the time-limit and
 cancellation guarantee both hold, at roughly the few-second latency measured
 here. If any code path requests non-streaming completions, cancelling it does
 not stop the underlying compute — confirmed to run to completion (~158s for
 this 2000-token request) regardless of client disconnect. That request must
-be avoided outright, or item 9's engine boundary needs a second enforcement
+be avoided outright, or the engine boundary needs a second enforcement
 layer (e.g., a hard wall-clock deadline enforced by killing/restarting the
 Lemonade backend process, since the HTTP layer alone cannot cut it off).
 **The adapter should always call the streaming endpoint internally, even for
@@ -203,11 +200,10 @@ the snapshot directory name
 commit hash of that revision, so the full chain from a human-readable model
 name down to a content-verified file is inspectable, not just a label.
 
-**Consequence for item 9.** `model_name` + `checkpoint` (or the full
+**Consequence for the adapter.** `model_name` + `checkpoint` (or the full
 `launch_command`, if a stronger pin is wanted) is enough for the bounded
 completion interface's required "model identity" field, and enough to
-support "a deterministic shipping configuration"
-([SPECIFICATION.md:490](../../../SPECIFICATION.md#L490)): pin a `checkpoint`
+support a deterministic shipping configuration: pin a `checkpoint`
 string, not just a friendly model name, and treat a `model_not_found` at
 startup as the capability probe's first, cheapest check.
 
@@ -260,7 +256,7 @@ and `probe.py` unchanged apart from two flags — the exact commands are below;
   Lemonade auto-selects Vulkan first and silently falls back to CPU if
   unavailable, so an absence of an error is not proof of GPU use.
 
-**Consequence for item 9.** The CPU path is fully validated and is what V1
+**Consequence for the adapter.** The CPU path is fully validated and is what V1
 should assume by default. The GPU path's *mechanism* (backend selection,
 device flags, and how to assert success) is fully documented above and
 requires no new design — only a run on the right hardware to convert "not
@@ -276,7 +272,7 @@ proven" into a real number.
 | Image | `ghcr.io/lemonade-sdk/lemonade-server:v11.9.0` (route A — the official image; route B, the local arm64 Dockerfile, was not needed) |
 | Image platform | `linux/amd64` (confirmed via the GHCR manifest — one platform entry) |
 | Host | Apple M2 Pro (arm64), OrbStack Docker Desktop replacement |
-| Emulation | The container runs entirely under QEMU/Rosetta full-system emulation (`uname -m` inside the container reports `x86_64`); llama.cpp build `b10723` ran without incident under emulation — no SIGILL, contrary to the plan's prior expectation |
+| Emulation | The container runs entirely under QEMU/Rosetta full-system emulation (`uname -m` inside the container reports `x86_64`); llama.cpp build `b10723` ran without incident under emulation — no SIGILL, contrary to the prior expectation |
 | Backend | `llamacpp`, `llamacpp_backend: "cpu"` |
 | Model | `Llama-3.2-1B-Instruct-GGUF` — a small, non-reasoning instruct model, deliberately not a Qwen3-class thinking model (issue [#1759](https://github.com/lemonade-sdk/lemonade/issues/1759)'s closing comment documents grammar constraints leaking into `reasoning_content` and looping on Qwen3.x) |
 | Checkpoint | `unsloth/Llama-3.2-1B-Instruct-GGUF:Llama-3.2-1B-Instruct-UD-Q4_K_XL.gguf`, HF snapshot `b69aef112e9f895e6f98d7ae0949f72ff09aa401` |

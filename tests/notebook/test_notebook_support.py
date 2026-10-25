@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The notebook's helpers find and check the engine section 9 serves from.
 
-docs/master_plan.md item 20. In the portable Windows bundle the
+In the portable Windows bundle the
 notebook starts its own Lemonade on the CPU; on the development machine
 it uses the Docker engine already running. These tests cover the parts
 that decide what is started and what is accepted, without starting
