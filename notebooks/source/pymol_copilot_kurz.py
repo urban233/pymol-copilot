@@ -30,10 +30,14 @@
 # - Rechenintensive Schritte (Datensatz erzeugen, Training, Evaluation) laufen hier **nicht**
 #     - stattdessen: Laden der im Repository abgelegten Ergebnisse
 # - Schnelle Schritte (Millisekunden) laufen live
+# - Die Live-Vorführung des Copiloten (Abschnitt 6) braucht einen Lemonade-Server mit dem Modell
+#     - eingeschaltet mit der Umgebungsvariable `PMC_NOTEBOOK_DEMO=1`
+#     - im Windows-Bundle automatisch: es startet seinen eigenen Server auf der CPU
 
 # %%
 """Kernel vorbereiten: die Pakete des Repositorys einbinden."""
 
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -47,6 +51,14 @@ import notebook_support as support
 
 # Pakete des Repositorys (src/) importierbar machen
 support.setup_paths()
+
+# Live-Vorführung in Abschnitt 6: nur mit Lemonade-Server und dem Modell
+RUN_DEMO = os.environ.get("PMC_NOTEBOOK_DEMO") == "1"
+
+# PyMOL schon jetzt starten, bevor Tokenizer und LangGraph geladen sind:
+# unter Windows startet PyMOL danach im Jupyter-Kernel nicht mehr
+if RUN_DEMO:
+    cmd = support.launch_pymol()
 
 # %% [markdown]
 # ## 1 Problemstellung
@@ -352,7 +364,6 @@ support.markdown_table(
 )
 
 # %% [markdown]
-# - in Klammern: Anteil und 95%-Konfidenzintervall nach Wilson
 # - Basismodell: **nie** erfolgreich
 #     - ohne Grammatik kopiert es die Strukturkarte zurück
 #     - mit Grammatik wiederholt es Befehle bis zum Token-Limit
@@ -374,34 +385,146 @@ support.markdown_table(
 #     - `copilot_apply <id>`: Plan anwenden
 #     - `copilot_reject <id>`: Plan verwerfen
 #     - `copilot_rollback <id>`: angewendeten Plan komplett rückgängig machen
-# - Live-Vorführung (braucht einen Lemonade-Server): ausführliches Notebook, Abschnitt 9
-# - Ausschnitt aus dessen Lauf, auf der im Training nie gesehenen Struktur `two_chains_hetatm`:
-#
-# ```
-# PyMOL>copilot select the zinc ions, make them silver and show them as dots
-#
-# copilot plan p-5667af31-... (expires ..., in 5 min)
-#   object:    pmc_structure (36 atoms, 1 state)
-#   commands:
-#     1 | select copilot_sel0244, name ZN   -> 2 atoms
-#     2 | color silver, copilot_sel0244
-#     3 | show dots, copilot_sel0244
-#   warnings:  none
-#   fidelity:  exact on the declared state scope
-#   NOT checked: whether this is scientifically what you meant
-#   apply:     copilot_apply p-5667af31-...
-#   reject:    copilot_reject p-5667af31-...
-# ```
+
+# %% [markdown]
+# ### 6.1 Server und PyMOL starten
+# - Einstellungen des Servers:
+#     - Name des Modells
+#     - Kontext von 16.384 Tokens (die Strukturkarte listet jedes Atom)
+#     - der Prompt aus dem Training und die Grammatik
+# - die Engine hängt vom Rechner ab:
+#     - Entwicklungsrechner: Lemonade in Docker
+#     - Windows-Bundle: eigenes Lemonade auf der CPU, prüft vorher die SHA-256 des Modells
+
+# %%
+MODEL_NAME = "Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M"
+CONTEXT_SIZE = 16384
+SERVER_FLAGS = [
+    "--model-name",
+    MODEL_NAME,
+    "--context-size",
+    str(CONTEXT_SIZE),
+    "--read-timeout-seconds",
+    "600",
+    "--prompt",
+    "training",
+    "--grammar",
+    "--max-tokens",
+    "256",
+    "--generation-deadline-seconds",
+    "600",
+]
+print("python -m pmc_server.main", " ".join(SERVER_FLAGS), "<Engine-Flags>")
+
+# %% [markdown]
+# - PyMOL läuft ohne Fenster (headless) in diesem Kernel
+# - geladen wird die Struktur aus Abschnitt 3.1: `two_chains_hetatm`, im Training **nie** gesehen
+#     - zwei Ketten, ein Zink-Ion und ein Wasser
+# - dann verbindet sich der Client mit dem Server
+
+# %%
+import tempfile
+
+from pmc_client.bootstrap import connect_from_handoff
+from pmc_client.recovery import RecoveryStore
+from pmc_core.snapshot import reconstruct
+
+ausgabe: list[str] = []
+if RUN_DEMO:
+    # Engine und Server starten; der Server schreibt Port und Schlüssel in handoff
+    lemonade = support.start_engine(MODEL_NAME, CONTEXT_SIZE)
+    print("Engine:", " ".join(lemonade.flags))
+    arbeitsordner = Path(tempfile.mkdtemp(prefix="pmc-notebook-"))
+    handoff = arbeitsordner / "session.json"
+    server = support.start_server([*SERVER_FLAGS, *lemonade.flags], handoff)
+
+    # PyMOL mit der Struktur füllen und den Client verbinden
+    cmd = support.launch_pymol()
+    reconstruct(cmd, snapshot)
+    driver = support.ConsoleDriver(cmd)
+    client = connect_from_handoff(
+        driver,
+        ausgabe.append,
+        path=handoff,
+        recovery_store=RecoveryStore(arbeitsordner),
+    )
+    print("\n".join(ausgabe))
+    ausgabe.clear()
+else:
+    print("RUN_DEMO ist aus: PMC_NOTEBOOK_DEMO=1 setzen, mit Lemonade-Server.")
+
+# %% [markdown]
+# ### 6.2 Ein Wunsch in eigenen Worten
+# - der Wunsch aus Abschnitt 3.1 (Gold-Wunsch `gold_056`)
+# - Dauer einer Antwort:
+#     - GPU: wenige Sekunden
+#     - CPU: zehn Sekunden bis etwa eine Minute, fast alles fürs Lesen des Prompts (der Strukturkarte)
+
+# %%
+WUNSCH = "select the zinc ions, make them silver and show them as dots"
+if RUN_DEMO:
+    farbe_vorher = []
+    cmd.iterate("resn ZN", "farbe_vorher.append(color)", space=locals())
+    sekunden = driver.run(f"copilot {WUNSCH}")
+    vorschau = "\n".join(ausgabe)
+    ausgabe.clear()
+    print(vorschau)
+    print(f"\n(beantwortet in {sekunden:.1f} s)")
 
 # %% [markdown]
 # - die Vorschau zeigt:
 #     - die Befehle
-#     - wie viele Atome jede Selektion beim Probelauf getroffen hat
+#     - wie viele Atome jede Selektion beim Probelauf in einem separaten PyMOL-Prozess getroffen hat
 #     - was geprüft wurde und was **nicht** (ob der Plan fachlich gemeint war)
 # - die Sitzung ist bis hierhin **unverändert**
-# - `copilot_apply` sichert die Sitzung zuerst, dann werden die Befehle ausgeführt
-# - Beachte: das Modell wählt `name ZN` statt `resn ZN`
+# - Beachte: in der Evaluation wählte das Modell `name ZN` statt `resn ZN`
 #     - auf dieser Struktur treffen beide dieselben zwei Atome, daher als richtig gewertet
+# - Zeilen wie `cmd.sync() timed out` sind Meldungen von PyMOL im Notebook-Kernel; die Befehle laufen trotzdem vollständig
+
+# %% [markdown]
+# ### 6.3 Plan anwenden
+# - `copilot_apply` sichert zuerst die Sitzung, dann laufen die Befehle
+
+# %%
+plan_id = None
+if RUN_DEMO:
+    plan_id = support.plan_id(vorschau)
+if plan_id is not None:
+    driver.run(f"copilot_apply {plan_id}")
+    print("\n".join(ausgabe))
+    ausgabe.clear()
+    farbe_nachher = []
+    cmd.iterate("resn ZN", "farbe_nachher.append(color)", space=locals())
+    print("Farbindex Zink vorher:", farbe_vorher, "nachher:", farbe_nachher)
+    print("Angelegte Selektion:", cmd.get_names("selections"))
+elif RUN_DEMO:
+    print("Der Copilot hat keinen Plan angeboten; siehe seine Antwort oben.")
+
+# %% [markdown]
+# ### 6.4 Ein Wunsch, der nie ausgewertet wurde
+
+# %%
+if RUN_DEMO:
+    driver.run("copilot colour chain B marine and show it as sticks")
+    print("\n".join(ausgabe))
+    ausgabe.clear()
+
+# %% [markdown]
+# ### 6.5 Rückgängig machen
+# - ein unerwünschter Plan wird einfach nicht angewendet: `copilot_reject` verwirft ihn
+# - ein angewendeter Plan lässt sich als Ganzes zurücknehmen, da die Sitzung vorher gesichert wurde:
+
+# %%
+if plan_id is not None:
+    driver.run(f"copilot_rollback {plan_id}")
+    print("\n".join(ausgabe))
+    ausgabe.clear()
+    farbe_zurueck = []
+    cmd.iterate("resn ZN", "farbe_zurueck.append(color)", space=locals())
+    print("Farbindex Zink nach dem Rollback:", farbe_zurueck)
+if RUN_DEMO:
+    support.stop_server(server)
+    support.stop_engine(lemonade)
 
 # %% [markdown]
 # ## 7 Grenzen und Ausblick

@@ -147,19 +147,16 @@ def load_jsonl(relative: str) -> list[dict[str, Any]]:
 
 
 def rate(k: int, n: int) -> str:
-    """Render a proportion with its Wilson 95% interval.
+    """Render a proportion as its count and percentage.
 
     Args:
         k: The count.
         n: The denominator.
 
     Returns:
-        `k/n (p%, lo-hi%)`.
+        `k/n (p%)`.
     """
-    from pmc_data.audit import wilson_interval
-
-    low, high = wilson_interval(k, n)
-    return f"{k}/{n} ({100 * k / n:.1f}%, {100 * low:.1f}-{100 * high:.1f}%)"
+    return f"{k}/{n} ({100 * k / n:.1f}%)"
 
 
 def launch_pymol() -> Any:
