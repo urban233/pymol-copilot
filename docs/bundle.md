@@ -43,7 +43,7 @@ On Windows, with `git` and `uv` on the `PATH`, from a clean checkout of
 the commit to ship (a dirty tree is refused):
 
 ```
-uv run --python 3.13 tools\bundle\build_bundle.py ^
+uv run --python 3.13.13 tools\bundle\build_bundle.py ^
     --model <path to Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf> ^
     --out C:\pmc-dist
 ```

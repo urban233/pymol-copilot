@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Build the portable Windows bundle of the notebook, on Windows.
 
-    uv run --python 3.13 tools\\bundle\\build_bundle.py ^
+    uv run --python 3.13.13 tools\\bundle\\build_bundle.py ^
         --model <the fine-tuned GGUF> --out C:\\pmc-dist
 
 See docs/bundle.md. It must run on Windows: it installs Windows wheels
