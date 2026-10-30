@@ -1,4 +1,4 @@
-# The notebook's environment (master plan item 18): Python 3.12, Linux.
+# The notebook's environment: Python 3.12, Linux.
 # It runs the training stack and the runtime code in one kernel, so it is
 # the training set, constrained to the training lock, plus the runtime's
 # own pins from requirements.in and requirements_lock.txt (numpy is the

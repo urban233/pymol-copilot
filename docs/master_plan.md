@@ -68,7 +68,7 @@ with file:line.
 
 ## State and dependency graph
 
-**Written:** 2026-09-16 · **State as of:** 2026-09-30 (items 12, 16, 17 and 18 done; item 19 in progress)
+**Written:** 2026-09-16 · **State as of:** 2026-10-07 (items 12, 16, 17, 18 and 19 done; item 20 in progress)
 
 Every item carries a **State**. The values are:
 
@@ -104,8 +104,9 @@ Every item carries a **State**. The values are:
 | 15 | Gold set, split, audit | Martin | **done** — PR #53 | 14 ✓ | 16, 17, 18 |
 | 16 | Eval harness and untuned baseline | Martin | **done** — PR #58 | 4 ✓, 13 ✓, 14 ✓, 15 ✓, 9 ✓ | 17, 18 |
 | 17 | Fine-tuning | Martin | **done** — PR #59 | 0 ✓, 1 ✓, 15 ✓, 16 ✓ | 18, 19 |
-| 18 | Notebook | Martin | **done** — PR #60 | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | — |
-| 19 | Integration | Joint | **in progress** — `feat/integration` | 12 ✓, 17 ✓ | — |
+| 18 | Notebook | Martin | **done** — PR #60 | 14 ✓, 15 ✓, 16 ✓, 17 ✓ | 20 |
+| 19 | Integration | Joint | **done** — PR #61 | 12 ✓, 17 ✓ | 20 |
+| 20 | Portable Windows bundle | Martin | **in progress** — `feat/portable-bundle` | 18 ✓, 19 ✓ | — |
 
 ### The graph
 
@@ -136,7 +137,8 @@ flowchart LR
   I16["16 · eval and baseline"]:::done
   I17["17 · fine-tuning"]:::done
   I18["18 · notebook"]:::done
-  I19["19 · integration"]:::progress
+  I19["19 · integration"]:::done
+  I20["20 · portable bundle"]:::progress
 
   I2 --> I4
   I3 --> I4
@@ -175,6 +177,8 @@ flowchart LR
   I17 --> I18
   I12 --> I19
   I17 --> I19
+  I18 --> I20
+  I19 --> I20
 ```
 
 The dashed edge is soft: item 16 needs *some* way to run the untuned base model,
@@ -218,11 +222,14 @@ Lemonade directly and adopt the interface later. Every other edge is hard.
   executed, and every number it reports recomputes from the committed
   evidence. It pulled the server's model flags forward from item 19,
   which is now in progress.
-- **Item 19 is in progress on `feat/integration`.** The model runs
-  through the product at the offline TaskSuccess: 33/68 with the grammar,
-  19/68 without. The one differing sample is explained under item 19
-  below. The demo is rehearsed and dry-run by script; what remains is
-  the watched check of the preview.
+- **Item 19 is done as PR #61.** The model runs through the product at
+  the offline TaskSuccess: 33/68 with the grammar, 19/68 without. The one
+  differing sample is explained under item 19 below. The demo is
+  rehearsed and dry-run by script; the watched check of the preview is
+  still to do.
+- **Item 20 is in progress on `feat/portable-bundle`.** It packs the
+  notebook, the runtime and the fine-tuned model into one ZIP that runs
+  on Windows without any setup.
 
 ### Cross-owner hand-offs
 
@@ -769,7 +776,7 @@ read standalone for someone who has never seen this repository.
 
 ### 19. Integration
 
-**Size:** ~3 days · **State:** in progress (`feat/integration`) — plan in [plans/15-integration.md](../plans/15-integration.md)
+**Size:** ~3 days · **State:** done (PR #61) — plan in [plans/15-integration.md](../plans/15-integration.md)
 
 ```
 Pair one trained model artifact with the runtime and run the end-to-end
@@ -834,6 +841,68 @@ before apply is confirmed.
     docs/demo.md is filled in.
 - Every GPU run went through Martin's explicit consent: the e2e run,
   the measurement, the drift diagnostic and the rehearsal.
+
+## Martin — distribution
+
+### 20. Portable Windows bundle
+
+**Size:** ~4 days · **State:** in progress (`feat/portable-bundle`) — plan in [plans/16-portable-bundle.md](../plans/16-portable-bundle.md)
+
+```
+Pack the notebook into one ZIP a colleague on Windows can extract and run
+without any setup: no Python, no GPU, no administrator rights, no network.
+A double-click opens the notebook in a bundled JupyterLab, and Run All
+re-executes every section, including the live demo against the fine-tuned
+model on the CPU, served by an embedded Lemonade. The model ships with its
+licence and is verified by its SHA-256 before it loads.
+```
+
+**Progress** (see [docs/bundle.md](bundle.md)):
+
+- **The spike:** Lemonade's embeddable Windows build 11.9.0 runs the
+  fine-tuned model natively.
+  - The CPU backend it installs is llama.cpp b10723, the evaluated CPU
+    engine of `configs/evaluation/finetuned_cpu.json`.
+  - It binds to 127.0.0.1 only, and the chat template's date reaches
+    llama.cpp intact.
+  - It exits silently on any non-ASCII path; 8.3 short paths work.
+  - llama.cpp needs the Visual C++ runtime DLLs, which a clean Windows
+    may lack.
+- **The runtime:** `_served_model_path` now accepts a Windows-absolute
+  checkpoint. Before, `C:\...` was split at the drive's colon.
+- **The notebook:** in the bundle, section 9 starts its own Lemonade on
+  the CPU.
+  - It verifies the model's SHA-256 first, and refuses a llama.cpp
+    launched without the evaluated arguments.
+  - Lemonade, llama-server and the server run in a Windows job object,
+    so a crashed kernel leaves nothing running.
+  - PyMOL is launched in the first cell: launched later in a Windows
+    Jupyter kernel, after LangGraph and the tokenizer, it dies at start
+    (bisected; docs/bundle.md).
+  - The committed notebook is re-executed against the Docker engine on
+    the CPU, with the same plans as the GPU run.
+- **The bundle:** `tools/bundle/build_bundle.py` builds it on Windows
+  from the committed tree, every download pinned by SHA-256 in
+  `configs/bundle/pins.json`.
+  - It holds CPython 3.13.13 with `requirements-bundle.txt` (the
+    runtime's pins, the notebook's tokenizer stack, JupyterLab; no
+    training stack), Lemonade, the model, the tokenizer's files, every
+    licence, and the repository's code and evidence.
+  - The ZIP is 1.06 GB, and every path in it is at most 160 characters.
+- **The check:** `tools/bundle/check_bundle.py` runs inside an
+  extracted bundle.
+  - It launches PyMOL in a Jupyter kernel, and requires a sidecar from
+    the relocated Python to reproduce `gold_056`'s Linux fingerprint.
+  - It then executes the notebook and recomputes every reported number.
+  - On the build host, extracted under `Jürgen Müller\Downloads\... (1)`,
+    every check passed, the live demo included. A CPU answer took
+    45–80 s on its 2019 4-core APU.
+  - The `Portable bundle smoke` workflow runs it without the model on
+    `windows-2025`.
+- **Still open:** the clean-machine run in Windows Sandbox with the
+  network off (step 8). `tools/bundle/sandbox/pmc.wsb` runs it
+  unattended, but has to be double-clicked: Windows refuses to start a
+  Sandbox from WSL.
 
 ---
 

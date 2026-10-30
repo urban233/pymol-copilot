@@ -1,18 +1,17 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """An opt-in local record of every completion the server asks for.
 
-docs/master_plan.md item 19. The client only ever sees a request's
-bounded outcome: a preview, a question, or a failure envelope. When the
-integrated measurement's outcome for a sample differs from the offline
-evaluation's, explaining why needs what the model actually wrote, on
-every attempt, which only the server sees. `TracingEngine` wraps the
-server's engine and appends one JSON line per completion call to a
-private file.
+The client only ever sees a request's bounded outcome: a preview, a
+question, or a failure envelope. When the integrated measurement's outcome
+for a sample differs from the offline evaluation's, explaining why needs
+what the model actually wrote, on every attempt, which only the server
+sees. `TracingEngine` wraps the server's engine and appends one JSON line
+per completion call to a private file.
 
 It is off by default and exists only when `--trace-file` names a file:
-raw intents, cards and plans are not retained unless the user asks
-(SPECIFICATION.md:448). The file is created with user-only permissions,
-and holds the prompt's SHA-256, never the prompt itself.
+raw intents, cards and plans are not retained unless the user asks.
+The file is created with user-only permissions, and holds the prompt's
+SHA-256, never the prompt itself.
 """
 
 from __future__ import annotations

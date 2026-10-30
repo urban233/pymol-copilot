@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""The sabotage test SPECIFICATION.md:723 asks for by name.
+"""The sabotage test proving the suite detects mutation.
 
-docs/master_plan.md item 12. Every "zero unapproved mutation" assertion
-in this whole item rests on `scenario_support.SessionFingerprint` and
+Every "zero unapproved mutation" assertion in the end-to-end suite rests
+on `scenario_support.SessionFingerprint` and
 `assert_unchanged` actually being able to fail. `test_harness.py`'s own
 parametrized smoke check proves a first cut of this; this module is the
 complete, dedicated matrix: one real PyMOL mutation of exactly each field

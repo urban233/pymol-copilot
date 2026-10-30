@@ -2,7 +2,7 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
-# Integrated TaskSuccess (docs/master_plan.md item 19): the gold set
+# Integrated TaskSuccess: the gold set
 # through the running product -- live PyMOL, the real client, the real
 # server -- graded on the live session and paired with the offline
 # evaluation. The driver lives here, not in src/pmc_eval, because only

@@ -20,9 +20,9 @@ from pmc_core.protocol import FailureEnvelopeV1
 def test_actions_covers_every_failure_category() -> None:
     """Every category the server may emit has a registered next step.
 
-    Proven by hand for this item by deleting one entry from `ACTIONS` (for
-    example `"hostile_output"`) and confirming this assertion names it,
-    then restoring it.
+    Proven by hand by deleting one entry from `ACTIONS` (for example
+    `"hostile_output"`) and confirming this assertion names it, then
+    restoring it.
     """
     missing = FAILURE_CATEGORIES - set(ACTIONS)
     assert not missing, f"ACTIONS has no entry for: {sorted(missing)}"
@@ -105,8 +105,8 @@ def test_describe_unexpected_never_contains_the_raw_exception_text() -> None:
     """An exception's own message never reaches the printed line.
 
     `select chain A` is plan-shaped text; if it ever leaked through, this
-    is exactly the kind of fragment SPECIFICATION.md:503-511 requires stay
-    confined to the printed plan block, never an error.
+    is exactly the kind of fragment that must stay confined to the printed
+    plan block, never an error.
     """
     sentinel = "LEAK select chain A"
     error = RuntimeError(sentinel)

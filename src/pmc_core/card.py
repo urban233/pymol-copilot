@@ -1,18 +1,17 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Deterministic structure-card rendering for pmc_core.snapshot.
 
-This is the production promotion of M-02's discovery work (originally
-`tests/discovery/m02/card_candidate.py`): a pure, bounded, deterministic
-text rendering of one canonical `ObjectSnapshot` into the compact card
-format the model sees. `render()` takes an already-extracted
+This is the production promotion of the structure-card discovery work
+(originally `tests/discovery/m02/card_candidate.py`): a pure, bounded,
+deterministic text rendering of one canonical `ObjectSnapshot` into the
+compact card format the model sees. `render()` takes an already-extracted
 `ObjectSnapshot` and never imports `pymol` itself, so this module has no
 PyMOL dependency, exactly like `pmc_core.snapshot` it is built on.
 
 `render_for_data()` and `render_for_runtime()` are separate caller seams
 that exist to be proved byte-identical, not because they differ -- the
-dataset writer (master plan item 14) and the runtime prompt builder
-(master plan item 13) each call one, and a parity test fails if they ever
-diverge.
+dataset writer and the runtime prompt builder each call one, and a parity
+test fails if they ever diverge.
 
 The card's `unsupported` lines are a pure pass-through of
 `pmc_core.snapshot.DECLARED_UNSUPPORTED`, never independently authored: a
@@ -45,9 +44,8 @@ from pmc_core.snapshot import StateSnapshot
 #: This module's own structure-card contract version, stamped as the
 #: first line of every card -- including both failure cards, so a
 #: rejected card is still attributable to a version. Both caller seams
-#: below emit it; the dataset writer (master plan item 14) and the
-#: prompt builder (item 13) stamp it into their own records by calling
-#: them.
+#: below emit it; the dataset writer and the prompt builder stamp it into
+#: their own records by calling them.
 CARD_VERSION = 1
 
 #: The largest absolute magnitude any numeric snapshot field may carry.
@@ -557,7 +555,7 @@ def render_for_data(snapshot: ObjectSnapshot) -> str:
 
     Returns:
         The same bytes render() returns, through the seam the dataset
-        writer (master plan item 14) calls.
+        writer calls.
     """
     return render(snapshot)
 
@@ -570,6 +568,6 @@ def render_for_runtime(snapshot: ObjectSnapshot) -> str:
 
     Returns:
         The same bytes render() returns, through the seam the runtime
-        prompt builder (master plan item 13) calls.
+        prompt builder calls.
     """
     return render(snapshot)

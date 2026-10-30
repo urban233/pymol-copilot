@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""docs/master_plan.md item 12, scenario 4: denied before any sidecar spawn.
+"""End-to-end scenario 4: denied before any sidecar spawn.
 
 `pmc_agent.graph._validating`'s fixed order is cancellation -> hostile
 screen -> parse -> policy -> executor. This module proves that order is
@@ -12,7 +12,7 @@ module's own count could somehow miss.
 Confirmed empirically (not merely assumed) which gate actually denies this
 module's own completion: `parse_pml` itself rejects a reference to a
 selection no earlier command created, before `pmc_core.policy` is ever
-called. `pmc_core.policy`'s own re-checks (SPECIFICATION.md-mandated
+called. `pmc_core.policy`'s own re-checks (mandatory
 defense in depth) exist for a plan a dataclass could be reconstructed into
 by bypassing `__post_init__` -- not reachable through ordinary completion
 text, which the parser validates structurally to begin with. Either gate

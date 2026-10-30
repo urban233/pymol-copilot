@@ -1,11 +1,11 @@
 # Evaluation configuration
 
-This directory is owned by model evaluation (master plan item 16).
+This directory is owned by model evaluation.
 
 ## `baseline.json`
 
-The one configuration the untuned baseline, and item 17's comparison
-against it, are run under, consumed by `pmc_eval.eval_cli`:
+The one configuration the untuned baseline, and the fine-tune's
+comparison against it, are run under, consumed by `pmc_eval.eval_cli`:
 
 ```
 bazel run //src/pmc_eval:eval_cli -- run \
@@ -16,13 +16,13 @@ bazel run //src/pmc_eval:eval_cli -- run \
 Its SHA-256 is part of every run's identity, so a run resumes, and a
 baseline compares, only under the exact file that produced it.
 
-- `engine` names the model under evaluation: the Lemonade model id
-  (see "Setting up the engine" for why it has no `user.` prefix),
-  the exact checkpoint that id must load, and the llama.cpp backend and
-  context size. The base model is **Llama-3.2-1B-Instruct at Q4_K_M**,
-  a standard llama.cpp quantization item 17's Unsloth GGUF export can
-  reproduce, so the baseline and the fine-tune differ only in their
-  weights. This fixes item 17's base model.
+- `engine` names the model under evaluation: the Lemonade model id (see
+  "Setting up the engine" for why it has no `user.` prefix), the exact
+  checkpoint that id must load, and the llama.cpp backend and context
+  size. The base model is **Llama-3.2-1B-Instruct at Q4_K_M**, a
+  standard llama.cpp quantization the fine-tune's Unsloth GGUF export
+  can reproduce, so the baseline and the fine-tune differ only in their
+  weights. This fixes the fine-tune's base model.
 - `generation` bounds every completion: 256 tokens (the longest
   reference plan is 4 lines, 164 characters) and a 600-second deadline.
   The deadline and `engine.read_timeout_seconds` are set far above what
@@ -48,10 +48,10 @@ and `engine/setup.sh`, which pulls the model, pins the chat template's
 date and prints the `engine_provenance` to record here.
 
 **The baseline runs on a WSL2 machine with an NVIDIA GPU**, the machine
-item 17 trains on: `engine.backend` is `cuda`, and `engine_provenance`
-is the record `engine/setup.sh cuda` printed on that machine (an RTX
-4060 under WSL2). The Mac measurements below come from the pilot; the
-baseline's own follow them.
+the fine-tune trains on: `engine.backend` is `cuda`, and
+`engine_provenance` is the record `engine/setup.sh cuda` printed on
+that machine (an RTX 4060 under WSL2). The Mac measurements below come
+from the pilot; the baseline's own follow them.
 
 Two details `setup.sh` takes care of. A model is pulled as `user.<name>`
 but catalogued, loaded and reported as `<name>`, so `model_name` is
@@ -60,8 +60,9 @@ adapter's catalog check refuses the model. And the chat template's date
 is pinned to the template's own fallback, `26 Jul 2024`, through
 Lemonade's `llamacpp.args`, so llama-server runs with
 `--chat-template-kwargs {"date_string":"26 Jul 2024"}` and the loaded
-model reports the `llamacpp_args` recorded in `engine_provenance`. Item
-17 must render its training prompts with the same `date_string`.
+model reports the `llamacpp_args` recorded in `engine_provenance`.
+Fine-tuning must render its training prompts with the same
+`date_string`.
 
 What was established on 2026-09-26, first with the official image under
 emulation on the same Mac:
@@ -80,7 +81,7 @@ emulation on the same Mac:
   `Today Date: 26 Sep 2026` in a system block, then the message, so a
   run on another day would see another prompt. With the setting above
   it renders `Today Date: 26 Jul 2024` on every day.
-- **The item 9 adapter could not drive this server as merged**, and is
+- **The Lemonade adapter could not drive this server as merged**, and is
   fixed on this branch (Martin's decision). Its capability probe failed
   its grammar canary with `malformed SSE framing`: after a cold load
   the stream opens with an SSE comment, `: ping`, which the SSE format

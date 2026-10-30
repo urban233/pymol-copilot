@@ -8,9 +8,9 @@ no input reaches Open-Source PyMOL.
 
 There is one test per rejection category, and each asserts the category and,
 where the rejection belongs to one command rather than the input as a whole,
-the command index. Asserting the index matters: the specification requires a
-denial to identify the offending command without exposing execution, and an
-off-by-one there would send a repair attempt at the wrong line.
+the command index. Asserting the index matters: a denial must identify the
+offending command without exposing execution, and an off-by-one there would
+send a repair attempt at the wrong line.
 
 Positive round-trip coverage lives in tests/contract/test_parser.py.
 """
@@ -471,9 +471,9 @@ def test_creating_one_selection_name_twice_is_rejected() -> None:
 def test_a_rejection_never_echoes_the_input_back() -> None:
     """A rejection message explains the rule without quoting the plan.
 
-    The specification requires a denial to identify the rule and the command
-    index without exposing execution. A message that pasted the offending
-    text back would leak model output through an error path.
+    A denial must identify the rule and the command index without exposing
+    execution. A message that pasted the offending text back would leak
+    model output through an error path.
     """
     secret = "copilot_" + "s" * 20
     rejection = reject(f"delete {secret}\n")

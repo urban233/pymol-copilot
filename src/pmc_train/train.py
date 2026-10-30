@@ -825,9 +825,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     Args:
         argv: The command line, without the program name.
     """
-    parser = argparse.ArgumentParser(
-        description="Fine-tune the base model (master plan item 17)."
-    )
+    parser = argparse.ArgumentParser(description="Fine-tune the base model.")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--smoke", type=int, default=None)
     parser.add_argument("--backend", choices=BACKENDS, default="unsloth")

@@ -1,13 +1,13 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The copilot command seam: preview, approval, live apply, and recovery.
 
-docs/master_plan.md item 7. `copilot` no longer sends a fixture snapshot:
+`copilot` no longer sends a fixture snapshot:
 it resolves the one loaded molecular object
 (`pmc_client.session.resolve_target_object`), extracts its canonical
 snapshot (`pmc_client.session.extract_live_snapshot`), and reconstructs
 that snapshot in a fresh sidecar to check it exactly matches
 (`pmc_client.fidelity.check_fidelity`) before ever building a request.
-Orchestration rule 9 (SPECIFICATION.md:539) is enforced on both ends: the
+Exact relevant-state fidelity is enforced on both ends: the
 server's own `ValidationReportV1.applicable` and this client's locally
 observed fidelity outcome are ANDed together, and `copilot_apply` refuses
 whenever that AND is false. The only live mutations in this module are an
@@ -15,7 +15,7 @@ approved ``copilot_apply`` through the closed dispatcher and an explicit
 ``copilot_rollback`` that replaces the complete session from its recovery
 point. Every other path is refusal-only.
 
-docs/master_plan.md item 8's request graph adds a real `copilot_reject`:
+The request graph adds a real `copilot_reject`:
 unlike `copilot_apply`, it does reach the server, over the same `/v1/reject`
 endpoint `pmc_agent.session.RequestGraphSession.reject` answers. It mirrors
 `copilot_apply`'s own local refusal table exactly before ever contacting
@@ -405,7 +405,7 @@ def _preview_block(
     applicable: bool,
     now: datetime,
 ) -> str:
-    """Render the complete preview SPECIFICATION.md:503-511 requires.
+    """Render the complete preview `copilot` must print.
 
     One block, one `_output` call: plan id and expiry, the resolved
     object, numbered canonical commands with their own selection counts
@@ -664,12 +664,12 @@ class CopilotCommandClient:
         # called without naming every method it needs.
         self._cmd = cast(LivePyMOLSession, cmd)
         cmd.extend("copilot", self._guarded("copilot", self.copilot))
-        # SPECIFICATION.md's intent is free text: a comma, a semicolon, or
+        # The intent is free text: a comma, a semicolon, or
         # `x=y` inside it must never be read as PyMOL argument syntax.
         # `parsing.STRICT` (the mode `extend()` itself set a moment ago)
         # would split on `,`, and `;` would end the command early; setting
         # this entry's own mode is the one supported way to change it
-        # after the fact (docs/master_plan.md item 11).
+        # after the fact.
         cmd.keyword["copilot"][4] = _LITERAL_PARSING_MODE
         cmd.extend(
             "copilot_apply",
@@ -704,9 +704,8 @@ class CopilotCommandClient:
         genuine defect in this module's own code (an `AttributeError` from
         a typo, a `KeyError` from an unexpected shape) that no other catch
         anticipates. Without it, such a defect would propagate as a raw
-        traceback into PyMOL's own command dispatch -- exactly what
-        SPECIFICATION.md:503-511 forbids for every failure path, including
-        this one.
+        traceback into PyMOL's own command dispatch -- exactly what no
+        failure path may produce, including this one.
 
         Args:
             command: The command name, for the fallback message.
@@ -943,7 +942,7 @@ class CopilotCommandClient:
             )
             return
 
-        # SPECIFICATION.md:515/524-525: a new request unconditionally
+        # A new request unconditionally
         # supersedes any prior pending plan, whether or not this one goes
         # on to succeed -- cleared here, before anything below can fail,
         # so a failed request never leaves a stale plan (bound to
@@ -1008,7 +1007,7 @@ class CopilotCommandClient:
                 atom_count=atom_count,
                 state_count=state_count,
             ),
-            # docs/master_plan.md item 8's request graph lives in the
+            # The request graph lives in the
             # server and needs the full canonical snapshot to validate
             # against, not merely its identity; this call site already had
             # it in hand.
@@ -1448,7 +1447,7 @@ class CopilotCommandClient:
         """Report client, server, engine, and contract-version facts.
 
         Read-only and always allowed, even while Copilot is halted after a
-        failed restore (SPECIFICATION.md:690): a user needs this
+        failed restore: a user needs this
         diagnostic precisely when something else has already gone wrong,
         so unlike every other registered command this one never checks
         `_halted()` -- it reports the halt itself, on its own last line,

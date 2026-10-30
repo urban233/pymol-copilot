@@ -6,7 +6,7 @@ this file tests that function directly, exhaustively, without compiling or
 running the graph at all -- and separately proves the compiled graph's
 stub pass-through shape and that `pending_approval` genuinely parks.
 Real node behavior (target resolution, generation, the repair loop,
-expiry, supersession) is each later step's own test file.
+expiry, supersession) is each tested in its own file.
 """
 
 from typing import cast
@@ -89,10 +89,8 @@ def _state(status: str) -> RequestState:
     )
 
 
-def test_request_states_are_exactly_the_apply_ready_names_in_the_brief() -> (
-    None
-):
-    """No status exists that docs/master_plan.md item 8 did not name.
+def test_request_states_are_exactly_the_apply_ready_names() -> None:
+    """No status exists beyond the ones listed here.
 
     A set-equality assertion, not a subset check: adding another status
     anywhere in this graph without deciding to widen this set is a defect,
@@ -193,11 +191,10 @@ def test_the_graph_compiles_with_every_node_and_edge_wired() -> None:
     """The graph compiles: every node and every conditional edge is valid.
 
     The end-to-end pass-through proof -- that `preparing` and `generating`
-    (both real as of this item's step 6) actually advance a well-formed
-    request to `validating`, and that `pending_approval`'s stub genuinely
-    parks -- lives in tests/unit/test_request_graph_generation.py, since
-    it needs realistic request fixtures neither node's stub required
-    before this step.
+    (both real) actually advance a well-formed request to `validating`,
+    and that `pending_approval`'s stub genuinely parks -- lives in
+    tests/unit/test_request_graph_generation.py, since it needs realistic
+    request fixtures neither node's stub required.
     """
     build_request_graph(engine=FakeEngine([])).compile(
         checkpointer=InMemorySaver()

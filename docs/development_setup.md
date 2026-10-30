@@ -52,18 +52,16 @@ command; do not continue issuing Copilot commands in the halted process.
 
 ## Running the server
 
-`bazel run //src/pmc_server:server` starts the production loopback server
-(docs/master_plan.md item 12): it connects to Lemonade at
-`http://localhost:13305` by default (`--lemonade-base-url` to point it
-elsewhere), and falls back to `UnavailableEngine` -- reported through
-`copilot_health`, never a crash -- if that connection fails. It writes the
-port and an ephemeral credential to `~/.pymol-copilot/session.json` (mode
-0600; `--handoff` to write elsewhere), the same private directory the
-recovery runbook above uses.
+`bazel run //src/pmc_server:server` starts the production loopback server:
+it connects to Lemonade at `http://localhost:13305` by default
+(`--lemonade-base-url` to point it elsewhere), and falls back to
+`UnavailableEngine` -- reported through `copilot_health`, never a crash --
+if that connection fails. It writes the port and an ephemeral credential
+to `~/.pymol-copilot/session.json` (mode 0600; `--handoff` to write
+elsewhere), the same private directory the recovery runbook above uses.
 
-To serve the fine-tuned model exactly as it was evaluated (master plan
-item 19), give the server the evaluation config instead of individual
-flags:
+To serve the fine-tuned model exactly as it was evaluated, give the
+server the evaluation config instead of individual flags:
 
 ```sh
 bazel run //src/pmc_server:server -- --config configs/evaluation/finetuned.json
@@ -115,21 +113,20 @@ server), and once more through a deliberate mid-apply failure to measure
 recovery. It prints the resulting p50/p95-per-stage table and writes it to
 `results/latency-<platform>-<node>.md` (ignored; regenerate on demand).
 Paste that table into [docs/latency.md](latency.md) under a heading naming
-this machine, alongside any prior machines' own recordings --
-[SPECIFICATION.md:157](../SPECIFICATION.md#L157): *"Report p50 stage
-latency; no fixed pass/fail budget."*
+this machine, alongside any prior machines' own recordings. The note
+reports p50 stage latency; there is no fixed pass/fail budget.
 
 ## Training dependencies
 
-`SPECIFICATION.md:285-286` requires that runtime dependencies coexist with
-Open-Source PyMOL without importing the ML training stack into PyMOL's Python
-process, and `SPECIFICATION.md:660-661` places training, teacher access, and
-fine-tuning in a separate development environment, absent from deployment.
-The repository enforces this mechanically: `requirements-train.in` and
-`requirements-train.txt` are pinned outside Bazel entirely, referenced by no
-`MODULE.bazel` or `BUILD.bazel` file, and `//tools/bazel:check_dependency_boundaries`
-fails if `torch`, `transformers`, `peft`, `trl`, or `unsloth` ever enter
-`requirements.in` or a Bazel dependency closure.
+Runtime dependencies must coexist with Open-Source PyMOL without importing the
+ML training stack into PyMOL's Python process, and training, teacher access,
+and fine-tuning run in a separate development environment, absent from
+deployment. The repository enforces this mechanically: `requirements-train.in`
+and `requirements-train.txt` are pinned outside Bazel entirely, referenced by
+no `MODULE.bazel` or `BUILD.bazel` file, and
+`//tools/bazel:check_dependency_boundaries` fails if `torch`, `transformers`,
+`peft`, `trl`, or `unsloth` ever enter `requirements.in` or a Bazel dependency
+closure.
 
 Fine-tuning is done mainly with **Unsloth**, chosen to keep training runnable
 on consumer-grade hardware, so the training environment is Linux with a
@@ -176,11 +173,11 @@ PyPI's Linux torch wheels already bundle CUDA, so no extra index is needed.
 
 ## Notebook environment
 
-The deliverable notebook (`notebooks/`, master plan item 18) runs the
-runtime code, the dataset and evaluation code, the training code and
-PyMOL in one Jupyter kernel. It has its own Python 3.12 environment,
-Linux only like training: `requirements-notebook.in` is the training set,
-constrained to `requirements-train.txt`, plus the runtime's own pins from
+The deliverable notebook (`notebooks/`) runs the runtime code, the
+dataset and evaluation code, the training code and PyMOL in one Jupyter
+kernel. It has its own Python 3.12 environment, Linux only like training:
+`requirements-notebook.in` is the training set, constrained to
+`requirements-train.txt`, plus the runtime's own pins from
 `requirements.in` and `requirements_lock.txt` (numpy is the one package
 both locks pin, and the training lock's pin wins), plus the notebook
 tooling.

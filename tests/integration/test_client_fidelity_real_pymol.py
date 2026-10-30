@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Real-PyMOL, real-sidecar evidence for the client-side fidelity gate.
 
-docs/master_plan.md item 7's own required evidence: "Test with modified
-coordinates, multiple states, alternate locations and hetero atoms."
+The fidelity gate's own required evidence: modified coordinates,
+multiple states, alternate locations and hetero atoms.
 tests/integration/testdata/h02_full_v1_fixture.pdb already carries three
 of the four -- two `MODEL` states, altlocs A/B on `SER 2 OG` at
 occupancies 0.60/0.40, one `ZN` HETATM, and a `3A` insertion code -- so no

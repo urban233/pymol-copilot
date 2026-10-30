@@ -4,7 +4,7 @@
 Whether a built structure survives PyMOL's own reconstruct-extract cycle
 is the admission gate in test_structures_real_pymol.py. What is
 checkable without PyMOL is that the matrix actually covers the features
-master plan item 14 names, and that building is deterministic -- a
+it declares, and that building is deterministic -- a
 corpus whose structures drifted between runs could not be reproduced
 from its recorded seed.
 """
@@ -25,7 +25,7 @@ SEED = 20260921
 
 
 def test_matrix_covers_every_declared_feature() -> None:
-    """Item 14 names four structure features; all four must appear.
+    """Four structure features are declared; all four must appear.
 
     A feature missing from the matrix would not fail anything later --
     it would silently produce a corpus with no coverage of it at all,

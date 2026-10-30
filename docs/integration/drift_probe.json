@@ -69,7 +69,7 @@
       "is_live": true,
       "is_offline": false,
       "predecessor": "gold_056",
-      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "predecessor_label": "gold_056 (the real-engine e2e run's last prompt)",
       "repeat": 1,
       "target": "gold_001"
     },
@@ -78,7 +78,7 @@
       "is_live": true,
       "is_offline": false,
       "predecessor": "gold_056",
-      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "predecessor_label": "gold_056 (the real-engine e2e run's last prompt)",
       "repeat": 2,
       "target": "gold_001"
     },
@@ -141,7 +141,7 @@
       "is_live": false,
       "is_offline": true,
       "predecessor": "gold_056",
-      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "predecessor_label": "gold_056 (the real-engine e2e run's last prompt)",
       "repeat": 1,
       "target": "gold_044"
     },
@@ -150,7 +150,7 @@
       "is_live": false,
       "is_offline": true,
       "predecessor": "gold_056",
-      "predecessor_label": "gold_056 (Gate A's last prompt)",
+      "predecessor_label": "gold_056 (the real-engine e2e run's last prompt)",
       "repeat": 2,
       "target": "gold_044"
     }

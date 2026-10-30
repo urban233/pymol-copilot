@@ -2,8 +2,8 @@
 """The committed baseline is exactly what its committed samples say.
 
 `docs/evaluation/baseline/` is the untuned model's result, measured
-before any fine-tuning existed (master plan item 16), and item 17's
-comparison rests on it. This suite keeps it, and item 17's own
+before any fine-tuning existed, and the fine-tuning comparison rests
+on it. This suite keeps it, and fine-tuning's own
 publications (the export-pipeline control and the fine-tuned model)
 and comparisons, honest in five ways:
 
@@ -57,7 +57,7 @@ DATASET_MANIFEST = ROOT / "docs" / "dataset" / "manifest.json"
 CONFIGS = ROOT / "configs" / "evaluation"
 
 #: Every published evaluation, and the config it must have been run
-#: under: item 16's baseline, and item 17's export-pipeline control and
+#: under: the baseline, and fine-tuning's export-pipeline control and
 #: fine-tuned model. Each is checked once `eval_cli publish` has written
 #: it; until then its cases are simply absent.
 PUBLICATIONS = {

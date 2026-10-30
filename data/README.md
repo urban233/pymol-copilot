@@ -65,7 +65,7 @@ few thousand samples is a few thousand spawned PyMOL processes.
 
 ## `splits/split-<id>/`
 
-The held-out split (master plan item 15), written by
+The held-out split, written by
 
     bazel run //src/pmc_data:split_cli -- build \
         --corpus data/samples/seed-<seed>-<identity>

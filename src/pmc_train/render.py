@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Render a training prompt exactly as the evaluation engine does.
 
-The engine (item 9's Lemonade adapter, `pmc_agent.inference.lemonade`)
+The engine (the Lemonade adapter, `pmc_agent.inference.lemonade`)
 sends every prompt as one user message, with no system message, to a
 llama-server running the GGUF's own Jinja chat template, with the
 template's date pinned by `--chat-template-kwargs

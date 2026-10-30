@@ -2,9 +2,9 @@
 """Behavior tests for `pending_approval`, expiry, supersession, cancellation.
 
 Runs `pmc_agent.session.RequestGraphSession`, not the bare compiled graph
-directly -- this is the layer docs/master_plan.md item 8 introduces to
-enforce "at most one active request and one pending plan per session" as a
-real invariant under `ThreadingHTTPServer`'s concurrency, not merely a
+directly -- this is the layer the request graph introduces to enforce at
+most one active request and one pending plan per session as a real
+invariant under `ThreadingHTTPServer`'s concurrency, not merely a
 single-threaded property of the graph itself.
 """
 
@@ -439,13 +439,13 @@ def test_approve_preserves_selection_counts_and_warnings_across_resume() -> (
 ):
     """The executor's own evidence survives from `submit()` into `approve()`.
 
-    docs/master_plan.md item 11: `pending_approval`'s interrupted
-    checkpoint retains its control fields but not every opaque domain
-    value (see this module's own note on `_pending_details`), which is
-    exactly why `approve()` copies named fields from the cached pending
-    details rather than trusting a fresh checkpoint read alone. This
-    proves `selection_counts` and `sidecar_warnings` are two of those
-    named fields, not silently dropped on resume.
+    `pending_approval`'s interrupted checkpoint retains its control fields
+    but not every opaque domain value (see this module's own note on
+    `_pending_details`), which is exactly why `approve()` copies named
+    fields from the cached pending details rather than trusting a fresh
+    checkpoint read alone. This proves `selection_counts` and
+    `sidecar_warnings` are two of those named fields, not silently dropped
+    on resume.
     """
     engine = FakeEngine([CompletionResult(_VALID_COMPLETION, "m-1", STOP_END)])
     session = RequestGraphSession(

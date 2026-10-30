@@ -124,7 +124,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyrefly]
-project-includes = ["src/pmc_client", "src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_eval", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/winstage"]
+project-includes = ["src/pmc_client", "src/pmc_core", "src/pmc_agent", "src/pmc_data", "src/pmc_eval", "src/pmc_sidecar", "src/pmc_server", "tests", "tools/bundle", "tools/winstage"]
 python-version = "3.13"
 preset = "strict"
 check-unannotated-defs = true
@@ -132,39 +132,43 @@ check-unannotated-defs = true
 # Bazel's py_library `imports = ["."]` -- resolved at runtime by
 # pytest/Bazel via sys.path, but not otherwise visible to pyrefly without
 # this search path. Every process that imports real PyMOL on Windows
-# imports it that way (W2-01, issue #12).
+# imports it that way (issue #12).
 # tests/integration/snapshot_support.py is the same situation for
 # pmc_core.snapshot's real-PyMOL round-trip evidence: a bare sibling
 # module (`from snapshot_support import ...`) imported by that package's
 # own conftest.py. tests/discovery/h02 and tests/discovery/m02 each used
 # to re-export its fixtures for their own prototype; both are now
-# promoted (docs/master_plan.md items 4 and 5) and neither directory
-# exists, so tests/integration is the only package that reaches it.
+# promoted and neither directory exists, so tests/integration is the
+# only package that reaches it.
 # tests/integration/pymol_error_cases.py is the same situation again for
 # pmc_core.errors: one bare sibling module (`from pymol_error_cases
 # import ...`) holding the broken-command table that both
 # capture_pymol_errors.py and test_errors_real_pymol.py import, so the
 # corpus writer and the conformance test cannot drift apart.
 # tests/adversarial/denied_forms.py is the same situation again for
-# src/pmc_core/screen.py (docs/master_plan.md item 8): one bare sibling
-# module holding the denied-form corpus that both test_denied_forms.py and
-# test_hostile_screen.py import, so the parser/policy denial suite and the
-# repair-eligibility screen's own suite cannot drift apart.
+# src/pmc_core/screen.py: one bare sibling module holding the denied-form
+# corpus that both test_denied_forms.py and test_hostile_screen.py import,
+# so the parser/policy denial suite and the repair-eligibility screen's
+# own suite cannot drift apart.
 # tests/contract/consumer_scan.py is the same situation once more, this
 # time within tests/contract: one bare sibling module holding the import
-# resolving scan that both test_errors.py and test_prompt.py use, so
-# master plan items 6 and 13 cannot drift into two different notions of
-# what reaching the shared core means.
+# resolving scan that both test_errors.py and test_prompt.py use, so the
+# error envelope and the prompt builder cannot drift into two different
+# notions of what reaching the shared core means.
 # tests/data/oracle_executor.py and tests/data/split_fixture.py are the
-# same situation for master plan item 15: the fake execution seams and the
-# synthetic repository that the gold-set, split, manifest and audit suites
-# share, so those four cannot drift into different notions of a verified
-# sample.
-# tests/eval/fakes.py is the same situation for master plan item 16: the
-# scripted executors and completions every hermetic harness suite shares.
-# tests/integrated/integrated_cli.py is the same situation for item 19:
-# the integrated measurement's driver, which its real-PyMOL test runs;
-# tests/demo/copilot_demo.py is the demo's launcher, likewise.
+# same situation for the gold set and split: the fake execution seams and
+# the synthetic repository that the gold-set, split, manifest and audit
+# suites share, so those four cannot drift into different notions of a
+# verified sample.
+# tests/eval/fakes.py is the same situation for the evaluation harness:
+# the scripted executors and completions every hermetic harness suite
+# shares.
+# tests/integrated/integrated_cli.py is the same situation for
+# integration: the integrated measurement's driver, which its
+# real-PyMOL test runs; tests/demo/copilot_demo.py is the demo's
+# launcher, likewise.
+# tools/bundle/bundle_spec.py is the same situation for the portable
+# bundle: its contents, which its build script and tests import.
 search-path = [
     "tests/adversarial",
     "tests/contract",
@@ -175,6 +179,7 @@ search-path = [
     "tests/integrated",
     "tests/integration",
     "tests/recovery",
+    "tools/bundle",
     "tools/winstage",
 ]
 

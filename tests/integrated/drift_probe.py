@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Probe whether the engine's completion depends on the request before it.
 
-docs/master_plan.md item 19. The integrated measurement found samples
+The integrated measurement found samples
 whose prompt is byte for byte the offline one but whose completion is
 not (`engine_drift`). Both runs send the same prompts in the same order
 at temperature 0. Where they differ is what came before the first
@@ -126,7 +126,7 @@ def main() -> int:
                 ordered[index - 1].sample_id if index else longest.sample_id
             ),
             "itself": target,
-            "gold_056 (Gate A's last prompt)": "gold_056",
+            "gold_056 (the real-engine e2e run's last prompt)": "gold_056",
         }
         for label, predecessor in predecessors.items():
             for repeat in range(1, REPEATS + 1):

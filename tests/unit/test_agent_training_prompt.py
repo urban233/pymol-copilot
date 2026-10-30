@@ -2,10 +2,9 @@
 """The runtime can send the prompt the local model was fine-tuned on.
 
 `pmc_agent.prompt.build_training_prompt` is the prompt builder that
-`pmc_server.main --prompt training` selects (master plan item 18). It
-must be, byte for byte, the `prompt_text` every dataset sample holds and
-the fine-tune learned from, and a repair must be worded as the graph's
-own placeholder words it.
+`pmc_server.main --prompt training` selects. It must be, byte for byte,
+the `prompt_text` every dataset sample holds and the fine-tune learned
+from, and a repair must be worded as the graph's own placeholder words it.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

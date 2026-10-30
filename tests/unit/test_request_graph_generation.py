@@ -1,12 +1,12 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Behavior tests for `preparing` and `generating`.
 
-Runs the compiled graph against a `FakeEngine`, never a real one --
-docs/master_plan.md item 8: "Test every transition and terminal state
-against a fake inference adapter." `validating` is real as of step 7, so
-every test here that reaches it also injects a fake executor that always
-succeeds -- this file's own scope stays `preparing` and `generating`;
-`validating`'s own behavior is tests/unit/test_request_graph_repair.py's.
+Runs the compiled graph against a `FakeEngine`, never a real one: every
+transition and terminal state is tested against a fake inference adapter.
+`validating` is real, so every test here that reaches it also injects a
+fake executor that always succeeds -- this file's own scope stays
+`preparing` and `generating`; `validating`'s own behavior is
+tests/unit/test_request_graph_repair.py's.
 """
 
 from typing import cast
@@ -179,9 +179,9 @@ def _run(engine: FakeEngine, state: RequestState) -> dict[str, object]:
 def test_a_first_pass_success_calls_the_engine_exactly_once() -> None:
     """A well-formed request calls the engine once and reaches `validating`.
 
-    A single `invoke()` call runs straight through `validating` (real as
-    of step 7, here against `_always_ok_executor`) to `pending_approval`
-    and parks there -- the assertion that matters in this file is the
+    A single `invoke()` call runs straight through `validating` (real,
+    here against `_always_ok_executor`) to `pending_approval` and parks
+    there -- the assertion that matters in this file is the
     engine call count and what `generating` itself wrote, both already
     final by the time `validating` runs.
     """

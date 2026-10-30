@@ -28,8 +28,9 @@ structure survives, because the form is legal and worth learning, and
 `pmc_data.report` counts it in its own column.
 
 Intents are templated from the plan, not written by a teacher model.
-Item 14 is program-first for each verb, and teacher back-translation
-stays out of scope exactly as it already is for the chain-A pipeline.
+Dataset generation is program-first for each verb, and teacher
+back-translation stays out of scope exactly as it already is for the
+chain-A pipeline.
 
 Plans are emitted to satisfy `pmc_core.policy` by construction: a
 selection is always created before it is referenced, no name is

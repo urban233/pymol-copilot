@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The fidelity gate: reconstruct-and-compare, adjudicated in this process.
 
-docs/master_plan.md item 7's second half. `check_fidelity()` serializes a
-live snapshot, hands it to `pmc_core.executor.probe_fidelity()`, and
+`check_fidelity()` serializes a live snapshot, hands it to
+`pmc_core.executor.probe_fidelity()`, and
 adjudicates the result against the live snapshot it started from --
 `probe_fidelity()` itself never sees the live session, only the candidate
 this module gives it and its own child's re-extraction of what it
@@ -11,9 +11,8 @@ only place that does.
 
 `check_fidelity()` never raises for a documented failure mode; every one
 becomes a `FIDELITY_UNAVAILABLE` outcome carrying the reason a caller can
-report. Orchestration rule 9 (SPECIFICATION.md:539) treats "the check
-could not be performed" the same as "the check found a mismatch": neither
-produces an applicable plan.
+report. A check that could not be performed counts the same as a check
+that found a mismatch: neither produces an applicable plan.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -141,7 +140,7 @@ def check_fidelity(
     if report.status != STATUS_OK:
         # A timeout, a crash, a spawn failure, or a reconstruction failure
         # all mean the same thing here: the check itself could not be
-        # performed, which orchestration rule 9 treats identically to a
+        # performed, which counts identically to a
         # check that found a mismatch.
         return FidelityOutcome(
             status=FIDELITY_UNAVAILABLE,

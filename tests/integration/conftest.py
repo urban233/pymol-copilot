@@ -7,7 +7,7 @@ discovery makes them available by parameter name to every test module in
 this directory that opts in, without any of those modules importing the
 fixture names into their own namespace.
 
-That per-module import was tried first and rejected in the H-02 discovery
+That per-module import was tried first and rejected in the snapshot discovery
 harness this file continues: every test function that wants the fixture
 takes a same-named parameter (`loaded_fixture`) by pytest's own
 fixture-by-parameter-name convention, and an imported name shadowed by a

@@ -197,7 +197,7 @@ py_test(
 )
 
 # The runtime's training-prompt builder is byte for byte the prompt the
-# local model was fine-tuned on (master plan item 18).
+# local model was fine-tuned on.
 py_test(
     name = "agent_training_prompt",
     size = "small",
@@ -213,8 +213,7 @@ py_test(
 
 # The request graph's checkpoint names every type it holds, so LangGraph's
 # "Deserializing unregistered type" warning is gone and a later LangGraph
-# that refuses unregistered types still round-trips the state (master plan
-# item 19).
+# that refuses unregistered types still round-trips the state.
 py_test(
     name = "graph_checkpointer",
     size = "small",
@@ -231,7 +230,7 @@ py_test(
 
 # The server reads each committed evaluation config exactly as the
 # evaluation does, and its defaults are the fine-tuned model's evaluated
-# ones (master plan item 19).
+# ones.
 py_test(
     name = "server_config",
     size = "small",
@@ -248,7 +247,7 @@ py_test(
 )
 
 # The server's opt-in trace records every attempt's raw completion, only
-# when asked, in a private file (master plan item 19).
+# when asked, in a private file.
 py_test(
     name = "server_trace",
     size = "small",

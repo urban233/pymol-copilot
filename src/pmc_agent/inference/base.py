@@ -1,21 +1,20 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The narrow, total, bounded local-inference engine interface.
 
-docs/master_plan.md item 9 names the shape: "a narrow engine interface --
-bounded completion taking prompt, optional grammar, token limit, time
-limit, cancellation and model identity". This module defines that
-interface and its typed values; item 9 adds the one production
-implementation (`lemonade.py`), against a local Lemonade server, plus
-startup capability probing. `fake.py`, alongside this module, is the other
-implementation and is what the request graph (`pmc_agent.graph`) is tested
-against.
+The shape is a narrow engine interface: bounded completion taking
+prompt, optional grammar, token limit, time limit, cancellation and model
+identity. This module defines that interface and its typed values; the
+Lemonade adapter is the one production implementation (`lemonade.py`),
+against a local Lemonade server, plus startup capability probing.
+`fake.py`, alongside this module, is the other implementation and is what
+the request graph (`pmc_agent.graph`) is tested against.
 
 Every outcome is a typed value, never an exception. `InferenceEngine.
 complete()` cannot raise on the engine's own behalf -- a timeout, an
 unreachable server, or a refused grammar all become an `EngineFailure`, in
 the same total-boundary style as `pmc_core.parser.parse_pml` and
-`pmc_core.executor.execute`. SPECIFICATION.md:551-552 forbids model output
-from ever determining retry count, target object, policy or approval; a raw
+`pmc_core.executor.execute`. The project forbids model output from ever
+determining retry count, target object, policy or approval; a raw
 exception surfacing from an engine into the request graph's control flow
 would be exactly that kind of influence, uncontrolled.
 
@@ -66,9 +65,8 @@ ENGINE_UNAVAILABLE = "engine_unavailable"
 ENGINE_TIMEOUT = "engine_timeout"
 
 #: `EngineFailure.category`: a grammar was supplied and the engine either
-#: rejected it outright or silently ignored it. docs/master_plan.md item 9:
-#: "treat silently-ignored grammar as a hard engine failure, not a
-#: warning."
+#: rejected it outright or silently ignored it. A silently-ignored grammar
+#: is a hard engine failure, not a warning.
 ENGINE_REFUSED_GRAMMAR = "engine_refused_grammar"
 
 #: `EngineFailure.category`: a catch-all for a failure this module does not
@@ -122,8 +120,8 @@ class CompletionRequest:
             rewritten by anything this dataclass's own consumer does with
             the result.
         grammar: A grammar the engine should constrain generation to, or
-            None when no grammar is supplied yet. docs/master_plan.md item
-            13 is what will eventually populate this.
+            None when no grammar is supplied yet. The prompt builder is
+            what will eventually populate this.
         max_tokens: The greatest number of tokens the engine may generate
             for this call.
         deadline_seconds: The wall-clock budget for this call. An engine
@@ -161,9 +159,8 @@ class CompletionResult:
             returned it. The request graph classifies and parses this text;
             this module makes no claim about its shape.
         model_identity: A string identifying the exact model and revision
-            that produced this text. SPECIFICATION.md:541 requires this be
-            re-verified at approval time (item 10's territory); this module
-            only carries it.
+            that produced this text. It is re-verified at approval time
+            (approval's territory); this module only carries it.
         stop_reason: Why generation stopped. One of STOP_REASONS.
     """
 
@@ -216,12 +213,12 @@ class EngineFailure:
 class EngineHealth:
     """One engine's own current health, for `copilot_health`.
 
-    docs/master_plan.md item 11. Distinct from `probe_capabilities`'s own
-    one-time startup proof (grammar canary, catalog identity): `health()`
-    is meant to be called again later, cheaply, to answer "is the engine
-    I already probed still there" without repeating the expensive load and
-    canary steps. Exactly one field group is populated, matching `state`,
-    mirroring `pmc_core.protocol.EngineHealthV1`'s own shape -- that wire
+    Distinct from `probe_capabilities`'s own one-time startup proof
+    (grammar canary, catalog identity): `health()` is meant to be called
+    again later, cheaply, to answer "is the engine I already probed still
+    there" without repeating the expensive load and canary steps. Exactly
+    one field group is populated, matching `state`, mirroring
+    `pmc_core.protocol.EngineHealthV1`'s own shape -- that wire
     type is this one's only consumer, so the two are kept structurally
     parallel on purpose.
 

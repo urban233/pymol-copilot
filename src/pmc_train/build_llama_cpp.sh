@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Copyright 2026 PyMOL Copilot contributors.
 #
-# Build the pinned llama.cpp that exports the fine-tuned model (master
-# plan item 17): the release the evaluation engine ran, `b10707`
+# Build the pinned llama.cpp that exports the fine-tuned model: the
+# release the evaluation engine ran, `b10707`
 # (configs/evaluation/baseline.json, engine_provenance.llama_cpp_build),
 # so the converter and quantizer are the ones whose output that engine
 # was built to read. CPU only: exporting needs `convert_hf_to_gguf.py`

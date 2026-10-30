@@ -168,7 +168,7 @@ def _sample_snapshot() -> ObjectSnapshot:
     """Build a hand-constructed snapshot covering every state category.
 
     Returns:
-        A snapshot equivalent to what extract() would produce for the H-02
+        A snapshot equivalent to what extract() would produce for the
         full-V1 discovery fixture, without requiring a live PyMOL session.
     """
     return ObjectSnapshot(
@@ -303,7 +303,7 @@ def test_from_json_rejects_a_wrong_declared_unsupported_set(
 def test_declared_unsupported_matches_the_structure_card_markers() -> None:
     """The two declared-unsupported markers are pinned byte-for-byte.
 
-    This is what keeps pmc_core.card (item 5) a pure pass-through of this
+    This is what keeps pmc_core.card a pure pass-through of this
     module's own declaration, rather than a second place that could drift
     from it.
     """

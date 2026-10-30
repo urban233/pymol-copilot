@@ -11,9 +11,9 @@ child-process evidence is ever produced for a rejected request, and that
 no scratch directory `execute()`'s own spawn path would create ever
 appears.
 
-Also covers `probe_fidelity()`'s own, smaller pre-spawn validation
-(docs/master_plan.md item 7): the same shape of checks minus the two that
-have no meaning without a plan (policy, snapshot-digest binding), proved
+Also covers `probe_fidelity()`'s own, smaller pre-spawn validation: the
+same shape of checks minus the two that have no meaning without a plan
+(policy, snapshot-digest binding), proved
 against a stub runner module `_run_child()` -- the private helper the two
 entry points share -- never reaches for a rejected request.
 
@@ -381,8 +381,8 @@ def test_policy_denied_plan_is_rejected() -> None:
     """A plan the default-deny policy denies fails closed, unspawned.
 
     Unlike the six cases above, the snapshot itself parses successfully
-    here, so input_digest is populated (H02-S3-F8: the ported prototype
-    hardcoded None on every rejection, even after a successful parse).
+    here, so input_digest is populated (the ported prototype hardcoded
+    None on every rejection, even after a successful parse).
     """
     scratch_before = _scratch_dirs()
 

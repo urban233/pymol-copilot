@@ -1,10 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Resolve the one live molecular object and extract its canonical snapshot.
 
-docs/master_plan.md item 7's first half: before a plan request can carry a
-real snapshot identity, the client must know which loaded object it
-describes. `resolve_target_object()` and `extract_live_snapshot()` are the
-two calls `pmc_client.command` makes to get there.
+Before a plan request can carry a real snapshot identity, the client must
+know which loaded object it describes. `resolve_target_object()` and
+`extract_live_snapshot()` are the two calls `pmc_client.command` makes to
+get there.
 
 This module never imports `pymol`: every method it needs from a live PyMOL
 session is named structurally on `PyMOLSession`, exactly the discipline
@@ -127,8 +127,8 @@ class TargetResolutionError(RuntimeError):
 def resolve_target_object(cmd: PyMOLSession) -> str:
     """Resolve the one loaded molecular object a request should target.
 
-    SPECIFICATION.md:216 requires "one explicitly resolved active molecular
-    object for normal planning". Resolution is deterministic and fails
+    Normal planning requires one explicitly resolved active molecular
+    object. Resolution is deterministic and fails
     closed: zero or more than one candidate is a bounded local failure,
     with no request ever sent and no guessing which object the user meant.
     A zero-object session is preparation's controlled-fetch territory, not

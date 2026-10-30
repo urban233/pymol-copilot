@@ -1,10 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Lemonade capability spike: the four probes and their verdicts.
 
-This is the re-runnable half of the spike defined by
-`plans/02-lemonade-capability-spike.md`. It answers, against a live Lemonade
-server reachable at `--base-url` (started via `compose.yaml` in this same
-directory), the four questions the master plan's day-one spike asks:
+This is the re-runnable half of the day-one Lemonade capability spike. It
+answers, against a live Lemonade server reachable at `--base-url` (started
+via `compose.yaml` in this same directory), the spike's four questions:
 
 1. Can Lemonade enforce a supplied grammar per request? (`grammar`)
 2. Can a request be cancelled mid-generation? (`cancel`)

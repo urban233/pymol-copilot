@@ -9,20 +9,20 @@ behind its size bounds) -- all PyMOL-free, the real-PyMOL
 extraction/reconstruction and extraction-then-render paths live in
 `tests/integration`.
 
-Also owns the sidecar executor's own PyMOL-free evidence
-(docs/master_plan.md item 4): `test_executor.py` covers `execute()`'s
-parent-side validation -- an unsupported executor version, an oversized or
-malformed snapshot, a plan/snapshot digest mismatch, and a policy denial --
-every one of which is rejected before any process is ever spawned. It also
-covers typed handling of scratch-directory and OS-level spawn failures, and
-`probe_fidelity()`'s own smaller pre-spawn validation (docs/master_plan.md
-item 7): the same shape of checks minus the two that have no meaning
-without a plan (policy, snapshot-digest binding). The deadline, kill, reap,
+Also owns the sidecar executor's own PyMOL-free evidence:
+`test_executor.py` covers `execute()`'s parent-side validation -- an
+unsupported executor version, an oversized or malformed snapshot, a
+plan/snapshot digest mismatch, and a policy denial -- every one of which
+is rejected before any process is ever spawned. It also covers typed
+handling of scratch-directory and OS-level spawn failures, and
+`probe_fidelity()`'s own smaller pre-spawn validation: the same shape of
+checks minus the two that have no meaning without a plan (policy,
+snapshot-digest binding). The deadline, kill, reap,
 and positive-path evidence needs a real process and lives in
 `tests/integration` instead.
 
-Also owns the live-extraction-and-fidelity-gate's PyMOL-free evidence
-(docs/master_plan.md item 7): `test_client_session.py` covers
+Also owns the live-extraction-and-fidelity-gate's PyMOL-free evidence:
+`test_client_session.py` covers
 `pmc_client.session.resolve_target_object()`'s deterministic, fail-closed
 target resolution (zero, one, and more than one candidate, and a
 measurement object never interfering) against a hand-written fake session,
@@ -50,16 +50,15 @@ index and verb are checked against that table rather than read back out of
 the envelope under test, which would make those two fields assert nothing.
 The table imports no PyMOL, so the target stays hermetic.
 
-Also owns the prompt builder and the engine grammar (docs/master_plan.md
-item 13). `test_grammar.py` proves `pmc_core.grammar`'s GBNF is generated
-from `pmc_core.plan`'s allowlist tables rather than transcribed, and
-drives an accept/reject corpus against `pmc_core.parser` itself. The
-agreement is one-directional by design -- anything the parser accepts the
-grammar must accept, but not the reverse, since GBNF can only express a
-bounded repeat by unrolling it and the language's own size bounds stay
-the parser's job. The GBNF matcher that makes that corpus executable is
-test-only: production code never interprets the grammar, the inference
-engine does.
+Also owns the prompt builder and the engine grammar. `test_grammar.py`
+proves `pmc_core.grammar`'s GBNF is generated from `pmc_core.plan`'s
+allowlist tables rather than transcribed, and drives an accept/reject
+corpus against `pmc_core.parser` itself. The agreement is one-directional
+by design -- anything the parser accepts the grammar must accept, but not
+the reverse, since GBNF can only express a bounded repeat by unrolling it
+and the language's own size bounds stay the parser's job. The GBNF matcher
+that makes that corpus executable is test-only: production code never
+interprets the grammar, the inference engine does.
 
 `test_prompt.py` proves `pmc_core.prompt`'s golden bytes, that all four
 contract versions are readable off a prompt's first lines, that a prompt
@@ -67,9 +66,9 @@ outside its bounds is refused at construction, and that the dataset and
 runtime caller seams build identical bytes across every card outcome.
 
 `consumer_scan.py` is shared by `test_errors.py` and `test_prompt.py`:
-items 6 and 13 both require that `pmc_agent` and `pmc_data` reach one
-shared-core implementation rather than growing their own, and one scan
-keeps the two items from drifting into different notions of what that
-means. It resolves each call target through the module's own import
-bindings rather than matching strings; its discriminating cases are
-proved in `test_errors.py`.
+the error envelope and the prompt builder both require that `pmc_agent`
+and `pmc_data` reach one shared-core implementation rather than growing
+their own, and one scan keeps the two from drifting into different
+notions of what that means. It resolves each call target through the
+module's own import bindings rather than matching strings; its
+discriminating cases are proved in `test_errors.py`.

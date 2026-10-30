@@ -1,15 +1,14 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """What the server loads and sends, and the evaluation config it can read.
 
-docs/master_plan.md item 19. The offline evaluation's TaskSuccess is
-measured under one committed config (`configs/evaluation/*.json`). A
-server that is configured by hand, flag by flag, can drift from it
-without anyone noticing -- a smaller context, another checkpoint, a
-chat-template date that is not the pinned one -- and then the runtime
-is not the system that was measured. `load_runtime_config` reads the
-engine and generation settings straight from that same file, so the
-two cannot differ, and `engine_mismatch` refuses an engine that is not
-the one the config records.
+The offline evaluation's TaskSuccess is measured under one committed
+config (`configs/evaluation/*.json`). A server that is configured by hand,
+flag by flag, can drift from it without anyone noticing -- a smaller
+context, another checkpoint, a chat-template date that is not the pinned
+one -- and then the runtime is not the system that was measured.
+`load_runtime_config` reads the engine and generation settings straight
+from that same file, so the two cannot differ, and `engine_mismatch`
+refuses an engine that is not the one the config records.
 
 This module reads the config itself rather than importing `pmc_eval`:
 the evaluation harness sits above the runtime and nothing in `src`
@@ -36,9 +35,9 @@ from pmc_agent.prompt import build_default_prompt
 from pmc_agent.prompt import build_training_prompt
 
 #: The prompt builders `--prompt` can select. `training` is the prompt
-#: the local model was fine-tuned on (master plan item 17), which the
-#: offline evaluation sends too; `placeholder` is the graph's own
-#: stand-in from before there was one.
+#: the local model was fine-tuned on, which the offline evaluation sends
+#: too; `placeholder` is the graph's own stand-in from before there was
+#: one.
 PROMPT_BUILDERS: dict[str, PROMPT_BUILDER] = {
     "placeholder": build_default_prompt,
     "training": build_training_prompt,

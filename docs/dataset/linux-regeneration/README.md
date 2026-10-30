@@ -1,10 +1,10 @@
 # Linux corpus regeneration: the oracle's conformance evidence
 
-**What this is:** the dataset corpus regenerated on Linux (master plan
-item 18), to report its per-category outcomes and, with them, how the
-oracle conforms to real PyMOL. The split's own corpus was generated on
-the Mac and its per-category report was never committed; only its totals
-are, in [../manifest.json](../manifest.json) (3,388 of 4,000 kept).
+**What this is:** the dataset corpus regenerated on Linux, to report its
+per-category outcomes and, with them, how the oracle conforms to real
+PyMOL. The split's own corpus was generated on the Mac and its
+per-category report was never committed; only its totals are, in
+[../manifest.json](../manifest.json) (3,388 of 4,000 kept).
 
 **How it was made:** `bazel run //src/pmc_data:corpus_cli -- --config
 configs/generation/corpus.json --workers 6` at commit `0eb1ca8`, on

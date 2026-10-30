@@ -1,12 +1,12 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """One place every user-facing failure line is built.
 
-docs/master_plan.md item 11: "Every failure path must produce a bounded,
-actionable message -- no tracebacks, no plan text leaking through an
-error." Before this module, each `pmc_client.command` handler built its own
+Every failure path must produce a bounded, actionable message -- no
+tracebacks, no plan text leaking through an error. Before this module,
+each `pmc_client.command` handler built its own
 failure text inline, several of them by interpolating `str(error)` directly
 -- a raw PyMOL or Python exception message can carry a selection expression
-or another fragment of the plan text SPECIFICATION.md:503-511 already
+or another fragment of the plan text the preview already
 prints elsewhere, and neither `pmc_core.errors.ExecutionErrorV1` nor
 `pmc_core.parser.ParseRejection` ever puts that kind of text in an error for
 exactly that reason.
@@ -126,7 +126,7 @@ ACTIONS: MappingProxyType[str, str] = MappingProxyType(
             "There is no plan pending for this session. Run copilot "
             "again to create one."
         ),
-        # docs/master_plan.md item 11's own additions.
+        # The output-and-diagnostics additions.
         "hostile_output": (
             "The model produced a forbidden command form; nothing was "
             "run. Rephrase the intent."
@@ -344,7 +344,7 @@ def describe_unexpected(
     Never includes `str(error)`: an exception raised from inside real
     PyMOL query APIs, or from deep inside the request graph, can carry a
     selection expression or another fragment of the plan or the user's own
-    intent text -- exactly what SPECIFICATION.md:503-511's printed plan
+    intent text -- exactly what the printed plan
     already shows through its own dedicated path, never through an error.
 
     Args:

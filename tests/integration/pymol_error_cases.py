@@ -25,8 +25,8 @@ against PyMOL 3.2.0a, `cmd.orient` returns None for an undefined selection
 name, for a malformed selector and for None itself, writing its complaint
 to the output stream and continuing. Its only raising failure is an
 argument PyMOL cannot coerce. That is recorded here rather than worked
-around, and it matters to item 4 of the master plan: a sidecar executor
-cannot learn from an exception whether an orient did anything.
+around, and it matters to the sidecar executor: it cannot learn from an
+exception whether an orient did anything.
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 """Build the deliverable notebook from its source, and optionally run it.
 
     PYTHONPATH=src:tools/winstage .venv-notebook/bin/python \\
-        notebooks/build_notebook.py [--execute]
+        notebooks/build_notebook.py [--execute] [--source S --out O]
 
 `source/pymol_copilot.py` holds the notebook in the percent format: a
 line `# %%` starts a code cell, `# %% [markdown]` a Markdown cell whose
@@ -12,7 +12,8 @@ turns it into `pymol_copilot.ipynb` deterministically (fixed cell ids,
 fixed kernel spec, sorted keys), so rebuilding an unchanged source gives
 the same cells. `--execute` runs every cell in a fresh kernel from
 `notebooks/` and saves the outputs; the committed notebook is that
-executed build. The end-user demonstration runs only when
+executed build. `--source` and `--out` build another notebook the same
+way, such as the German short version `source/pymol_copilot_kurz.py`. The end-user demonstration runs only when
 `PMC_NOTEBOOK_DEMO=1` is set and a Lemonade server serves the model.
 """
 
@@ -131,9 +132,10 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--source", type=Path, default=SOURCE)
     parser.add_argument("--out", type=Path, default=NOTEBOOK)
     args = parser.parse_args(argv)
-    notebook = build()
+    notebook = build(args.source)
     if args.execute:
         notebook = execute(notebook)
     nbformat.write(notebook, args.out)

@@ -1,30 +1,29 @@
-# Pre-registration: the untuned baseline and item 17's comparison
+# Pre-registration: the untuned baseline and the fine-tuning comparison
 
-Committed before any model was evaluated (master plan item 16), so the
-comparison item 17 makes against this baseline is fixed before either
-side's numbers exist. Changing anything here after the baseline runs
-is a new pre-registration, and says so.
+Committed before any model was evaluated, so the comparison the
+fine-tune makes against this baseline is fixed before either side's
+numbers exist. Changing anything here after the baseline runs is a new
+pre-registration, and says so.
 
 ## Primary endpoint
 
 **TaskSuccess on `test_gold`** (68 hand-reviewed items on held-out
 structures), reported separately for each of the two conditions:
 
-- `no-grammar` -- the specification's ungrammared baseline, and what
-  the runtime's request graph does today;
+- `no-grammar` -- the ungrammared baseline, and what the runtime's
+  request graph does today;
 - `grammar` -- `pmc_core.grammar.build_grammar()` sent with every
   generation.
 
 The conditions are never pooled. TaskSuccess is defined in
 `src/pmc_eval/grade.py` and summarized in [README.md](README.md).
 
-## The comparison item 17 makes
+## The fine-tuning comparison
 
 For each condition, the fine-tuned model is compared with this baseline
 on the same 68 samples, paired by sample, with an **exact two-sided
 McNemar test** on the discordant pairs. The result is reported whatever
-it is, including no difference or a worse fine-tune (SPECIFICATION.md,
-success measures).
+it is, including no difference or a worse fine-tune.
 
 Both sides are run under the same `configs/evaluation/baseline.json`
 except for `engine.model_name` and `engine.checkpoint`, with the same

@@ -1,12 +1,12 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Compare a model's published evaluation with the untuned baseline's.
 
-Item 17's comparison, as PREREGISTRATION.md fixed it before either
+The fine-tune's comparison, as PREREGISTRATION.md fixed it before either
 side's numbers existed: for each set and condition, the two models are
 paired by sample, and TaskSuccess is compared with an exact two-sided
 McNemar test on the discordant pairs. Every other rate, and every
-breakout down to the single category, is set side by side as
-descriptive evidence; most gold categories hold one or two items.
+breakout down to the single category, is set side by side as descriptive
+evidence; most gold categories hold one or two items.
 
 A comparison is only made when everything but the model is the same.
 `compare` refuses two runs that differ in the split, the set's bytes,

@@ -1,16 +1,14 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """A minimal production server entrypoint.
 
-docs/master_plan.md item 12. Item 11 built `UnavailableEngine` and the
-health seam; nothing before this module ever started a real process,
-minted a real per-run credential, or handed PyMOL anything to connect to.
-Scope is deliberately minimal, per this item's own plan: process launch,
-the Lemonade probe falling back to `UnavailableEngine` when it cannot
-connect, and the port and credential hand-off to PyMOL. It is not a
-service manager, not multi-session support beyond what
+`UnavailableEngine` and the health seam came first; nothing before this
+module ever started a real process, minted a real per-run credential, or
+handed PyMOL anything to connect to. Scope is deliberately minimal:
+process launch, the Lemonade probe falling back to `UnavailableEngine`
+when it cannot connect, and the port and credential hand-off to PyMOL. It
+is not a service manager, not multi-session support beyond what
 `pmc_agent.session.RequestGraphSession` already gives for free, and there
-is no retry loop -- SPECIFICATION.md:554: no remote fallback, no
-unconstrained mode.
+is no retry loop -- no remote fallback, no unconstrained mode.
 
 The credential and port reach PyMOL through a private local file rather
 than an environment variable: an environment variable holding a live
@@ -100,8 +98,8 @@ def build_engine(
 
     There is no retry and no fallback to a second engine: a failed probe
     is recorded once, in `UnavailableEngine`, and the server starts anyway
-    so `copilot_health` can still report it (SPECIFICATION.md:609:
-    "Server remains available for diagnostics; no unconstrained fallback").
+    so `copilot_health` can still report it: the server remains available
+    for diagnostics, with no unconstrained fallback.
 
     Args:
         base_url: The local Lemonade HTTP origin.

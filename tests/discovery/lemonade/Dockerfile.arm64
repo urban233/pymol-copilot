@@ -1,5 +1,4 @@
-# Route B fallback for the Lemonade capability spike
-# (plans/02-lemonade-capability-spike.md), used only if the official
+# Route B fallback for the Lemonade capability spike, used only if the official
 # linux/amd64 image (route A, compose.yaml) fails under emulation on this
 # arm64 host. Builds a native linux/arm64 image from Lemonade's own Debian 13
 # arm64 package. Not a production deployment artifact -- see README.md.

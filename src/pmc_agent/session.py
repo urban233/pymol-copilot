@@ -3,10 +3,10 @@
 
 `pmc_agent.graph.build_request_graph` returns an uncompiled graph; nothing
 in that module owns a checkpointer, a lock, or a session's identity across
-calls. `RequestGraphSession` is the one long-lived object docs/master_plan.md
-item 8 wants instead: one compiled graph, one `InMemorySaver`, for one server
-process, and the three operations `src/pmc_server/lifecycle.py` (item 9) and
-`/v1/reject`, `/v1/cancel` call against it.
+calls. `RequestGraphSession` is the one long-lived object wanted instead:
+one compiled graph, one `InMemorySaver`, for one server process, and the
+three operations `src/pmc_server/lifecycle.py` and `/v1/reject`,
+`/v1/cancel` call against it.
 
 Locking exists because `LoopbackPlanServer` is a `ThreadingHTTPServer`: two
 requests for the same session can arrive on two threads at once, and without
@@ -174,7 +174,7 @@ class RequestGraphSession:
             validation_deadline_seconds: The wall-clock deadline given to
                 `executor`.
             ttl_seconds: How long a minted plan stays approvable.
-            max_repair_attempts: SPECIFICATION.md:640's repair budget.
+            max_repair_attempts: The repair budget.
             grammar: The grammar sent with every completion, or None.
 
         Raises:
@@ -250,9 +250,9 @@ class RequestGraphSession:
     def engine_health(self) -> EngineHealth:
         """Report the engine's own current health.
 
-        docs/master_plan.md item 11: `copilot_health` reads this through
-        `pmc_server.lifecycle` rather than the graph, since health is a
-        property of the engine itself, not of any one request.
+        `copilot_health` reads this through `pmc_server.lifecycle` rather
+        than the graph, since health is a property of the engine itself,
+        not of any one request.
 
         Returns:
             The engine's current health. Never raises: `InferenceEngine
@@ -342,13 +342,12 @@ class RequestGraphSession:
     ) -> dict[str, object]:
         """Start a new request on `session_id`'s thread, superseding any.
 
-        SPECIFICATION.md:409-411 allows at most one pending plan per
-        session; `session_id` being this graph's own `thread_id` (see
-        `pmc_agent.graph`'s module docstring) makes that structural, but
-        starting a second run on an already-parked thread still requires
-        resolving the first one, not merely overwriting it -- otherwise
-        `superseded` would never appear in the first request's own
-        `history`.
+        At most one pending plan is allowed per session; `session_id` being
+        this graph's own `thread_id` (see `pmc_agent.graph`'s module docstring)
+        makes that structural, but starting a second run on an already-parked
+        thread still requires resolving the first one, not merely overwriting
+        it -- otherwise `superseded` would never appear in the first request's
+        own `history`.
 
         Args:
             request_id: The new request's own wire identifier.
@@ -456,9 +455,9 @@ class RequestGraphSession:
             session_id: The session whose pending plan is being rejected.
             plan_id: The plan identifier the caller believes is pending.
                 Refused, with the thread untouched, when it does not match
-                the plan actually pending -- SPECIFICATION.md:432-435's
-                invalidation is about the plan itself changing underneath a
-                caller, not about honoring a stale or mistaken identifier.
+                the plan actually pending -- a plan's invalidation is about the
+                plan itself changing underneath a caller, not about honoring a
+                stale or mistaken identifier.
 
         Returns:
             The resumed request's own result mapping (its terminal status

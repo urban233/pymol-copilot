@@ -37,8 +37,8 @@ from pmc_core.protocol import encode_json
 
 LOOPBACK_HOST = "127.0.0.1"
 PLAN_PATH = "/v1/plan"
-#: docs/master_plan.md item 8: reach `pmc_agent.session.RequestGraphSession
-#: .reject`/`.cancel` through `pmc_server.lifecycle.RequestGraphLifecycle`.
+#: Reach `pmc_agent.session.RequestGraphSession.reject`/`.cancel` through
+#: `pmc_server.lifecycle.RequestGraphLifecycle`.
 #: Routed only when a server is constructed with the matching handler,
 #: exactly like VALIDATE_PATH below -- a server built without one (every
 #: transport-layer test that only cares about PLAN_PATH) returns 404 here,
@@ -47,30 +47,29 @@ REJECT_PATH = "/v1/reject"
 CANCEL_PATH = "/v1/cancel"
 APPLY_PATH = "/v1/apply"
 APPLY_OUTCOME_PATH = "/v1/apply-outcome"
-#: The sidecar executor's endpoint (docs/master_plan.md item 4). Routed
-#: only when a server is constructed with an execution_handler; a server
-#: with none (every caller before this endpoint existed) returns 404 here,
-#: exactly as it did when this path was not routed at all.
+#: The sidecar executor's endpoint. Routed only when a server is constructed
+#: with an execution_handler; a server with none (every caller before this
+#: endpoint existed) returns 404 here, exactly as it did when this path was
+#: not routed at all.
 VALIDATE_PATH = "/v1/validate"
-#: docs/master_plan.md item 11's own `copilot_health` command. Routed only
-#: when a server is constructed with a health_handler, exactly like every
-#: other optional endpoint above.
+#: The `copilot_health` command. Routed only when a server is constructed
+#: with a health_handler, exactly like every other optional endpoint above.
 HEALTH_PATH = "/v1/health"
 CREDENTIAL_HEADER = "X-PyMOL-Copilot-Credential"
 MAX_MESSAGE_BYTES = 64 * 1024
-#: `/v1/validate` and (since docs/master_plan.md item 8) `/v1/plan` both
+#: `/v1/validate` and (since the request graph) `/v1/plan` both
 #: carry a snapshot JSON document rather than merely its identity;
 #: `pmc_core.executor.MAX_EXECUTION_REQUEST_BYTES` is the one shared bound
 #: for both, and for `pmc_client.transport`'s own matching request-side
 #: check. Responses stay on this module's own 64 KiB `MAX_MESSAGE_BYTES`.
 REQUEST_TIMEOUT_SECONDS = 5.0
 
-#: docs/master_plan.md item 11: the category a handler's own unexpected
-#: exception is reported under. A dangerous failure this specific --
-#: something other than this protocol's own typed decode errors escaping
-#: from inside a handler -- must never drop the connection or leak a
-#: traceback; it must still answer with a bounded, typed, retryable
-#: failure so the client has something actionable to report.
+#: The category a handler's own unexpected exception is reported under. A
+#: dangerous failure this specific -- something other than this protocol's
+#: own typed decode errors escaping from inside a handler -- must never drop
+#: the connection or leak a traceback; it must still answer with a bounded,
+#: typed, retryable failure so the client has something actionable to
+#: report.
 FAILURE_SERVER_INTERNAL_ERROR = "server_internal_error"
 
 LOGGER = logging.getLogger(__name__)
@@ -113,15 +112,15 @@ class LoopbackPlanServer:
             credential: The ephemeral credential expected in every request.
             handler: The server request lifecycle invoked after strict
                 decoding of a PLAN_PATH request.
-            execution_handler: The sidecar executor's own request lifecycle
-                (docs/master_plan.md item 4), invoked after strict decoding
-                of a VALIDATE_PATH request. None -- the default, and every
-                caller before this endpoint existed -- routes VALIDATE_PATH
-                to 404, exactly as an unrouted path already does.
-            reject_handler: docs/master_plan.md item 8's own request-graph
-                lifecycle, invoked after strict decoding of a REJECT_PATH
-                request. None -- the default -- routes REJECT_PATH to 404,
-                exactly as an unrouted path already does.
+            execution_handler: The sidecar executor's own request lifecycle,
+                invoked after strict decoding of a VALIDATE_PATH request.
+                None -- the default, and every caller before this endpoint
+                existed -- routes VALIDATE_PATH to 404, exactly as an
+                unrouted path already does.
+            reject_handler: The request graph's own lifecycle, invoked after
+                strict decoding of a REJECT_PATH request. None -- the
+                default -- routes REJECT_PATH to 404, exactly as an unrouted
+                path already does.
             cancel_handler: The same lifecycle's cancel entry point,
                 invoked after strict decoding of a CANCEL_PATH request.
                 None -- the default -- routes CANCEL_PATH to 404.
@@ -292,16 +291,15 @@ class LoopbackPlanServer:
             ) -> bytes:
                 """Build the bounded fallback response for a handler defect.
 
-                docs/master_plan.md item 11: a handler raising anything
-                beyond this protocol's own typed decode errors is a
-                defect, but the connection must never simply drop -- the
-                caller has no way to distinguish that from a crashed
-                server, and no bounded, actionable message reaches them
-                either. This is what every handler below falls back to
-                instead. Only the exception's type name is logged, never
-                its message or a traceback: an exception raised deep
-                inside `pmc_agent`'s request graph can carry the user's
-                own intent text or a fragment of the canonical plan.
+                A handler raising anything beyond this protocol's own typed
+                decode errors is a defect, but the connection must never
+                simply drop -- the caller has no way to distinguish that
+                from a crashed server, and no bounded, actionable message
+                reaches them either. This is what every handler below falls
+                back to instead. Only the exception's type name is logged,
+                never its message or a traceback: an exception raised deep
+                inside `pmc_agent`'s request graph can carry the user's own
+                intent text or a fragment of the canonical plan.
 
                 Args:
                     path: The endpoint path the exception was raised from.
@@ -336,10 +334,10 @@ class LoopbackPlanServer:
 
             def _handle_plan(self) -> None:
                 """Decode, dispatch, and answer one PLAN_PATH request."""
-                # docs/master_plan.md item 8: the request now carries the
-                # full canonical snapshot JSON (PlanRequestV1.snapshot_json),
-                # not merely its identity, so this path shares VALIDATE_PATH's
-                # own wider body cap rather than the plain message bound.
+                # The request now carries the full canonical snapshot JSON
+                # (PlanRequestV1.snapshot_json), not merely its identity, so
+                # this path shares VALIDATE_PATH's own wider body cap rather
+                # than the plain message bound.
                 payload = self._authorized_json_body(
                     MAX_EXECUTION_REQUEST_BYTES
                 )

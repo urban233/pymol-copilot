@@ -707,7 +707,7 @@ COLOR_ALLOWLIST: tuple[str, ...] = (
 
 #: Every representation Open-Source PyMOL defines, in the order
 #: tests/discovery/h02/harness.py queries them. The two lists are the same
-#: list by intent: when item 3 promotes that harness into
+#: list by intent: when that harness is promoted into
 #: pmc_core.snapshot, the snapshot extractor should import this tuple rather
 #: than keep a second copy that can drift from it.
 REPRESENTATION_ALLOWLIST: tuple[str, ...] = (

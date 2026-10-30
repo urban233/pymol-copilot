@@ -1,10 +1,10 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The split's manifest and datasheet: what it is, where it came from.
 
-The spec requires dataset artifacts to be content-addressed and to
-carry a datasheet, manifest, license record, label audit and
-regeneration configuration. This module writes and checks the first
-four; `pmc_data.audit` fills in the fifth.
+Dataset artifacts must be content-addressed and carry a datasheet,
+manifest, license record, label audit and regeneration configuration.
+This module writes and checks the first four; `pmc_data.audit` fills in
+the fifth.
 
 **Content addressing.** Every data file is recorded by SHA-256, byte
 count and record count, and the split's identity is a digest over the
@@ -354,9 +354,9 @@ hand. Split version {manifest["split_version"]}, built from commit
 
 This split trains and evaluates a small local model that turns a
 structural biologist's natural-language intent into a restricted,
-verified PyMOL command plan (master plan items 15-17). It exists so
-the offline evaluation measures generalization to structures the model
-never saw, on intents a person wrote rather than a template.
+verified PyMOL command plan. It exists so the offline evaluation
+measures generalization to structures the model never saw, on intents
+a person wrote rather than a template.
 
 ## Composition
 
@@ -423,11 +423,10 @@ executor's verification record.
 
 ## Uses
 
-Fine-tuning (item 17) trains on `train.jsonl` only. The offline
-evaluation (item 16) reports on `test_gold.jsonl`, with
-`heldout_synthetic.jsonl` as a secondary structure-generalization
-figure. Neither evaluation file may be used for training, prompt
-selection or model selection.
+Fine-tuning trains on `train.jsonl` only. The offline evaluation
+reports on `test_gold.jsonl`, with `heldout_synthetic.jsonl` as a
+secondary structure-generalization figure. Neither evaluation file may
+be used for training, prompt selection or model selection.
 
 ## Distribution and license
 

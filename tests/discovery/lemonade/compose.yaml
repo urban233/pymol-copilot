@@ -1,4 +1,4 @@
-# Throwaway rig for the Lemonade capability spike (plans/02-lemonade-capability-spike.md).
+# Throwaway rig for the Lemonade capability spike.
 # Not a production deployment artifact -- see README.md.
 services:
   lemonade:

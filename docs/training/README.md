@@ -1,11 +1,10 @@
 # Fine-tuning
 
-**Purpose:** how the local model is fine-tuned (master plan item 17), why
-this base model, and what the run and its evaluation found.
+**Purpose:** how the local model is fine-tuned, why this base model, and
+what the run and its evaluation found.
 
 **Code:** [`src/pmc_train/`](../../src/pmc_train/) · **Config:**
 [`configs/training/lora-v1.json`](../../configs/training/lora-v1.json) ·
-**Plan:** [plans/13-fine-tuning.md](../../plans/13-fine-tuning.md) ·
 **Baseline:** [../evaluation/baseline/BASELINE.md](../evaluation/baseline/BASELINE.md)
 
 This page and the config were committed before the training run, so no
@@ -14,24 +13,24 @@ sections below are filled in afterwards, and say so.
 
 ## The base model: Llama-3.2-1B-Instruct at Q4_K_M
 
-Item 16 fixed the base model, and the untuned baseline was measured on
-it (configs/evaluation/README.md). A fine-tune compared against that
-baseline has to start from the same weights, so this item records why
-the model was picked rather than picking again. A different base model
-would need a new baseline first.
+The offline evaluation fixed the base model, and the untuned baseline
+was measured on it (configs/evaluation/README.md). A fine-tune
+compared against that baseline has to start from the same weights, so
+this page records why the model was picked rather than picking again.
+A different base model would need a new baseline first.
 
 Why this model:
 
-- **It fits laboratory machines.** V1 runs "primarily on CPU and may use
-  an iGPU when Lemonade supports it" (SPECIFICATION.md). At Q4_K_M the
-  file is 0.8 GB. CPU prefill of the longest held-out prompt (5,495
-  tokens) took 23 s natively on an Apple M2 Pro during item 16's pilot
-  (configs/evaluation/README.md). The tuned model's own CPU figures
-  are under "Runs on CPU" below.
+- **It fits laboratory machines.** V1 runs primarily on CPU and may use
+  an iGPU when Lemonade supports it. At Q4_K_M the file is 0.8 GB. CPU
+  prefill of the longest held-out prompt (5,495 tokens) took 23 s
+  natively on an Apple M2 Pro during the baseline's pilot
+  (configs/evaluation/README.md). The tuned model's own CPU figures are
+  under "Runs on CPU" below.
 - **Lemonade and llama.cpp run it as is.** Lemonade's `llamacpp` recipe
   serves it with its own chat template, with the per-request grammar the
-  spike (item 1) proved enforced, on the CPU. That path is proven on
-  both an M2 Pro and an x86_64 WSL2 machine (item 16).
+  Lemonade spike proved enforced, on the CPU. That path is proven on
+  both an M2 Pro and an x86_64 WSL2 machine.
 - **It is an instruct model with a chat template.** That gives a strong
   small starting point for learning a narrow output format.
 - **Its quantization can be reproduced.** Q4_K_M is a standard
@@ -40,14 +39,14 @@ Why this model:
 
 Alternatives that were not taken now: Qwen2.5-0.5B/1.5B-Instruct and
 SmolLM2-1.7B-Instruct (Apache 2.0, a looser license) and Gemma 3 1B. Any
-of them would need its own baseline, and item 16's comparison design
-holds the model fixed. They remain the candidates for the
-size-and-quantization comparison the specification defers.
+of them would need its own baseline, and the baseline's comparison
+design holds the model fixed. They remain the candidates for a later
+size-and-quantization comparison.
 
 ### Integrated GPU: unproven
 
 The iGPU route is Lemonade's `llamacpp:vulkan` backend. llama.cpp's
-Vulkan backend runs on Intel and AMD integrated GPUs, and item 9's
+Vulkan backend runs on Intel and AMD integrated GPUs, and the Lemonade
 adapter already accepts a `vulkan` engine, whose device Lemonade
 reports as `gpu`. **It has not been run on an integrated GPU here.**
 The Apple M2 Pro's Docker has no GPU passthrough into a Linux container
@@ -75,7 +74,7 @@ ungated mirror whose `model.safetensors` is byte-identical to Meta's
 (configs/training/README.md).
 
 The tools that train, export and serve the model, as each one states its
-own licence (recorded 2026-09-29, for item 18):
+own licence (recorded 2026-09-29, for the notebook):
 
 | Tool | Licence | Where it is stated |
 | --- | --- | --- |
@@ -186,7 +185,7 @@ llama.cpp build is `b10723`) on the WSL2 machine's CPU, an **AMD Ryzen 5
 the harness's order, which groups samples by structure (`gold_007`,
 `gold_008`, `gold_010`, ...), under each condition (`eval_cli run
 --limit 10`, runs `eval-017258f94820861c` and `eval-3694158a347d3ce0`,
-kept in `results/`). The GPU column is the committed Gate D run on the
+kept in `results/`). The GPU column is the committed GPU run on the
 same samples:
 
 | Condition | Engine time per attempt, median | Slowest attempt | Same samples on the RTX 4060, median |
@@ -206,7 +205,7 @@ The 3400G has **Radeon Vega integrated graphics**, so this machine
 could test the iGPU route (Lemonade's `llamacpp:vulkan` backend) later.
 That was not done here: under WSL2 the iGPU is reached only through
 Windows' own Vulkan-on-D3D12 layer, and Martin chose to measure the CPU
-and state the iGPU as unproven for this item.
+and state the iGPU as unproven.
 
 ## Result
 
@@ -267,10 +266,10 @@ Intervals are Wilson 95%.
   baseline does
   ([comparison_export_control](../evaluation/comparison_export_control/COMPARISON.md)).
 
-**Limits.** This is one run with one seed and no ablation, as the
-specification allows. Most gold categories hold one or two items, so
-the per-category rows are descriptive only. The runtime does not yet
-send the grammar, the condition where the fine-tune does best, nor the
-training prompt (master plan item 19). The gap to close next is
-language generalization: the training intents are templated, and the
-model's gold failures are paraphrases it has not seen.
+**Limits.** This is one run with one seed and no ablation. Most gold
+categories hold one or two items, so the per-category rows are
+descriptive only. The runtime does not yet send the grammar, the
+condition where the fine-tune does best, nor the training prompt. The
+gap to close next is language generalization: the training intents are
+templated, and the model's gold failures are paraphrases it has not
+seen.

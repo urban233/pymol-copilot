@@ -12,9 +12,8 @@ about PyMOL.
 
 The other property proved here is that the taxonomy does not quietly
 lose a category. A verb or term missing from the corpus produces no
-failure at all -- just an absence -- which is exactly what item 14's
-"report the rejection rate per category honestly" clause is guarding
-against.
+failure at all -- just an absence -- which is exactly what reporting
+the rejection rate per category honestly guards against.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -211,7 +210,7 @@ def _predicts_no_change(
 
 
 def test_the_enumeration_is_not_trivially_small() -> None:
-    """Item 14 asks for a few thousand samples; the plans must exist."""
+    """The corpus needs a few thousand samples; the plans must exist."""
     assert len(CANDIDATES) >= 3000
 
 

@@ -1,4 +1,4 @@
-# Tests for the offline evaluation harness (docs/master_plan.md item 16).
+# Tests for the offline evaluation harness.
 # See README.md for what each module settles.
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
@@ -168,7 +168,7 @@ py_test(
     ],
 )
 
-# Every item 17 evaluation config differs from the baseline's only in
+# Every other evaluation config differs from the baseline's only in
 # the model under evaluation (and, for a CPU config, where it runs).
 py_test(
     name = "configs_hold_fixed",
@@ -182,7 +182,7 @@ py_test(
     ],
 )
 
-# Item 17's comparison: paired by sample, an exact McNemar test, every
+# The fine-tuning comparison: paired by sample, an exact McNemar test, every
 # breakout side by side, and a refusal of anything but the model
 # differing. Built from the committed baseline's own runs.
 py_test(

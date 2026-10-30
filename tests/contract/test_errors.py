@@ -222,13 +222,12 @@ def test_the_normalizer_reproduces_the_captured_envelope(
 def test_no_consumer_defines_a_normalizer_of_its_own() -> None:
     """Neither consumer may grow a second error boundary.
 
-    The master plan's item 6 asks that the same PyMOL failure normalize
-    identically "in the dataset pipeline and at runtime". Those two call
-    sites arrive with item 14 and item 8, so no test here can yet prove
-    that both *reach* this module. What is provable now, and what a
-    divergence would have to defeat first, is that neither subsystem
-    defines a normalizer or an envelope of its own -- see
-    plans/05-error-envelope.md.
+    The same PyMOL failure must normalize identically in the dataset
+    pipeline and at runtime. Those two call sites arrive with dataset
+    generation and the request graph, so no test here can yet prove that
+    both *reach* this module. What is provable now, and what a divergence
+    would have to defeat first, is that neither subsystem defines a
+    normalizer or an envelope of its own.
     """
     sources = consumer_sources()
     assert sources, "no consumer sources were found to scan"
@@ -243,11 +242,12 @@ def test_no_consumer_defines_a_normalizer_of_its_own() -> None:
 def test_a_consumer_that_normalizes_reaches_this_module() -> None:
     """A consumer calling normalize() must reach this module's.
 
-    Item 14 and item 8 bring the two call sites, so today this scan has
-    nothing to resolve. What keeps that from being an empty promise is
-    the test below, which runs the same scan over sources that do call a
-    normalizer: the mechanism is proved now, and arms itself the moment
-    either call site lands rather than having to be remembered then.
+    Dataset generation and the request graph bring the two call sites, so
+    today this scan has nothing to resolve. What keeps that from being an
+    empty promise is the test below, which runs the same scan over sources
+    that do call a normalizer: the mechanism is proved now, and arms itself
+    the moment either call site lands rather than having to be remembered
+    then.
     """
     for source in consumer_sources():
         foreign = foreign_calls(

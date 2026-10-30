@@ -1,8 +1,8 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The end-to-end scenarios against the fine-tuned model, opt-in.
 
-docs/master_plan.md item 19: "Pair one trained model artifact with the
-runtime and run the end-to-end suite against it." Every other module in
+It pairs the trained model artifact with the runtime and runs the
+end-to-end suite against it. Every other module in
 this package scripts the engine; this one starts the production server
 (`python -m pmc_server.main --config configs/evaluation/finetuned.json`)
 against the local fine-tuned model, exactly as a user would, and drives

@@ -34,7 +34,7 @@ from pmc_eval.runner import run_sample
 _BASE_URL_ENVIRONMENT_VARIABLE = "PMC_LEMONADE_BASE_URL"
 
 #: Names another committed config than the baseline's, relative to the
-#: repository root (item 17's `configs/evaluation/export_control.json`,
+#: repository root (`configs/evaluation/export_control.json`,
 #: say), to smoke-test the model that config names instead.
 _CONFIG_ENVIRONMENT_VARIABLE = "PMC_EVAL_CONFIG"
 

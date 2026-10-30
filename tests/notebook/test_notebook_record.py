@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Every number the committed notebook reports recomputes from the evidence.
 
-The notebook (master plan item 18) is committed executed, so its
+The notebook is committed executed, so its
 outputs are text a reader trusts without running anything. Each number
 it reports also goes through `notebook_support.record`, and its last
 cell prints them all as one JSON document. This test reads that document
@@ -10,11 +10,16 @@ committed evidence with the same code the evaluation used, so the
 notebook cannot drift from what it describes. It also checks that every
 cell ran, in order, without an error, and that the end-user
 demonstration was actually executed.
+
+The portable Windows bundle runs the same test on
+the copy of the notebook it executed itself: `PMC_NOTEBOOK_PATH` names
+that copy (`tools/bundle/check_bundle.py`).
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +29,10 @@ from pmc_eval.compare import compare
 from pmc_eval.eval_cli import read_run
 
 ROOT = Path(__file__).resolve().parents[2]
-NOTEBOOK = ROOT / "notebooks" / "pymol_copilot.ipynb"
+NOTEBOOK = Path(
+    os.environ.get("PMC_NOTEBOOK_PATH")
+    or ROOT / "notebooks" / "pymol_copilot.ipynb"
+)
 EVALUATION = ROOT / "docs" / "evaluation"
 CONFIGS = ROOT / "configs" / "evaluation"
 RUN_DIR = ROOT / "docs" / "training" / "runs" / "train-e6c6c4dd8f6caaf9"

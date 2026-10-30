@@ -3,7 +3,7 @@
 
 `build_grammar()` emits one GBNF document describing the text
 `pmc_core.parser` accepts, for an inference engine to constrain generation
-with (master plan item 9). The Lemonade capability spike proved a supplied
+with. The Lemonade capability spike proved a supplied
 grammar is enforced per request down to an exact forced token -- see
 tests/discovery/lemonade/FINDINGS.md, Q1 -- so this is a real constraint on
 what a model can emit, not a hint.
@@ -11,7 +11,7 @@ what a model can emit, not a hint.
 Two properties matter more than the grammar's contents.
 
 **It never substitutes for the parser or the policy.**
-SPECIFICATION.md:488 states this as a contract clause, and it is what keeps
+This is a contract clause, and it is what keeps
 the grammar outside the security boundary: every byte a constrained model
 emits is still parsed by `pmc_core.parser` and adjudicated by
 `pmc_core.policy` afterwards, exactly as unconstrained text would be. The
@@ -65,8 +65,8 @@ from pmc_core.plan import ResiTerm
 from pmc_core.plan import ResnTerm
 
 #: This module's own grammar contract version, stamped into every prompt by
-#: pmc_core.prompt and recorded with a model or evaluation artifact
-#: (SPECIFICATION.md:491). An int, matching the other pmc_core contract
+#: pmc_core.prompt and recorded with a model or evaluation artifact.
+#: An int, matching the other pmc_core contract
 #: versions. Bump it whenever build_grammar()'s output changes at all: a
 #: model trained or evaluated against one grammar is not comparable to one
 #: trained against another, and the version is what makes that decidable

@@ -1,9 +1,9 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Hermetic tests for the production server entrypoint.
 
-docs/master_plan.md item 12: the engine fallback, the handoff file, and
-the reader that validates it. No PyMOL, no real Lemonade -- every
-Lemonade call goes through `httpx.MockTransport`.
+Covers the engine fallback, the handoff file, and the reader that
+validates it. No PyMOL, no real Lemonade -- every Lemonade call goes
+through `httpx.MockTransport`.
 """
 
 from __future__ import annotations
@@ -803,8 +803,8 @@ def test_serve_starts_and_writes_the_handoff_with_an_unavailable_engine(
 ) -> None:
     """The server starts (and answers health) even when Lemonade is down.
 
-    SPECIFICATION.md:609: "Server remains available for diagnostics; no
-    unconstrained fallback."
+    The server remains available for diagnostics, with no unconstrained
+    fallback.
     """
     monkeypatch.setattr(
         server_main,

@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The demo environment's lock is the runtime's PyMOL, plus Qt only.
 
-docs/master_plan.md item 19. The pinned PyMOL wheel cannot open a window
+The pinned PyMOL wheel cannot open a window
 without a Qt binding, so the demo's GUI runs from its own environment
 (`requirements-demo.txt`). It must run the same PyMOL and numpy as the
 runtime the evaluation measured, and add nothing but the binding.

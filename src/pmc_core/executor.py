@@ -3,12 +3,11 @@
 
 This module promotes
 [tests/discovery/h02/execution_boundary.py](../../tests/discovery/h02/execution_boundary.py)
-into production code -- docs/master_plan.md item 4, "the sidecar executor" --
-and implements the "validation sidecar" SPECIFICATION.md describes: a
-component that "reconstruct[s] exact relevant session state and execute[s] a
-plan without touching the live session", taking a session snapshot and a
-typed plan and returning "a validation report and resulting state evidence"
-from a "fresh Open-Source PyMOL process".
+into production code as the sidecar executor, and implements the
+validation sidecar: a component that reconstructs exact relevant session
+state and executes a plan without touching the live session, taking a
+session snapshot and a typed plan and returning a validation report and
+resulting state evidence from a fresh Open-Source PyMOL process.
 
 The contract is: a typed `pmc_core.plan.ActionPlan` plus a canonical
 `pmc_core.snapshot.ObjectSnapshot` (already serialized to JSON) in, an
@@ -18,8 +17,8 @@ cleanup on every exit path, and no internal retry -- exactly the guarantees
 the prototype it promotes calls "fresh process, finite resources,
 command-indexed outcomes, and deterministic evidence where declared".
 
-This module also owns `probe_fidelity()` (docs/master_plan.md item 7, "the
-live extraction and fidelity gate"): given a candidate snapshot alone -- no
+This module also owns `probe_fidelity()`, for the live extraction and
+fidelity gate: given a candidate snapshot alone -- no
 plan -- reconstruct it in a fresh sidecar and hand back the child's own
 re-extraction, so a caller holding the live session can `pmc_core.snapshot
 .diff` the two without ever letting the sidecar touch the live session
@@ -97,7 +96,7 @@ DEFAULT_MAX_SNAPSHOT_BYTES = 4 * 1024 * 1024
 
 #: The transport-level body cap for any request carrying a full canonical
 #: snapshot document rather than merely its identity: `/v1/validate`
-#: (docs/master_plan.md item 4) and, since item 8, `/v1/plan`. In the worst
+#: and, since the request graph, `/v1/plan`. In the worst
 #: case each byte of the canonical inner document needs one extra escape
 #: byte once embedded as a JSON string, with 64 KiB of headroom left for
 #: the surrounding request envelope. A single shared constant rather than
@@ -199,7 +198,7 @@ class CommandOutcome:
             never a real PyMOL error: this module's own dispatch not
             recognizing the operation's type
             (`src/pmc_sidecar/child.py`'s `"__unsupported__"` sentinel).
-            docs/master_plan.md item 8 is this field's one consumer today:
+            The request graph is this field's one consumer today:
             a repair attempt is fed the envelope, never the bounded
             string alone.
     """
@@ -579,8 +578,8 @@ def bounded_failure(
 ) -> FailureEnvelopeV1:
     """Build a `FailureEnvelopeV1` that can never fail to construct.
 
-    docs/master_plan.md item 11: every failure path must produce a
-    bounded, actionable message, never a traceback. `FailureEnvelopeV1.
+    Every failure path must produce a bounded, actionable message, never
+    a traceback. `FailureEnvelopeV1.
     __post_init__` already rejects an overlong or unprintable message, so
     a call site that passed one through unchecked would itself raise --
     turning a would-be user-facing failure into a second, worse one. This
@@ -645,8 +644,7 @@ def _terminate(process: subprocess.Popen[str]) -> None:
     every descendant it may have spawned (PyMOL's own subprocesses, if
     any) in one call. Windows exposes no equivalent group-signal API in
     the standard library, so there this reaches only the child process
-    itself; closing that gap would need Job Objects, out of scope here
-    (H02-S3-F5).
+    itself; closing that gap would need Job Objects, out of scope here.
 
     Args:
         process: The spawned child's `Popen` handle.
@@ -696,7 +694,7 @@ def _terminate_and_reap(process: subprocess.Popen[str]) -> None:
     and `communicate()` -- for example, the test-only `on_process_spawned`
     hook itself raising -- which would otherwise leave the child neither
     terminated nor reaped while its scratch directory is deleted out from
-    under it (H02-S3-F3).
+    under it.
 
     Args:
         process: The spawned child's `Popen` handle.
@@ -1028,7 +1026,7 @@ def _run_child(
                 warnings=_stderr_warning(stderr),
             )
         finally:
-            # H02-S3-F3: guarantee the child is terminated and reaped
+            # Guarantee the child is terminated and reaped
             # before the outer finally below deletes the scratch directory
             # it may still be reading from -- including the exception path
             # between Popen and communicate() (for example,

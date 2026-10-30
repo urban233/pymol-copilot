@@ -2,10 +2,9 @@
 """A scripted `InferenceEngine` test double.
 
 Every test of `pmc_agent.graph` runs against this module, never against a
-real engine (docs/master_plan.md item 8: "Test every transition and
-terminal state against a fake inference adapter."). item 9 adds the one
-real implementation, `lemonade.py`, against this same `InferenceEngine`
-interface.
+real engine: every transition and terminal state is tested against a fake
+inference adapter. `lemonade.py` is the one real implementation, against
+this same `InferenceEngine` interface.
 """
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

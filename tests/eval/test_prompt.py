@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The harness prompts a model exactly as it was trained to be prompted.
 
-Item 17 trains on `Sample.prompt_text`. If the evaluation sent anything
+Fine-tuning trains on `Sample.prompt_text`. If the evaluation sent anything
 else on a first attempt, the baseline and the fine-tune would both be
 measured on a prompt neither was built for, and the comparison between
 them would say nothing about the fine-tune.

@@ -16,7 +16,7 @@ content of its output file.
 
 `run_plan()` dispatches over the five allowlisted operation types via one
 `match` with one branch per verb, never `getattr(cmd, verb)` on a verb
-string: SPECIFICATION.md:486 requires "no raw-text execution" at every
+string: there is no raw-text execution at any
 execution boundary, and a closed dispatch is what keeps a plan's typed
 operations, rather than any string a plan might carry, in control of what
 PyMOL command actually runs. Its `case _` arm is unreachable while
@@ -171,8 +171,8 @@ def run_plan(cmd: Any, plan: ActionPlan) -> PlanRunResult:
         except Exception as error:
             verb = _VERB_BY_TYPE.get(type(operation), "__unsupported__")
             # normalize() is only ever called with a verb this module has
-            # just confirmed is allowlisted: it is docs/master_plan.md item
-            # 6's own contract that a verb outside COMMAND_ALLOWLIST is a
+            # just confirmed is allowlisted: it is the error envelope's own
+            # contract that a verb outside COMMAND_ALLOWLIST is a
             # defect in this module's dispatch table, not a PyMOL failure
             # to normalize, and ExecutionErrorV1 refuses to construct one
             # anyway (pmc_core.errors.ExecutionErrorV1.__post_init__).

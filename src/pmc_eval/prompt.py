@@ -8,13 +8,14 @@ prompt every dataset sample records. An evaluation that used it would
 measure a model on a prompt it was never trained on. `contract_prompt`
 is the builder the harness injects instead: a first attempt's prompt is
 `pmc_core.prompt.build_for_runtime`'s, byte for byte the
-`Sample.prompt_text` item 17 trains on, and each repair appends one line
-per earlier failure, in the graph's own wording, after the intent. After
-rather than before: the card is by far the longest part of the prompt
-and is shared by every sample on the same structure, so keeping it a
-prefix lets the engine's prompt cache reuse it across repairs.
+`Sample.prompt_text` the fine-tune trains on, and each repair appends
+one line per earlier failure, in the graph's own wording, after the
+intent. After rather than before: the card is by far the longest part of
+the prompt and is shared by every sample on the same structure, so
+keeping it a prefix lets the engine's prompt cache reuse it across
+repairs.
 
-Since item 18, `contract_prompt` delegates to the runtime's own
+Since the notebook, `contract_prompt` delegates to the runtime's own
 `pmc_agent.prompt.build_training_prompt`, so the lines it sends are
 `pmc_agent.prompt._error_line`'s. `repair_line` stays here as the
 versioned statement of that wording (`REPAIR_PROMPT_VERSION`):
@@ -89,8 +90,8 @@ def contract_prompt(inputs: PromptInputs) -> str:
         The training prompt, followed by one `repair_line` per earlier
         failure, oldest first.
     """
-    # The runtime's own builder since item 18; `repair_line` is kept here,
-    # worded identically, because REPAIR_PROMPT_VERSION versions it.
+    # The runtime's own builder since the notebook; `repair_line` is kept
+    # here, worded identically, because REPAIR_PROMPT_VERSION versions it.
     return build_training_prompt(inputs)
 
 

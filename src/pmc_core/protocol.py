@@ -40,7 +40,7 @@ from pmc_core.plan import ShowOperation
 PROTOCOL_VERSION = "1"
 
 #: The most bounded validation-warning strings one `ValidationReportV1` may
-#: carry. Docs/master_plan.md item 11: warnings are diagnostic, not a plan
+#: carry. Warnings are diagnostic, not a plan
 #: text leak, so this bound exists to keep a console report readable, not
 #: to hide anything.
 MAX_VALIDATION_WARNINGS = 8
@@ -48,7 +48,7 @@ MAX_VALIDATION_WARNINGS = 8
 #: The most UTF-8 bytes one validation-warning string may occupy.
 MAX_VALIDATION_WARNING_BYTES = 200
 
-#: docs/master_plan.md item 8's own repair budget
+#: The request graph's own repair budget
 #: (`pmc_agent.graph.MAX_REPAIR_ATTEMPTS`), duplicated here for the same
 #: dependency-boundary reason `REJECT_PATH` and friends are duplicated in
 #: `pmc_client.transport`: this module cannot import `pmc_agent`, since
@@ -63,7 +63,7 @@ MAX_FAILURE_MESSAGE_BYTES = 256
 
 #: Every `pmc_core.errors.CATEGORIES` value, unprefixed: `validating`
 #: forwards a normalized execution-error category as-is when a command
-#: actually failed inside the sidecar (docs/master_plan.md item 8).
+#: actually failed inside the sidecar.
 _EXECUTION_ERROR_CATEGORIES: frozenset[str] = _ERROR_ENVELOPE_CATEGORIES
 
 #: Every `pmc_core.executor` `REASON_*` value other than `REASON_OK` (never
@@ -128,7 +128,7 @@ FAILURE_CATEGORIES: frozenset[str] = (
             "not_applicable",
             # pmc_server.lifecycle's own FAILURE_NO_PENDING_PLAN.
             "no_pending_plan",
-            # docs/master_plan.md item 11's own additions.
+            # The output-and-diagnostics additions.
             "hostile_output",
             "server_internal_error",
             # pmc_agent.graph's TERMINAL_* names, exactly as
@@ -411,7 +411,7 @@ class StructureSnapshotV1:
     The canonical snapshot JSON itself never rides `/v1/plan` -- only this
     identity does, computed by `pmc_client.session.extract_live_snapshot`
     from a real `pmc_core.snapshot.ObjectSnapshot` via
-    `pmc_core.snapshot.structure_digest`. Docs/master_plan.md item 7's own
+    `pmc_core.snapshot.structure_digest`. The live-extraction
     fidelity gate (`FidelityOutcomeV1`, carried alongside this on
     `PlanRequestV1`) is what a caller checks before treating `digest` as
     trustworthy for an apply -- this type alone makes no such claim.
@@ -495,8 +495,8 @@ class FidelityOutcomeV1:
     """The result of comparing a live session against its own reconstruction.
 
     Carried on `PlanRequestV1` alongside `StructureSnapshotV1`: the two
-    together are what SPECIFICATION.md:539's orchestration rule 9 means by
-    "exact relevant-state fidelity is mandatory for `pending_approval`" --
+    together are how exact relevant-state fidelity, mandatory for
+    `pending_approval`, is established --
     this type is the evidence, `ValidationReportV1.applicable` and
     `pmc_client`'s own `PendingPlan.applicable` are what act on it.
 
@@ -589,8 +589,8 @@ class FidelityOutcomeV1:
         )
 
 
-#: The most characters one `PlanRequestV1.intent` may carry. docs
-#: /master_plan.md item 11: `pmc_client.command` refuses an over-limit
+#: The most characters one `PlanRequestV1.intent` may carry.
+#: `pmc_client.command` refuses an over-limit
 #: intent before ever building a request, naming its own length, rather
 #: than let this same bound reject it only after the fact.
 MAX_INTENT_LENGTH = 4096
@@ -601,7 +601,7 @@ class PlanRequestV1:
     """A strictly decoded request sent from client to server.
 
     `snapshot_json` carries the full canonical snapshot document itself,
-    not merely its identity: docs/master_plan.md item 8's request graph
+    not merely its identity: the request graph
     lives in the server, so the bytes `validating` needs to run a fresh
     sidecar must arrive with the request that triggers it.
     `PLAN_PATH`'s own body cap rose to `MAX_EXECUTION_REQUEST_BYTES`
@@ -688,7 +688,7 @@ class RejectRequestV1:
     """A strictly decoded request to reject a session's pending plan.
 
     `plan_id` guards against rejecting a plan the caller no longer knows
-    about: docs/master_plan.md item 8's `pending_approval` refuses a
+    about: the request graph's `pending_approval` refuses a
     mismatched id without touching the thread
     (`pmc_agent.session.RequestGraphSession.reject`).
     """
@@ -836,7 +836,7 @@ class ApplyOutcomeRequestV1:
 class CancelRequestV1:
     """A strictly decoded request to cancel a session's pending plan.
 
-    Carries no `plan_id`: docs/master_plan.md item 8's resume table gives
+    Carries no `plan_id`: the request graph's resume table gives
     `/v1/cancel` no plan identifier to match, unlike `/v1/reject`.
     """
 
@@ -906,8 +906,8 @@ def _encode_target(target: object) -> dict[str, str]:
 def encode_plan(plan: ActionPlan) -> list[dict[str, object]]:
     """Convert a typed action plan to its wire command objects.
 
-    Promoted from the module-private `_plan_commands` (docs/master_plan.md
-    item 4, the sidecar executor) so `src/pmc_sidecar/child.py` can reuse
+    Promoted from the module-private `_plan_commands` for the sidecar
+    executor, so `src/pmc_sidecar/child.py` can reuse
     this exact encoding to cross its own parent-child process boundary,
     rather than inventing a second plan wire format.
 
@@ -970,8 +970,8 @@ def encode_plan(plan: ActionPlan) -> list[dict[str, object]]:
 def decode_plan(value: object) -> ActionPlan:
     """Decode a strictly shaped action plan.
 
-    Promoted from the module-private `_decode_plan` (docs/master_plan.md
-    item 4, the sidecar executor) so `src/pmc_sidecar/child.py` can reuse
+    Promoted from the module-private `_decode_plan` for the sidecar
+    executor, so `src/pmc_sidecar/child.py` can reuse
     this exact decoding to cross its own parent-child process boundary,
     rather than inventing a second plan wire format.
 
@@ -1108,10 +1108,10 @@ def _decode_command(value: object) -> OPERATION:
 class ValidationReportV1:
     """The validation result accompanying a typed action plan.
 
-    `applicable` is the server's own share of orchestration rule 9
-    (SPECIFICATION.md:539): *"Exact relevant-state fidelity is mandatory
-    for `pending_approval`. Static validation may produce an inspectable
-    plan but never an applicable plan."* The server sets it from the
+    `applicable` is the server's own share of the fidelity rule: exact
+    relevant-state fidelity is mandatory for `pending_approval`, and static
+    validation may produce an inspectable plan but never an applicable
+    plan. The server sets it from the
     request's own `FidelityOutcomeV1` alone -- it holds no live session to
     check fidelity against itself. A client still enforces its own copy of
     the same rule from its own locally observed fidelity outcome; neither
@@ -1266,7 +1266,7 @@ class ValidatedPlanResponseV1:
     Attributes:
         target_object: The one molecular object `preparing` resolved this
             plan against (`pmc_agent.graph`'s own `RequestState.
-            target_object`). docs/master_plan.md item 11: the client cross-
+            target_object`). The client cross-
             checks this against its own independently resolved object name
             before ever parking the plan for approval -- neither side
             trusts the other's resolution alone.
@@ -2079,8 +2079,7 @@ class ExecutionReportV1:
     Unlike ValidationReportV1, this type's status and reason can represent
     any of pmc_core.executor's STATUS_*/REASON_* values, including a
     failure -- a report that can only represent success is not a
-    fail-closed contract. See docs/master_plan.md item 4, the sidecar
-    executor.
+    fail-closed contract.
     """
 
     executor_version: int

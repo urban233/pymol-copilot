@@ -37,30 +37,38 @@ def _builder() -> Any:
     return module
 
 
-def _committed() -> dict[str, Any]:
-    """Read the committed notebook.
+#: Each committed notebook's name; its source is `source/<name>.py`. The
+#: second is the German short version.
+NAMES = ("pymol_copilot", "pymol_copilot_kurz")
+
+
+def _committed(name: str) -> dict[str, Any]:
+    """Read one committed notebook.
+
+    Args:
+        name: The notebook's name, without `.ipynb`.
 
     Returns:
         Its JSON document.
     """
-    return json.loads(
-        (NOTEBOOKS / "pymol_copilot.ipynb").read_text(encoding="utf-8")
-    )
+    return json.loads((NOTEBOOKS / f"{name}.ipynb").read_text(encoding="utf-8"))
 
 
-def test_every_cell_is_the_sources_cell() -> None:
+@pytest.mark.parametrize("name", NAMES)
+def test_every_cell_is_the_sources_cell(name: str) -> None:
     """Same cells, same order, same types, same text."""
-    source = (NOTEBOOKS / "source" / "pymol_copilot.py").read_text("utf-8")
+    source = (NOTEBOOKS / "source" / f"{name}.py").read_text("utf-8")
     expected = _builder().parse_cells(source)
-    cells = _committed()["cells"]
+    cells = _committed(name)["cells"]
     assert [(cell["cell_type"], "".join(cell["source"])) for cell in cells] == [
         (kind, text) for kind, text in expected
     ]
 
 
-def test_cell_ids_are_the_builders_own() -> None:
+@pytest.mark.parametrize("name", NAMES)
+def test_cell_ids_are_the_builders_own(name: str) -> None:
     """Cell ids are fixed, so a rebuild changes nothing it need not."""
-    ids = [cell["id"] for cell in _committed()["cells"]]
+    ids = [cell["id"] for cell in _committed(name)["cells"]]
     assert ids == [f"cell-{index:03d}" for index in range(len(ids))]
 
 

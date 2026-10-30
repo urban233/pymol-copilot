@@ -1,4 +1,4 @@
-# The deliverable notebook (master plan item 18). It runs in its own
+# The deliverable notebook. It runs in its own
 # Python 3.12 environment (requirements-notebook.txt), never under Bazel;
 # //tests/notebook only reads it, to check that the committed, executed
 # notebook is its source's build and that every number it reports
@@ -9,7 +9,9 @@ filegroup(
         "build_notebook.py",
         "notebook_support.py",
         "pymol_copilot.ipynb",
+        "pymol_copilot_kurz.ipynb",
         "source/pymol_copilot.py",
+        "source/pymol_copilot_kurz.py",
     ],
     visibility = ["//tests/notebook:__pkg__"],
 )

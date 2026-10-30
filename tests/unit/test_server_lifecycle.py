@@ -228,9 +228,9 @@ def test_applicable_is_derived_from_the_requests_own_fidelity_status(
 ) -> None:
     """`applicable` is set from request.fidelity.status alone.
 
-    The server's whole share of orchestration rule 9
-    (SPECIFICATION.md:539): it never upgrades or re-derives an outcome,
-    since it has no live session of its own to check fidelity against.
+    The server's whole share of the rule that only exact fidelity makes a
+    plan applicable: it never upgrades or re-derives an outcome, since it
+    has no live session of its own to check fidelity against.
 
     Args:
         status: The request's own fidelity status under test.
@@ -313,10 +313,10 @@ def test_a_hostile_completion_is_distinguishable_from_an_ordinary_reject() -> (
     """A hostile-screen rejection is not reported as an ordinary `rejected`.
 
     Both this and an ordinary user `copilot_reject` leave the graph's own
-    `status` at `rejected`; docs/master_plan.md item 11 requires a user be
-    able to tell the two apart. This asserts the category actually differs
-    from the generic `"request ended: rejected"` text
-    `test_reject_reaches_rejected` (below) receives for the ordinary case.
+    `status` at `rejected`; a user must be able to tell the two apart.
+    This asserts the category actually differs from the generic
+    `"request ended: rejected"` text `test_reject_reaches_rejected`
+    (below) receives for the ordinary case.
     """
     engine = FakeEngine(
         [
@@ -535,8 +535,7 @@ def test_apply_returns_the_canonical_approved_plan_then_records_outcome() -> (
     assert approved.plan_id == pending.plan_id
     assert approved.action_plan.render_pml() == pending.action_plan.render_pml()
     assert approved.model_identity == pending.model_identity
-    # docs/master_plan.md item 11: /v1/apply re-sends the exact facts
-    # /v1/plan already previewed.
+    # /v1/apply re-sends the exact facts /v1/plan already previewed.
     assert approved.target_object == pending.target_object
     assert (
         approved.validation.selection_counts

@@ -267,11 +267,11 @@ def test_server_rejects_payload_larger_than_transport_limit() -> None:
     """An authenticated oversized payload cannot reach request decoding.
 
     PLAN_PATH's own cap is MAX_EXECUTION_REQUEST_BYTES, not
-    MAX_MESSAGE_BYTES: docs/master_plan.md item 8's `PlanRequestV1` now
-    carries the full canonical snapshot JSON, not merely its identity, and
-    that cap is now large enough (~8 MiB) that actually transmitting one
-    byte past it risks the client's own send racing the server's early
-    close once it rejects the request from the header alone. The server's
+    MAX_MESSAGE_BYTES: the request graph's `PlanRequestV1` now carries the
+    full canonical snapshot JSON, not merely its identity, and that cap is
+    now large enough (~8 MiB) that actually transmitting one byte past it
+    risks the client's own send racing the server's early close once it
+    rejects the request from the header alone. The server's
     own `_content_length` check only ever inspects the declared
     Content-Length header, never the body it precedes, so a declared
     length past the cap rejects the request without this test needing to
@@ -353,12 +353,11 @@ def test_a_handler_defect_answers_bounded_not_a_dropped_connection(
 ) -> None:
     """A handler exception never drops the connection or leaks a traceback.
 
-    docs/master_plan.md item 11: every failure path must produce a
-    bounded, actionable message -- no tracebacks, no plan text leaking
-    through an error. Before this item, only `ProtocolDecodeError` and
-    `ValueError` were caught here; anything else escaped to
-    `socketserver`'s own handler, which drops the connection with no
-    response at all.
+    Every failure path must produce a bounded, actionable message -- no
+    tracebacks, no plan text leaking through an error. Previously, only
+    `ProtocolDecodeError` and `ValueError` were caught here; anything else
+    escaped to `socketserver`'s own handler, which drops the connection
+    with no response at all.
 
     Args:
         raised: The exception the handler raises for this case.
@@ -492,7 +491,7 @@ def test_client_rejects_response_for_a_different_snapshot() -> None:
         LoopbackPlanClient(server.port, "secret").submit(plan_request())
 
 
-# --- /v1/validate: the sidecar executor's endpoint (item 4) ---------------
+# --- /v1/validate: the sidecar executor's endpoint ------------------------
 
 
 def chain_a() -> SelectionExpression:
@@ -675,7 +674,7 @@ def test_validate_endpoint_rejects_wrong_credential() -> None:
     assert calls == []
 
 
-# --- /v1/reject and /v1/cancel: the request graph's own endpoints (item 8) -
+# --- /v1/reject and /v1/cancel: the request graph's own endpoints ---------
 
 
 def reject_request() -> RejectRequestV1:
@@ -915,9 +914,9 @@ def test_health_endpoint_round_trips_over_loopback() -> None:
 def test_health_endpoint_reports_an_unavailable_engine() -> None:
     """The server stays up and answers even when its engine is down.
 
-    SPECIFICATION.md:609: "Server remains available for diagnostics; no
-    unconstrained fallback." `/v1/plan` still fails for this same server;
-    `/v1/health` is what lets a user tell why.
+    The server remains available for diagnostics, with no unconstrained
+    fallback: `/v1/plan` still fails for this same server; `/v1/health` is
+    what lets a user tell why.
     """
     with LoopbackPlanServer(
         "secret",

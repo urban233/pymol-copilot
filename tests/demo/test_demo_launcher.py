@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The demo's two beats end as the demo needs them to.
 
-docs/master_plan.md item 19. The real server runs in this process with a
+The real server runs in this process with a
 scripted engine that answers the demo's gold plan, and the launcher's
 own rehearsal drives real headless PyMOL through the real client: the
 first beat applies and rolls back, the second fails one verb on purpose

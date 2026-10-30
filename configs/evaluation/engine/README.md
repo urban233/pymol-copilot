@@ -1,7 +1,7 @@
 # The evaluation engine
 
 Lemonade 11.9.0 serving `Llama-3.2-1B-Instruct-Q4_K_M` for the offline
-evaluation (master plan item 16), in Docker, on the loopback port
+evaluation, in Docker, on the loopback port
 `configs/evaluation/baseline.json` points at. Three variants share one
 `compose.yaml`:
 
@@ -27,7 +27,7 @@ arguments differ from what the config records.
 
 **A baseline and every comparison against it run on the same engine
 variant, on the same host.** A different backend or build changes the
-arithmetic, and a greedy completion can change with it. If item 17's
+arithmetic, and a greedy completion can change with it. If the
 fine-tune is evaluated elsewhere, run the base model there too.
 
 ## Apple Silicon
@@ -48,8 +48,8 @@ container.
 
 From a Windows machine with an NVIDIA GPU to a committed baseline under
 `docs/evaluation/baseline/`. The baseline runs on this machine because
-item 17 trains here, and the tuned model must be evaluated on the same
-engine as the base model.
+the model is fine-tuned here, and the tuned model must be evaluated on
+the same engine as the base model.
 
 Run end to end on 2026-09-27 on WSL2 with an RTX 4060, producing the
 committed baseline. The one surprise was step 5's device line: Lemonade
@@ -290,8 +290,7 @@ git push
 different commits, and any report that does not recompute from its
 samples. The committed-baseline test now runs instead of skipping. The
 headline figures are the `test_gold` TaskSuccess rows of
-`docs/evaluation/baseline/BASELINE.md`; they go into item 16 of
-`docs/master_plan.md`.
+`docs/evaluation/baseline/BASELINE.md`.
 
 ### Troubleshooting
 

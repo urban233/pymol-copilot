@@ -11,8 +11,8 @@ outcome disagree.
 
 ## The preview block
 
-One `_output()` call prints the entire preview SPECIFICATION.md:503-511
-requires, in a fixed order: the plan id and its expiry (absolute and
+One `_output()` call prints the entire preview,
+in a fixed order: the plan id and its expiry (absolute and
 relative to the injected clock), the resolved object and its atom/state
 counts, every canonical command numbered, with the atom count of each
 `select` from the server's own `selectionCounts` where available;
@@ -100,7 +100,7 @@ server's own typed failure envelope; `describe_transport` renders a
 transport-layer failure, recognizing the HTTP statuses `pmc_client.transport`
 can raise; `describe_unexpected` renders a genuine internal defect by
 exception type name only, never `str(error)` — a raw PyMOL or Python
-exception can carry a selection expression, which SPECIFICATION.md:503-511
+exception can carry a selection expression, which the preview
 already prints elsewhere, never through an error. `ACTIONS` maps every
 category in `pmc_core.protocol.FAILURE_CATEGORIES` to its own next step;
 `tests/unit/test_client_messages.py` proves `ACTIONS` covers that whole set,
@@ -131,7 +131,7 @@ built.
 ## Bootstrapping from the production server
 
 `pmc_client.bootstrap.connect_from_handoff` is the client's own entry
-point once `src/pmc_server/main.py` (docs/master_plan.md item 12) is
+point once `src/pmc_server/main.py` is
 running as a real process: it reads that process's handoff file, refuses
 it unless the host is loopback, the port is in range, and the credential
 has a plausible shape, then builds a `LoopbackPlanClient` and calls

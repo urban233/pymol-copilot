@@ -2,12 +2,12 @@
 """Controlled structures, authored directly as canonical snapshots.
 
 The dataset needs structures covering multiple chains, hetero atoms,
-multiple states and alternate locations (master plan item 14). They are
-authored here as `pmc_core.snapshot.ObjectSnapshot` values rather than as
-PDB files, for three reasons: the executor consumes a snapshot anyway, so
-a file would only be converted into one through PyMOL; authoring the
-value directly gives exact control over every field the oracle predicts;
-and it keeps the oracle's input pure data that PyMOL never produced.
+multiple states and alternate locations. They are authored here as
+`pmc_core.snapshot.ObjectSnapshot` values rather than as PDB files, for
+three reasons: the executor consumes a snapshot anyway, so a file would only
+be converted into one through PyMOL; authoring the value directly gives
+exact control over every field the oracle predicts; and it keeps the
+oracle's input pure data that PyMOL never produced.
 
 Every field value here is chosen so a structure survives
 reconstruct-then-extract unchanged, because the oracle predicts against

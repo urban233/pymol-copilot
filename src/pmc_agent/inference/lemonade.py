@@ -30,6 +30,7 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import PureWindowsPath
 from types import TracebackType
 from typing import Any
 
@@ -51,7 +52,7 @@ from pmc_core.errors import normalize_message
 from pmc_core.protocol import HEALTH_ENGINE_READY
 from pmc_core.protocol import HEALTH_ENGINE_UNAVAILABLE
 
-# Item 17 replaces this base checkpoint with the fine-tuned artifact. Keep
+# The fine-tune replaces this base checkpoint with its artifact. Keep
 # both values explicit so the identity and the server-side model selection
 # cannot silently drift apart.
 DEFAULT_BASE_URL = "http://localhost:13305"
@@ -229,11 +230,11 @@ def _has_grammar_error(response: httpx.Response) -> bool:
 class LemonadeEngine:
     """A local, deterministic, streaming Lemonade inference engine.
 
-    The constructor accepts every deployment value explicitly because item 9
-    intentionally does not introduce a configuration schema. ``client`` is
-    a narrow test seam; production construction leaves it as ``None`` and
-    receives a client pinned to the supplied local ``base_url`` and finite
-    timeouts.
+    The constructor accepts every deployment value explicitly because the
+    adapter intentionally does not introduce a configuration schema.
+    ``client`` is a narrow test seam; production construction leaves it as
+    ``None`` and receives a client pinned to the supplied local
+    ``base_url`` and finite timeouts.
     """
 
     def __init__(
@@ -815,8 +816,11 @@ def _served_model_path(
     file is still refused.
 
     A local GGUF that Lemonade serves in place from its
-    ``extra_models_dir`` (item 17's exports) has its absolute path as
+    ``extra_models_dir`` (the fine-tune's exports) has its absolute path as
     its checkpoint. Its launched path must then be exactly that path.
+    On Windows that path starts with a drive (``C:``), whose colon
+    is not a ``<repo>:<file>`` separator, and Windows paths compare
+    without regard to case or slash direction.
 
     Args:
         loaded_model: The selected model's loaded-health block.
@@ -836,6 +840,12 @@ def _served_model_path(
     path = command[position]
     if checkpoint.startswith("/"):
         return path if path == checkpoint else None
+    if PureWindowsPath(checkpoint).is_absolute():
+        return (
+            path
+            if PureWindowsPath(path) == PureWindowsPath(checkpoint)
+            else None
+        )
     _repository, separator, filename = checkpoint.rpartition(":")
     if not separator or not filename:
         return None

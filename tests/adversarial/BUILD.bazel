@@ -16,7 +16,7 @@ py_test(
 # already proves the parser and policy deny, rather than a second,
 # hand-copied list that could drift from this one.
 # tests/eval reuses the same literals to prove its diagnostic copy of the
-# screen's rules agrees with the screen (docs/master_plan.md item 16).
+# screen's rules agrees with the screen.
 py_library(
     name = "denied_forms_corpus",
     srcs = ["denied_forms.py"],

@@ -1,6 +1,6 @@
 # Training configuration
 
-This directory is owned by model development (master plan item 17).
+This directory is owned by model development.
 
 ## `lora-v1.json`
 

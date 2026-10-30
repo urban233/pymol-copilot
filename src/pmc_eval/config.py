@@ -27,8 +27,8 @@ from pmc_eval.runner import CONDITION_GRAMMAR
 from pmc_eval.runner import CONDITION_NO_GRAMMAR
 from pmc_eval.runner import Condition
 
-#: The evaluation sets a config may name: the split files item 15 froze
-#: for item 16 (docs/dataset/DATASHEET.md).
+#: The evaluation sets a config may name: the frozen split's held-out
+#: files (docs/dataset/DATASHEET.md).
 EVAL_SETS = ("test_gold", "heldout_synthetic")
 
 #: Every field `engine_provenance` must carry.

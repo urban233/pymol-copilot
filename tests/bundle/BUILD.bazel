@@ -1,0 +1,33 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+# The portable Windows bundle's lock keeps the runtime's packages and the
+# notebook's own versions, and leaves the training stack out.
+py_test(
+    name = "bundle_environment",
+    size = "small",
+    srcs = ["test_bundle_environment.py"],
+    data = [
+        "//:requirements-bundle.txt",
+        "//:requirements-notebook.txt",
+        "//:requirements_lock.txt",
+    ],
+    main = "test_bundle_environment.py",
+    deps = ["@pypi//pytest"],
+)
+
+# What the bundle holds and the launcher, README and manifest it writes;
+# its pins are the evaluated CPU engine and model.
+py_test(
+    name = "bundle_spec",
+    size = "small",
+    srcs = ["test_bundle_spec.py"],
+    data = [
+        "//configs/bundle:pins.json",
+        "//configs/evaluation:configs",
+    ],
+    main = "test_bundle_spec.py",
+    deps = [
+        "@pypi//pytest",
+        "//tools/bundle:bundle_spec",
+    ],
+)

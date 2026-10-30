@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-# The deliverable notebook's source (master plan item 18), in the percent
+# The deliverable notebook's source, in the percent
 # format; notebooks/build_notebook.py turns it into pymol_copilot.ipynb.
 # Read as one module, each cell's imports come after the previous cell's
 # code, and `display` is the notebook kernel's own built-in.
@@ -8,8 +8,7 @@
 # %% [markdown]
 # # PyMOL-Copilot: a local model that writes safe PyMOL commands
 #
-# **Authors:** Martin Urban and Hannah Kullik · **Deliverable of:** the V1
-# specification (`SPECIFICATION.md`) · **Built by:**
+# **Authors:** Martin Urban and Hannah Kullik · **Built by:**
 # `notebooks/build_notebook.py` from `notebooks/source/pymol_copilot.py`
 #
 # PyMOL is a molecular viewer driven by a command language. PyMOL-Copilot
@@ -48,7 +47,10 @@
 #
 # To run it yourself you need Linux, the environment in
 # `requirements-notebook.txt` (see `docs/development_setup.md`), and for
-# section 9 a local Lemonade server serving the fine-tuned model.
+# section 9 a local Lemonade server serving the fine-tuned model. On
+# Windows, the portable bundle (`docs/bundle.md`) runs every cell,
+# section 9 included, without any setup: it brings its own Python, its
+# own Lemonade and the model, and serves the model on the CPU.
 
 # %%
 # Copyright 2026 PyMOL Copilot contributors.
@@ -71,8 +73,15 @@ support.setup_paths()
 #: Heavy stages: their code is shown, but they run only when switched on.
 RUN_GENERATION = False
 RUN_TRAINING = False
-#: The end-user demo needs a Lemonade server with the fine-tuned model.
+#: The end-user demo needs a Lemonade server with the fine-tuned model
+#: (the Windows bundle starts its own and switches the demo on).
 RUN_DEMO = os.environ.get("PMC_NOTEBOOK_DEMO") == "1"
+
+# Section 9 runs PyMOL inside this kernel. It is started now, before the
+# tokenizer and LangGraph are loaded: on Windows, PyMOL launched later in
+# a Jupyter kernel fails to start (docs/bundle.md).
+if RUN_DEMO:
+    cmd = support.launch_pymol()
 
 print(support.host_description())
 
@@ -350,8 +359,8 @@ print(
 #
 # Before any fine-tuning existed, the base model (Llama-3.2-1B-Instruct,
 # quantized to Q4_K_M) was evaluated by the same harness the fine-tune
-# would be, and the comparison was pre-registered
-# (`docs/evaluation/PREREGISTRATION.md`): **TaskSuccess on `test_gold`**,
+# would be, and the comparison was fixed before either model was
+# evaluated: **TaskSuccess on `test_gold`**,
 # for each condition, paired by sample, with an exact two-sided McNemar
 # test. A sample succeeds when its final plan runs cleanly in PyMOL and
 # leaves exactly the state its assertions predict. The two conditions are
@@ -545,8 +554,7 @@ support.markdown_table(
 )
 
 # %% [markdown]
-# The specification also asks for the diagnostic rates that were measured:
-# how often the first attempt parses, how often the model abstains, how
+# Beside TaskSuccess, the harness measures diagnostic rates: how often the first attempt parses, how often the model abstains, how
 # often a repair rescues a failed attempt, and how long an attempt takes.
 # On `test_gold`:
 
@@ -602,8 +610,8 @@ support.markdown_table(
 # parsing), 2 were repaired into a valid plan and 1 into a correct one. Under the grammar nothing needs repair, because every plan
 # parses. The latencies are on the RTX 4060; on the machine's CPU the
 # fine-tuned model's median was 2.7-3.6 s per attempt
-# (`docs/training/README.md`, "Runs on CPU"). IoU and degeneracy, also
-# named by the specification, were not measured.
+# (`docs/training/README.md`, "Runs on CPU"). IoU and degeneracy were
+# not measured.
 #
 # **The fine-tune beats the baseline under both conditions on the primary
 # endpoint**, and every discordant pair favours it. On `heldout_synthetic`
@@ -665,23 +673,22 @@ print("expression shapes with no success under either condition:", collapsed)
 # commands. The user types an intent, reads the preview, and applies it.
 #
 # The server is started with the fine-tuned model's settings: the
-# model's name and file, a 16,384-token context (the structure card lists
-# every atom), the prompt the model was trained on, and the grammar.
+# model's name, a 16,384-token context (the structure card lists every
+# atom), the prompt the model was trained on, and the grammar. Which
+# engine serves the model depends on the machine. On the development
+# machine it is Lemonade in Docker, on the GPU. The Windows bundle starts
+# its own Lemonade on the CPU, after checking the model file's SHA-256,
+# and refuses to go on unless llama.cpp was launched with the arguments
+# the evaluation used.
 
 # %%
-CHECKPOINT = (
-    "/models/train-e6c6c4dd8f6caaf9/export/"
-    "Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M.gguf"
-)
+MODEL_NAME = "Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M"
+CONTEXT_SIZE = 16384
 SERVER_FLAGS = [
     "--model-name",
-    "Llama-3.2-1B-Instruct-pmc-train-e6c6c4dd8f6caaf9-Q4_K_M",
-    "--checkpoint",
-    CHECKPOINT,
-    "--backend",
-    "cuda",
+    MODEL_NAME,
     "--context-size",
-    "16384",
+    str(CONTEXT_SIZE),
     "--read-timeout-seconds",
     "600",
     "--prompt",
@@ -692,7 +699,7 @@ SERVER_FLAGS = [
     "--generation-deadline-seconds",
     "600",
 ]
-print("python -m pmc_server.main", " ".join(SERVER_FLAGS))
+print("python -m pmc_server.main", " ".join(SERVER_FLAGS), "<engine flags>")
 
 # %% [markdown]
 # PyMOL starts headless in this kernel and loads a structure the model
@@ -708,9 +715,11 @@ from pmc_core.snapshot import reconstruct
 
 output_lines: list[str] = []
 if RUN_DEMO:
+    lemonade = support.start_engine(MODEL_NAME, CONTEXT_SIZE)
+    print("engine:", " ".join(lemonade.flags))
     workdir = Path(tempfile.mkdtemp(prefix="pmc-notebook-"))
     handoff = workdir / "session.json"
-    server = support.start_server(SERVER_FLAGS, handoff)
+    server = support.start_server([*SERVER_FLAGS, *lemonade.flags], handoff)
     cmd = support.launch_pymol()
     reconstruct(cmd, snapshot)
     driver = support.ConsoleDriver(cmd)
@@ -723,12 +732,16 @@ if RUN_DEMO:
     print("\n".join(output_lines))
     output_lines.clear()
 else:
-    print("RUN_DEMO is off: set PMC_NOTEBOOK_DEMO=1 with the server running.")
+    print(
+        "RUN_DEMO is off: set PMC_NOTEBOOK_DEMO=1 with Lemonade serving the model."
+    )
 
 # %% [markdown]
 # The user asks, in their own words. (This intent is gold item `gold_056`,
-# which the fine-tuned model got right in the evaluation; the next cell
-# tries one it has never seen.)
+# which the fine-tuned model got right in the evaluation; a later cell
+# tries one it has never seen.) On a GPU the answer takes seconds. On a
+# CPU it takes tens of seconds to about a minute, almost all of it spent
+# reading the prompt, which holds the structure card.
 
 # %%
 INTENT = "select the zinc ions, make them silver and show them as dots"
@@ -744,18 +757,19 @@ if RUN_DEMO:
 # %% [markdown]
 # The preview shows the plan, how many atoms each selection matched when
 # the plan was rehearsed in a separate PyMOL process, and what was
-# checked. Nothing in the session has changed yet. (The model selected the
-# zinc by atom name, `name ZN`, where the gold plan uses the residue name,
-# `resn ZN`; on this structure both match the same two atoms, which is why
-# the evaluation scored it right. Lines such as `cmd.sync() timed out`
-# are PyMOL's own messages when run inside a notebook kernel; the commands
+# checked. Nothing in the session has changed yet. (In the evaluation,
+# and in the committed run, the model selected the zinc by atom name,
+# `name ZN`, where the gold plan uses the residue name, `resn ZN`; on
+# this structure both match the same two atoms, which is why the
+# evaluation scored it right. Lines such as `cmd.sync() timed out` are
+# PyMOL's own messages when run inside a notebook kernel; the commands
 # still complete, as the outputs show.) The user approves it:
 
 # %%
+plan_id = None
 if RUN_DEMO:
-    plan_id = (
-        preview.splitlines()[0].removeprefix("copilot plan ").split(" ")[0]
-    )
+    plan_id = support.plan_id(preview)
+if plan_id is not None:
     driver.run(f"copilot_apply {plan_id}")
     print("\n".join(output_lines))
     output_lines.clear()
@@ -763,6 +777,8 @@ if RUN_DEMO:
     cmd.iterate("resn ZN", "after_color.append(color)", space=locals())
     print("zinc colour index before:", before_color, "after:", after_color)
     print("selection created:", cmd.get_names("selections"))
+elif RUN_DEMO:
+    print("The copilot offered no plan to apply; see its answer above.")
 
 # %% [markdown]
 # And the same flow on an intent the model has never been evaluated on:
@@ -779,21 +795,23 @@ if RUN_DEMO:
 # be undone as a whole, because the session was saved before it ran:
 
 # %%
-if RUN_DEMO:
+if plan_id is not None:
     driver.run(f"copilot_rollback {plan_id}")
     print("\n".join(output_lines))
     output_lines.clear()
     restored = []
     cmd.iterate("resn ZN", "restored.append(color)", space=locals())
     print("zinc colour index after rollback:", restored)
+if RUN_DEMO:
     support.stop_server(server)
+    support.stop_engine(lemonade)
 
 # %% [markdown]
 # ## 10. Limits, versions, licensing and retention
 #
-# ### What V1 does not do
+# ### What this version does not do
 #
-# Cut from V1 before building, as the specification permits:
+# Left out on purpose, before building:
 #
 # - fetching structures from the PDB inside the tool;
 # - the `label`, `set` and measurement command families;
@@ -817,7 +835,8 @@ if RUN_DEMO:
 # - the integrated-GPU route (Lemonade's Vulkan backend) is **unproven**:
 #   CPU and a discrete NVIDIA GPU were measured.
 #
-# The specification's optional evidence, and what became of it:
+# Further evidence that would strengthen the result, and what became of
+# it:
 #
 # | Item | Status |
 # | --- | --- |
@@ -842,19 +861,21 @@ support.record("versions.pymol_wheel", manifest["provenance"]["pymol_wheel"])
 host = support.host_description()
 rows = [
     (
-        "operating system (training, evaluation, notebook)",
-        f"{host['os']} under WSL2, Windows 10.0.26200.9457",
+        "operating system (training, evaluation)",
+        "Ubuntu 24.04.4 LTS under WSL2, Windows 10.0.26200.9457",
     ),
     ("operating system (dataset split)", "macOS 15.6.1, MacBook Pro M2"),
-    ("architecture", host["architecture"]),
-    ("kernel", host["kernel"]),
+    ("operating system (this run)", host["os"]),
+    ("architecture (this run)", host["architecture"]),
+    ("kernel (this run)", host["kernel"]),
     ("host", provenance_engine["host"]),
     (
         "Open-Source PyMOL",
         f"{manifest['provenance']['pymol_wheel']} (reports {manifest['provenance']['versions']['pymol_version']})",
     ),
     ("Python (runtime, Bazel)", "3.13.13"),
-    ("Python (training and this notebook)", host["python"]),
+    ("Python (training)", "3.12.13"),
+    ("Python (this run)", host["python"]),
     (
         "Lemonade",
         f"{provenance_engine['lemonade_version']}, image {provenance_engine['image'].split('@')[-1][:19]}...",

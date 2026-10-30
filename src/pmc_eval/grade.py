@@ -1,9 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """Grading a model's executed plan against a sample's stored assertions.
 
-TaskSuccess, as this harness defines it (SPECIFICATION.md names the
-metric but never defines it; docs/master_plan.md item 16 fixes the
-definition, and Martin settled it):
+TaskSuccess, as this harness defines it (Martin settled the definition):
 
     A sample is a TaskSuccess when the model's final plan executed with
     status ok in a fresh sidecar and every assertion stored with the

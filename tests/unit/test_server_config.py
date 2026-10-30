@@ -1,11 +1,11 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The server reads an evaluation config exactly as the evaluation does.
 
-docs/master_plan.md item 19. `pmc_server.config` reads the committed
-evaluation configs itself, since nothing in `src` may import
-`pmc_eval`. These tests prove the two readers agree on every committed
-config, that the server refuses what it would otherwise ignore, and
-that the server's defaults are the fine-tuned model's evaluated ones.
+`pmc_server.config` reads the committed evaluation configs itself, since
+nothing in `src` may import `pmc_eval`. These tests prove the two readers
+agree on every committed config, that the server refuses what it would
+otherwise ignore, and that the server's defaults are the fine-tuned
+model's evaluated ones.
 """
 
 from __future__ import annotations

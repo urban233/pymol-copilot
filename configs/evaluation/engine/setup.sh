@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Copyright 2026 PyMOL Copilot contributors.
 #
-# Prepare the evaluation engine and print its provenance (master plan
-# item 16). Run it after `docker compose ... up -d` (see compose.yaml):
+# Prepare the evaluation engine and print its provenance. Run it after
+# `docker compose ... up -d` (see compose.yaml):
 #
 #   configs/evaluation/engine/setup.sh cpu     # CPU, any variant
 #   configs/evaluation/engine/setup.sh cuda    # compose.nvidia.yaml
@@ -10,14 +10,14 @@
 #       configs/evaluation/finetuned.json      # + compose.local-model.yaml
 #
 # It pulls the model the config (configs/evaluation/baseline.json by
-# default) names -- or, for a GGUF exported under results/ (master plan
-# item 17), serves it in place from the read-only mount -- pins the
-# chat template's date, installs the CUDA llama.cpp build when asked,
-# loads the model exactly as the adapter's probe will, and prints the
-# `engine_provenance` block to paste into baseline.json -- together with
-# the `engine.backend` to set there. Commit both before a run: a run
-# refuses a modified tracked file, and an engine whose Lemonade version
-# or llama.cpp arguments differ from what is recorded.
+# default) names -- or, for a GGUF exported under results/, serves it in
+# place from the read-only mount -- pins the chat template's date,
+# installs the CUDA llama.cpp build when asked, loads the model exactly
+# as the adapter's probe will, and prints the `engine_provenance` block
+# to paste into baseline.json -- together with the `engine.backend` to
+# set there. Commit both before a run: a run refuses a modified tracked
+# file, and an engine whose Lemonade version or llama.cpp arguments
+# differ from what is recorded.
 set -euo pipefail
 
 backend="${1:-cpu}"
@@ -48,14 +48,14 @@ esac
 
 container="${PMC_EVAL_CONTAINER:-pmc-eval-lemonade}"
 base_url="${PMC_LEMONADE_BASE_URL:-http://localhost:13305}"
-# The model the config names (item 16's baseline.json by default, or an
-# item 17 config for a locally exported GGUF).
+# The model the config names (baseline.json by default, or the config
+# of a locally exported GGUF).
 read -r model_name checkpoint context_size < <(python3 -c '
 import json, sys
 engine = json.load(open(sys.argv[1]))["engine"]
 print(engine["model_name"], engine["checkpoint"], engine["context_size"])
 ' "$config")
-# The Llama 3.2 template's own fallback date. Item 17 must render its
+# The Llama 3.2 template's own fallback date. Fine-tuning must render its
 # training prompts with the same date_string.
 template_args="--chat-template-kwargs '{\"date_string\":\"26 Jul 2024\"}'"
 

@@ -177,9 +177,9 @@ def test_every_committed_structure_is_still_what_it_records(
 def test_every_committed_prompt_is_still_what_the_seam_builds() -> None:
     """The dataset prompt seam must still produce the recorded bytes.
 
-    Item 13 exists so the dataset and the runtime share one prompt
-    builder. A silent change here means a model trained against one
-    prompt and served another.
+    The dataset and the runtime share one prompt builder. A silent
+    change here means a model trained against one prompt and served
+    another.
     """
     drifted = [
         sample.sample_id

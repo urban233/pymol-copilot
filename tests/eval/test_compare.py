@@ -1,5 +1,5 @@
 # Copyright 2026 PyMOL Copilot contributors.
-"""Item 17's comparison pairs by sample, tests exactly, and refuses drift.
+"""The comparison pairs by sample, tests exactly, and refuses drift.
 
 The candidates here are built from the committed baseline's own
 `test_gold` runs, with some samples turned into successes, so the

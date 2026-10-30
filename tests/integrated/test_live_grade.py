@@ -1,7 +1,7 @@
 # Copyright 2026 PyMOL Copilot contributors.
 """The integrated measurement grades, reads and explains correctly.
 
-docs/master_plan.md item 19. Hermetic: no PyMOL and no server. The live
+Hermetic: no PyMOL and no server. The live
 grader must grade exactly as the offline grader does when given the
 same readings; the console reader must find the plan and the apply
 outcome in what the client prints; and every sample whose integrated

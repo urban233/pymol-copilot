@@ -11,11 +11,12 @@ and `pmc_client.command.register_copilot`. Nothing here is a transport,
 server, policy, or PyMOL test double -- except the inference engine
 (`pmc_agent.inference.fake.FakeEngine`, scripted to render the same plan the
 old fixture lifecycle always returned) and the sidecar executor (a fake
-reporting success without spawning a second real PyMOL process): item 8
-docs its own graph tests exhaustively against a fake engine, and this
-module's own real-PyMOL evidence is about the client's live extraction and
-the transport/lifecycle/policy path around the graph, not about a second
-real sidecar spawn stacked on top of `check_fidelity`'s existing one.
+reporting success without spawning a second real PyMOL process): the
+request graph's own tests cover it exhaustively against a fake engine, and
+this module's own real-PyMOL evidence is about the client's live
+extraction and the transport/lifecycle/policy path around the graph, not
+about a second real sidecar spawn stacked on top of `check_fidelity`'s
+existing one.
 
 PyMOL only supports one `finish_launching` call per interpreter, so it is
 launched exactly once for the whole test module (session-scoped fixture) and
@@ -104,14 +105,13 @@ INTENT = "Select chain A and color it red."
 _FIXTURE_COMPLETION = (
     "select copilot_selection, chain A\ncolor red, copilot_selection\n"
 )
-#: Raised from the pre-item-7 value of 5.0: copilot now spawns a real
-#: sidecar subprocess for its own fidelity check on every invocation
-#: (docs/master_plan.md item 7), not just a loopback round trip. This
-#: module's own three real invocations, each gated on this exact deadline,
-#: passed repeatedly in this sandbox; set with headroom above that
-#: observed margin rather than a tight per-call measurement, since
-#: capturing a background PyMOL worker thread's own stdout to log the
-#: precise figure was not straightforward.
+#: Raised from the earlier value of 5.0: copilot now spawns a real
+#: sidecar subprocess for its own fidelity check on every invocation, not
+#: just a loopback round trip. This module's own three real invocations,
+#: each gated on this exact deadline, passed repeatedly in this sandbox;
+#: set with headroom above that observed margin rather than a tight
+#: per-call measurement, since capturing a background PyMOL worker
+#: thread's own stdout to log the precise figure was not straightforward.
 INVOCATION_DEADLINE_SECONDS = 15.0
 
 
@@ -623,7 +623,7 @@ def test_success_path_applies_then_rolls_back_the_real_session(
 ) -> None:
     """A real approved plan mutates once and explicit rollback restores it.
 
-    Covers the end-to-end path docs/master_plan.md item 7 requires: a real
+    Covers the end-to-end path the live fidelity gate requires: a real
     headless PyMOL, the real loopback server, `copilot <intent>` followed
     by `copilot_apply <plan-id>`, with a request carrying a computed
     digest, the console reporting fidelity, one live mutation after approval,
@@ -815,7 +815,7 @@ def test_sabotage_mutation_is_detected_by_state_comparison(
         assert_session_unchanged(before, after)
 
 
-# --- Step 10: literal parsing, usage lines, and the intent length limit --
+# --- literal parsing, usage lines, and the intent length limit ------------
 
 
 def test_literal_parsing_mode_matches_pymol_own_constant(
@@ -844,12 +844,12 @@ def test_copilot_receives_a_comma_semicolon_and_equals_intent_literally(
     command) would split this intent's comma into two positional
     arguments, read `y=1` as a keyword argument, and let its `;` end the
     command early so `orient` ran as a second, genuinely separate PyMOL
-    command. `register()`'s own `parsing.LITERAL` rewrite
-    (docs/master_plan.md item 11) means none of that happens: the whole
-    remainder of the line reaches the server as one intent string, proven
-    here by inspecting the request the real loopback server actually
-    received, and `orient` is never dispatched -- proven by the camera
-    view being bit-for-bit unchanged, since `orient` always recomputes it.
+    command. `register()`'s own `parsing.LITERAL` rewrite means none of
+    that happens: the whole remainder of the line reaches the server as
+    one intent string, proven here by inspecting the request the real
+    loopback server actually received, and `orient` is never dispatched --
+    proven by the camera view being bit-for-bit unchanged, since `orient`
+    always recomputes it.
     """
     literal_intent = "color chain A red, y=1; orient"
     requests: list[PlanRequestV1] = []

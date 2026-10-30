@@ -57,8 +57,8 @@ from pmc_core.plan import referenced_selection_name
 #: it previously accepted -- a narrowing invalidates earlier samples, and
 #: a reader has to be able to tell which side of the change one came from.
 #: pmc_data.gold_case.ContractVersions.plan_version records the same idea
-#: as a free-form string today; item 14 rewrites that module and is where
-#: the two should be joined up.
+#: as a free-form string today; dataset generation rewrites that module and
+#: is where the two should be joined up.
 POLICY_VERSION = 1
 
 #: Stable reason code for an operation the allowlist permits.

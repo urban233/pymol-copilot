@@ -697,7 +697,7 @@ def test_a_launch_command_naming_another_file_is_not_trusted() -> None:
 
 
 #: A local GGUF Lemonade serves in place from its `extra_models_dir`,
-#: whose checkpoint is its own absolute path (master plan item 17).
+#: whose checkpoint is its own absolute path.
 _LOCAL_CHECKPOINT = "/models/export-control/local.gguf"
 
 
@@ -732,6 +732,51 @@ def test_a_local_gguf_launched_from_another_path_is_refused() -> None:
     )
 
     result = _connect_pulled(handler, _LOCAL_CHECKPOINT)
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_UNKNOWN
+
+
+#: The same local GGUF served in place on native Windows (the portable
+#: bundle), as Lemonade's catalog reports it.
+_WINDOWS_CHECKPOINT = r"C:\pmc\model\local.gguf"
+
+
+def test_a_local_gguf_on_windows_connects() -> None:
+    """A drive's colon is not a `<repo>:<file>` separator."""
+    # The launch command may spell the path with other case and slashes.
+    launched = "c:/PMC/model/local.gguf"
+    handler = _pulled_handler(
+        launch_path=launched,
+        streamed_model=launched,
+        later=(launched,),
+        checkpoint=_WINDOWS_CHECKPOINT,
+    )
+    engine = _connect_pulled(handler, _WINDOWS_CHECKPOINT)
+
+    assert isinstance(engine, LemonadeEngine)
+    assert engine.capabilities.served_model_path == launched
+    completion = engine.complete(
+        CompletionRequest(
+            prompt="p", grammar=None, max_tokens=8, deadline_seconds=5.0
+        ),
+        cancel=CancelToken(),
+    )
+    assert not isinstance(completion, EngineFailure)
+
+
+def test_a_local_gguf_on_windows_launched_from_another_path_is_refused() -> (
+    None
+):
+    """The same file name in another Windows directory is not the checkpoint."""
+    other = r"C:\elsewhere\local.gguf"
+    handler = _pulled_handler(
+        launch_path=other,
+        streamed_model=other,
+        checkpoint=_WINDOWS_CHECKPOINT,
+    )
+
+    result = _connect_pulled(handler, _WINDOWS_CHECKPOINT)
 
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_UNKNOWN

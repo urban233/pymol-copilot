@@ -5,7 +5,7 @@ Every collaborator here is real: real headless Open-Source PyMOL
 (`pymol.finish_launching(['pymol', '-qc'])`) and the production
 `pmc_core.snapshot` module -- extraction, reconstruction, the JSON codec,
 the structure digest, and the diff. This is the promoted, real-process
-evidence for candidate A of H-02's snapshot comparison: extract a
+evidence for candidate A of the snapshot comparison: extract a
 snapshot from one real PyMOL process, reconstruct a fresh object from that
 snapshot alone in a genuinely different process (one that never opens the
 source fixture file), and diff the two extractions field by field.
@@ -47,7 +47,7 @@ SNAPSHOT_ENV_VAR = "PMC_SNAPSHOT_JSON"
 def test_fixture_loads_with_every_declared_state_category(
     loaded_fixture: Any,
 ) -> None:
-    """The fixture exercises every full-V1 state category H-02 must cover."""
+    """The fixture exercises every full-V1 state category to cover."""
     assert loaded_fixture.count_states("fx") == 2
     assert sorted(loaded_fixture.get_chains("fx")) == ["A", "B"]
     assert loaded_fixture.count_atoms("fx and hetatm") == 1
@@ -228,8 +228,8 @@ def test_reconstruct_from_env_snapshot_matches_original() -> None:
         assert not mismatches, "\n".join(mismatches)
         # A genuine process boundary: `original` and `reconstructed` were
         # never held in the same process's memory at once. Structure-digest
-        # equality here is the same claim item 10's apply-time
-        # re-verification and item 7's fidelity gate both rest on.
+        # equality here is the same claim the apply-time re-verification
+        # and the fidelity gate both rest on.
         assert structure_digest(original) == structure_digest(reconstructed)
     finally:
         cmd.do("quit")
