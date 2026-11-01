@@ -96,8 +96,10 @@ double-clicked.
 ## Sharing it
 
 The ZIP is about 1.06 GB, almost all of it the model (stored, not
-compressed: a GGUF barely compresses). Share it through a file share or
-OneDrive rather than e-mail, with its `.sha256`. The model is derived
+compressed: a GGUF barely compresses). Publish it as an asset of a
+GitHub release, with its `.sha256`, where the README's
+[Try it on Windows](../README.md#try-it-on-windows) points; a file share
+works too, but not e-mail. The model is derived
 from Llama 3.2: whoever receives it receives the Llama 3.2 Community
 License Agreement and its Acceptable Use Policy with it, in `LICENSES\`,
 and the launcher and README show "Built with Llama".
