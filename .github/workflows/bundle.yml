@@ -4,7 +4,7 @@ name: Portable bundle smoke
 # model, which is never uploaded, extracts it into a deep folder whose
 # name has spaces, and runs its own check with the live demo off: PyMOL
 # in a Jupyter kernel, a PyMOL sidecar from the relocated Python, and the
-# whole notebook with every number it reports recomputed. The bundle
+# German notebook the launcher opens, top to bottom. The bundle
 # with the model is built and checked on the build host (docs/bundle.md).
 
 on:

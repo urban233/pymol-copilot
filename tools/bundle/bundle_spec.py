@@ -45,8 +45,9 @@ PINS = "configs/bundle/pins.json"
 
 #: What the notebook and its check need from the repository, as `git
 #: archive` path specs: the code, the committed evidence it reads, the
-#: configs it hashes, the record test `check_bundle.py` runs, and the
-#: image the German short notebook shows.
+#: configs it hashes, and the image the German short notebook shows.
+#: The English notebook comes along in `notebooks` but is not run here:
+#: it runs on Linux only.
 CONTENTS = (
     "LICENSE",
     "assets/splash_screen.png",
@@ -57,7 +58,6 @@ CONTENTS = (
     "docs/training",
     "notebooks",
     "src",
-    "tests/notebook",
     "tools/bundle",
     "tools/winstage",
 )
@@ -170,8 +170,8 @@ def launcher_text(*, demo: bool = True) -> str:
     lines += [
         "echo PyMOL Copilot - Built with Llama",
         "echo.",
-        "echo JupyterLab opens in your browser with the notebook.",
-        "echo Run it with Run, Run All Cells. Section 9 asks the model on this",
+        "echo JupyterLab opens in your browser with the German notebook.",
+        "echo Run it with Run, Run All Cells. Section 6 asks the model on this",
         "echo computer's CPU: each answer takes up to about a minute.",
         "echo.",
         "echo Keep this window open while you work, and close it to stop.",
@@ -179,7 +179,7 @@ def launcher_text(*, demo: bool = True) -> str:
         "echo.",
         '"%PMC_ROOT%\\python\\python.exe" -m jupyterlab'
         ' --ServerApp.ip=127.0.0.1 --ServerApp.root_dir="%PMC_ROOT%\\repo"'
-        ' "%PMC_ROOT%\\repo\\notebooks\\pymol_copilot.ipynb"',
+        ' "%PMC_ROOT%\\repo\\notebooks\\pymol_copilot_kurz.ipynb"',
         "endlocal",
     ]
     return "\r\n".join(lines) + "\r\n"
@@ -210,9 +210,12 @@ To start
      Explorer's "Extract All" works but is slow for this many files;
      faster, in a terminal:  tar -xf pymol-copilot-...-win64.zip
   3. Double-click "{LAUNCHER_NAME}". JupyterLab opens in your
-     browser with the notebook.
-  4. Run, Run All Cells. Section 9 asks the model: each answer takes
+     browser with the notebook, in German.
+  4. Run, Run All Cells. Section 6 asks the model: each answer takes
      from tens of seconds to about a minute on a CPU.
+  The English notebook (notebooks\\pymol_copilot.ipynb) is the
+  project's complete record. It runs on Linux only, not in this bundle:
+  its environment holds the training stack, which is locked for Linux.
   To stop, close the browser tab and the black window.
 
 If something goes wrong
@@ -220,7 +223,7 @@ If something goes wrong
     The files are not signed.
   - Nothing happens in the black window: a click into it pauses it;
     press Esc.
-  - The notebook stops at section 9 with "not plain ASCII": extract
+  - The notebook stops at section 6 with "not plain ASCII": extract
     the bundle to C:\\pmc instead.
   - Needs Windows 10 or 11 (64-bit), about 4 GB of free memory and
     3 GB of disk.

@@ -26,6 +26,8 @@
 
 # %% [markdown]
 # - Kurzfassung des ausführlichen englischen Notebooks `pymol_copilot.ipynb`
+#     - Das englische Notebook läuft nur unter Linux: Seine Umgebung enthält PyTorch und Unsloth für das Training, deren Versionen nur für Linux festgeschrieben sind
+#     - Diese Kurzfassung läuft auch unter Windows, im portablen Bundle sogar ohne jede Installation
 # - Das Notebook ist mit allen Ausgaben gespeichert: Man kann es lesen, ohne etwas auszuführen
 # - Rechenintensive Schritte (Datensatz erzeugen, Training, Evaluation) laufen hier **nicht** erneut
 #     - stattdessen werden die Ergebnisse geladen, die im Repository abgelegt sind

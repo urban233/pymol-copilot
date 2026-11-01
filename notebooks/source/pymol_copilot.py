@@ -46,12 +46,15 @@
 # runs the real system against the fine-tuned model. Every picture of a
 # structure is rendered by PyMOL itself, headless, in this kernel.
 #
-# To run it yourself you need Linux, the environment in
-# `requirements-notebook.txt` (see `docs/development_setup.md`), and for
-# section 9 a local Lemonade server serving the fine-tuned model. On
-# Windows, the portable bundle (`docs/bundle.md`) runs every cell,
-# section 9 included, without any setup: it brings its own Python, its
-# own Lemonade and the model, and serves the model on the CPU.
+# **Run this notebook on Linux only**, not on Windows or macOS. Its
+# environment (`requirements-notebook.txt`, see
+# `docs/development_setup.md`) holds the training stack, PyTorch and
+# Unsloth, which is locked for x86-64 Linux, and the evidence it
+# recomputes was produced there. Section 9 also needs a local Lemonade
+# server serving the fine-tuned model. On Windows, use the portable bundle
+# (`docs/bundle.md`) instead: it runs the German short notebook
+# (`pymol_copilot_kurz.ipynb`), live session included, without any
+# setup.
 
 # %%
 # Copyright 2026 Hannah Kullik & Martin Urban.

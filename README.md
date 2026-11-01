@@ -41,9 +41,9 @@ copilot plan p-5667af31-… (expires in 5 min)
 
 The quickest way to try the project is the portable bundle: one ZIP with
 its own Python, JupyterLab, PyMOL, the fine-tuned model and the engine
-that runs the model on the CPU. It opens a Jupyter notebook that walks
-through the whole project and ends with a live copilot session. Nothing
-is installed and nothing leaves the computer.
+that runs the model on the CPU. It opens a Jupyter notebook, in German,
+that walks through the whole project and ends with a live copilot
+session. Nothing is installed and nothing leaves the computer.
 
 You need Windows 10 or 11 (64-bit), about 4 GB of free memory and 3 GB
 of disk. No GPU, no Python and no administrator rights.
@@ -73,22 +73,22 @@ of disk. No GPU, no Python and no administrator rights.
 4. **Start** it: double-click `pymol-copilot\Start PyMOL Copilot.bat`.
    If Windows says *Windows protected your PC*, click *More info*, then
    *Run anyway*; the files are not signed. A console window opens, then
-   JupyterLab opens in your browser with the notebook
-   `pymol_copilot.ipynb`.
-5. **Run** it: choose *Run › Run All Cells*. The notebook rebuilds the
+   JupyterLab opens in your browser with the German short notebook
+   `pymol_copilot_kurz.ipynb`.
+5. **Run** it: choose *Run › Run All Cells*. The notebook shows the
    project's results from the evidence in the repository, with pictures
-   that PyMOL renders as it goes. Section 9 is the live session: PyMOL,
+   that PyMOL renders as it goes. Section 6 is the live session: PyMOL,
    running inside the notebook, gets two requests in plain English, and
    the copilot answers each with a plan that is previewed, applied and
    finally rolled back. Each answer takes from tens of seconds to about
    a minute on a CPU; a cell marked `[*]` is still working.
-6. **Ask your own question**: change `INTENT` in section 9, for example
+6. **Ask your own question**: change `ANFRAGE` in section 6.2, for example
    to `colour chain A orange and show it as spheres`, and run all cells
    again. Requests can only select, colour, show, hide and orient.
 
-A shorter German version of the notebook is
-`notebooks/pymol_copilot_kurz.ipynb`, in JupyterLab's file browser on the
-left; its live session is section 6.
+The bundle also holds the English notebook, `pymol_copilot.ipynb`, but
+it is not meant to run there: it runs on Linux only (see
+[Notebooks](#notebooks)).
 
 To stop, close the browser tab and the console window. To remove the
 bundle, delete its folder; it writes nowhere else except temporary files
@@ -98,7 +98,7 @@ If something goes wrong:
 
 - The console window seems stuck: a click into it pauses it; press
   *Esc*.
-- The notebook stops in section 9 with "not plain ASCII": extract the
+- The notebook stops in section 6 with "not plain ASCII": extract the
   ZIP to `C:\pmc` instead.
 
 The `README.txt` inside the bundle repeats these steps. How the bundle is
@@ -221,9 +221,14 @@ lands under `results/`.
 - [notebooks/pymol_copilot.ipynb](notebooks/pymol_copilot.ipynb): the
   complete record in English: dataset generation, the oracle, the split,
   baseline, fine-tuning, the comparison and a live session. Every number
-  is recomputed from evidence committed in `docs/`.
+  is recomputed from evidence committed in `docs/`. **Run it on Linux
+  only**, not on Windows or macOS: its environment
+  (`requirements-notebook.txt`) holds the training stack, PyTorch and
+  Unsloth, which is locked for x86-64 Linux.
 - [notebooks/pymol_copilot_kurz.ipynb](notebooks/pymol_copilot_kurz.ipynb):
-  a short German version with the same live session.
+  a short German version with the same live session. It runs on Linux
+  and on Windows, where the [portable bundle](#try-it-on-windows) opens
+  it.
 
 Both are committed executed, so they can be read without running them.
 

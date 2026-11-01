@@ -10,9 +10,12 @@ environment, and fails loudly where the bundle would fail them:
 2. a fresh PyMOL sidecar, spawned from the bundle's relocated Python,
    runs gold item `gold_056` and reproduces the resulting fingerprint
    recorded on Linux;
-3. a copy of the notebook executes top to bottom (section 9 too when the
-   bundle holds the model), and the notebook's record test recomputes
-   every number it reports from the committed evidence.
+3. a copy of the German notebook, the one the launcher opens, executes
+   top to bottom without an error; when the bundle holds the model, its
+   live session (section 6) previews, applies and rolls back a plan.
+
+The English notebook is not run: it runs on Linux only, where
+`tests/notebook` recomputes every number it reports.
 
 Nothing outside the bundle is written but temporary files; the executed
 copy is kept in `state\\check\\`.
@@ -22,7 +25,6 @@ from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split f
 
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -83,7 +85,7 @@ def _execute(cells: list[str] | Path, *, timeout: int) -> object:
 
 
 def check_pymol_in_a_kernel() -> str:
-    """Launch PyMOL in a Jupyter kernel, as section 9 does.
+    """Launch PyMOL in a Jupyter kernel, as the notebook does.
 
     Returns:
         What PyMOL reported.
@@ -154,49 +156,45 @@ def check_the_sidecar() -> str:
     return expected
 
 
+#: What the German notebook's live session prints when it previews,
+#: applies and rolls back a plan.
+LIVE_SESSION = ("copilot plan p-", "applied.", "rolled back")
+
+
 def check_the_notebook(*, demo: bool) -> str:
-    """Execute a copy of the notebook and recompute what it reports.
+    """Execute a copy of the German notebook, as the launcher opens it.
+
+    A cell that fails stops the run with its error. The executed copy is
+    kept in `state\\check\\`.
 
     Args:
-        demo: Whether section 9 runs (the bundle holds the model).
+        demo: Whether section 6 runs (the bundle holds the model).
 
     Returns:
         How long it took.
 
     Raises:
-        AssertionError: If the record test fails.
+        AssertionError: If the live session did not run through.
     """
     import nbformat  # pyrefly: ignore.
 
     started = time.monotonic()
-    notebook = _execute(NOTEBOOKS / "pymol_copilot.ipynb", timeout=1800)
-    copy = BUNDLE / "state" / "check" / "pymol_copilot.ipynb"
+    notebook = _execute(NOTEBOOKS / "pymol_copilot_kurz.ipynb", timeout=1800)
+    copy = BUNDLE / "state" / "check" / "pymol_copilot_kurz.ipynb"
     copy.parent.mkdir(parents=True, exist_ok=True)
     nbformat.write(notebook, copy)
     elapsed = time.monotonic() - started
-    test = [
-        sys.executable,
-        "-m",
-        "pytest",
-        "-q",
-        "-p",
-        "no:cacheprovider",
-        str(REPOSITORY / "tests" / "notebook" / "test_notebook_record.py"),
-    ]
-    if not demo:
-        test += ["-k", "not demonstration"]
-    result = subprocess.run(
-        test,
-        env={
-            **os.environ,
-            "PMC_NOTEBOOK_PATH": str(copy),
-            "PYTHONPATH": str(REPOSITORY / "src"),
-        },
-        check=False,
+    text = "".join(
+        "".join(output.get("text", ""))
+        for cell in notebook.cells  # pyrefly: ignore.
+        for output in cell.get("outputs", [])
     )
-    if result.returncode != 0:
-        raise AssertionError(f"the record test failed on {copy}")
-    return f"executed in {elapsed:.0f} s; every reported number recomputes"
+    if demo:
+        missing = [marker for marker in LIVE_SESSION if marker not in text]
+        if missing:
+            raise AssertionError(f"the live session printed no {missing}")
+        return f"executed in {elapsed:.0f} s; the live session ran"
+    return f"executed in {elapsed:.0f} s"
 
 
 def main() -> int:
