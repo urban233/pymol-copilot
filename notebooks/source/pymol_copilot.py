@@ -43,7 +43,8 @@
 # thousands of samples) show their real code behind a flag that is off,
 # and the notebook loads what those runs recorded instead. Stages that
 # take milliseconds run live. The end-user demonstration in section 9
-# runs the real system against the fine-tuned model.
+# runs the real system against the fine-tuned model. Every picture of a
+# structure is rendered by PyMOL itself, headless, in this kernel.
 #
 # To run it yourself you need Linux, the environment in
 # `requirements-notebook.txt` (see `docs/development_setup.md`), and for
@@ -54,7 +55,7 @@
 
 # %%
 # Copyright 2026 PyMOL Copilot contributors.
-"""Set up the kernel: the repository's packages, and every flag."""
+"""Set up the kernel: the repository's packages, every flag, and PyMOL."""
 
 import importlib
 import os
@@ -77,11 +78,11 @@ RUN_TRAINING = False
 #: (the Windows bundle starts its own and switches the demo on).
 RUN_DEMO = os.environ.get("PMC_NOTEBOOK_DEMO") == "1"
 
-# Section 9 runs PyMOL inside this kernel. It is started now, before the
-# tokenizer and LangGraph are loaded: on Windows, PyMOL launched later in
-# a Jupyter kernel fails to start (docs/bundle.md).
-if RUN_DEMO:
-    cmd = support.launch_pymol()
+# PyMOL runs headless inside this kernel and renders the pictures. It is
+# started now, before the tokenizer and LangGraph are loaded: on Windows,
+# PyMOL launched later in a Jupyter kernel fails to start
+# (docs/bundle.md).
+cmd = support.launch_pymol()
 
 print(support.host_description())
 
@@ -154,6 +155,26 @@ print("\n".join(card.splitlines()[:12]))
 print("...")
 
 # %% [markdown]
+# The same structure in PyMOL. Each small sphere is one atom in its
+# current colour (the protein green, zinc and water yellow), labelled
+# with its chain and residue number, and zinc (`ZN`) and water (`HOH`)
+# with their residue name too. The atoms are scattered at random in a
+# cube 60 Å across and have no bonds: a test object, not a folded
+# protein. That is why `lines` and `sticks`, which draw bonds, show
+# nothing on them. The small spheres are added for the picture only; the
+# session itself is left unchanged (`notebook_support.picture`). Zinc and
+# water are drawn as spheres to begin with, enlarged in the picture.
+# Lines such as `cmd.sync() timed out` are PyMOL's own messages when it
+# runs inside a notebook kernel, and harmless.
+
+# %%
+from pmc_core.snapshot import reconstruct
+
+reconstruct(cmd, snapshot)
+structure_picture = support.picture(cmd)
+support.show_pictures((f"'{demo_spec.spec_id}' in PyMOL", structure_picture))
+
+# %% [markdown]
 # For each structure, `pmc_data.taxonomy.enumerate_plans` enumerates plans
 # across every verb, term and expression shape, each with a templated
 # intent. One of them:
@@ -162,7 +183,9 @@ print("...")
 from pmc_data.taxonomy import enumerate_plans
 
 candidates = enumerate_plans(snapshot, seed=20260921)
-example = next(c for c in candidates if c.category.startswith("color+select"))
+example = next(
+    c for c in candidates if c.category.startswith("color+select+show/name/")
+)
 print(f"{len(candidates)} candidate plans for this structure")
 print("intent:  ", example.intent)
 print("category:", example.category, "|", example.difficulty)
@@ -201,16 +224,43 @@ print("state predicted:", outcome.snapshot is not None)
 print("not checked:", outcome.unsupported or "nothing")
 
 # %% [markdown]
+# Now the same plan runs in real PyMOL, through `run_plan`, the function
+# the copilot's rehearsal uses, and the state it leaves is compared with
+# the oracle's prediction:
+
+# %%
+from pmc_core.plan import selection_names
+from pmc_core.snapshot import diff
+from pmc_core.snapshot import extract
+from pmc_sidecar.child import run_plan
+
+result = run_plan(cmd, example.plan)
+counts_in_pymol = tuple(
+    (name, cmd.count_atoms(name)) for name in selection_names(example.plan)
+)
+differences = diff(outcome.snapshot, extract(cmd, snapshot.name))
+print("PyMOL:", result.status)
+print("selections:", counts_in_pymol)
+print("differences from the prediction:", differences or "none")
+support.show_pictures(
+    ("before", structure_picture), ("after the plan", support.picture(cmd))
+)
+
+# %% [markdown]
+# The oracle and PyMOL agree: the same counts and no difference in state.
+# The eight `C` atoms are now `lanthanum` and drawn as spheres (zinc and
+# water already were).
+#
 # Every corpus attempt is therefore a **differential test** of the oracle
 # against pinned Open-Source PyMOL: the plan is predicted, then executed,
 # and the two resulting states are compared byte for byte by fingerprint.
 # A disagreement, or a PyMOL process that fails, is a *rejection*; a plan
-# the oracle declines to grade is *unsupported*. The split's own corpus was generated on a Mac (3,388 of
-# 4,000 attempts kept). Its per-category report was not committed, so the
-# corpus was regenerated on this Linux machine to measure conformance; the
-# `orient` camera fingerprints differ between the two platforms, which is
-# why the split itself is not rebuilt from it
-# (`docs/dataset/linux-regeneration/README.md`).
+# the oracle declines to grade is *unsupported*. The split's own corpus
+# was generated on a Mac (3,388 of 4,000 attempts kept). Its per-category
+# report was not committed, so the corpus was regenerated on this Linux
+# machine to measure conformance; the `orient` camera fingerprints differ
+# between the two platforms, which is why the split itself is not rebuilt
+# from it (`docs/dataset/linux-regeneration/README.md`).
 
 # %%
 regeneration = support.load_json("docs/dataset/linux-regeneration/report.json")
@@ -554,9 +604,10 @@ support.markdown_table(
 )
 
 # %% [markdown]
-# Beside TaskSuccess, the harness measures diagnostic rates: how often the first attempt parses, how often the model abstains, how
-# often a repair rescues a failed attempt, and how long an attempt takes.
-# On `test_gold`:
+# Beside TaskSuccess, the harness measures diagnostic rates: how often
+# the first attempt parses, how often the model abstains, how often a
+# repair rescues a failed attempt, and how long an attempt takes. On
+# `test_gold`:
 
 # %%
 from pmc_eval.eval_cli import latency
@@ -607,9 +658,10 @@ support.markdown_table(
 # %% [markdown]
 # Repairs barely help: of the 43 fine-tuned first attempts without the
 # grammar that failed in a way the graph repairs (almost all by not
-# parsing), 2 were repaired into a valid plan and 1 into a correct one. Under the grammar nothing needs repair, because every plan
-# parses. The latencies are on the RTX 4060; on the machine's CPU the
-# fine-tuned model's median was 2.7-3.6 s per attempt
+# parsing), 2 were repaired into a valid plan and 1 into a correct one.
+# Under the grammar nothing needs repair, because every plan parses. The
+# latencies are on the RTX 4060; on the machine's CPU the fine-tuned
+# model's median was 2.7-3.6 s per attempt
 # (`docs/training/README.md`, "Runs on CPU"). IoU and degeneracy were
 # not measured.
 #
@@ -702,16 +754,16 @@ SERVER_FLAGS = [
 print("python -m pmc_server.main", " ".join(SERVER_FLAGS), "<engine flags>")
 
 # %% [markdown]
-# PyMOL starts headless in this kernel and loads a structure the model
-# never saw in training: the held-out `two_chains_hetatm`, two chains with
-# a zinc ion and a water. Then the client connects to the server.
+# PyMOL, already running headless in this kernel, gets a freshly rebuilt
+# copy of a structure the model never saw in training: the held-out
+# `two_chains_hetatm` from section 2, two chains with a zinc ion and a
+# water each. Then the client connects to the server.
 
 # %%
 import tempfile
 
 from pmc_client.bootstrap import connect_from_handoff
 from pmc_client.recovery import RecoveryStore
-from pmc_core.snapshot import reconstruct
 
 output_lines: list[str] = []
 if RUN_DEMO:
@@ -720,7 +772,8 @@ if RUN_DEMO:
     workdir = Path(tempfile.mkdtemp(prefix="pmc-notebook-"))
     handoff = workdir / "session.json"
     server = support.start_server([*SERVER_FLAGS, *lemonade.flags], handoff)
-    cmd = support.launch_pymol()
+    # Section 3 changed the structure: rebuild it.
+    cmd.delete("all")
     reconstruct(cmd, snapshot)
     driver = support.ConsoleDriver(cmd)
     client = connect_from_handoff(
@@ -731,6 +784,7 @@ if RUN_DEMO:
     )
     print("\n".join(output_lines))
     output_lines.clear()
+    support.show_pictures(("the session to start with", support.picture(cmd)))
 else:
     print(
         "RUN_DEMO is off: set PMC_NOTEBOOK_DEMO=1 with Lemonade serving the model."
@@ -746,8 +800,6 @@ else:
 # %%
 INTENT = "select the zinc ions, make them silver and show them as dots"
 if RUN_DEMO:
-    before_color = []
-    cmd.iterate("resn ZN", "before_color.append(color)", space=locals())
     seconds = driver.run(f"copilot {INTENT}")
     preview = "\n".join(output_lines)
     output_lines.clear()
@@ -770,38 +822,65 @@ plan_id = None
 if RUN_DEMO:
     plan_id = support.plan_id(preview)
 if plan_id is not None:
+    before_picture = support.picture(cmd)
     driver.run(f"copilot_apply {plan_id}")
     print("\n".join(output_lines))
     output_lines.clear()
-    after_color = []
-    cmd.iterate("resn ZN", "after_color.append(color)", space=locals())
-    print("zinc colour index before:", before_color, "after:", after_color)
     print("selection created:", cmd.get_names("selections"))
+    support.show_pictures(
+        ("before", before_picture),
+        ("after copilot_apply", support.picture(cmd)),
+    )
 elif RUN_DEMO:
     print("The copilot offered no plan to apply; see its answer above.")
 
 # %% [markdown]
-# And the same flow on an intent the model has never been evaluated on:
+# Both zinc ions (`ZN A901`, `ZN B901`) are now silver. Their dots hardly
+# show: they lie close around each atom, inside the sphere zinc was
+# already drawn as.
+#
+# And the same flow on an intent the model has never been evaluated on,
+# applied as well:
 
 # %%
+second_plan_id = None
 if RUN_DEMO:
     driver.run("copilot colour chain B marine and show it as sticks")
+    second_preview = "\n".join(output_lines)
+    output_lines.clear()
+    print(second_preview)
+    second_plan_id = support.plan_id(second_preview)
+if second_plan_id is not None:
+    before_picture = support.picture(cmd)
+    driver.run(f"copilot_apply {second_plan_id}")
     print("\n".join(output_lines))
     output_lines.clear()
+    support.show_pictures(
+        ("before", before_picture),
+        ("after copilot_apply", support.picture(cmd)),
+    )
 
 # %% [markdown]
+# Chain B is now `marine`, its zinc ion and water included: the plan
+# colours the whole chain. The sticks do not show, because sticks draw bonds and
+# these atoms have none.
+#
 # A plan that is not what the user wanted is simply not applied: typing
 # `copilot_reject` discards it, and nothing changes. An applied plan can
-# be undone as a whole, because the session was saved before it ran:
+# be undone as a whole, because the session was saved before it ran. The
+# plan undone is the last one applied, here the second:
 
 # %%
-if plan_id is not None:
-    driver.run(f"copilot_rollback {plan_id}")
+last_plan_id = second_plan_id or plan_id
+if last_plan_id is not None:
+    before_picture = support.picture(cmd)
+    driver.run(f"copilot_rollback {last_plan_id}")
     print("\n".join(output_lines))
     output_lines.clear()
-    restored = []
-    cmd.iterate("resn ZN", "restored.append(color)", space=locals())
-    print("zinc colour index after rollback:", restored)
+    support.show_pictures(
+        ("before", before_picture),
+        ("after copilot_rollback", support.picture(cmd)),
+    )
 if RUN_DEMO:
     support.stop_server(server)
     support.stop_engine(lemonade)
@@ -829,7 +908,9 @@ if RUN_DEMO:
 #   checked; every `slice` sample was excluded after the label audit;
 # - measurement objects and PyMOL's polymer flag are outside the snapshot;
 # - the structures are synthetic and backbone-only (ALA, SER, GLY, VAL,
-#   LEU, ZN, HOH); `show cartoon` sets a flag but draws nothing on them;
+#   LEU, ZN, HOH), with atoms placed at random and mostly without bonds;
+#   `show cartoon` sets a flag but draws nothing on them, and neither do
+#   `lines` and `sticks` where there are no bonds;
 # - the split is by structure, not by sequence cluster, and the training
 #   intents are templated;
 # - the integrated-GPU route (Lemonade's Vulkan backend) is **unproven**:
@@ -936,10 +1017,8 @@ rows += [
 support.markdown_table(["Component", "Licence"], rows)
 
 # %% [markdown]
-# Two notes. `unsloth_zoo`, used only during training, is LGPL-3.0; it is
-# not part of the model or the runtime. The repository's README badge
-# points to GPL-3.0 while its `LICENSE` file is BSD 3-Clause; the file is
-# authoritative and the badge is a known inconsistency.
+# `unsloth_zoo`, used only during training, is LGPL-3.0; it is not part
+# of the model or the runtime.
 #
 # ### Retention and deletion
 #

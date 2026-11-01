@@ -182,6 +182,106 @@ def launch_pymol() -> Any:
     return _STATE["pymol"]
 
 
+#: The temporary object a picture draws every atom with.
+PICTURE_OBJECT = "pmc_picture"
+
+#: The global display settings a picture uses, restored afterwards: a
+#: dark opaque background, so pale colours such as silver show, and
+#: labels beside their atoms.
+PICTURE_SETTINGS = {
+    "bg_rgb": "black",
+    "ray_opaque_background": 1,
+    "ray_shadows": 0,
+    "orthoscopic": 1,
+    "dot_density": 3,
+    "label_size": 16,
+    "label_color": "white",
+    "label_position": (1.5, 1.5, 3.0),
+}
+
+
+def picture(
+    cmd: Any,
+    object_name: str = "pmc_structure",
+    width: int = 900,
+    height: int = 650,
+) -> bytes:
+    """Ray-trace the session as it is, without changing it.
+
+    The synthetic structures have no bonds, so `lines` and `sticks` draw
+    almost nothing on them. A temporary copy of the object therefore
+    draws every atom as a small translucent sphere in its own current
+    colour, and labels each residue's CA atom and each hetero residue;
+    what the session itself shows (dots, spheres) is drawn around it,
+    spheres larger than in PyMOL's own window.
+    The copy is deleted and the camera and every setting changed here
+    are restored, so the copilot's snapshot of the session is the same
+    before and after.
+
+    Args:
+        cmd: PyMOL's `cmd` module.
+        object_name: The object to draw and frame.
+        width: The picture's width in pixels.
+        height: The picture's height in pixels.
+
+    Returns:
+        The PNG.
+    """
+    import tempfile
+
+    view = cmd.get_view()
+    saved = {name: cmd.get(name) for name in PICTURE_SETTINGS}
+    sphere_scale = cmd.get("sphere_scale", object_name)
+    try:
+        for name, value in PICTURE_SETTINGS.items():
+            cmd.set(name, value)
+        # The pseudoatoms' radius is 0.5 A: drawn as is, a sphere would be
+        # no larger than the orientation spheres below.
+        cmd.set("sphere_scale", 2.5, object_name)
+        cmd.create(PICTURE_OBJECT, object_name)
+        cmd.hide("everything", PICTURE_OBJECT)
+        cmd.show("spheres", PICTURE_OBJECT)
+        cmd.set("sphere_scale", 0.9, PICTURE_OBJECT)
+        cmd.set("sphere_transparency", 0.3, PICTURE_OBJECT)
+        cmd.label(f"{PICTURE_OBJECT} and not hetatm and name CA", "chain+resi")
+        cmd.label(f"{PICTURE_OBJECT} and hetatm", "resn+' '+chain+resi")
+        cmd.orient(object_name)
+        cmd.zoom(object_name, buffer=4, complete=1)
+        cmd.clip("slab", 300)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "picture.png"
+            cmd.png(str(path), width=width, height=height, ray=1)
+            return path.read_bytes()
+    finally:
+        cmd.delete(PICTURE_OBJECT)
+        for name, value in saved.items():
+            cmd.set(name, value)
+        cmd.set("sphere_scale", sphere_scale, object_name)
+        cmd.set_view(view)
+
+
+def show_pictures(*pictures: tuple[str, bytes]) -> None:
+    """Show pictures side by side, each under its caption.
+
+    Args:
+        *pictures: Each picture's caption and PNG.
+    """
+    import io
+
+    import matplotlib.image
+    import matplotlib.pyplot as plt
+
+    figure, axes = plt.subplots(
+        1, len(pictures), figsize=(5.5 * len(pictures), 4.2), squeeze=False
+    )
+    for axis, (caption, png) in zip(axes[0], pictures, strict=True):
+        axis.imshow(matplotlib.image.imread(io.BytesIO(png), format="png"))
+        axis.set_title(caption)
+        axis.axis("off")
+    figure.tight_layout()
+    plt.show()
+
+
 class ConsoleDriver:
     """Run `copilot*` commands through PyMOL's own dispatch, synchronously.
 
