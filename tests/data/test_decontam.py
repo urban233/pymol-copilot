@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The near-duplicate rule, pinned against hand-labelled pairs.
 
 `testdata/near_duplicate_pairs.jsonl` records, for each pair of

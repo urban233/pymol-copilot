@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Direct behavior tests for `pmc_client.command`'s preview rendering.
 
 The rest of `pmc_client.command`'s own test suite

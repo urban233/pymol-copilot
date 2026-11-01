@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for the executor's parent-side validation: no PyMOL.
 
 Covers every failure mode `pmc_core.executor.execute()` rejects before any

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The server reads an evaluation config exactly as the evaluation does.
 
 `pmc_server.config` reads the committed evaluation configs itself, since

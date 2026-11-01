@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The manifest checks its own claims, and the datasheet states its limits.
 
 A manifest is a claim about bytes, so the validator is tested by

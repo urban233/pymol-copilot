@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for the error envelope: no PyMOL required.
 
 Covers everything about pmc_core.errors that a checked-in corpus can

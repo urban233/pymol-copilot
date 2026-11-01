@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for the engine grammar: no PyMOL required.
 
 Covers pmc_core.grammar's generated GBNF: that every terminal comes from

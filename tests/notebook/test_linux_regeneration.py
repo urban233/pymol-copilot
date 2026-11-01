@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The Linux corpus regeneration's report is consistent and correctly made.
 
 `docs/dataset/linux-regeneration/report.json` is the per-category

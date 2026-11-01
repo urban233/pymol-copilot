@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The gold record schema, and the gold set committed against it.
 
 The schema half is settled on synthetic records: a record round-trips,

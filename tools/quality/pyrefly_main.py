@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Run the native executable shipped in the locked Pyrefly wheel."""
 
 import os

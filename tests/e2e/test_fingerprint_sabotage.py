@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The sabotage test proving the suite detects mutation.
 
 Every "zero unapproved mutation" assertion in the end-to-end suite rests

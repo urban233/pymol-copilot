@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """A sabotage fidelity child: reconstructs faithfully, then lies about it.
 
 Test-owned, in the spirit of tests/integration/sabotage_child.py (the

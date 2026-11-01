@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The grader passes the right plans, fails the wrong ones, and says why.
 
 Hermetic: every execution report here is constructed, not produced by

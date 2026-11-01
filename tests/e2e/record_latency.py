@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Record p50/p95 latency per stage on this machine.
 
 Runs the scenario 1 happy path (preview,

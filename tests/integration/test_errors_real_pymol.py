@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Conformance: the checked-in error corpus still matches live PyMOL.
 
 `tests/contract/test_errors.py` proves the normalizer against the captured

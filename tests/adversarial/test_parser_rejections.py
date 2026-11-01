@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Grammar-free adversarial coverage for the restricted parser boundary.
 
 These tests run without any grammar or generator: every input is a literal

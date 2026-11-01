@@ -1,17 +1,20 @@
 # The portable Windows bundle
 
-One ZIP that runs the notebook on Windows without any setup, including the
-live demo on the CPU.
+One ZIP that runs the German short notebook
+(`notebooks/pymol_copilot_kurz.ipynb`) on Windows without any setup,
+including the live demo on the CPU. The English notebook is the
+project's complete record and runs on Linux only: its environment holds
+the training stack, which is locked for Linux.
 
 ## For a colleague
 
 Unzip, double-click `Start PyMOL Copilot.bat`, and choose *Run, Run All
-Cells* in the JupyterLab tab that opens. The `README.txt` beside the
+Cells* in the JupyterLab tab that opens with the German notebook. The `README.txt` beside the
 launcher says the same, with what to do when Windows warns about an
 unsigned file. Nothing is installed and nothing leaves the computer; to
 remove the bundle, delete its folder.
 
-Each answer of the model in section 9 takes from tens of seconds to
+Each answer of the model in section 6 takes from tens of seconds to
 about a minute on a CPU. Plan for about 4 GB of free memory and 3 GB of
 disk.
 
@@ -69,8 +72,10 @@ pymol-copilot\python\python.exe pymol-copilot\repo\tools\bundle\check_bundle.py
 
 It launches PyMOL in a Jupyter kernel. It then runs gold item `gold_056`
 in a PyMOL sidecar and requires the fingerprint recorded on Linux.
-Finally, it executes a copy of the notebook and runs its record test on
-that copy, which recomputes every number from the committed evidence.
+Finally, it executes a copy of the German notebook, the one the launcher
+opens, and with the model requires its live session to preview, apply
+and roll back a plan. The English notebook's numbers are recomputed by
+`tests/notebook` on Linux.
 The `Portable bundle smoke` workflow does all of this without the model
 on `windows-2025` for every pull request that touches what the bundle
 holds.
@@ -96,8 +101,10 @@ double-clicked.
 ## Sharing it
 
 The ZIP is about 1.06 GB, almost all of it the model (stored, not
-compressed: a GGUF barely compresses). Share it through a file share or
-OneDrive rather than e-mail, with its `.sha256`. The model is derived
+compressed: a GGUF barely compresses). Publish it as an asset of a
+GitHub release, with its `.sha256`, where the README's
+[Try it on Windows](../README.md#try-it-on-windows) points; a file share
+works too, but not e-mail. The model is derived
 from Llama 3.2: whoever receives it receives the Llama 3.2 Community
 License Agreement and its Acceptable Use Policy with it, in `LICENSES\`,
 and the launcher and README show "Built with Llama".
@@ -174,9 +181,8 @@ trigger: PyMOL launched in a Jupyter kernel after both
 tokenizer had been loaded. Either one alone was harmless, as was the
 same sequence in plain Python, an ASCII path, or Linux. The byte varies
 between runs (0x83, 0x8b), which suggests PyMOL's startup reads
-uninitialised memory. The notebook therefore launches PyMOL in its first
-cell when the demo is on; launched first, it keeps working after both
-are loaded.
+uninitialised memory. The notebooks therefore launch PyMOL in their
+first cell; launched first, it keeps working after both are loaded.
 
 ### Consequences for the bundle
 
@@ -193,7 +199,7 @@ are loaded.
   not copied, when the volume allows it.
 - The Visual C++ runtime DLLs are copied app-locally into the llama.cpp
   folder at build time.
-- The notebook's section 9 must say how long a request takes on a CPU
+- The notebook's live session must say how long a request takes on a CPU
   (tens of seconds to about a minute), so that a colleague does not
   mistake a busy cell for a hung one. Its prose describes the plan the
   model returns without depending on it, and checks the preview before

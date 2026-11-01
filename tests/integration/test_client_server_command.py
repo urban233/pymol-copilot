@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Headless client-server test for the public non-mutating command path."""
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

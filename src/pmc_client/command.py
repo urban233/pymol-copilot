@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The copilot command seam: preview, approval, live apply, and recovery.
 
 `copilot` no longer sends a fixture snapshot:

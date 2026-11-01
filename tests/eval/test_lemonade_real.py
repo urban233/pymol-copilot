@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Opt-in: the harness against a real local Lemonade server and PyMOL.
 
 Skipped unless `PMC_LEMONADE_BASE_URL` names a local Lemonade origin

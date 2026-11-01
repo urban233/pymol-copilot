@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """`pmc_core.versions.contract_versions()` must never fall behind.
 
 Two properties are proven independently. First, `APPLICATION_VERSION`

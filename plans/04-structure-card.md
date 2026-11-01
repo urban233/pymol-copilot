@@ -249,7 +249,7 @@ covering all three outputs — complete, `malformed-snapshot`, and
 `snapshot-schema-version` — asserting each starts `f"card-version={CARD_VERSION}\n"`.
 
 Conventions this file must match, all uniform across the five existing contract
-test modules: the `# Copyright 2026 PyMOL Copilot contributors.` first line
+test modules: the `# Copyright 2026 Hannah Kullik & Martin Urban.` first line
 (ruff `CPY001`); a module docstring saying what is covered and naming
 `tests/integration/test_card_real_pymol.py` as where the real-PyMOL evidence
 lives; `import pytest  # noqa: I001, RUF100  # Keep imports split for Google

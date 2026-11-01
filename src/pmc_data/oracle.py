@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Independent oracle predicting a plan's result without PyMOL.
 
 This module never imports PyMOL and never calls a PyMOL selection query,

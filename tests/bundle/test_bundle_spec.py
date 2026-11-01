@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The bundle holds the evaluated engine and model, and starts safely.
 
 `tools/bundle/bundle_spec.py` decides what
@@ -72,9 +72,7 @@ def test_the_notebooks_own_environment_test_is_left_out() -> None:
     specs = bundle_spec.archive_pathspecs()
 
     assert ":(exclude)notebooks/tests" in specs
-    assert {"notebooks", "src", "tests/notebook", "tools/winstage"} <= set(
-        specs
-    )
+    assert {"notebooks", "src", "tools/winstage"} <= set(specs)
 
 
 def test_the_launcher_isolates_the_bundles_python() -> None:
@@ -115,7 +113,7 @@ def test_the_launcher_opens_the_notebook_in_jupyterlab() -> None:
     assert '"%PMC_ROOT%\\python\\python.exe" -m jupyterlab' in text
     assert "--ServerApp.ip=127.0.0.1" in text
     assert '--ServerApp.root_dir="%PMC_ROOT%\\repo"' in text
-    assert '"%PMC_ROOT%\\repo\\notebooks\\pymol_copilot.ipynb"' in text
+    assert '"%PMC_ROOT%\\repo\\notebooks\\pymol_copilot_kurz.ipynb"' in text
 
 
 def test_the_state_folders_exist_before_jupyterlab_starts() -> None:

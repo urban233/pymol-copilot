@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Resolve the one live molecular object and extract its canonical snapshot.
 
 Before a plan request can carry a real snapshot identity, the client must

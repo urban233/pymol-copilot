@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Meta-test for the shared nested-subprocess snapshot test support.
 
 `run_nested_snapshot_process` (snapshot_support.py) is what

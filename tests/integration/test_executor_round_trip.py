@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The positive path: execute() against an independently computed value.
 
 Unlike every sabotage test in test_executor_boundary.py, this module

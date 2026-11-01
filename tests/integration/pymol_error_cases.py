@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The deliberately broken commands behind the captured error corpus.
 
 Shared by the two targets that must never disagree about what was driven:

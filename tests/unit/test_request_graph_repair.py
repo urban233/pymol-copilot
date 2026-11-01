@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Behavior tests for `validating` and the bounded repair loop.
 
 Runs the compiled graph against a `FakeEngine` and a fake executor --

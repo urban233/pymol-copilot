@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The prompt the harness sends: the training prompt, plus repair lines.
 
 `pmc_agent.graph` builds every prompt through an injected

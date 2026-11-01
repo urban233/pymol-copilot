@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """One place that names every contract version this system agrees on.
 
 Every module in this package that owns a wire-relevant contract stamps its

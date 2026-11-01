@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """A default-deny screen for whether a rejected completion may be repaired.
 
 An ordinary denial gets at most one repair opportunity; traversal,

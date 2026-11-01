@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Tests for src/pmc_core/screen.py's default-deny repair-eligibility gate.
 
 Asserts against exactly the same corpus test_denied_forms.py already

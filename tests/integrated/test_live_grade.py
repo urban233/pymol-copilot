@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The integrated measurement grades, reads and explains correctly.
 
 Hermetic: no PyMOL and no server. The live

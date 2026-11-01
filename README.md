@@ -37,6 +37,73 @@ copilot plan p-5667af31-… (expires in 5 min)
   reject:    copilot_reject p-5667af31-…
 ```
 
+## Try it on Windows
+
+The quickest way to try the project is the portable bundle: one ZIP with
+its own Python, JupyterLab, PyMOL, the fine-tuned model and the engine
+that runs the model on the CPU. It opens a Jupyter notebook, in German,
+that walks through the whole project and ends with a live copilot
+session. Nothing is installed and nothing leaves the computer.
+
+You need Windows 10 or 11 (64-bit), about 4 GB of free memory and 3 GB
+of disk. No GPU, no Python and no administrator rights.
+
+1. **Download** `pymol-copilot-<commit>-win64.zip` (about 1 GB) and its
+   `.sha256` file from the
+   [latest release](https://github.com/urban233/pymol-copilot/releases/latest).
+   To check the download, run this in PowerShell and compare the result
+   with the hash in the `.sha256` file:
+
+   ```powershell
+   Get-FileHash .\pymol-copilot-<commit>-win64.zip -Algorithm SHA256
+   ```
+
+2. **Unblock** the ZIP: right-click it, *Properties*, tick *Unblock* if
+   it is shown, *OK*.
+3. **Extract** it into a folder of your own, such as `Downloads` or
+   `C:\pmc`, but not one that OneDrive synchronises. Explorer's
+   *Extract All* works but is slow for this many files; a terminal in
+   that folder is faster:
+
+   ```
+   tar -xf pymol-copilot-<commit>-win64.zip
+   ```
+
+   This creates a folder `pymol-copilot`.
+4. **Start** it: double-click `pymol-copilot\Start PyMOL Copilot.bat`.
+   If Windows says *Windows protected your PC*, click *More info*, then
+   *Run anyway*; the files are not signed. A console window opens, then
+   JupyterLab opens in your browser with the German short notebook
+   `pymol_copilot_kurz.ipynb`.
+5. **Run** it: choose *Run › Run All Cells*. The notebook shows the
+   project's results from the evidence in the repository, with pictures
+   that PyMOL renders as it goes. Section 6 is the live session: PyMOL,
+   running inside the notebook, gets two requests in plain English, and
+   the copilot answers each with a plan that is previewed, applied and
+   finally rolled back. Each answer takes from tens of seconds to about
+   a minute on a CPU; a cell marked `[*]` is still working.
+6. **Ask your own question**: change `ANFRAGE` in section 6.2, for example
+   to `colour chain A orange and show it as spheres`, and run all cells
+   again. Requests can only select, colour, show, hide and orient.
+
+The bundle also holds the English notebook, `pymol_copilot.ipynb`, but
+it is not meant to run there: it runs on Linux only (see
+[Notebooks](#notebooks)).
+
+To stop, close the browser tab and the console window. To remove the
+bundle, delete its folder; it writes nowhere else except temporary files
+under `%TEMP%`.
+
+If something goes wrong:
+
+- The console window seems stuck: a click into it pauses it; press
+  *Esc*.
+- The notebook stops in section 6 with "not plain ASCII": extract the
+  ZIP to `C:\pmc` instead.
+
+The `README.txt` inside the bundle repeats these steps. How the bundle is
+built and checked: [docs/bundle.md](docs/bundle.md).
+
 ## How it works
 
 1. **Snapshot.** The client reads the loaded structure into a canonical
@@ -86,12 +153,9 @@ the user means `or`. Details: [docs/evaluation/](docs/evaluation/README.md).
 
 ### Windows: the portable bundle
 
-One ZIP holds Python, PyMOL, Lemonade, the model and a JupyterLab
-notebook that runs the whole project, the live copilot included, on the
-CPU. Extract it and double-click `Start PyMOL Copilot.bat`; nothing is
-installed. It needs about 4 GB of free memory and 3 GB of disk, and each
-answer takes tens of seconds to a minute on a CPU. The ZIP is built
-from a checkout with the model file; see [docs/bundle.md](docs/bundle.md).
+See [Try it on Windows](#try-it-on-windows) above. To build the bundle
+yourself from a checkout with the model file, see
+[docs/bundle.md](docs/bundle.md).
 
 ### Linux: from source
 
@@ -157,9 +221,14 @@ lands under `results/`.
 - [notebooks/pymol_copilot.ipynb](notebooks/pymol_copilot.ipynb): the
   complete record in English: dataset generation, the oracle, the split,
   baseline, fine-tuning, the comparison and a live session. Every number
-  is recomputed from evidence committed in `docs/`.
+  is recomputed from evidence committed in `docs/`. **Run it on Linux
+  only**, not on Windows or macOS: its environment
+  (`requirements-notebook.txt`) holds the training stack, PyTorch and
+  Unsloth, which is locked for x86-64 Linux.
 - [notebooks/pymol_copilot_kurz.ipynb](notebooks/pymol_copilot_kurz.ipynb):
-  a short German version with the same live session.
+  a short German version with the same live session. It runs on Linux
+  and on Windows, where the [portable bundle](#try-it-on-windows) opens
+  it.
 
 Both are committed executed, so they can be read without running them.
 

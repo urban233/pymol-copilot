@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The split's manifest and datasheet: what it is, where it came from.
 
 Dataset artifacts must be content-addressed and carry a datasheet,

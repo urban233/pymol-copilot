@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Unit tests for the independent, dependency-free PDB reader.
 
 These tests never import PyMOL. They prove read_atoms parses the known

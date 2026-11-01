@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Behavior tests for the LangGraph and httpx runtime wiring."""
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Build the held-out split, its manifest and datasheet, and the audit.
 
 Three subcommands:

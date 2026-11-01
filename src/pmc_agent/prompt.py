@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The prompt-builder seam: a placeholder default, not a real prompt.
 
 The real prompt builder turns a structure card plus a user intent into

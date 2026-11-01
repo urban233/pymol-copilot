@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Run the gold set through the product, and report it against offline.
 
 Every sample goes through what a user does:

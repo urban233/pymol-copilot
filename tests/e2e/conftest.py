@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Shared pytest fixtures for this package's end-to-end scenarios.
 
 `real_pymol` and `loaded_fixture` are defined once in `scenario_support.py`

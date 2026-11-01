@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Hermetic behavior tests for the streaming Lemonade adapter."""
 
 from __future__ import annotations  # noqa: I001, RUF100  # Keep imports split for Google style.
@@ -475,6 +475,35 @@ def test_a_stalled_stream_is_closed_at_the_absolute_deadline() -> None:
     assert isinstance(result, EngineFailure)
     assert result.category == ENGINE_TIMEOUT
     assert elapsed_seconds < 0.5
+    assert stream.closed
+
+
+def test_a_stream_the_watchdog_closed_is_a_timeout_whatever_the_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The watchdog may fire a tick before the clock reports the deadline.
+
+    On Windows the timer and `time.monotonic` differ by a tick, so the
+    closed stream can end while some budget still seems left. The
+    remaining budget here never reaches zero, as in that race.
+
+    Args:
+        monkeypatch: Pytest's controlled patching fixture.
+    """
+    monkeypatch.setattr(
+        LemonadeEngine,
+        "_remaining_deadline",
+        staticmethod(lambda _started_at, _deadline_seconds: 0.05),
+    )
+    stream = _BlockingStream()
+    engine = _engine(lambda _request: httpx.Response(200, stream=stream))
+
+    result = engine.complete(
+        _request(deadline_seconds=0.05), cancel=CancelToken()
+    )
+
+    assert isinstance(result, EngineFailure)
+    assert result.category == ENGINE_TIMEOUT
     assert stream.closed
 
 

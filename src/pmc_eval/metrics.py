@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Aggregating evaluated samples into the rates the evaluation reports.
 
 `aggregate` is a pure function of a run's `SampleRecord`s, so a

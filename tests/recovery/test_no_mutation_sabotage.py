@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Sabotage proof for the automatic-restore containment boundary."""
 
 from __future__ import annotations

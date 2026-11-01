@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for the client-side fidelity gate: no PyMOL.
 
 Covers every branch of `pmc_client.fidelity.check_fidelity()` against a

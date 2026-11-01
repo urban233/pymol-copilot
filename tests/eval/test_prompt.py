@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The harness prompts a model exactly as it was trained to be prompted.
 
 Fine-tuning trains on `Sample.prompt_text`. If the evaluation sent anything

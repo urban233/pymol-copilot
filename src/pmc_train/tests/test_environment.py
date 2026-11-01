@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The training environment is the one the lock describes.
 
 Training runs under Python 3.12 from `requirements-train.txt`, outside

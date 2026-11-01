@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """End-to-end scenario 5: the server is unavailable.
 
 A real `pmc_server.main` process, spawned (`python -m pmc_server.main`,

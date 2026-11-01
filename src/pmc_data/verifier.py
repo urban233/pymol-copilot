@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Grades a real PyMOL run of the accepted fixture against a GoldCase.
 
 The verifier executes the accepted, unchanged pmc_core canonical plan

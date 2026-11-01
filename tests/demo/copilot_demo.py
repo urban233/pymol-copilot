@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The live demo's launcher and its rehearsal (docs/demo.md).
 
 It rehearses one intent through apply and one deliberate failure

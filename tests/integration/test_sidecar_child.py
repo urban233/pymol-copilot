@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Real-PyMOL evidence for the sidecar child's closed verb dispatch.
 
 Drives `pmc_sidecar.child.run_plan()` directly against the module-scoped

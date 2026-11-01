@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Shape tests for the request graph: states, the router, and the wiring.
 
 Every edge this graph can take is decided by `route_by_status` alone, so

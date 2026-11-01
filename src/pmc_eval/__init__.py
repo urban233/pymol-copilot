@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Offline evaluation harness.
 
 Runs a model through the runtime's own request graph against the held-out

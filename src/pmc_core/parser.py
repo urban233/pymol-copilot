@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Total dedicated tokenizer and parser for the restricted command language.
 
 This module owns the boundary between untrusted native .pml text and the

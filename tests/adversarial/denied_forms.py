@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The denied-form corpus: every shape V1 must refuse, with zero execution.
 
 Extracted from test_denied_forms.py so `src/pmc_core/screen.py`'s own test

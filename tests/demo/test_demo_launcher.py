@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The demo's two beats end as the demo needs them to.
 
 The real server runs in this process with a

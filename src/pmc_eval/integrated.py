@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Integrated TaskSuccess: the gold set through the running product.
 
 Integrated TaskSuccess is measured against the offline number, and any

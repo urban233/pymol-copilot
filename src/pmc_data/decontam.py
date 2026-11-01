@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Decontamination: drop training samples that restate a gold intent.
 
 Training data overlapping near-duplicate test intents is removed. The

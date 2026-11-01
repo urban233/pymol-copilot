@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The end-to-end suite's p50-per-stage latency record.
 
 The latency is reported at p50 per stage, with no fixed pass/fail

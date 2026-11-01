@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """End-to-end scenario 4: denied before any sidecar spawn.
 
 `pmc_agent.graph._validating`'s fixed order is cancellation -> hostile

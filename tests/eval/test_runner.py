@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The harness runs the runtime's own request graph and reads it back right.
 
 Hermetic: the model is a `FakeEngine` and the sidecar a scripted

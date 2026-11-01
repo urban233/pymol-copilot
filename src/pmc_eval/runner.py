@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Run one stored sample through the runtime's own request graph.
 
 The harness does not reimplement the generate, screen, parse, policy,

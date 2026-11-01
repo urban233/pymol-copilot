@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for the prompt builder: no PyMOL required.
 
 Covers pmc_core.prompt: that every prompt carries the four contract

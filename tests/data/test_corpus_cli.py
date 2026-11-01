@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Evidence that a corpus run cannot quietly destroy another one.
 
 The corpus generator is the one binary here that writes thousands of

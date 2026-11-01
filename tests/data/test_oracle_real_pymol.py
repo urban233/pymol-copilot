@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Real-PyMOL differential evidence for the generalized oracle.
 
 The oracle predicts what a selection expression matches without PyMOL.

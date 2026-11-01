@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Every failure path is bounded, actionable, and free of plan text.
 
 `tests/unit/test_client_messages.py` already proves `describe_failure`,

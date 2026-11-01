@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Plan enumeration and the category taxonomy the report is grouped by.
 
 This module turns one controlled structure into the plans the corpus is

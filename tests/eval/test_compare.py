@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The comparison pairs by sample, tests exactly, and refuses drift.
 
 The candidates here are built from the committed baseline's own

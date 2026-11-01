@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The frozen PyMOL color name-to-index table the oracle predicts with.
 
 Generated once from `cmd.get_color_index()` against

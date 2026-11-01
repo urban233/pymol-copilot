@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The evidence one evaluated sample leaves behind, and its JSON form.
 
 Every attempt keeps the model's raw completion, so a stored run can be

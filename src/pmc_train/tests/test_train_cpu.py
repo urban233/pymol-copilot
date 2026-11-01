@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The training loop runs end to end on the CPU and records its run.
 
 Unsloth needs a GPU, so this drives the same `train()` with the `hf`

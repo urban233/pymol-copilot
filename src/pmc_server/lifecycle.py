@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Server-owned lifecycle for the LangGraph request graph.
 
 The request graph's own replacement for the hardcoded fixture this

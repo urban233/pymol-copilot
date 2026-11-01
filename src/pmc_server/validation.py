@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Server-owned lifecycle for the sidecar executor's /v1/validate endpoint.
 
 This is the server-side service that sits alongside `pmc_core.executor`

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The bounded streaming adapter for a local Lemonade server.
 
 This is deliberately one module, rather than an ``inference.lemonade``
@@ -688,7 +688,14 @@ class LemonadeEngine:
                 model_identity=self.model_identity,
                 stop_reason=STOP_CANCELLED,
             )
-        if self._remaining_deadline(started_at, request.deadline_seconds) <= 0:
+        # The watchdog's close can end the stream quietly a moment before
+        # the monotonic clock reports the deadline (Windows' timer and clock
+        # differ by a tick), so a fired watchdog is a timeout as well.
+        if (
+            deadline_reached.is_set()
+            or self._remaining_deadline(started_at, request.deadline_seconds)
+            <= 0
+        ):
             return _failure(
                 ENGINE_TIMEOUT, "Lemonade completion exceeded its deadline"
             )

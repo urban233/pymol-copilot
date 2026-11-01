@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Provenance-complete gold-case schema for the chain-A/red fixture.
 
 A GoldCase records everything the verifier in pmc_data.verifier needs to

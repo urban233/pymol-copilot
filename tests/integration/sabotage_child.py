@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """A test-owned sidecar child that behaves however PMC_SABOTAGE_MODE says.
 
 This module never ships in `src/`: it exists so

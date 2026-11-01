@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Sabotage check for the default-deny policy contract.
 
 The test runs the focused policy suite against a disposable copy of the core

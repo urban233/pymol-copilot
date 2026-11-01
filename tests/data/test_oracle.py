@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Independent-oracle tests, hermetic half.
 
 These tests never import PyMOL. The original chain-A derivation is

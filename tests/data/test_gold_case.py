@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Gold-case schema round-trip and fail-closed validation tests.
 
 These tests never import PyMOL. They exercise pmc_data.gold_case directly

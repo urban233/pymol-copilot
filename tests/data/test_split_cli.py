@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The split build: no leak, no loss, and a refusal for every bad input.
 
 Driven end to end through `split_cli.run` on the synthetic repository

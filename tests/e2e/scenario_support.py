@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Shared real-PyMOL harness for the end-to-end scenarios.
 
 Every real-PyMOL end-to-end module in this directory launches PyMOL once

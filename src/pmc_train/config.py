@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The training config: which weights, which data, which settings, which seeds.
 
 `configs/training/lora-v1.json` is the one committed instance, and it

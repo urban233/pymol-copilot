@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Render a training prompt exactly as the evaluation engine does.
 
 The engine (the Lemonade adapter, `pmc_agent.inference.lemonade`)

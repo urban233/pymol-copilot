@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Read a `copilot` preview block without indexing captured output lines.
 
 The preview replaces the four separate `_output` calls `copilot` used to
