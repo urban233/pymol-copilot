@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Runnable entry point that generates and writes verified gold cases.
 
 Launches real headless Open-Source PyMOL once, runs every request declared

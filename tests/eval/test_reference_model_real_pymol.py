@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The grader, against real PyMOL: a right answer passes, a wrong one fails.
 
 Each gold sample's own reference plan is scripted as the model's answer

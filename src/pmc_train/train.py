@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Fine-tune the base model once, completion-only, and record everything.
 
     PYTHONPATH=src .venv-train/bin/python -m pmc_train.train \\

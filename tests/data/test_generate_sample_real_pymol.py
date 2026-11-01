@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """End-to-end generation through the real execution boundary.
 
 Every collaborator here is the production one: the real

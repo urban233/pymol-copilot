@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for target resolution and live extraction: no PyMOL.
 
 Covers `pmc_client.session.resolve_target_object()`'s own deterministic,

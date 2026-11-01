@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Export a trained adapter as the Q4_K_M GGUF the engine loads.
 
     PYTHONPATH=src .venv-train/bin/python -m pmc_train.export \\

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Fake execution seams for the data tests: a child that agrees, or not.
 
 `oracle_report` answers an execution request with exactly what

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Read the training set, and only the training set, and fix its order.
 
 Training reads `train.jsonl` of the frozen split, after its manifest's

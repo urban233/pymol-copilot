@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The generalized dataset sample record and its serialization.
 
 Each sample records its source structure identity and checksum, card

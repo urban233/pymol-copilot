@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Resolve a consumer package's calls to the shared-core callable they reach.
 
 The error envelope and the prompt builder each require that both

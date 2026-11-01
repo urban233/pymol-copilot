@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Drive both demo beats in GUI PyMOL, and record what the window showed.
 
 This is the demo's scripted dry run: it

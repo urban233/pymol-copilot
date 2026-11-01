@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Behavior tests for `pending_approval`, expiry, supersession, cancellation.
 
 Runs `pmc_agent.session.RequestGraphSession`, not the bare compiled graph

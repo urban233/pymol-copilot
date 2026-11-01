@@ -167,7 +167,7 @@ A step is not done until its named test passes **and** that test has been
 sabotage-checked: break the thing it covers, confirm exactly that test goes
 red and no other, restore.
 
-Every new module starts with `# Copyright 2026 PyMOL Copilot contributors.`
+Every new module starts with `# Copyright 2026 Hannah Kullik & Martin Urban.`
 and `from __future__ import annotations`, uses Google-style docstrings, one
 import per line, and an 80-column limit.
 

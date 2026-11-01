@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Fuzz evidence that the parser is total and never accepts non-canonical text.
 
 parse_pml claims two properties that no finite list of literal cases can

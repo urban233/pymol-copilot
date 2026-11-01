@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The fidelity probe's fresh-process child.
 
 This is the second of two modules that import real PyMOL (the other is

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """An opt-in local record of every completion the server asks for.
 
 The client only ever sees a request's bounded outcome: a preview, a

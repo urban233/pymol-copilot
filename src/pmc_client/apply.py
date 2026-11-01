@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Closed-dispatch live application with automatic whole-session recovery."""
 
 from __future__ import annotations

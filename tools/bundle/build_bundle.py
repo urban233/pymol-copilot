@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Build the portable Windows bundle of the notebook, on Windows.
 
     uv run --python 3.13.13 tools\\bundle\\build_bundle.py ^

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Scripted executors and completions for the hermetic harness tests.
 
 A scripted executor replays a fixed sequence of reports, one per call,

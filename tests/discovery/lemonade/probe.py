@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Lemonade capability spike: the four probes and their verdicts.
 
 This is the re-runnable half of the day-one Lemonade capability spike. It

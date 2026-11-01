@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The admission gate: every controlled structure is a fixed point.
 
 The oracle predicts a plan's result against the snapshot it was handed,

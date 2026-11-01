@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Check a portable bundle from inside it, with its own Python.
 
     pymol-copilot\\python\\python.exe pymol-copilot\\repo\\tools\\bundle\\check_bundle.py

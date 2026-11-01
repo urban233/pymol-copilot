@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Real-PyMOL evidence that extract() and render() compose end to end.
 
 Every collaborator here is real: real headless Open-Source PyMOL, the

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The end-to-end scenarios against the fine-tuned model, opt-in.
 
 It pairs the trained model artifact with the runtime and runs the

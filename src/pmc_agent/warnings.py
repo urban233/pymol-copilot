@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Deterministic validation warnings, derived only from executor evidence.
 
 `copilot` must print selection counts and validation warnings where

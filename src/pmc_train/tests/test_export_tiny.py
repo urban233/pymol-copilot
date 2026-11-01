@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The export pipeline turns a model into a checked Q4_K_M GGUF.
 
 Drives `pmc_train.export.export` end to end with the pinned llama.cpp,

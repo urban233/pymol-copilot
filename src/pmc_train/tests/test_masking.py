@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Prompt tokens are masked out of the loss, proven at the tensor level.
 
 The first tests check the labels a real sample produces: every prompt

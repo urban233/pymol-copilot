@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Behavior tests for `RequestGraphLifecycle`.
 
 Runs `pmc_agent.session.RequestGraphSession` against a `FakeEngine`, never a

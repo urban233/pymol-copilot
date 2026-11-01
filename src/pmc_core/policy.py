@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Deterministic default-deny policy over typed ActionPlan operations.
 
 This module evaluates only the immutable typed operations defined in

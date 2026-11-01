@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Every number the committed notebook reports recomputes from the evidence.
 
 The notebook is committed executed, so its

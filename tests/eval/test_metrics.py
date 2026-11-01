@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Every reported rate counts what it says, over the denominator it says.
 
 The fixtures are hand-built records, so each expected number here is

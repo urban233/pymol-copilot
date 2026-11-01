@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Controlled structures, authored directly as canonical snapshots.
 
 The dataset needs structures covering multiple chains, hetero atoms,

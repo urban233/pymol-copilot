@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The notebook's kernel can run every stage of the project in one process.
 
 The notebook imports the runtime packages, the

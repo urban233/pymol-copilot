@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Real-PyMOL evidence for the fidelity probe's reconstruct-and-re-extract.
 
 Drives `pmc_sidecar.fidelity.probe()` directly against the module-scoped

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 # The deliverable notebook's source, in the percent
 # format; notebooks/build_notebook.py turns it into pymol_copilot.ipynb.
 # Read as one module, each cell's imports come after the previous cell's
@@ -54,7 +54,7 @@
 # own Lemonade and the model, and serves the model on the CPU.
 
 # %%
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Set up the kernel: the repository's packages, every flag, and PyMOL."""
 
 import importlib

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The committed baseline is exactly what its committed samples say.
 
 `docs/evaluation/baseline/` is the untuned model's result, measured

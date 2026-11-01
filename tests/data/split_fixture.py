@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """A small synthetic repository for driving `split_cli` without PyMOL.
 
 `make_repo` writes, under a temporary root, everything a split build

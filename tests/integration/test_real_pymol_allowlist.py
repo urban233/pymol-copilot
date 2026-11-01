@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Real-PyMOL conformance evidence for the frozen command allowlists.
 
 pmc_core.plan freezes 177 color names and 14 representations as literal

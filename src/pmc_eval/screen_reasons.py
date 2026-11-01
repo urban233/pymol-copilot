@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Why the hostile screen refused a completion, for the report only.
 
 `pmc_core.screen.screen_completion` answers one question -- hostile or

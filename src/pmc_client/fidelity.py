@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The fidelity gate: reconstruct-and-compare, adjudicated in this process.
 
 `check_fidelity()` serializes a live snapshot, hands it to

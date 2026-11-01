@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Bounded local-inference engines and their supported public contract."""
 
 from pmc_agent.inference.base import ENGINE_FAILURE_CATEGORIES

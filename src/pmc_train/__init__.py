@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Model development: completion-only fine-tuning.
 
 Runs in the separate Python 3.12 training environment

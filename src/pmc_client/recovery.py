@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Private, plan-associated PyMOL recovery points.
 
 This module owns the lifetime and file permissions of a recovery ``.pse``;

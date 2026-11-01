@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """A correct plan scores through the live path; a wrong one does not.
 
 Before the integrated measurement grades a

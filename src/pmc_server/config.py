@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """What the server loads and sends, and the evaluation config it can read.
 
 The offline evaluation's TaskSuccess is measured under one committed

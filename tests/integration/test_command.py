@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Integration tests for the copilot command seam: no PyMOL, no subprocess.
 
 Drives `pmc_client.command.CopilotCommandClient` against a fake live

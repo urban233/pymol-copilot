@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Comparable live-session evidence for recovery and refusal tests.
 
 The product's extraction boundary is deliberately reused here.  It records

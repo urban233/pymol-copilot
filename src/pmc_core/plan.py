@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Immutable typed plan and operation contracts for the restricted language.
 
 This module defines the frozen domain values of the V1 restricted command

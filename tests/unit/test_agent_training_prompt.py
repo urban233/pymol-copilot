@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The runtime can send the prompt the local model was fine-tuned on.
 
 `pmc_agent.prompt.build_training_prompt` is the prompt builder that

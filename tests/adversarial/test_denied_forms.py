@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The denied-form corpus: every shape V1 must refuse, with zero execution.
 
 V1's explicit-denial list names Python-evaluating forms,

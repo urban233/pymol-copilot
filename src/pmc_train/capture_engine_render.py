@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Capture how the evaluation engine renders and tokenizes some prompts.
 
 A development helper, run once while the evaluation engine is up

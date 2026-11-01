@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Canonical PyMOL object snapshots: extract, serialize, digest, rebuild.
 
 This is the production promotion of the snapshot's differential discovery work

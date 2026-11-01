@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Prove scenario_support's own fixture and fingerprint before relying on it.
 
 Every later module in this directory assumes the fixture loads with the

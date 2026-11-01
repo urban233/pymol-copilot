@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The committed notebook is exactly its reviewed source's build.
 
 The notebook is reviewed as `notebooks/source/pymol_copilot.py`; the

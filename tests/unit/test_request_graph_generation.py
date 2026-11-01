@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Behavior tests for `preparing` and `generating`.
 
 Runs the compiled graph against a `FakeEngine`, never a real one: every

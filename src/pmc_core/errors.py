@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Normalization of raw PyMOL execution failures into a typed envelope.
 
 One raw failure raised by PyMOL becomes exactly one `ExecutionErrorV1`: a

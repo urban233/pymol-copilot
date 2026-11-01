@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """End-to-end scenarios 1-3, one real PyMOL launch.
 
 Real here: headless Open-Source PyMOL (`pymol.finish_launching(["pymol",

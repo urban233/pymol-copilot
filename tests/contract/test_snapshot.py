@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Contract tests for the canonical snapshot format: no PyMOL required.
 
 Covers the parts of pmc_core.snapshot that never touch a live PyMOL

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Bootstrap the Copilot client from the server's own handoff file.
 
 `pmc_server.main.write_handoff` is the only

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Schema evidence for the generalized dataset sample record.
 
 A sample is the only durable account of how it was verified, so the

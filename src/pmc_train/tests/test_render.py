@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Training prompts are byte- and token-identical to what the engine sees.
 
 The fixtures under `data/engine_render/` were captured from the

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Strict codecs for the client-server protocol.
 
 A plan crosses the wire as one object per command, carrying the same five

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The eval CLI writes what it claims, and refuses what it cannot trust.
 
 Hermetic: a synthetic repository under a temporary root holds a split

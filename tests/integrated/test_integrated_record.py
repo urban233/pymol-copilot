@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The committed integrated report is what its evidence says.
 
 Integrated TaskSuccess is measured against the offline number, and any

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Hermetic ordering and restore tests for the live apply boundary."""
 
 from __future__ import annotations

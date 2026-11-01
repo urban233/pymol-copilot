@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Check an exported GGUF against the baseline's own GGUF.
 
 The comparison with the untuned baseline holds everything but the

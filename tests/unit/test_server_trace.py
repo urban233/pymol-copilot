@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The server's opt-in trace records what the model wrote, and only then.
 
 Explaining a difference between the integrated and the offline

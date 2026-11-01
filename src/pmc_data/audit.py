@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The label audit: a seeded random draw, judged by hand, scored honestly.
 
 The audit is a spot-check of a small labeled sample, with the

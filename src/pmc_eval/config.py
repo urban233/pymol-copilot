@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The evaluation config: which model, which bounds, which sets.
 
 `configs/evaluation/baseline.json` is the one committed instance. It is

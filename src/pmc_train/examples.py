@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Turn a dataset sample into one completion-only training example.
 
 The model is trained to write a sample's plan, then stop. So an

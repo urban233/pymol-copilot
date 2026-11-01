@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Windows-only staging shim so real PyMOL's extension can be imported.
 
 `pymol-open-source-whl`'s Windows wheel bundles delvewheel-repaired DLLs

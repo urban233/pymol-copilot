@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The one prompt builder, shared by the dataset pipeline and the runtime.
 
 `build_prompt()` turns a rendered structure card plus a user intent into a

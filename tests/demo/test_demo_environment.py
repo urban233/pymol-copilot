@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The demo environment's lock is the runtime's PyMOL, plus Qt only.
 
 The pinned PyMOL wheel cannot open a window

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Smoke tests for package boundaries and the authoritative interpreter."""
 
 import sys

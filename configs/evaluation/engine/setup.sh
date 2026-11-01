@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 #
 # Prepare the evaluation engine and print its provenance. Run it after
 # `docker compose ... up -d` (see compose.yaml):

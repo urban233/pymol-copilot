@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The request graph's only public entry points: submit, reject, cancel.
 
 `pmc_agent.graph.build_request_graph` returns an uncompiled graph; nothing

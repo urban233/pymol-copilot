@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The bundle's lock is the runtime, plus what the notebook's cells need.
 
 The portable Windows bundle runs the

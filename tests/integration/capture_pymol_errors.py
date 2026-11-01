@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Capture real PyMOL error strings into the checked-in corpus.
 
 Run this to regenerate `tests/contract/testdata/pymol_errors/`:

@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Real-PyMOL test support for pmc_core.snapshot's round-trip evidence.
 
 This is what remains of the snapshot discovery harness

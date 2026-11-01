@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """What the portable Windows bundle holds, and the files it writes itself.
 
 The bundle is one ZIP that runs the notebook on Windows without any

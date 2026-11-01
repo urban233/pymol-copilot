@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Capture real PyMOL color indices into the frozen pmc_data table.
 
 Run this to regenerate `src/pmc_data/colors.py`:
@@ -35,7 +35,7 @@ winstage.ensure_importable()
 #: Where the frozen table is written, relative to the repository root.
 TABLE_RELATIVE_PATH = pathlib.PurePath("src/pmc_data/colors.py")
 
-_HEADER = '''# Copyright 2026 PyMOL Copilot contributors.
+_HEADER = '''# Copyright 2026 Hannah Kullik & Martin Urban.
 """The frozen PyMOL color name-to-index table the oracle predicts with.
 
 Generated once from `cmd.get_color_index()` against

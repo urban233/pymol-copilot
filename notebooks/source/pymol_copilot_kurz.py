@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 # The German short version of the notebook, in the percent format;
 # notebooks/build_notebook.py --source source/pymol_copilot_kurz.py
 # --out pymol_copilot_kurz.ipynb turns it into the notebook. Its layout
@@ -36,7 +36,7 @@
 #     - im Windows-Bundle geschieht das automatisch: Es startet einen eigenen Server, der auf der CPU rechnet
 
 # %%
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Kernel vorbereiten: die Pakete des Repositorys einbinden, PyMOL starten."""
 
 import importlib

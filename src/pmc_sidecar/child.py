@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The sidecar executor's fresh-process child.
 
 This is the one module that imports real PyMOL and its Windows short-path

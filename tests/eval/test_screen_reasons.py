@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The report's hostile reasons agree with the screen's own verdict.
 
 `pmc_eval.screen_reasons` copies `pmc_core.screen`'s rules so the report

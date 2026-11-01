@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Helpers the deliverable notebook calls, so its own cells stay readable.
 
 The notebook (`pymol_copilot.ipynb`) shows the real

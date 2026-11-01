@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """Compare a model's published evaluation with the untuned baseline's.
 
 The fine-tune's comparison, as PREREGISTRATION.md fixed it before either

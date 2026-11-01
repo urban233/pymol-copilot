@@ -1,4 +1,4 @@
-# Copyright 2026 PyMOL Copilot contributors.
+# Copyright 2026 Hannah Kullik & Martin Urban.
 """The notebook's helpers find and check the engine section 9 serves from.
 
 In the portable Windows bundle the
